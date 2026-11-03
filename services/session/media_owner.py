@@ -4006,13 +4006,38 @@ class MediaSessionOwner:
                 and source.cleanup_continuation.unknown
             ):
                 return False
-            if source.connection is not None:
-                if source.connection.unknown:
+            connection = source.connection
+            if connection is not None:
+                if connection.unknown:
                     if continuation is not None:
                         continuation.unknown = True
                     return False
-                if not source.connection.joined and not await self.event_hub.retire(
-                    source.connection.instance
+                retirement = connection.retirement_task
+                if retirement is None:
+                    # The hub enrolls its one original before awaiting it.
+                    retired = await self.event_hub.retire(connection.instance)
+                    retirement = connection.retirement_task
+                else:
+                    if (
+                        type(retirement) is not asyncio.Task
+                        or retirement.get_loop() is not asyncio.get_running_loop()
+                    ):
+                        return False
+                    retired = await asyncio.shield(retirement)
+                # Physical joins precede the original native publication. A
+                # joined flag cannot replace that same retirement Task's result.
+                if (
+                    retired is not True
+                    or source.connection is not connection
+                    or connection.retirement_task is not retirement
+                    or type(retirement) is not asyncio.Task
+                    or retirement.get_loop() is not asyncio.get_running_loop()
+                    or not retirement.done()
+                    or retirement.cancelled()
+                    or retirement.exception() is not None
+                    or retirement.result() is not True
+                    or not connection.joined
+                    or connection.unknown
                 ):
                     return False
             originals = [
