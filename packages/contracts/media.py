@@ -78,7 +78,14 @@ def _normalize_error(error: ValidationError) -> MediaContractError:
         cause = item.get("ctx", {}).get("error")
         if isinstance(cause, MediaContractError) and cause.code == "bound":
             return MediaContractError("bound")
-        if item["type"] in ("less_than", "less_than_equal", "string_too_long", "too_long"):
+        if item["type"] in (
+            "greater_than",
+            "greater_than_equal",
+            "less_than",
+            "less_than_equal",
+            "string_too_long",
+            "too_long",
+        ):
             return MediaContractError("bound")
     return MediaContractError()
 
