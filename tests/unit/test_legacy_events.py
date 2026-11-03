@@ -12,8 +12,9 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import pytest
-from services.session.legacy_events import serve_legacy_events
 from starlette.websockets import WebSocketDisconnect
+
+from services.session.legacy_events import serve_legacy_events
 
 _GUARD = 8.0
 _RETAINED_UNKNOWN = []
