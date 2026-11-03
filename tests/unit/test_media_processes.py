@@ -560,15 +560,18 @@ async def test_one_pending_receiver_fence_joins_original_before_descriptor_reuse
     loop = asyncio.get_running_loop()
     native_add_reader = loop._add_reader
     queued = []
+    registered = asyncio.Event()
 
     def observe_reader(fd, callback, *args):
         queued.append((fd, callback, args))
-        return native_add_reader(fd, callback, *args)
+        result = native_add_reader(fd, callback, *args)
+        registered.set()
+        return result
 
     with monkeypatch.context() as patch:
         patch.setattr(loop, "_add_reader", observe_reader)
         original_read = asyncio.create_task(child.channel.recv_chunk(1))
-        await asyncio.sleep(0)
+        await asyncio.wait_for(registered.wait(), _WAIT)
     assert queued, "the native event-loop read registration seam was not exercised"
     await _async_refused(child.channel.recv_chunk(1))
     pool.fence(launch)
