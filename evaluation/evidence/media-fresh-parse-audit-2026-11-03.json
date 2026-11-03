@@ -1,0 +1,743 @@
+{
+  "all_prior180_and_focused112_non_time_case_attributes_and_empty_result_children_preserved": true,
+  "baseline_head": "2afc0d6c6ff79d5c43f8db429913b9b06d00cb30",
+  "baseline_tree_matches_ci529_checkout": "3706fd95f8e0eff4833bc3afeaeab330e44bf5c6",
+  "broader_groups": {
+    "connection_retirement": 4,
+    "legacy_events": 13,
+    "lifecycle": 16,
+    "native_session_owner": 51,
+    "new_fresh_parse_cases": 16,
+    "receipts": 96
+  },
+  "case_counts_are_not_additive": true,
+  "date": "2026-11-03",
+  "diagnostics": {
+    "before": {
+      "closing_completed_observations": [
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 4.999597216010443,
+            "remaining_s_before": 4.999878779010032,
+            "result_bool": true,
+            "task_count": 66
+          },
+          "end_ns": 362344418847,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 362344137834,
+          "thread_cpu_ns": null,
+          "wall_ns": 281013
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 362357000141,
+          "outcome": "returned",
+          "phase": "native_close",
+          "start_ns": 362344335476,
+          "thread_cpu_ns": null,
+          "wall_ns": 12664665
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 363426681938,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 362357110131,
+          "thread_cpu_ns": 1069170631,
+          "wall_ns": 1069571807
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 364636091701,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 363442961205,
+          "thread_cpu_ns": 1192883460,
+          "wall_ns": 1193130496
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 364642105795,
+          "outcome": "returned",
+          "phase": "native_finish",
+          "start_ns": 362357011271,
+          "thread_cpu_ns": null,
+          "wall_ns": 2285094524
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 364663419708,
+          "outcome": "returned",
+          "phase": "native_delete",
+          "start_ns": 364642117595,
+          "thread_cpu_ns": null,
+          "wall_ns": 21302113
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 365767809501,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 364663512069,
+          "thread_cpu_ns": 1104024161,
+          "wall_ns": 1104297432
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 366889694984,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 365768032083,
+          "thread_cpu_ns": 1121507440,
+          "wall_ns": 1121662901
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 366893851302,
+          "outcome": "returned",
+          "phase": "native_deleted",
+          "start_ns": 364663428898,
+          "thread_cpu_ns": null,
+          "wall_ns": 2230422404
+        },
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 0.45012016101100016,
+            "remaining_s_before": 4.999570116007817,
+            "result_bool": true,
+            "task_count": 67
+          },
+          "end_ns": 366893895162,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 362344446697,
+          "thread_cpu_ns": null,
+          "wall_ns": 4549448465
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 366894129044,
+          "outcome": "returned",
+          "phase": "native_close",
+          "start_ns": 366893993243,
+          "thread_cpu_ns": null,
+          "wall_ns": 135801
+        },
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 0.4498715780064231,
+            "remaining_s_before": 0.45005209000373725,
+            "result_bool": true,
+            "task_count": 1
+          },
+          "end_ns": 366894145275,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 366893964873,
+          "thread_cpu_ns": null,
+          "wall_ns": 180402
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 366894299096,
+          "outcome": "returned",
+          "phase": "native_close",
+          "start_ns": 366894192245,
+          "thread_cpu_ns": null,
+          "wall_ns": 106851
+        },
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 0.44970440700126346,
+            "remaining_s_before": 0.4498421480093384,
+            "result_bool": true,
+            "task_count": 1
+          },
+          "end_ns": 366894312576,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 366894174925,
+          "thread_cpu_ns": null,
+          "wall_ns": 137651
+        },
+        {
+          "closing": true,
+          "detail": {
+            "result_bool": true
+          },
+          "end_ns": 366894362277,
+          "outcome": "returned",
+          "phase": "close",
+          "start_ns": 362344014443,
+          "thread_cpu_ns": null,
+          "wall_ns": 4550347834
+        }
+      ],
+      "elapsed_wall_s": 367.222164338993,
+      "exit_code": 0,
+      "head": "2afc0d6c6ff79d5c43f8db429913b9b06d00cb30",
+      "junit": {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "1",
+        "time": "366.483"
+      },
+      "limits": "Recorded nonclosing aggregates are not fully reconstructable after bounded detail eviction. All closing details are retained/recomputed. Instrumentation changes timing; no statistical/CI-cause/native-identity proof.",
+      "lost_measurements": false,
+      "manifest_sha256": "c06d4259d4f9c9d12aa3cb2bba10770a3a84db8e6a2bbecda02983b54d782a38",
+      "phase_sha256": "5cdb9890df0f32b2e399f610bae2268920a45f5839224fb8987198332981c8cc",
+      "receipt_sha256": "e12966d4e51a33929100f42c26a100ac1a63238fe8fa635e856446e19179f96d",
+      "retained_detail_limit": 512,
+      "root_verified_all_manifest_members_and_git_pre_post_pins": true,
+      "same_measured_plugin_sha256": "f5dc1215f2f61d1717642b42eb36a0759915f0bdeb65730a1d29033f5e7a19ce",
+      "source_inputs_stable": true,
+      "totals": [
+        {
+          "calls": 555,
+          "closing": false,
+          "cpu_measured": true,
+          "cpu_ns": 344176526650,
+          "max_wall_ns": 1163852168,
+          "phase": "audit",
+          "wall_ns": 344690147404
+        },
+        {
+          "calls": 4,
+          "closing": true,
+          "cpu_measured": true,
+          "cpu_ns": 4487585692,
+          "max_wall_ns": 1193130496,
+          "phase": "audit",
+          "wall_ns": 4488662636
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 4550347834,
+          "phase": "close",
+          "wall_ns": 4550347834
+        },
+        {
+          "calls": 4,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 4549448465,
+          "phase": "close_wait",
+          "wall_ns": 4550047531
+        },
+        {
+          "calls": 3,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 12664665,
+          "phase": "native_close",
+          "wall_ns": 12907317
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 21302113,
+          "phase": "native_delete",
+          "wall_ns": 21302113
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 2230422404,
+          "phase": "native_deleted",
+          "wall_ns": 2230422404
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 2285094524,
+          "phase": "native_finish",
+          "wall_ns": 2285094524
+        },
+        {
+          "calls": 706,
+          "closing": false,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 2245471094,
+          "phase": "native_other",
+          "wall_ns": 685455498547
+        }
+      ],
+      "tracked_input_count": 1802
+    },
+    "candidate": {
+      "closing_completed_observations": [
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 4.999481147999177,
+            "remaining_s_before": 4.999877559996094,
+            "result_bool": true,
+            "task_count": 66
+          },
+          "end_ns": 261971578162,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 261971184080,
+          "thread_cpu_ns": null,
+          "wall_ns": 394082
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 261983350139,
+          "outcome": "returned",
+          "phase": "native_close",
+          "start_ns": 261971383131,
+          "thread_cpu_ns": null,
+          "wall_ns": 11967008
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 262820841784,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 261983432360,
+          "thread_cpu_ns": 837266591,
+          "wall_ns": 837409424
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 263693263225,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 262836805852,
+          "thread_cpu_ns": 856412100,
+          "wall_ns": 856457373
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 263699394775,
+          "outcome": "returned",
+          "phase": "native_finish",
+          "start_ns": 261983358859,
+          "thread_cpu_ns": null,
+          "wall_ns": 1716035916
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 263717108401,
+          "outcome": "returned",
+          "phase": "native_delete",
+          "start_ns": 263699407025,
+          "thread_cpu_ns": null,
+          "wall_ns": 17701376
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 264577763070,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 263717194181,
+          "thread_cpu_ns": 860492700,
+          "wall_ns": 860568889
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 265464026201,
+          "outcome": "returned",
+          "phase": "audit",
+          "start_ns": 264577972601,
+          "thread_cpu_ns": 885918931,
+          "wall_ns": 886053600
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 265469680518,
+          "outcome": "returned",
+          "phase": "native_deleted",
+          "start_ns": 263717116401,
+          "thread_cpu_ns": null,
+          "wall_ns": 1752564117
+        },
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 1.501328561003902,
+            "remaining_s_before": 4.999442108004587,
+            "result_bool": true,
+            "task_count": 67
+          },
+          "end_ns": 265469731499,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 261971619282,
+          "thread_cpu_ns": null,
+          "wall_ns": 3498112217
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 265469982220,
+          "outcome": "returned",
+          "phase": "native_close",
+          "start_ns": 265469837369,
+          "thread_cpu_ns": null,
+          "wall_ns": 144851
+        },
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 1.5010580300004221,
+            "remaining_s_before": 1.501254921007785,
+            "result_bool": true,
+            "task_count": 1
+          },
+          "end_ns": 265470003740,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 265469806859,
+          "thread_cpu_ns": null,
+          "wall_ns": 196881
+        },
+        {
+          "closing": true,
+          "detail": null,
+          "end_ns": 265470152151,
+          "outcome": "returned",
+          "phase": "native_close",
+          "start_ns": 265470054970,
+          "thread_cpu_ns": null,
+          "wall_ns": 97181
+        },
+        {
+          "closing": true,
+          "detail": {
+            "remaining_s_after": 1.5008969490008894,
+            "remaining_s_before": 1.5010226599988528,
+            "result_bool": true,
+            "task_count": 1
+          },
+          "end_ns": 265470165021,
+          "outcome": "returned",
+          "phase": "close_wait",
+          "start_ns": 265470039400,
+          "thread_cpu_ns": null,
+          "wall_ns": 125621
+        },
+        {
+          "closing": true,
+          "detail": {
+            "result_bool": true
+          },
+          "end_ns": 265470216591,
+          "outcome": "returned",
+          "phase": "close",
+          "start_ns": 261971059110,
+          "thread_cpu_ns": null,
+          "wall_ns": 3499157481
+        }
+      ],
+      "elapsed_wall_s": 265.78763430099934,
+      "exit_code": 0,
+      "head": "2a608ef3d7bd2b0c66e88da2c36649189f0c2b58",
+      "junit": {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "1",
+        "time": "265.087"
+      },
+      "limits": "Recorded nonclosing aggregates are not fully reconstructable after bounded detail eviction. All closing details are retained/recomputed. Instrumentation changes timing; no statistical/CI-cause/native-identity proof.",
+      "lost_measurements": false,
+      "manifest_sha256": "1f5362aab04a94ca2763253977c69f7a0ff6cf89219061fe70fc5dbe2107ba7a",
+      "phase_sha256": "745212e8217ebbb73ab38ce9492048f9896da86957a75cbb90e65811fedf08da",
+      "receipt_sha256": "86822137d4dd019774f2dbdf02b403e8d570bd492557d8687abd3b6e793eb665",
+      "retained_detail_limit": 512,
+      "root_verified_all_manifest_members_and_git_pre_post_pins": true,
+      "same_measured_plugin_sha256": "f5dc1215f2f61d1717642b42eb36a0759915f0bdeb65730a1d29033f5e7a19ce",
+      "source_inputs_stable": true,
+      "totals": [
+        {
+          "calls": 555,
+          "closing": false,
+          "cpu_measured": true,
+          "cpu_ns": 252476865146,
+          "max_wall_ns": 936523138,
+          "phase": "audit",
+          "wall_ns": 252609360193
+        },
+        {
+          "calls": 4,
+          "closing": true,
+          "cpu_measured": true,
+          "cpu_ns": 3440090322,
+          "max_wall_ns": 886053600,
+          "phase": "audit",
+          "wall_ns": 3440489286
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 3499157481,
+          "phase": "close",
+          "wall_ns": 3499157481
+        },
+        {
+          "calls": 4,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 3498112217,
+          "phase": "close_wait",
+          "wall_ns": 3498828801
+        },
+        {
+          "calls": 3,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 11967008,
+          "phase": "native_close",
+          "wall_ns": 12209040
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 17701376,
+          "phase": "native_delete",
+          "wall_ns": 17701376
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 1752564117,
+          "phase": "native_deleted",
+          "wall_ns": 1752564117
+        },
+        {
+          "calls": 1,
+          "closing": true,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 1716035916,
+          "phase": "native_finish",
+          "wall_ns": 1716035916
+        },
+        {
+          "calls": 679,
+          "closing": false,
+          "cpu_measured": false,
+          "cpu_ns": 0,
+          "max_wall_ns": 1812530611,
+          "phase": "native_other",
+          "wall_ns": 488634133677
+        }
+      ],
+      "tracked_input_count": 1803
+    }
+  },
+  "environment_observed_after_runs": "Locked repository development venv: Python 3.12.3, GCC 13.3.0; no dependency changes during this qualification.",
+  "independence": {
+    "baseline_and_focused_raw_review_receipt_sha256": "0381b8c0f5b2de5733a20c5e9dcd387117409b54b82ae1a028b3c476cc6941ed",
+    "broader_raw_review_receipt_sha256": "6e847f8ad6c7798604ac92386211c47093b60c04b67c61a48a73f38d51d4ea0f",
+    "corrected_fixture_v2_receipt_sha256": "ec6a0ce3b57e23d6e4e56be9659449bbd23b90dd946379ecd93402722f6f8502",
+    "fixture_v1": "Blocked and unexecuted: positive case omitted two native child-owner append rows. Preserved as negative evidence.",
+    "raw_reviewer_disclosure": "Authored new fixture; independent of root execution/source review, not independent fixture quality. Separate fixture reviewer did not author it.",
+    "source_gate_before_new_test_bodies": true,
+    "source_gate_receipt_sha256": "260aac430575be4bfa92ece10520b5cbd9902a4dfbdef786b3470c621c4d6572",
+    "timing_raw_review": {
+      "aggregate_scope_clarification_sha256": "1f566e2fe6ab991a705d6a10bbe7498361837126f7b59a7e660c55cc4369091a",
+      "limits": "All nine recorded aggregates/call counts read; only the fifteen retained closing details are fully recomputable. Evicted nonclosing detail prevents reconstructing all nonclosing aggregate sums. Reviewer authored older owner fixture/snapshot and reviewed source; raw verification, not source-blind oracle authorship.",
+      "receipt_sha256": "45141842d12c48a976dc75e00b0b7c681bf5f0e7026c0bac38ec9132c69c4990",
+      "seal_sha256": "74e35c67cd8c1b69c74613001f7e936ee37cae5420933f1fe551a564cce78ec4"
+    }
+  },
+  "issue": 204,
+  "kind": "offline-native-media-fresh-parse-preservation-and-local-diagnostic",
+  "limitations": [
+    "One instrumented local run per revision; descriptive observations only, not statistical or generalized speedup/CI-cause proof.",
+    "Categories aggregate owners/instances; closing is sampled at entry; completed-only details can evict; nested/concurrent totals overlap. Async CPU is unmeasured.",
+    "Functional fixtures use real native Auth/ASGI/SQLite/spool custody with controlled synthetic metadata. No decoder/provider/model/device/sign-language qualification.",
+    "Corrupt-history cases explicitly preserve unknown native settlement; disposable handle teardown is not positive physical cleanup.",
+    "Changed-head CI is required. Parent media foundation merged; native decoder/Omni integration and standing64 capacity remain separate gates.",
+    "Root corrected fixture import ordering and an evidence-verifier XML indexing error without changing test assertions or rerunning raw tests."
+  ],
+  "preserved_ci529_failure": {
+    "both_pytest_summaries": "1 failed, 12072 passed, 6 skipped, 2 deselected, 1 warning",
+    "case": "tests/integration/test_session_media_owner.py::test_all_index_ack_history_survives_recent_cache_boundary",
+    "checkout": "5434f6352d050682066a4f40f3e9cebb939d9aa1",
+    "failure": "Native fixture shutdown was unconfirmed; original delete Task/native worker still pending. Precise pending callable and cause not established.",
+    "new_ci_result": "not yet run for the publication head",
+    "python311_api_conclusion": "cancelled",
+    "run_id": 41685147934,
+    "schema_exports_and_audits": "skipped"
+  },
+  "production_change": "Only reuse complete strict fresh media_json results inside the same synchronous, unexposed audit call chain; no cache or audit/row/semantic/digest/bound/ownership/deadline removal. Public arbitrary-typed-input serializers unchanged.",
+  "production_source_sha256": "5bb2bf8997e624c50388d707fc9e91aa459bf2869286055761f00f6858e3f1e7",
+  "public_codec_sha256": "4ce7ba518aa1886d9a4afa4d06788e18d50a34d1537500a925a42b5f051497d0",
+  "published_instrument": {
+    "delta": "Formatting/import ordering only, published after measurement; no execution of the formatted copy claimed.",
+    "measured_sha256": "f5dc1215f2f61d1717642b42eb36a0759915f0bdeb65730a1d29033f5e7a19ce",
+    "path": "evaluation/media_cleanup_diagnostic.py",
+    "prospective_v4_gate_receipt_sha256": "e23aa68f3c9c66d4face416ee77a8befb496258d9ccf3dfcd2fd71018e3d4786",
+    "root_authored_after_existing_test_body_read": true,
+    "same_nonimport_AST_and_import_declarations": true,
+    "sha256": "df60204d48b163a684b3345a87781a57f526b4ac324cb96fdbdcfd3e4f0962e0"
+  },
+  "pull_request": 378,
+  "qualified_source_commit": "2a608ef3d7bd2b0c66e88da2c36649189f0c2b58",
+  "record_version": 1,
+  "runs": {
+    "baseline16": {
+      "elapsed_wall_s": 33.82882517500548,
+      "exit_code": 0,
+      "head": "2c49a77251e1f8343c12c900df927bfc363473b8",
+      "manifest_sha256": "d19e99e181d5101b8b9fcb8fc2653e3fa5984229d601fc6dce6244af530d78f2",
+      "normalized_pytest_command_without_archive_paths": [
+        ".venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_session_media_fresh_parse_audit.py"
+      ],
+      "receipt_sha256": "fbf306a746ad2e5a6e17510ae66229159749f500d1ebe3303d9040659a37eefd",
+      "result": {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "16",
+        "time": "33.121"
+      },
+      "root_verified_all_manifest_members_and_git_pre_post_pins": true,
+      "source_inputs_stable": true,
+      "tracked_input_count": 1803
+    },
+    "broader196": {
+      "elapsed_wall_s": 500.36523089400725,
+      "exit_code": 0,
+      "head": "2a608ef3d7bd2b0c66e88da2c36649189f0c2b58",
+      "manifest_sha256": "3eca255f50e6e8de3de245e13142ff959f0e9b035056ecd670000edac37be459",
+      "normalized_pytest_command_without_archive_paths": [
+        ".venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_session_media_owner.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/unit/test_legacy_events.py",
+        "tests/unit/test_media_owner_receipts.py",
+        "tests/integration/test_media_connection_retirement_join.py",
+        "tests/integration/test_session_media_fresh_parse_audit.py"
+      ],
+      "receipt_sha256": "d6108c81d515ed5e8f5aac5ef782fc803f374077e3af1b4e7c862e307cc235b3",
+      "result": {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "196",
+        "time": "499.168"
+      },
+      "root_verified_all_manifest_members_and_git_pre_post_pins": true,
+      "source_inputs_stable": true,
+      "tracked_input_count": 1803
+    },
+    "focused112": {
+      "elapsed_wall_s": 30.715495363998343,
+      "exit_code": 0,
+      "head": "2a608ef3d7bd2b0c66e88da2c36649189f0c2b58",
+      "manifest_sha256": "3f788f00c90de8a0ce3c2931a2cfd9ff043e2c13ac04367c4948d845b8be3edd",
+      "normalized_pytest_command_without_archive_paths": [
+        ".venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_session_media_fresh_parse_audit.py",
+        "tests/unit/test_media_owner_receipts.py"
+      ],
+      "receipt_sha256": "0cbfb14b38ecdefafefb52aca5ef6a07ba2116bfa48884e23b11994cd925cd26",
+      "result": {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "112",
+        "time": "29.999"
+      },
+      "root_verified_all_manifest_members_and_git_pre_post_pins": true,
+      "source_inputs_stable": true,
+      "tracked_input_count": 1803
+    }
+  },
+  "test_only_commit": "2c49a77251e1f8343c12c900df927bfc363473b8",
+  "test_sha256": "c944f9b89b1438eac62c7ef0167192bcaf7e12fdc4f1bbbc85e12cd69771003e"
+}

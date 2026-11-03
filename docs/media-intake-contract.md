@@ -188,3 +188,53 @@ These checks do not establish a timing cause or qualify decoder/model/device
 behavior, physical cleanup of arbitrary operations, the standing64 capacity
 gate or the complete Omni demo. Changed-head CI and parent integration remain
 required.
+
+### Fresh-parse audit preservation and local timing
+
+The [fresh-parse record](../evaluation/evidence/media-fresh-parse-audit-2026-11-03.json)
+adds 16 preservation cases for canonical native history and corrupt request,
+catalog and receipt storage. All 16 pass against the preceding implementation;
+the candidate passes the broader **196-case** suite, including the unchanged
+180 cases above. The focused 112 cases overlap this suite and are not additional
+unique coverage.
+
+Every audit still parses and validates the complete persisted graph. Within that
+same synchronous call chain, private helpers encode/hash the fresh, unexposed
+parse without immediately reconstructing it again. There is no cross-call cache,
+skipped row, weaker public serializer, new cleanup authority or longer deadline.
+Arbitrary typed inputs continue through the strict public codec.
+
+In one instrumented local run per revision, the same history case closed in
+4.550 seconds before the change and 3.499 seconds afterward, within the unchanged
+five-second deadline. Four closing audits accounted for 4.489 and 3.440 seconds,
+respectively. These are descriptive local observations: instrumentation and host
+load affect timing, nested spans overlap, and the observations do not prove the
+earlier CI529 failure's exact cause or guarantee CI/platform latency. CI529's
+unconfirmed-shutdown failure remains recorded; changed-head CI is required.
+
+The opt-in [diagnostic plugin](../evaluation/media_cleanup_diagnostic.py) publishes
+the instrument for reproduction. It is a formatting/import-order-only copy of
+the measured instrument, with the same non-import AST and import declarations.
+The plugin uses private owner methods and requires a compatible source revision.
+Run it in a fresh, dedicated pytest process from a checkout of the desired
+revision with this plugin on the Python path, using the locked development
+environment:
+
+```sh
+mkdir -p .dev-run
+PYTHONPATH="evaluation:.:tests/integration:tests/unit" \
+  KINAIYA_MEDIA_PHASE_OUTPUT=".dev-run/media-cleanup-phases.json" \
+  .venv/bin/python -B -m pytest -q -m 'not live' -p no:cacheprovider \
+  -p media_cleanup_diagnostic \
+  -o asyncio_default_fixture_loop_scope=function \
+  tests/integration/test_session_media_owner.py::test_all_index_ack_history_survives_recent_cache_boundary
+```
+
+The report retains bounded categorical aggregates and the last 512 completed
+spans. A missing span says nothing about work still in flight; any recorder loss
+invalidates completeness claims. Async CPU is unmeasured, and category/task/row
+state alone never proves physical cleanup. The categorical report's content
+limits do not apply to ordinary pytest logs/JUnit. This command uses synthetic native
+Auth/ASGI/SQLite/spool machinery without a decoder, model or audio device. The
+parent media foundation has merged; decoder launch and the complete Omni demo
+remain unavailable at this boundary.
