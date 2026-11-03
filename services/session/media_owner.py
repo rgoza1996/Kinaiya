@@ -110,6 +110,35 @@ def _fresh(value, kind):
     return m.media_json(m.media_bytes(value), kind)
 
 
+def _parsed_media_bytes(value):
+    # Only a fresh, unexposed media_json result (or its unchanged child) may
+    # enter here. Parsing already ran complete semantic/digest validation;
+    # retain full actual-graph/canonical bounds without reconstructing it again.
+    try:
+        return m._canonical(value)
+    except m.MediaContractError:
+        raise
+    except m.ValidationError as error:
+        raise m._normalize_error(error) from None
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise m.MediaContractError() from None
+
+
+def _parsed_media_digest(short, value):
+    # Same freshness rule as above; never replace public typed-input validation.
+    # Keep the codec's registered domain and omission of its one root self hash.
+    try:
+        if type(short) is not str or m._BY_SHORT.get(short) is not type(value):
+            raise m.MediaContractError()
+        return m._hash(short, value.__dict__, m._SELF.get(type(value)))
+    except m.MediaContractError:
+        raise
+    except m.ValidationError as error:
+        raise m._normalize_error(error) from None
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise m.MediaContractError() from None
+
+
 def _ref(backend, receipt):
     return m.MediaNativeRef(backend_id=backend, receipt_id=receipt.id, sha256=receipt.sha256)
 
@@ -779,9 +808,10 @@ class MediaSessionOwner:
                 kind = getattr(m, "Media" + _REQUESTS[row["kind"]])
                 request = m.media_json(bytes(row["canonical_request"]), kind)
                 if (
-                    m.media_bytes(request) != bytes(row["canonical_request"])
+                    _parsed_media_bytes(request) != bytes(row["canonical_request"])
                     or request.key != row["key"]
-                    or m.media_digest(_REQUESTS[row["kind"]], request) != row["request_sha256"]
+                    or _parsed_media_digest(_REQUESTS[row["kind"]], request)
+                    != row["request_sha256"]
                     or row["owner_realm_id"] != self.owner_realm_id
                 ):
                     refuse()
@@ -830,7 +860,7 @@ class MediaSessionOwner:
         self._locked(token)
         body, kind = receipt.body, operation["kind"]
         original_fence = getattr(request, "fence", None)
-        expected_fence = None if original_fence is None else m.media_bytes(original_fence)
+        expected_fence = None if original_fence is None else _parsed_media_bytes(original_fence)
         if (
             None if operation["original_fence"] is None else bytes(operation["original_fence"])
         ) != expected_fence or receipt.id != operation["candidate_receipt_id"]:
@@ -976,8 +1006,8 @@ class MediaSessionOwner:
                 refuse()
             value = m.media_json(bytes(row["canonical_value"]), getattr(m, "Media" + short))
             if (
-                m.media_bytes(value) != bytes(row["canonical_value"])
-                or m.media_digest(short, value) != row["sha256"]
+                _parsed_media_bytes(value) != bytes(row["canonical_value"])
+                or _parsed_media_digest(short, value) != row["sha256"]
             ):
                 refuse()
         for row in self._sql("SELECT * FROM media_clients"):
@@ -1276,14 +1306,7 @@ class MediaSessionOwner:
         receipt = m.media_json(bytes(row["canonical_receipt"]), m.MediaReceipt[kind])
         # The fresh parse already rebuilt every child and checked its digest.
         # Re-encode its complete actual graph without another reconstruction.
-        try:
-            canonical = m._canonical(receipt)
-        except m.MediaContractError:
-            raise
-        except m.ValidationError as error:
-            raise m._normalize_error(error) from None
-        except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
-            raise m.MediaContractError() from None
+        canonical = _parsed_media_bytes(receipt)
         if (
             canonical != bytes(row["canonical_receipt"])
             or receipt.id != row["receipt_id"]
