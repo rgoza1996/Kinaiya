@@ -9,6 +9,7 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
+from services.distribution.connection_probe import run_interactive_connection_check
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
 
@@ -33,13 +34,18 @@ def mascot(*, width=80, interactive=True):
     return MASCOT
 
 
-def run_wizard(layout, *, tty=None):
+def run_wizard(layout, *, tty=None, check_connection=False, opener=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
     if tty is None:
         try:
             with open_terminal() as terminal:
-                return run_wizard(layout, tty=terminal)
+                return run_wizard(
+                    layout,
+                    tty=terminal,
+                    check_connection=check_connection,
+                    opener=opener,
+                )
         except OSError:
             raise InstallError(
                 "No controlling terminal; use setup --yes with explicit endpoint/model"
@@ -120,4 +126,21 @@ def run_wizard(layout, *, tty=None):
         setup_kwargs["converse_profile"] = converse_profile
     if decisions_profile is not None:
         setup_kwargs["decisions_profile"] = decisions_profile
-    return setup(chosen, **setup_kwargs)
+    result = setup(chosen, **setup_kwargs)
+    if check_connection:
+        probe_res = run_interactive_connection_check(
+            tty,
+            endpoint=endpoint,
+            model=model,
+            role="agent",
+            adapter_kind=adapter,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            config_saved=True,
+            opener=opener,
+        )
+        result = dict(result)
+        result["ready"] = probe_res.ready
+        result["provider_connection"] = probe_res.provider_connection
+        result["connection_probe"] = probe_res.to_dict()
+    return result
