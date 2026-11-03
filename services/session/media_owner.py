@@ -155,6 +155,7 @@ class _CloseOperation:
     loop: asyncio.AbstractEventLoop
     deadline: float
     task: asyncio.Task | None = None
+    setup_error: BaseException | None = None
     phases: dict = field(default_factory=dict)
     originals: dict = field(default_factory=dict)
     sources: dict = field(default_factory=dict)
@@ -3461,17 +3462,29 @@ class MediaSessionOwner:
             self._fence_all_memory("disconnect")
             if operation.loop is not loop:
                 return False
-            if fresh:
-                if self._loop is not None and self._loop is not loop:
-                    operation.unknown = True
-                    return False
-                try:
-                    operation.task = asyncio.create_task(self._close_original(operation))
-                except BaseException:
-                    operation.unknown = True
-                    raise
-            if operation.task is None:
+            if fresh and self._loop is not None and self._loop is not loop:
+                operation.unknown = True
                 return False
+        if fresh:
+            # The original record already exists. An eager factory may run
+            # arbitrary coroutine phases before returning: never hold the
+            # memory mutex across that native scheduling/physical-work chain.
+            task = None
+            try:
+                task = asyncio.create_task(self._close_original(operation))
+            except BaseException as error:
+                operation.setup_error = error
+                operation.unknown = True
+                raise
+            finally:
+                with self._mutex:
+                    if task is not None:
+                        operation.task = task
+                        operation.retained.add(task)
+        # A concurrent observer during setup sees this same pending original;
+        # it does not create another runner or another deadline.
+        if operation.task is None:
+            return False
         if operation.task.done():
             return not operation.unknown and self._close_result(operation.task)
         # asyncio.wait cancels neither the retained close task nor its physical
