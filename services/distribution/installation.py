@@ -239,7 +239,205 @@ def preflight(layout, *, allow_missing_dependencies: bool = False):
     return result
 
 
-def setup(layout, *, endpoint, model, allow_cloud=False, credential_env=None, converse=False):
+SUPPORTED_ROLE_ADAPTERS: dict[str, tuple[str, ...]] = {
+    "agent": ("lmstudio", "meta"),
+    "converse": ("lmstudio", "compatible", "meta"),
+    "decisions": ("compatible", "laya", "native_d1", "meta"),
+}
+
+
+def _build_role_profile(
+    role: str,
+    *,
+    endpoint: Any,
+    model: Any,
+    kind: Any = None,
+    allow_cloud: Any = False,
+    credential_env: Any = None,
+    context_tokens: Any = None,
+    max_tokens: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.launcher import validate_setup_provider
+
+    if role not in SUPPORTED_ROLE_ADAPTERS:
+        raise InstallError(f"Unsupported provider role {role!r}")
+    if extra and "api_key" in extra:
+        raise InstallError("Credentials accept an environment variable NAME only, never an API key")
+    if not isinstance(endpoint, str) or not endpoint or any(c.isspace() for c in endpoint):
+        raise InstallError(
+            "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
+        )
+    if type(allow_cloud) is not bool:
+        raise InstallError("Cloud disclosure must be an explicit boolean")
+    url = urlsplit(endpoint)
+    local = url.hostname in {"localhost", "127.0.0.1", "::1"}
+    if (
+        url.scheme not in {"http", "https", "ws", "wss"}
+        or not url.hostname
+        or url.username
+        or url.password
+        or url.query
+        or url.fragment
+        or (not local and (not allow_cloud or url.scheme not in {"https", "wss"}))
+    ):
+        raise InstallError(
+            "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
+        )
+    if not isinstance(model, str) or not 1 <= len(model) <= 200 or any(ord(c) < 32 for c in model):
+        raise InstallError("Select an explicit bounded model name")
+    if credential_env is not None and (
+        not isinstance(credential_env, str)
+        or not re.fullmatch(r"[A-Z_][A-Z0-9_]{0,127}", credential_env)
+    ):
+        raise InstallError("Credentials accept an environment variable NAME only, never an API key")
+
+    # Never infer provider kind from the model name; adapter selection is explicit
+    # or derived strictly from the role and local/cloud endpoint mode.
+    if kind is None:
+        selected_kind = ("meta" if allow_cloud else "lmstudio") if role == "agent" else "compatible"
+    else:
+        if not isinstance(kind, str):
+            raise InstallError(f"Adapter kind for {role} must be a string")
+        selected_kind = kind
+
+    if selected_kind not in SUPPORTED_ROLE_ADAPTERS[role]:
+        if role == "agent" and selected_kind == "compatible":
+            raise InstallError(
+                "Adapter 'compatible' does not implement exact complete-request measurement "
+                "(prepare_complete) required by Agent; select 'lmstudio' for local native "
+                "loopback or 'meta' with explicit cloud disclosure"
+            )
+        raise InstallError(
+            f"Unsupported {role} adapter kind {selected_kind!r}; supported {role} adapters: "
+            f"{', '.join(SUPPORTED_ROLE_ADAPTERS[role])}"
+        )
+
+    if selected_kind != "lmstudio" and url.scheme not in {"http", "https"}:
+        raise InstallError(
+            "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
+        )
+
+    if selected_kind == "lmstudio":
+        if allow_cloud or not local:
+            raise InstallError(
+                "Native LM Studio adapter supports local loopback only (allow_cloud=False); "
+                "select 'meta' for cloud endpoints"
+            )
+        if credential_env is not None:
+            raise InstallError(
+                "Native LM Studio loopback adapter does not use API key credentials; "
+                "omit credential_env or select 'meta' with allow_cloud"
+            )
+        profile: dict[str, Any] = {
+            "kind": "lmstudio",
+            "base_url": endpoint,
+            "model": model,
+            "allow_cloud": False,
+            "max_tokens": 128 if max_tokens is None else max_tokens,
+            "reasoning_effort": "none",
+        }
+    elif selected_kind == "meta":
+        if not allow_cloud:
+            raise InstallError(
+                "Adapter 'meta' requires explicit cloud disclosure (allow_cloud=True)"
+            )
+        secret_ref = extra.get("secret_ref") if extra else None
+        if not credential_env and secret_ref != "muse":
+            raise InstallError(
+                "Adapter 'meta' requires an explicit credential_env environment variable name"
+            )
+        profile = {
+            "kind": "meta",
+            "base_url": endpoint,
+            "model": model,
+            "allow_cloud": True,
+            "max_tokens": 2048 if max_tokens is None else max_tokens,
+            "context_tokens": 32768 if context_tokens is None else context_tokens,
+        }
+        if role == "agent":
+            profile["structured_actions"] = True
+            profile["action_format"] = extra.get("action_format", "flat-v1") if extra else "flat-v1"
+        if credential_env:
+            profile["api_key_env"] = credential_env
+        if secret_ref is not None:
+            profile["secret_ref"] = secret_ref
+    elif selected_kind in {"laya", "native_d1"}:
+        if allow_cloud or not local:
+            raise InstallError(
+                f"Adapter {selected_kind!r} supports local loopback Decisions endpoints only"
+            )
+        profile = {
+            "kind": selected_kind,
+            "base_url": endpoint,
+            "model": model,
+        }
+        if credential_env:
+            profile["api_key_env"] = credential_env
+        if selected_kind == "native_d1":
+            profile["min_confidence"] = (
+                extra.get("min_confidence", 0.6)
+                if extra and extra.get("min_confidence") is not None
+                else 0.6
+            )
+        if extra and "expected_artifact_sha256" in extra:
+            profile["expected_artifact_sha256"] = extra["expected_artifact_sha256"]
+    else:
+        profile = {
+            "kind": selected_kind,
+            "base_url": endpoint,
+            "model": model,
+            "allow_cloud": allow_cloud,
+            "max_tokens": 2048 if max_tokens is None else max_tokens,
+        }
+        if credential_env:
+            profile["api_key_env"] = credential_env
+        if extra and "reasoning_effort" in extra:
+            profile["reasoning_effort"] = extra["reasoning_effort"]
+
+    try:
+        validate_setup_provider(role, profile)
+    except (ValueError, RuntimeError, TypeError, KeyError) as exc:
+        raise InstallError(str(exc)) from None
+    return profile
+
+
+def _build_role_from_mapping(role: str, spec: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(spec, dict):
+        raise InstallError(f"Role configuration for {role} must be a mapping")
+    spec_kind = spec.get("adapter") if "adapter" in spec else spec.get("kind")
+    if "adapter" in spec and "kind" in spec and spec["adapter"] != spec["kind"]:
+        raise InstallError(f"Conflicting adapter/kind in {role} role configuration")
+    spec_endpoint = spec.get("endpoint") if "endpoint" in spec else spec.get("base_url")
+    spec_cred = spec.get("credential_env") if "credential_env" in spec else spec.get("api_key_env")
+    return _build_role_profile(
+        role,
+        endpoint=spec_endpoint,
+        model=spec.get("model"),
+        kind=spec_kind,
+        allow_cloud=spec.get("allow_cloud", False),
+        credential_env=spec_cred,
+        context_tokens=spec.get("context_tokens"),
+        max_tokens=spec.get("max_tokens"),
+        extra=spec,
+    )
+
+
+def setup(
+    layout,
+    *,
+    endpoint=None,
+    model=None,
+    kind=None,
+    adapter=None,
+    allow_cloud=False,
+    credential_env=None,
+    converse=False,
+    context_tokens=None,
+    roles=None,
+    converse_profile=None,
+    decisions_profile=None,
+):
     """Reuse native init; configuration is not evidence of provider/task readiness."""
     from services.launcher import initialize
 
@@ -247,38 +445,82 @@ def setup(layout, *, endpoint, model, allow_cloud=False, credential_env=None, co
     layout.validate()
     if (layout.install / "layout.json").exists():
         verify_layout(layout)
-    url = urlsplit(endpoint)
-    local = url.hostname in {"localhost", "127.0.0.1", "::1"}
-    if (
-        url.scheme not in {"http", "https"}
-        or not url.hostname
-        or url.username
-        or url.password
-        or url.query
-        or url.fragment
-        or any(c.isspace() for c in endpoint)
-        or (not local and (not allow_cloud or url.scheme != "https"))
-    ):
-        raise InstallError(
-            "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
-        )
-    if not isinstance(model, str) or not 1 <= len(model) <= 200 or any(ord(c) < 32 for c in model):
-        raise InstallError("Select an explicit bounded model name")
-    if credential_env is not None and not re.fullmatch(r"[A-Z_][A-Z0-9_]{0,127}", credential_env):
-        raise InstallError("Credentials accept an environment variable NAME only, never an API key")
     if os.path.lexists(layout.config):
         raise InstallError("Preserving existing configuration; edit it explicitly instead")
+    if kind is not None and adapter is not None and kind != adapter:
+        raise InstallError("Conflicting Agent adapter kind arguments")
+    selected_kind = adapter if adapter is not None else kind
+
+    if roles is not None:
+        if not isinstance(roles, dict) or not set(roles).issubset(SUPPORTED_ROLE_ADAPTERS):
+            raise InstallError("Roles must map only 'agent', 'converse', and 'decisions'")
+    role_map = dict(roles) if roles else {}
+    if converse_profile is not None:
+        if "converse" in role_map:
+            raise InstallError("Conflicting converse role configuration")
+        role_map["converse"] = converse_profile
+    if decisions_profile is not None:
+        if "decisions" in role_map:
+            raise InstallError("Conflicting decisions role configuration")
+        role_map["decisions"] = decisions_profile
+
+    if "agent" in role_map:
+        agent_built = _build_role_from_mapping("agent", role_map["agent"])
+    else:
+        agent_built = _build_role_profile(
+            "agent",
+            endpoint=endpoint,
+            model=model,
+            kind=selected_kind,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            context_tokens=context_tokens,
+        )
+
+    converse_built = (
+        _build_role_from_mapping("converse", role_map["converse"])
+        if "converse" in role_map
+        else None
+    )
+    decisions_built = (
+        _build_role_from_mapping("decisions", role_map["decisions"])
+        if "decisions" in role_map
+        else None
+    )
+
     for directory in (layout.config.parent, layout.data, layout.workspace):
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with redirect_stdout(io.StringIO()):
         initialize(SimpleNamespace(data_dir=layout.data, config=layout.config))
     config = json.loads(layout.config.read_text())
     config.pop("voice", None)
-    for profile in config["providers"].values():
-        profile.update(base_url=endpoint, model=model, allow_cloud=allow_cloud)
-        if credential_env:
-            profile["api_key_env"] = credential_env
-    config["distribution"] = {"converse": converse}
+
+    config["providers"]["agent"] = dict(agent_built)
+    if converse_built is not None:
+        config["providers"]["converse"] = dict(converse_built)
+    elif converse:
+        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
+        config["providers"]["converse"] = _build_role_profile(
+            "converse",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind=converse_default_kind,
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    if decisions_built is not None:
+        config["providers"]["decisions"] = dict(decisions_built)
+    elif converse:
+        config["providers"]["decisions"] = _build_role_profile(
+            "decisions",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind="compatible",
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+
+    config["distribution"] = {"converse": bool(converse or converse_built is not None)}
     atomic_json(layout.config, config)
     return {"ready": False, "provider_connection": "not_checked", "next": "kinaiya serve host"}
 

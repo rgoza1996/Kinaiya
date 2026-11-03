@@ -752,11 +752,13 @@ void main() {
       );
       expect(state.converseInferenceAllowed, isFalse);
 
-      // Change / Model settings invokes the existing owner callback.
+      // The quick picker keeps full model settings available.
       await tester.tap(
         find.byKey(const ValueKey('converse-model-summary-settings')),
       );
-      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit models…'));
+      await tester.pumpAndSettle();
       expect(openedModelSettings, 1);
 
       // Narrow 320px at 2x text scaling remains readable without overflow.
