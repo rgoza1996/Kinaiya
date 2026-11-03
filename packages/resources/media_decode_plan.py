@@ -272,7 +272,7 @@ def build_decode_plan(
             if track.clock_provenance != clock[3]:
                 _refuse("conflict")
             if clock[3] != "untimed_image":
-                timed_origins.append(_bounded_fraction(Fraction(clock[0] * clock[1], clock[2])))
+                timed_origins.append(Fraction(clock[0] * clock[1], clock[2]))
             width, height = _selected_geometry(original, format_, profile.transform)
             if width is not None and (
                 width > profile.limits.decode.max_edge

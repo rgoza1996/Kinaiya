@@ -53,10 +53,12 @@ remain bounded; an output scale does not waive original decode limits.
 For this initial driver, the common origin is selected as the exact minimum
 first presentation time among timed tracks. Arithmetic is rational and preserves
 negative original PTS. Missing native selection/clock fields produce a fixed
-`bad_packet` refusal; an unrepresentable reduced result produces `bound`. Each timed
-first position and its offset from the common origin must fit the reduced
-rational bounds, even when a smaller track's origin fits them. Large intermediate
-products that reduce within those bounds remain valid. Missing
+`bad_packet` refusal; an unrepresentable reduced origin or rebased position
+produces `bound`. Each timed first position's offset from the common origin must
+fit the reduced nonnegative rational bounds, even when a smaller track's origin
+fits them. The absolute product of original PTS and timebase is an intermediate,
+not a separate bounded wire field: only its represented inputs, the common origin
+and the reduced rebased position have those bounds. Missing
 PTS, fabricated frame-index clocks and provider-reported timing cannot fill the
 original decoder observation. Untimed images use zero PTS/origin and retain
 their positive declared timebase, including a non-unit timebase. This selection
