@@ -32,7 +32,23 @@ the four Agent routing outcomes in clarification §10. Native code binds the
 source event, sequence and revision after inference. The classifier sees a
 bounded context and task IDs/states/revisions, never task objectives. It sees
 the full current hypothesis or refuses an over-budget request. Repeated,
-unchanged hypotheses reuse classification within a bounded utterance cache.
+unchanged inputs reuse classification within a bounded utterance cache.
+
+Issue [#337](https://github.com/rgoza1996/Kinaiya/issues/337) binds reuse to one
+authorization-first request builder shared by the worker and classifier. Its
+identity includes the exact final provider-visible body, included native context
+identities/revisions/scopes, ordered task references, provider/model selection,
+Agent enabled/availability flags, configured bound and request-contract version.
+Forbidden source text is refused before encoding or hashing; withheld context
+does not enter the identity. The existing overflow fold removes history and
+retains five task references. If that final request still exceeds the bound, it
+raises before provider dispatch rather than rebuilding without those tasks.
+
+The provider sees the current window index and revision, so distinct windows
+cannot reuse merely because their words match. Same-source retries may reuse
+byte-equivalent admissible input while retaining the actual original-call link.
+Final native source, disclosure and model-currentness checks still apply;
+inspection captures and cached labels do not grant provider or Agent permission.
 
 Classification retries a transient transport/timeout failure once, while the
 source remains fresh. Budget refusal is recorded explicitly and never retried.

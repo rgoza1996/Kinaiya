@@ -223,9 +223,9 @@ def admissible_window_projection(
 ) -> WindowProjection:
     """Project the exact classifier request and its canonical reuse digest.
 
-    A refused current source yields no digest and no text-bearing hash. An
-    over-bound window yields no digest, so it can never be reused; the
-    classifier raises the same bound error when called.
+    A refused current source yields no digest and no text-bearing hash.
+    Invalid or over-bound requests raise before classification or reuse;
+    failed projection must never become a smaller request without its tasks.
     """
     try:
         request = build_window_request(
@@ -233,8 +233,6 @@ def admissible_window_projection(
         )
     except WindowDisclosureRefused:
         return WindowProjection(False, [], [], None, None)
-    except ValueError:
-        return WindowProjection(True, [], [], None, None)
     window = SpeechWindow.model_validate(source.payload)
     canonical = {
         "contract": WINDOW_REQUEST_CONTRACT,
