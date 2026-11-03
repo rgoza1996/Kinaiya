@@ -766,6 +766,8 @@ def _lexical_bounds(text: str) -> None:
                 _bad()
             token = match.group()
             if re.fullmatch(r"-?[0-9]+", token):
+                if re.fullmatch(r"-?(0|[1-9][0-9]*)", token) is None:
+                    _bad()
                 _integer(token)
             index += len(token)
         nodes += 1
