@@ -2,7 +2,8 @@
 
 These vectors describe metadata. No file, decoder, qualification, original PTS,
 permission, owner join, actual EOF or physical cleanup is established by a DTO.
-Production decoder-contract bodies were not read while authoring this module.
+Original 2c612 authoring preceded production-body reads. Prescribed post335
+corrections are source-aware and follow the separately recorded clarification.
 """
 
 import copy
@@ -500,8 +501,10 @@ def test_independently_fixed_format_runtime_and_profile_hashes():
 
 @pytest.mark.parametrize(
     "container,codec,rate,channels",
-    itertools.product(
-        ("raw", "wav"), ("pcm_s16le", "pcm_s24le", "pcm_s32le"), (16000, 24000, 48000), (1, 2)
+    tuple(
+        itertools.product(
+            ("raw", "wav"), ("pcm_s16le", "pcm_s24le", "pcm_s32le"), (16000, 24000, 48000), (1, 2)
+        )
     ),
 )
 def test_audio_format_is_exact_pcm_lattice(container, codec, rate, channels):
@@ -529,7 +532,7 @@ def test_audio_format_does_not_coerce_or_invent_supported_modes(changes):
 
 @pytest.mark.parametrize(
     "kind,container,codec",
-    itertools.product(("image", "video_frame"), ("png", "jpeg"), ("png", "mjpeg")),
+    tuple(itertools.product(("image", "video_frame"), ("png", "jpeg"), ("png", "mjpeg"))),
 )
 def test_image_format_pairs_are_exact(kind, container, codec):
     raw = dict(kind=kind, container=container, codec=codec, pixel_format="rgb24")
@@ -543,7 +546,9 @@ def test_image_format_pairs_are_exact(kind, container, codec):
 
 @pytest.mark.parametrize(
     "container,video,audio",
-    itertools.product(("mp4", "webm"), ("h264", "hevc", "vp9", "av1"), ("aac", "opus", "none")),
+    tuple(
+        itertools.product(("mp4", "webm"), ("h264", "hevc", "vp9", "av1"), ("aac", "opus", "none"))
+    ),
 )
 def test_clip_format_cross_product_refuses_unselected_container_codec_pairs(
     container, video, audio
@@ -844,7 +849,7 @@ def test_segment_exact_rational_sixty_second_boundary_and_track_limit():
         },
         "bound",
     )
-    _reject("Segment", {**raw, "end": raw["start"]})
+    _valid("Segment", {**raw, "end": raw["start"]})
     _reject("Segment", {**raw, "start": raw["end"], "end": raw["start"]})
     _reject("Segment", {**raw, "start": {"num": 2, "den": 6}})
     _reject("Segment", {**raw, "start": {"num": 1.0, "den": 3}})
@@ -999,7 +1004,7 @@ def test_hostile_list_subclasses_are_rejected_without_invoking_their_iterators()
     assert touches == []
 
 
-def test_global_node_preflight_precedes_unknown_extra_and_child_inspection():
+def test_declared_list_node_preflight_precedes_unknown_child_inspection():
     touches = []
 
     class HostileChild:
@@ -1008,9 +1013,9 @@ def test_global_node_preflight_precedes_unknown_extra_and_child_inspection():
             raise AssertionError("unknown child must not be inspected")
 
     value = _valid("DecoderProfile", _profile())
-    # A small synthetic in-memory graph exceeds 8192 nodes before unknown-shape
-    # validation. The unknown first child cannot short-circuit that global cap.
-    changed = value.model_copy(update={"unknown": [HostileChild()] + [0] * 8192})
+    # The declared list exceeds the global budget before child expansion. The
+    # hostile LAST child exposes a walker that enqueues before bounding a list.
+    changed = value.model_copy(update={"formats": [0] * 8192 + [HostileChild()]})
     with pytest.raises(ValueError) as failure:
         media.media_bytes(changed)
     assert failure.value.code == "bound"
@@ -1019,3 +1024,62 @@ def test_global_node_preflight_precedes_unknown_extra_and_child_inspection():
     with pytest.raises(ValueError) as failure:
         media.media_json(raw, media.MediaDecoderProfile)
     assert failure.value.code == "bound"
+
+
+def test_typed_unknown_extra_is_bad_packet_without_traversing_its_descendants():
+    touches = []
+
+    class HostileChild:
+        def __getattribute__(self, name):
+            touches.append(name)
+            raise AssertionError("unknown extra descendants must not be inspected")
+
+    value = _valid("DecoderProfile", _profile())
+    changed = value.model_copy(update={"unknown": [HostileChild()]})
+    with pytest.raises(ValueError) as failure:
+        media.media_bytes(changed)
+    assert failure.value.code == "bad_packet"
+    assert touches == []
+
+
+@pytest.mark.parametrize(
+    "kind,codec",
+    tuple(
+        itertools.product(
+            ("audio", "image", "video"),
+            (
+                "pcm_s16le",
+                "pcm_s24le",
+                "pcm_s32le",
+                "aac",
+                "opus",
+                "png",
+                "mjpeg",
+                "h264",
+                "hevc",
+                "vp9",
+                "av1",
+            ),
+        )
+    ),
+)
+def test_probe_kind_codec_matrix_is_descriptor_consistency_not_decoder_capability(kind, codec):
+    raw = {**_probe_track(), "kind": kind, "codec": codec}
+    if kind != "audio":
+        raw.update(
+            rate=None,
+            channels=None,
+            width=640,
+            height=480,
+            timebase={"num": 1, "den": 90000},
+            duration=None if kind == "image" else raw["duration"],
+        )
+    allowed = {
+        "audio": {"pcm_s16le", "pcm_s24le", "pcm_s32le", "aac", "opus"},
+        "image": {"png", "mjpeg"},
+        "video": {"png", "mjpeg", "h264", "hevc", "vp9", "av1"},
+    }
+    if codec in allowed[kind]:
+        _valid("ProbeTrack", raw)
+    else:
+        _reject("ProbeTrack", raw, "bad_packet")
