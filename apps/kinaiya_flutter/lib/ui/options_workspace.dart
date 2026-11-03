@@ -45,12 +45,14 @@ class OptionsWorkspace extends StatefulWidget {
     required this.converseControls,
     required this.onClose,
     this.initialPage = OptionsPage.overview,
+    this.startNewProvider = false,
   });
   final AppState state;
   final PresentationController presentation;
   final ConverseViewControls converseControls;
   final VoidCallback onClose;
   final OptionsPage initialPage;
+  final bool startNewProvider;
   @override
   State<OptionsWorkspace> createState() => _OptionsWorkspaceState();
 }
@@ -74,6 +76,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   String? _modelError, _runtimeError, _notice;
   ({AgentModelApi owner, String backendId, String text})? _modelNotice;
   bool _loading = false, _savingPreference = false;
+  late bool _startNewProvider;
   int _read = 0, _connection = -1;
 
   PendingAgentModelChange? get _pending {
@@ -125,6 +128,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   @override
   void initState() {
     super.initState();
+    _startNewProvider = widget.startNewProvider;
     _page = widget.initialPage;
     _connection = widget.state.connectionGeneration;
     widget.state.addListener(_changed);
@@ -1690,6 +1694,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     final generation = widget.state.connectionGeneration;
     return _scroll([
       OptionsProviderEditor(
+        startNewProfile: _startNewProvider,
+        onNewProfileStarted: () => _startNewProvider = false,
         key: ObjectKey(client),
         api: client?.providers,
         active: () =>
