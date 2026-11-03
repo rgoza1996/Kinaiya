@@ -1200,7 +1200,7 @@ def _graph(value) -> None:
                 _bound()
             item.encode("utf-8")
         elif type(item) is int:
-            if abs(item) > MAX_MEDIA_INTEGER:
+            if item < -MAX_MEDIA_INTEGER or item > MAX_MEDIA_INTEGER:
                 _bound()
         elif item is not None and type(item) is not bool:
             _bad()
