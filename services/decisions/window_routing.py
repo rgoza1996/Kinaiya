@@ -129,6 +129,113 @@ def _entry_text(entry: JournalEntry) -> str:
     return text if isinstance(text, str) else ""
 
 
+def _task_projection(tasks: list) -> list[dict]:
+    return [
+        {
+            "task_id": t.task_id,
+            "objective_revision": t.objective_revision,
+            "state": str(t.state.value if hasattr(t.state, "value") else t.state),
+        }
+        for t in list(tasks)[:MAX_TASKS]
+    ]
+
+
+def admissible_window_projection(
+    source: JournalEntry,
+    context: list[JournalEntry],
+    tasks: list,
+    *,
+    provider_info=None,
+    window_chars: int = 36000,
+    agent_enabled: bool = True,
+    agent_available: bool = True,
+    model_stamp: str | None = None,
+) -> tuple[bool, list[JournalEntry], list[dict], list[dict], str]:
+    """Project the exact bounded admissible classifier input and its canonical digest.
+
+    Withheld/private context entries are excluded before projection so forbidden
+    text never enters the request or the cache digest.
+    """
+    window = SpeechWindow.model_validate(source.payload)
+    if provider_info is None:
+        allowed = _ALLOWED_SCOPES_LOCAL
+        source_admissible = True
+    else:
+        allowed = {s for s in _ALLOWED_SCOPES_LOCAL if scope_allowed(provider_info, s)}
+        source_admissible = scope_allowed(provider_info, window.content_scope)
+    admissible_entries: list[JournalEntry] = []
+    kept_context: list[dict] = []
+    for entry in context[-MAX_CONTEXT_ENTRIES:]:
+        if _entry_scope(entry) not in allowed:
+            continue
+        admissible_entries.append(entry)
+        kept_context.append(
+            {
+                "kind": entry.kind,
+                "text": _entry_text(entry)[:MAX_ENTRY_CHARS],
+            }
+        )
+    task_refs = _task_projection(tasks)
+    body = json.dumps(
+        {
+            "latest": {
+                "text": window.text,
+                "user_speaking": window.user_speaking,
+                "capture_ended": window.capture_ended,
+                "utterance_id": window.utterance_id,
+                "window_index": window.window_index,
+                "revision": window.revision,
+            },
+            "context": kept_context,
+            "tasks": task_refs,
+        }
+    )
+    if len(body) > window_chars:
+        admissible_entries = []
+        kept_context = []
+        task_refs = task_refs[:5]
+    canonical = {
+        "hypothesis": {
+            "text": window.text,
+            "user_speaking": window.user_speaking,
+            "capture_ended": window.capture_ended,
+            "revision": window.revision,
+            "content_scope": window.content_scope,
+        },
+        "agent_enabled": bool(agent_enabled),
+        "agent_available": bool(agent_available),
+        "tasks": task_refs,
+        "context": [
+            {
+                "event_id": e.event_id,
+                "kind": e.kind,
+                "revision": e.payload.get("revision", 1) if isinstance(e.payload, dict) else 1,
+                "content_scope": _entry_scope(e),
+                "text": _entry_text(e)[:MAX_ENTRY_CHARS],
+            }
+            for e in admissible_entries
+        ],
+        "provider": (
+            {
+                "provider": provider_info.provider,
+                "model": provider_info.model,
+                "local": bool(provider_info.local),
+            }
+            if provider_info is not None
+            else None
+        ),
+        "allowed_scopes": sorted(allowed),
+        "model_stamp": model_stamp,
+        "window_chars": window_chars,
+    }
+    digest = hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    return source_admissible, admissible_entries, kept_context, task_refs, digest
+
+
 class WindowClassifier:
     """Classify one streaming window with the configured provider.
 
