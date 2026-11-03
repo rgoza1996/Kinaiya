@@ -25,7 +25,7 @@ import math
 import re
 import struct
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Literal
 from urllib.parse import urlsplit
@@ -2183,7 +2183,71 @@ class NativeLlamaMediaProvider:
         if active is not True:
             raise ProviderError("Native llama media lease is no longer current")
 
-    async def _finalize_and_store_exchange(
+    def _unknown_exchange(
+        self,
+        *,
+        seq: int,
+        prepared: LlamaMediaPreparedRequest,
+        registration: LlamaExchangeRegistration | None,
+        transport_closed: bool,
+    ) -> LlamaLocalExchangeSettlement:
+        if registration is not None:
+            return _verify_settlement_bundle(
+                None,
+                registration,
+                prepared,
+                transport_closed=transport_closed,
+                wire_buffer_retired=False,
+                requested_outcome=None,
+            )
+        seed = f"{seq}:{prepared.request_sha256}"
+        exchange_id = hashlib.sha256(f"ex:{seed}".encode()).hexdigest()[:32]
+        local_task_id = hashlib.sha256(f"task:{seed}".encode()).hexdigest()[:32]
+        transport_owner_id = hashlib.sha256(f"tr:{seed}".encode()).hexdigest()[:32]
+        body_owner_id = hashlib.sha256(f"body:{seed}".encode()).hexdigest()[:32]
+        settlement = LlamaLocalExchangeSettlement(
+            exchange_id=exchange_id,
+            local_task_id=local_task_id,
+            transport_owner_id=transport_owner_id,
+            body_owner_id=body_owner_id,
+            request_sha256=prepared.request_sha256,
+            binding_sha256=None,
+            model=prepared.model,
+            upstream_commit=prepared.upstream_commit,
+            local_task_joined=False,
+            transport_sole_closed=transport_closed,
+            body_settled=False,
+            all_readers_settled=False,
+            publications_settled=False,
+            state="unknown",
+            outcome=None,
+            attempt_disposition="not_started",
+            kind="local_exchange_v2",
+            body_storage={"kind": "wire_buffer"},
+            body_proof="none",
+            liability={"kind": "local_no_remote"},
+            body_owner_record=None,
+            body_close_record=None,
+            cleanup_receipt=None,
+        )
+        return settlement
+
+    def _store_exchange(
+        self,
+        settlement: LlamaLocalExchangeSettlement,
+        *,
+        attempt_disposition: Literal[
+            "completed", "cancelled", "timed_out", "failed", "cleanup_unconfirmed", "not_started"
+        ],
+    ) -> LlamaLocalExchangeSettlement:
+        # Consumer disposition does not rewrite original physical observations.
+        settlement = replace(settlement, attempt_disposition=attempt_disposition)
+        self._exchanges.append(settlement)
+        self._exchanges_by_id[settlement.exchange_id] = settlement
+        self.last_exchange = settlement
+        return settlement
+
+    async def _settle_exchange(
         self,
         *,
         seq: int,
@@ -2192,17 +2256,11 @@ class NativeLlamaMediaProvider:
         registration: LlamaExchangeRegistration | None,
         transport_closed: bool,
         wire_buffer_retired: bool,
-        attempt_disposition: Literal[
-            "completed",
-            "cancelled",
-            "timed_out",
-            "failed",
-            "cleanup_unconfirmed",
-            "not_started",
-        ],
         bridge_outcome: Literal["completed", "cancelled", "failed", "not_started"] | None,
         candidate: LlamaMediaChatResult | LlamaMediaSystemOneResult | None = None,
     ) -> LlamaLocalExchangeSettlement:
+        # Verification is deliberately separate from publication: an awaited
+        # original settlement can suppress cancellation or outlive the deadline.
         if bridge is not None and registration is not None:
             try:
                 settle_fn = getattr(bridge, "settle_exchange", None)
@@ -2217,7 +2275,7 @@ class NativeLlamaMediaProvider:
                             candidate=candidate,
                         )
                     )
-                    settlement = _verify_settlement_bundle(
+                    return _verify_settlement_bundle(
                         bundle,
                         registration,
                         prepared,
@@ -2225,127 +2283,55 @@ class NativeLlamaMediaProvider:
                         wire_buffer_retired=wire_buffer_retired,
                         requested_outcome=bridge_outcome,
                     )
-                    settlement = LlamaLocalExchangeSettlement(
-                        exchange_id=settlement.exchange_id,
-                        local_task_id=settlement.local_task_id,
-                        transport_owner_id=settlement.transport_owner_id,
-                        body_owner_id=settlement.body_owner_id,
-                        request_sha256=settlement.request_sha256,
-                        binding_sha256=settlement.binding_sha256,
-                        model=settlement.model,
-                        upstream_commit=settlement.upstream_commit,
-                        local_task_joined=settlement.local_task_joined,
-                        transport_sole_closed=settlement.transport_sole_closed,
-                        body_settled=settlement.body_settled,
-                        all_readers_settled=settlement.all_readers_settled,
-                        publications_settled=settlement.publications_settled,
-                        state=settlement.state,
-                        outcome=settlement.outcome,
-                        attempt_disposition=attempt_disposition,
-                        kind="local_exchange_v2",
-                        body_storage=settlement.body_storage,
-                        body_proof=settlement.body_proof,
-                        liability=settlement.liability,
-                        body_owner_record=settlement.body_owner_record,
-                        body_close_record=settlement.body_close_record,
-                        cleanup_receipt=settlement.cleanup_receipt,
-                    )
-                else:
-                    settlement = _verify_settlement_bundle(
-                        None,
-                        registration,
-                        prepared,
-                        transport_closed=transport_closed,
-                        wire_buffer_retired=wire_buffer_retired,
-                        requested_outcome=None,
-                    )
-                    settlement = LlamaLocalExchangeSettlement(
-                        exchange_id=settlement.exchange_id,
-                        local_task_id=settlement.local_task_id,
-                        transport_owner_id=settlement.transport_owner_id,
-                        body_owner_id=settlement.body_owner_id,
-                        request_sha256=settlement.request_sha256,
-                        binding_sha256=settlement.binding_sha256,
-                        model=settlement.model,
-                        upstream_commit=settlement.upstream_commit,
-                        local_task_joined=False,
-                        transport_sole_closed=transport_closed,
-                        body_settled=False,
-                        all_readers_settled=False,
-                        publications_settled=False,
-                        state="unknown",
-                        outcome=None,
-                        attempt_disposition=attempt_disposition,
-                        kind="local_exchange_v2",
-                        body_storage=settlement.body_storage,
-                        body_proof="none",
-                        liability=settlement.liability,
-                        body_owner_record=settlement.body_owner_record,
-                        body_close_record=None,
-                        cleanup_receipt=None,
-                    )
             except Exception:
-                settlement = LlamaLocalExchangeSettlement(
-                    exchange_id=registration.body_owner.exchange_id,
-                    local_task_id=registration.local_task_id,
-                    transport_owner_id=registration.transport_owner_id,
-                    body_owner_id=registration.body_owner.body_owner_id,
-                    request_sha256=prepared.request_sha256,
-                    binding_sha256=registration.binding_sha256,
-                    model=prepared.model,
-                    upstream_commit=prepared.upstream_commit,
-                    local_task_joined=False,
-                    transport_sole_closed=transport_closed,
-                    body_settled=False,
-                    all_readers_settled=False,
-                    publications_settled=False,
-                    state="unknown",
-                    outcome=None,
-                    attempt_disposition=attempt_disposition,
-                    kind="local_exchange_v2",
-                    body_storage=dict(registration.body_owner.body),
-                    body_proof="none",
-                    liability={"kind": "local_no_remote"},
-                    body_owner_record=registration.body_owner,
-                    body_close_record=None,
-                    cleanup_receipt=None,
-                )
-        else:
-            seed = f"{seq}:{prepared.request_sha256}"
-            exchange_id = hashlib.sha256(f"ex:{seed}".encode()).hexdigest()[:32]
-            local_task_id = hashlib.sha256(f"task:{seed}".encode()).hexdigest()[:32]
-            transport_owner_id = hashlib.sha256(f"tr:{seed}".encode()).hexdigest()[:32]
-            body_owner_id = hashlib.sha256(f"body:{seed}".encode()).hexdigest()[:32]
-            settlement = LlamaLocalExchangeSettlement(
-                exchange_id=exchange_id,
-                local_task_id=local_task_id,
-                transport_owner_id=transport_owner_id,
-                body_owner_id=body_owner_id,
-                request_sha256=prepared.request_sha256,
-                binding_sha256=None,
-                model=prepared.model,
-                upstream_commit=prepared.upstream_commit,
-                local_task_joined=False,
-                transport_sole_closed=transport_closed,
-                body_settled=False,
-                all_readers_settled=False,
-                publications_settled=False,
-                state="unknown",
-                outcome=None,
-                attempt_disposition=attempt_disposition,
-                kind="local_exchange_v2",
-                body_storage={"kind": "wire_buffer"},
-                body_proof="none",
-                liability={"kind": "local_no_remote"},
-                body_owner_record=None,
-                body_close_record=None,
-                cleanup_receipt=None,
-            )
+                pass
+        return self._unknown_exchange(
+            seq=seq,
+            prepared=prepared,
+            registration=registration,
+            transport_closed=transport_closed,
+        )
 
-        self._exchanges.append(settlement)
-        self._exchanges_by_id[settlement.exchange_id] = settlement
-        self.last_exchange = settlement
-        return settlement
+    async def _finalize_and_store_exchange(
+        self,
+        *,
+        seq: int,
+        prepared: LlamaMediaPreparedRequest,
+        bridge: object | None,
+        registration: LlamaExchangeRegistration | None,
+        transport_closed: bool,
+        wire_buffer_retired: bool,
+        attempt_disposition: Literal[
+            "completed", "cancelled", "timed_out", "failed", "cleanup_unconfirmed", "not_started"
+        ],
+        bridge_outcome: Literal["completed", "cancelled", "failed", "not_started"] | None,
+        candidate: LlamaMediaChatResult | LlamaMediaSystemOneResult | None = None,
+    ) -> LlamaLocalExchangeSettlement:
+        try:
+            settlement = await self._settle_exchange(
+                seq=seq,
+                prepared=prepared,
+                bridge=bridge,
+                registration=registration,
+                transport_closed=transport_closed,
+                wire_buffer_retired=wire_buffer_retired,
+                bridge_outcome=bridge_outcome,
+                candidate=candidate,
+            )
+        except asyncio.CancelledError:
+            # No bundle returned: retain this exact registration as unknown,
+            # without replacing its owner or calling settlement a second time.
+            self._store_exchange(
+                self._unknown_exchange(
+                    seq=seq,
+                    prepared=prepared,
+                    registration=registration,
+                    transport_closed=transport_closed,
+                ),
+                attempt_disposition="cancelled",
+            )
+            raise
+        return self._store_exchange(settlement, attempt_disposition=attempt_disposition)
 
     async def complete_media(
         self,
@@ -2449,6 +2435,8 @@ class NativeLlamaMediaProvider:
                 unchanged = False
             if not unchanged:
                 raise LlamaMediaProtocolError("Native llama media transport binding changed")
+            if owner_task is not None and owner_task.cancelling() > cancel_baseline:
+                raise asyncio.CancelledError
 
         check_boundary()
         probe_request = client.build_request(
@@ -2486,7 +2474,6 @@ class NativeLlamaMediaProvider:
                 register_fn(prepared=prepared, mode=self.mode, model=self.model)
             )
             registration = _validate_registration_against_request(raw_reg, prepared)
-            check_boundary()
 
         self._exchange_seq += 1
         seq = self._exchange_seq
@@ -2510,8 +2497,16 @@ class NativeLlamaMediaProvider:
         raw_response = b""
         wire_buffer_retired = False
         deadline = asyncio.timeout(self.timeout)
+        loop = asyncio.get_running_loop()
+
+        def deadline_expired() -> bool:
+            when = deadline.when()
+            return deadline.expired() or (when is not None and loop.time() >= when)
 
         try:
+            # A returned registration remains owned even if its await suppressed
+            # cancellation. Reject before HTTP, then settle that same original.
+            check_boundary()
             async with deadline:
                 async with complete_stream(
                     client,
@@ -2655,7 +2650,7 @@ class NativeLlamaMediaProvider:
                 bridge_outcome="cancelled",
             )
             raise asyncio.CancelledError
-        if deadline.expired():
+        if deadline_expired():
             await self._finalize_and_store_exchange(
                 seq=seq,
                 prepared=prepared,
@@ -2713,7 +2708,7 @@ class NativeLlamaMediaProvider:
                 bridge_outcome="cancelled",
             )
             raise asyncio.CancelledError
-        if deadline.expired():
+        if deadline_expired():
             await self._finalize_and_store_exchange(
                 seq=seq,
                 prepared=prepared,
@@ -2726,15 +2721,42 @@ class NativeLlamaMediaProvider:
             )
             raise LlamaMediaTimeoutError("Native llama media request exceeded its total deadline")
 
-        await self._finalize_and_store_exchange(
-            seq=seq,
-            prepared=prepared,
-            bridge=bridge,
-            registration=registration,
-            transport_closed=sole_closed,
-            wire_buffer_retired=wire_buffer_retired,
-            attempt_disposition="completed",
-            bridge_outcome="completed",
-            candidate=result,
-        )
+        try:
+            settlement = await self._settle_exchange(
+                seq=seq,
+                prepared=prepared,
+                bridge=bridge,
+                registration=registration,
+                transport_closed=sole_closed,
+                wire_buffer_retired=wire_buffer_retired,
+                bridge_outcome="completed",
+                candidate=result,
+            )
+        except asyncio.CancelledError:
+            self._store_exchange(
+                self._unknown_exchange(
+                    seq=seq,
+                    prepared=prepared,
+                    registration=registration,
+                    transport_closed=sole_closed,
+                ),
+                attempt_disposition="cancelled",
+            )
+            raise
+
+        # No await from this final source/cancellation/deadline fence through
+        # publication and return. Preserve any verified physical settlement even
+        # when its consumer result has become inadmissible while awaiting it.
+        try:
+            check_boundary()
+        except asyncio.CancelledError:
+            self._store_exchange(settlement, attempt_disposition="cancelled")
+            raise
+        except Exception:
+            self._store_exchange(settlement, attempt_disposition="failed")
+            raise
+        if deadline_expired():
+            self._store_exchange(settlement, attempt_disposition="timed_out")
+            raise LlamaMediaTimeoutError("Native llama media request exceeded its total deadline")
+        self._store_exchange(settlement, attempt_disposition="completed")
         return result
