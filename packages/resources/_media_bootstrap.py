@@ -20,6 +20,7 @@ import sys
 
 MAX_CONFIG_BYTES = 65_536
 _FD = re.compile(r"[1-9][0-9]{0,9}\Z")
+_FD_MAX = (1 << (ctypes.sizeof(ctypes.c_int) * 8 - 1)) - 1
 _NONCE = re.compile(r"[0-9a-f]{32}\Z")
 _CONFIG_KEYS = frozenset({"nonce", "parent_pid", "argv", "cwd", "env"})
 _SEALS = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
@@ -29,7 +30,7 @@ def _descriptor(value: str) -> int:
     if _FD.fullmatch(value) is None:
         raise ValueError
     fd = int(value)
-    if fd <= 2:
+    if not 2 < fd <= _FD_MAX:
         raise ValueError
     return fd
 
