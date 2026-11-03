@@ -1219,6 +1219,7 @@ def main(argv=None):
     if args.command in {
         "install",
         "setup",
+        "start",
         "update",
         "version",
         "recover",
@@ -1231,7 +1232,9 @@ def main(argv=None):
         from services.distribution.installation import InstallError
 
         try:
-            print(json.dumps(dispatch(args), indent=2))
+            result = dispatch(args)
+            if args.command != "start":
+                print(json.dumps(result, indent=2))
         except (InstallError, ReleaseError) as exc:
             parser.exit(1, f"kinaiya: {exc}\n")
         except (OSError, ValueError):

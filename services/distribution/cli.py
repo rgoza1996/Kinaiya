@@ -56,7 +56,36 @@ def configure(commands):
     )
     updater.add_argument("--yes", action="store_true")
     commands.add_parser("version", help="Verify and show installed immutable provenance")
-    commands.add_parser("web", help="Serve matching prebuilt owner UI on loopback port 8780")
+    web_parser = commands.add_parser(
+        "web", help="Serve matching prebuilt owner UI on loopback port 8780"
+    )
+    web_parser.add_argument("--port", type=int, default=8780)
+    start_parser = commands.add_parser(
+        "start",
+        help="Start configured local host services, matching web UI, and open the browser",
+    )
+    start_parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Do not attempt to open a desktop browser after readiness",
+    )
+    start_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable startup status JSON",
+    )
+    start_parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8780,
+        help="Loopback port for the prebuilt owner web UI (default: 8780)",
+    )
+    start_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=15.0,
+        help="Seconds to wait for local socket and health readiness (default: 15.0)",
+    )
     recovery = commands.add_parser("recover", help="Reconcile an interrupted managed transaction")
     recovery.add_argument("--yes", action="store_true")
     rollback = commands.add_parser(
@@ -160,10 +189,20 @@ def confirm(yes, message):
 
 def dispatch(args):
     layout = chosen_layout()
+    if args.command == "start":
+        from services.distribution.start_supervisor import start_local
+
+        return start_local(
+            layout,
+            no_browser=getattr(args, "no_browser", False),
+            json_output=getattr(args, "json", False),
+            web_port=getattr(args, "web_port", 8780),
+            timeout=getattr(args, "timeout", 15.0),
+        )
     if args.command == "web":
         from services.distribution.web import serve_web
 
-        serve_web(layout)
+        serve_web(layout, port=getattr(args, "port", 8780) or 8780)
         return {"web": "stopped"}
     if args.command == "version":
         receipt = current_receipt(layout)
@@ -252,7 +291,9 @@ def main(argv=None):
     configure(commands)
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(dispatch(args), indent=2))
+        result = dispatch(args)
+        if args.command != "start":
+            print(json.dumps(result, indent=2))
     except (InstallError, ReleaseError) as exc:
         parser.exit(1, f"kinaiya: {exc}\n")
     except (OSError, ValueError):
