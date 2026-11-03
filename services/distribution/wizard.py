@@ -10,6 +10,12 @@ from dataclasses import replace
 from pathlib import Path
 
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
+from services.distribution.model_picker import (
+    discover_profile_models,
+    load_stored_profiles,
+    select_model_interactively,
+    select_profile_interactively,
+)
 from services.distribution.terminal import open_terminal
 
 MASCOT = r"""          .-.( * ).
@@ -33,13 +39,19 @@ def mascot(*, width=80, interactive=True):
     return MASCOT
 
 
-def run_wizard(layout, *, tty=None):
+def run_wizard(layout, *, tty=None, profiles=None, discover_models=False, opener=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
     if tty is None:
         try:
             with open_terminal() as terminal:
-                return run_wizard(layout, tty=terminal)
+                return run_wizard(
+                    layout,
+                    tty=terminal,
+                    profiles=profiles,
+                    discover_models=discover_models,
+                    opener=opener,
+                )
         except OSError:
             raise InstallError(
                 "No controlling terminal; use setup --yes with explicit endpoint/model"
@@ -53,27 +65,68 @@ def run_wizard(layout, *, tty=None):
             raise InstallError("Setup cancelled: terminal input closed")
         return answer.strip() or default
 
-    tty.write(mascot(width=shutil.get_terminal_size().columns) + "\n")
+    term_width = shutil.get_terminal_size().columns
+    tty.write(mascot(width=term_width) + "\n")
     tty.write("Agent-only by default. No microphone capture or task execution.\n")
     tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
     workspace = ask("Authorized workspace", str(layout.workspace))
     data = ask("Private data directory", str(layout.data))
-    endpoint_input = ask(
-        "Agent provider endpoint (or adapter=endpoint, e.g. lmstudio=http://127.0.0.1:1234)",
-        "http://127.0.0.1:1234",
-    )
-    if "=" in endpoint_input and "://" not in endpoint_input.split("=", 1)[0]:
-        adapter_raw, endpoint_raw = endpoint_input.split("=", 1)
-        adapter: str | None = adapter_raw.strip()
-        endpoint = endpoint_raw.strip()
+
+    stored = load_stored_profiles(profiles=profiles) if profiles is not None else []
+    if stored:
+        chosen_prof = select_profile_interactively(tty, stored, role="agent", width=term_width)
+        adapter: str | None = chosen_prof.adapter_kind
+        endpoint = chosen_prof.base_url
+        allow_cloud = chosen_prof.allow_cloud
+        credential_env = chosen_prof.credential_env
+        if discover_models:
+            disc = discover_profile_models(
+                chosen_prof,
+                allow_cloud_disclosed=allow_cloud,
+                opener=opener,
+            )
+            sel = select_model_interactively(
+                tty,
+                disc,
+                profile_id=chosen_prof.profile_id,
+                role="agent",
+                adapter_kind=adapter,
+                endpoint=endpoint,
+                credential_env=credential_env,
+                allow_cloud=allow_cloud,
+                width=term_width,
+            )
+        else:
+            sel = select_model_interactively(
+                tty,
+                chosen_prof.discovered_models,
+                profile_id=chosen_prof.profile_id,
+                role="agent",
+                adapter_kind=adapter,
+                endpoint=endpoint,
+                credential_env=credential_env,
+                allow_cloud=allow_cloud,
+                width=term_width,
+            )
+        model = sel.model_id
     else:
-        adapter = None
-        endpoint = endpoint_input
-    model = ask("Exact model name (required)")
-    allow_cloud = (
-        ask("Allow disclosure of authorized content to this cloud provider? yes/no", "no") == "yes"
-    )
-    credential_env = ask("Credential environment variable NAME only; never paste a key") or None
+        endpoint_input = ask(
+            "Agent provider endpoint (or adapter=endpoint, e.g. lmstudio=http://127.0.0.1:1234)",
+            "http://127.0.0.1:1234",
+        )
+        if "=" in endpoint_input and "://" not in endpoint_input.split("=", 1)[0]:
+            adapter_raw, endpoint_raw = endpoint_input.split("=", 1)
+            adapter = adapter_raw.strip()
+            endpoint = endpoint_raw.strip()
+        else:
+            adapter = None
+            endpoint = endpoint_input
+        model = ask("Exact model name (required)")
+        allow_cloud = (
+            ask("Allow disclosure of authorized content to this cloud provider? yes/no", "no")
+            == "yes"
+        )
+        credential_env = ask("Credential environment variable NAME only; never paste a key") or None
     converse = ask("Enable optional Converse text services? yes/no", "no") == "yes"
     converse_profile = None
     decisions_profile = None
