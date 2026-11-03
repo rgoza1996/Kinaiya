@@ -39,9 +39,6 @@ class _SetupDialogState extends State<SetupDialog> {
   late bool _showServiceEndpointFields;
   bool _showAdvanced = false;
 
-  bool get _showEndpoints => _showServiceEndpointFields;
-  set _showEndpoints(bool value) => _showServiceEndpointFields = value;
-
   @override
   void initState() {
     super.initState();
@@ -311,21 +308,25 @@ class _SetupDialogState extends State<SetupDialog> {
                   ),
                   TextButton.icon(
                     key: const ValueKey('setup-endpoints-toggle'),
-                    onPressed: () =>
-                        setState(() => _showEndpoints = !_showEndpoints),
+                    onPressed: () => setState(
+                      () => _showServiceEndpointFields =
+                          !_showServiceEndpointFields,
+                    ),
                     icon: Icon(
-                      _showEndpoints ? Icons.expand_less : Icons.expand_more,
+                      _showServiceEndpointFields
+                          ? Icons.expand_less
+                          : Icons.expand_more,
                       size: 18,
                     ),
                     label: Text(
-                      _showEndpoints
+                      _showServiceEndpointFields
                           ? 'Collapse service URLs'
                           : 'Edit service URLs',
                     ),
                   ),
                 ],
               ),
-              if (!_showEndpoints) ...[
+              if (!_showServiceEndpointFields) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(

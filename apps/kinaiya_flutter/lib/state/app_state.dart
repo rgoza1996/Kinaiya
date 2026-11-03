@@ -476,8 +476,11 @@ class AppState extends ChangeNotifier {
       agentOnline = true;
       converseOnline = true;
       connected = true;
-      localSignInState = LocalHostSignInState.connected;
-      localSignInError = null;
+      if (localSignInExchange != null ||
+          localSignInState == LocalHostSignInState.connecting) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+      }
     }
     connectionError = client == null
         ? 'Connection is not configured yet.'
@@ -723,8 +726,11 @@ class AppState extends ChangeNotifier {
               'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';
         }
       } else {
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
+        if (localSignInExchange != null ||
+            localSignInState == LocalHostSignInState.connecting) {
+          localSignInState = LocalHostSignInState.connected;
+          localSignInError = null;
+        }
         final agentLabel = !agentOnline
             ? 'unavailable (Agent host unreachable)'
             : agentInferenceAllowed
