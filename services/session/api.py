@@ -378,6 +378,84 @@ def create_app(
     async def health():
         return {"service": "session", "schema_version": "1.0", "status": "ready"}
 
+    @app.post("/v1/auth/local-exchange")
+    async def local_auth_exchange(request: Request):
+        from fastapi.responses import JSONResponse
+
+        from services.common.owner_signin import (
+            LocalOwnerSignInBroker,
+            LocalSignInError,
+            parse_handoff_cookie,
+        )
+
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > 4096:
+                raise HTTPException(
+                    413,
+                    "Local exchange request exceeds byte bound",
+                    headers={"Cache-Control": "no-store"},
+                )
+            raw.extend(chunk)
+        payload = {}
+        if raw:
+            if (
+                request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise HTTPException(
+                    415,
+                    "Local exchange requires JSON",
+                    headers={"Cache-Control": "no-store"},
+                )
+            try:
+                payload = agent_submit_json(bytes(raw), maximum=4096)
+            except (ValueError, RecursionError):
+                raise HTTPException(
+                    422,
+                    "Invalid local exchange JSON",
+                    headers={"Cache-Control": "no-store"},
+                ) from None
+            if not isinstance(payload, dict):
+                raise HTTPException(
+                    422,
+                    "Invalid local exchange JSON",
+                    headers={"Cache-Control": "no-store"},
+                )
+
+        csrf = request.headers.get("x-kinaiya-local-handoff") or request.headers.get(
+            "x-kinaiya-local-ui"
+        )
+        origin = request.headers.get("origin") or (
+            payload.get("origin") if isinstance(payload.get("origin"), str) else None
+        )
+        cookie_seal = parse_handoff_cookie(request.headers.get("cookie")) or (
+            payload.get("cookie_seal") if isinstance(payload.get("cookie_seal"), str) else None
+        )
+        client_host = request.client.host if request.client is not None else None
+        expected_gen = (
+            payload.get("host_generation")
+            if isinstance(payload.get("host_generation"), str)
+            else None
+        )
+        try:
+            broker = LocalOwnerSignInBroker.from_auth(auth)
+            result = broker.consume_handoff(
+                cookie_seal=cookie_seal,
+                origin=origin,
+                csrf_header=csrf,
+                client_host=client_host,
+                sec_fetch_site=request.headers.get("sec-fetch-site"),
+                expected_host_generation=expected_gen,
+            )
+        except LocalSignInError as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": str(exc)},
+                headers={"Cache-Control": "no-store"},
+            )
+        return JSONResponse(status_code=200, content=result, headers={"Cache-Control": "no-store"})
+
     @app.post("/v1/sessions", dependencies=[Depends(auth.require("owner"))])
     async def create(request: SessionRequest):
         return store.create_session(request)
@@ -791,10 +869,16 @@ def create_app(
         try:
             # A first frame supports web clients without putting credentials in URLs.
             hello = await asyncio.wait_for(ws.receive_json(), timeout=5)
-            auth.authenticate(hello.get("token", ""))
+            token = hello.get("token", "")
+            role = auth.authenticate(token)
+            initial_epoch = getattr(auth, "owner_epoch", 1)
             after = int(hello.get("after", 0))
             session_id = hello.get("session_id")
             while True:
+                if role == "owner":
+                    auth.authenticate(token)
+                    if getattr(auth, "owner_epoch", 1) != initial_epoch:
+                        raise HTTPException(401, "Owner credential rotated")
                 entries = store.read(after=after, limit=100, session_id=session_id)
                 for event in entries:
                     await ws.send_json(event.model_dump(mode="json"))
