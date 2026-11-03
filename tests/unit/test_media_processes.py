@@ -30,7 +30,7 @@ _WAIT = 10
 _PROGRAM = r"""
 import errno, fcntl, json, os, socket, sys
 marker = sys.argv[1]
-with open(marker, 'xb') as stream:
+with open(marker, 'ab') as stream:
     stream.write(b'original executed once')
 channel = socket.socket(fileno=3)
 position = os.lseek(4, 0, os.SEEK_CUR)
@@ -270,7 +270,8 @@ async def harness(tmp_path, monkeypatch):
 def test_binding_is_exact_frozen_and_snapshots_nested_native_inputs():
     source = media.MediaNativeRef(backend_id="a" * 32, receipt_id=f"{101:032x}", sha256="b" * 64)
     original = _binding(source=source)
-    source.receipt_id = "e" * 32
+    object.__setattr__(source, "receipt_id", "e" * 32)
+    assert source.receipt_id == "e" * 32
     assert original.source.receipt_id == f"{101:032x}"
     with pytest.raises((AttributeError, TypeError)):
         original.source_id = "f" * 32
@@ -458,7 +459,7 @@ async def test_outer_reap_does_not_retire_unknown_native_dependencies(harness, d
 
 
 async def test_pool_close_fences_all_and_unknown_dependency_prevents_aggregate_success(harness):
-    pool, _ = harness.pool()
+    pool, marker = harness.pool()
     bindings = [_binding(1), _binding(2)]
     children = []
     for binding in bindings:
@@ -467,6 +468,7 @@ async def test_pool_close_fences_all_and_unknown_dependency_prevents_aggregate_s
         child = await pool.start(launch, grant)
         await _line(child.channel)
         children.append(child)
+    assert marker.read_bytes() == b"original executed once" * 2
     harness.dependency_result = False
     assert (await pool.close()).state == "unknown"
     for child in children:
@@ -510,16 +512,65 @@ async def test_unavailable_native_ownership_primitive_never_executes_configured_
     launch = harness.register(pool, binding)
     _, grant = harness.grant(launch, binding)
 
+    native_primitive = getattr(os, primitive)
+    unavailable_calls = []
+
     def unavailable(*args, **kwargs):
+        if primitive == "pidfd_open":
+            pid = args[0] if args else kwargs.get("pid")
+            if not any(process.pid == pid for process in harness.processes):
+                # CPython's child watcher opens its pidfd before the spawn
+                # seam returns the actual Process to this fixture.
+                return native_primitive(*args, **kwargs)
+        unavailable_calls.append((args, kwargs))
         raise OSError(errno.ENOSYS, "untrusted-child-detail")
 
     with monkeypatch.context() as patch:
         patch.setattr(os, primitive, unavailable)
         await _async_refused(pool.start(launch, grant))
+    assert unavailable_calls, "the media ownership refusal seam was not exercised"
+    if primitive == "pidfd_open":
+        assert len(harness.processes) == 1
+        assert all(args[0] == harness.processes[0].pid for args, _ in unavailable_calls)
     assert (await pool.settle(launch)).state == "settled"
     for process in harness.processes:
         assert await process.wait() is not None
     assert not marker.exists()
+
+
+async def test_lost_spawn_return_keeps_original_unknown_and_charged_after_actual_reap(harness):
+    pool, marker = harness.pool()
+    binding = _binding()
+    launch = harness.register(pool, binding)
+    upload, grant = harness.grant(launch, binding)
+    lost_returns = []
+
+    def lose_return(_args, _kwargs):
+        assert len(harness.processes) == 1
+        lost_returns.append(harness.processes[0])
+        raise OSError(errno.EIO, "synthetic lost spawn return facade")
+
+    harness.after_spawn = lose_return
+    await _async_refused(pool.start(launch, grant))
+    assert lost_returns, "the actual captured subprocess return was not lost"
+    assert len(harness.processes) == 1 and lost_returns == harness.processes
+    original = lost_returns[0]
+    assert not marker.exists()
+    if original.returncode is None:
+        try:
+            original.kill()
+        except ProcessLookupError:
+            pass  # The positive wait below is still required.
+    assert await asyncio.wait_for(original.wait(), _WAIT) is not None
+    assert not marker.exists(), "configured code executed without a returned ownership handle"
+    pool.fence(launch)
+    assert (await pool.settle(launch)).state == "unknown"
+    assert upload.delete() is False and not upload.deleted
+    _refused(lambda: pool.register(_binding(9, operation_id=binding.operation_id)), "capacity")
+    assert pool.register(binding) is launch
+    await _async_refused(pool.start(launch, grant))
+    assert len(harness.processes) == 1 and lost_returns == harness.processes
+    assert upload.delete() is False and not upload.deleted
 
 
 @pytest.mark.parametrize("value", [b"", b"x" * 65537, bytearray(b"x"), "x", None])
@@ -648,18 +699,42 @@ async def test_baseline_generic_manager_still_runs_and_reaps_ordinary_fixed_work
         return process
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", capture)
+    marker = tmp_path / "ordinary.executed"
     spec = WorkerSpec(
         id="ordinary",
-        argv=(sys.executable, "-B", "-c", "import time; time.sleep(60)"),
+        argv=(
+            sys.executable,
+            "-B",
+            "-c",
+            "import pathlib, sys, time; "
+            "pathlib.Path(sys.argv[1]).write_bytes(b'ordinary ready'); time.sleep(60)",
+            str(marker),
+        ),
         cwd=tmp_path,
         stop_timeout_s=0.1,
     )
-    manager = WorkerManager([spec])
+    readiness_calls = []
+
+    async def ready(probed_spec, process):
+        readiness_calls.append((probed_spec, process))
+        return (
+            probed_spec is spec
+            and process in processes
+            and process.returncode is None
+            and marker.exists()
+            and marker.read_bytes() == b"ordinary ready"
+        )
+
+    manager = WorkerManager([spec], readiness=ready)
     try:
-        await manager.start("ordinary")
+        started = await manager.start("ordinary")
+        assert started["ok"] is True and started["ready"] is True
+        assert started["readiness"] == "verified"
+        assert readiness_calls and marker.read_bytes() == b"ordinary ready"
         identity = manager.owned_identity("ordinary")
         assert identity is not None and manager.is_current(identity)
-        await manager.stop("ordinary")
+        stopped = await manager.stop("ordinary")
+        assert stopped["ok"] is True and stopped["stop_evidence"]["reaped"] is True
         assert manager.owned_identity("ordinary") is None
         assert len(processes) == 1 and processes[0].returncode is not None
     finally:
