@@ -3355,14 +3355,17 @@ class MediaSessionOwner:
 
     def fence_connection_memory(self, connection, reason):
         with self._mutex:
-            source = self._sources.get(connection.source_id)
-            if source is not None and source.connection is connection:
-                if not source.fenced.is_set():
-                    source.reason = reason
-                source.fenced.set()
+            source_id = connection.source_id
+            source = self._sources.get(source_id) if source_id is not None else None
+            if source is None or source.connection is not connection:
+                return False
+            if not source.fenced.is_set():
+                source.reason = reason
+            source.fenced.set()
             for operation in self._operations.values():
-                if operation.source_id == connection.source_id:
+                if operation.source_id == source_id:
                     operation.fenced.set()
+            return True
 
     def fence_connection_locked(self, connection, reason):
         with self._boundary() as token:

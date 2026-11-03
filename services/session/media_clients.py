@@ -101,12 +101,17 @@ class MediaGrantKeyStore:
         self._parent = None
         self._name = None
         self._directories = []
+        self._excluded_roots = ()
         try:
             path = Path(path)
             if not path.is_absolute() or ".." in path.parts or path.name in {"", "."}:
                 refuse("bad_packet")
             # These roots are native setup values; never accept an ingress path.
-            for root in (Path(workspace).absolute(), Path(spool_root).absolute()):
+            # Refuse aliases before acquiring or creating any key material.
+            self._excluded_roots = tuple(
+                self._native_root(root) for root in (workspace, spool_root)
+            )
+            for root, _ in self._excluded_roots:
                 if path == root or root in path.parents:
                     refuse("denied")
             current = self._open_directory(Path("/"))
@@ -115,6 +120,9 @@ class MediaGrantKeyStore:
             parent = os.fstat(current.fd)
             if parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) != 0o700:
                 refuse("unavailable")
+            excluded = {identity for _, identity in self._excluded_roots}
+            if any(identity in excluded for _, _, _, identity in self._directories):
+                refuse("denied")
             self._parent, self._name = current, path.name
             owner = _KeyDescriptor()
             self._owners.append(owner)  # Before acquisition, including uncertain opens.
@@ -171,6 +179,18 @@ class MediaGrantKeyStore:
     def _identity(info):
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
+    @staticmethod
+    def _native_root(value):
+        root = Path(value)
+        if not root.is_absolute() or ".." in root.parts:
+            refuse("bad_packet")
+        if root.resolve(strict=True) != root:
+            refuse()
+        info = root.stat(follow_symlinks=False)
+        if not stat.S_ISDIR(info.st_mode):
+            refuse()
+        return root, (info.st_dev, info.st_ino)
+
     def _open_directory(self, name, parent=None):
         owner = _KeyDescriptor()
         self._owners.append(owner)
@@ -188,6 +208,10 @@ class MediaGrantKeyStore:
     def _check(self):
         if self._closed or self._unknown or self._key is None or self._file.fd is None:
             refuse()
+        for root, identity in self._excluded_roots:
+            if self._native_root(root) != (root, identity):
+                self._unknown = True
+                refuse()
         for owner, parent, name, identity in self._directories:
             held = os.fstat(owner.fd)
             linked = os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -201,6 +225,9 @@ class MediaGrantKeyStore:
             ):
                 self._unknown = True
                 refuse()
+            if identity in {pinned for _, pinned in self._excluded_roots}:
+                self._unknown = True
+                refuse("denied")
         parent_info = os.fstat(self._parent.fd)
         if parent_info.st_uid != os.geteuid() or stat.S_IMODE(parent_info.st_mode) != 0o700:
             self._unknown = True
@@ -277,6 +304,8 @@ class MediaConnection:
     joined: bool = False
     disconnected: bool = False
     retirement_task: asyncio.Task | None = None
+    workers_assigned: asyncio.Event = field(default_factory=asyncio.Event)
+    starting_worker: object | None = None
 
 
 class MediaOwnerEventHub:
@@ -335,13 +364,29 @@ class MediaOwnerEventHub:
             connection = MediaConnection(secrets.token_hex(16), ws, principal, source, after)
             self._connections[connection.instance] = connection
             # A retained registry member exists before association or task scheduling.
-            ack = await self._owner.run_native(
-                self._owner.associate_connection, connection, hello.get("session_id")
-            )
-            connection.receiver = asyncio.create_task(self._receive(connection))
-            connection.sender = asyncio.create_task(self._send(connection))
-            await ws.send_json(ack)
-            connection.started.set()
+            try:
+                ack = await self._owner.run_native(
+                    self._owner.associate_connection, connection, hello.get("session_id")
+                )
+                if connection.fenced or self._closed:
+                    self.fence(connection.instance, "disconnect")
+                    return
+                connection.starting_worker = self._receive(connection)
+                connection.receiver = asyncio.create_task(connection.starting_worker)
+                connection.starting_worker = None
+                if connection.fenced:
+                    return
+                connection.starting_worker = self._send(connection, ack)
+                connection.sender = asyncio.create_task(connection.starting_worker)
+                connection.starting_worker = None
+            except BaseException:
+                if connection.starting_worker is not None:
+                    # Task creation may not have returned its original handle.
+                    # Retain that coroutine/candidate and never claim closure.
+                    connection.unknown = True
+                raise
+            finally:
+                connection.workers_assigned.set()
             done, _ = await asyncio.wait(
                 {connection.receiver, connection.sender}, return_when=asyncio.FIRST_COMPLETED
             )
@@ -349,12 +394,13 @@ class MediaOwnerEventHub:
                 original.result()
         except BaseException as error:
             if connection is not None:
-                connection.unknown = not isinstance(error, Exception)
+                connection.unknown = connection.unknown or not isinstance(error, Exception)
                 self.fence(connection.instance, "disconnect")
             if not isinstance(error, Exception):
                 raise
         finally:
             if connection is not None:
+                connection.workers_assigned.set()
                 self.fence(connection.instance, "disconnect")
                 await asyncio.shield(self.retire(connection.instance))
             else:
@@ -364,13 +410,12 @@ class MediaOwnerEventHub:
                     pass
 
     async def _receive(self, connection):
+        ws = connection.ws
         try:
             while not connection.fenced:
                 remaining = self._owner.connection_remaining(connection)
                 try:
-                    event = await asyncio.wait_for(
-                        connection.ws.receive(), timeout=min(remaining, 1.0)
-                    )
+                    event = await asyncio.wait_for(ws.receive(), timeout=min(remaining, 1.0))
                 except TimeoutError:
                     continue
                 if event.get("type") == "websocket.disconnect":
@@ -381,8 +426,15 @@ class MediaOwnerEventHub:
         finally:
             self.fence(connection.instance, "disconnect")
 
-    async def _send(self, connection):
-        await connection.started.wait()
+    async def _send(self, connection, ack):
+        ws = connection.ws
+        if connection.fenced:
+            return
+        self._owner.connection_remaining(connection)
+        await ws.send_json(ack)
+        if connection.fenced:
+            return
+        connection.started.set()
         while not connection.fenced:
             self._owner.connection_remaining(connection)
             entries = await self._owner.run_native(
@@ -393,7 +445,7 @@ class MediaOwnerEventHub:
             )
             for event in entries:
                 self._owner.connection_remaining(connection)
-                await connection.ws.send_json(event.model_dump(mode="json"))
+                await ws.send_json(event.model_dump(mode="json"))
                 connection.after = event.sequence
             if not entries:
                 await asyncio.sleep(0.1)
@@ -403,8 +455,8 @@ class MediaOwnerEventHub:
         if connection is None:
             return
         connection.fenced = True
-        self._owner.fence_connection_memory(connection, reason)
-        if connection.fence_job is None:
+        bound = self._owner.fence_connection_memory(connection, reason)
+        if bound and connection.fence_job is None:
             connection.fence_job = asyncio.create_task(
                 self._owner.run_native(self._owner.fence_connection_locked, connection, reason)
             )
@@ -419,20 +471,28 @@ class MediaOwnerEventHub:
 
     async def _retire_original(self, connection):
         connection_instance = connection.instance
+        ws = connection.ws
         self.fence(connection_instance, "disconnect")
-        try:
-            await connection.ws.close(code=1008)
-        except BaseException:
-            connection.unknown = True
+        # Association may still be assigning its original native workers.
+        # A deadline/cancelled waiter cannot retire an absent future sender.
+        await connection.workers_assigned.wait()
+        self.fence(connection_instance, "disconnect")
         tasks = {
             task
             for task in (connection.receiver, connection.sender)
             if task is not None and task is not asyncio.current_task()
         }
-        for task in tasks:
-            task.cancel()
+        # Fenced loops exit cooperatively after their actual current I/O.
+        # A resistant sender/receiver remains owned; no parallel close can
+        # interrupt it and be mistaken for a positive join.
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+        if connection.unknown or connection.starting_worker is not None:
+            return False
+        try:
+            await ws.close(code=1008)
+        except BaseException:
+            connection.unknown = True
         if connection.fence_job is not None:
             try:
                 await asyncio.shield(connection.fence_job)

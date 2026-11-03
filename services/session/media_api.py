@@ -72,6 +72,8 @@ async def _json(request, kind):
             if len(raw) + len(chunk) > limit:
                 refuse("bound")
             raw.extend(chunk)
+    if loop.time() >= deadline:
+        refuse()
     return m.media_json(bytes(raw), kind)
 
 
