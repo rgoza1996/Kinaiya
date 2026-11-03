@@ -437,6 +437,7 @@ def setup(
     roles=None,
     converse_profile=None,
     decisions_profile=None,
+    allow_existing=False,
 ):
     """Reuse native init; configuration is not evidence of provider/task readiness."""
     from services.launcher import initialize
@@ -445,7 +446,7 @@ def setup(
     layout.validate()
     if (layout.install / "layout.json").exists():
         verify_layout(layout)
-    if os.path.lexists(layout.config):
+    if os.path.lexists(layout.config) and not allow_existing:
         raise InstallError("Preserving existing configuration; edit it explicitly instead")
     if kind is not None and adapter is not None and kind != adapter:
         raise InstallError("Conflicting Agent adapter kind arguments")
