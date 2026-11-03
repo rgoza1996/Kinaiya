@@ -20,7 +20,6 @@ from packages.contracts.standing_resource_finalization import (
     checked_finalization,
     finalization_bytes,
     resource_binding_digest,
-    resource_finalize_context_digest,
 )
 from packages.contracts.standing_resources import (
     StandingResourceObservation,
@@ -232,6 +231,8 @@ class StandingResourceFinalizationOwner:
         return None if not count else self._one(f"SELECT claim_id,{field} FROM {table}")
 
     def _context(self, request, binding, state):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _hash
+
         meta, generations, claim, initial, coverage, reservation, closure = state
         original = request.original
         if original.expected_backend != meta["backend_id"]:
@@ -262,16 +263,21 @@ class StandingResourceFinalizationOwner:
         observation = StandingResourceObservation(
             **body, observation_digest=standing_resource_observation_digest(body)
         )
+        context_body = {
+            "schema_version": "1.0",
+            "request": request,
+            "binding": binding,
+            "closure": closure,
+            "observation": observation,
+        }
+        try:
+            context_digest = _hash(b"kinaiya.standing.resource-finalize-context.v1", context_body)
+        except _FAILURES:
+            raise ValueError(_ERROR) from None
         # The context constructor rebuilds every child and checks complete
         # request, claim, initial and reservation joins on these fresh locals.
-        return StandingResourceFinalizeContext(
-            schema_version="1.0",
-            request=request,
-            binding=binding,
-            closure=closure,
-            observation=observation,
-            context_digest=resource_finalize_context_digest(request, binding, closure, observation),
-        )
+        # Hash their actual fields without repeating that construction here.
+        return StandingResourceFinalizeContext(**context_body, context_digest=context_digest)
 
     def _schema(self, state):
         from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _encode
