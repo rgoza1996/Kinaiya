@@ -1,7 +1,8 @@
 """Closed media packets. References describe provenance, never grant authority.
 
-This first family supplies source intake and bounded packet transport. Native
-owners still resolve references, permissions, policy, currentness and cleanup.
+Source intake, decoder descriptors and bounded protocol records do not establish
+runtime availability. Native owners resolve references, permissions, policy,
+currentness, original files/processes and cleanup.
 """
 
 import hashlib
@@ -15,6 +16,7 @@ from typing import Annotated, Generic, Literal, Self, TypeVar, Union, get_args, 
 from pydantic import (
     AfterValidator,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     TypeAdapter,
@@ -63,6 +65,7 @@ def _text(limit: int):
 
 _Id = Annotated[str, Field(min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$")]
 _Hash = Annotated[str, Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")]
+_Git = Annotated[str, Field(min_length=40, max_length=40, pattern=r"^[0-9a-f]{40}$")]
 _N = Annotated[int, Field(ge=0, le=MAX_MEDIA_INTEGER)]
 _P = Annotated[int, Field(ge=1, le=MAX_MEDIA_INTEGER)]
 _I = Annotated[int, Field(ge=-MAX_MEDIA_INTEGER, le=MAX_MEDIA_INTEGER)]
@@ -523,6 +526,512 @@ class MediaError(_MediaModel):
     ]
 
 
+def _path(value: str, *, relative: bool = False) -> None:
+    if "\0" in value or ".." in value.split("/") or (relative and value.startswith("/")):
+        _bad()
+
+
+def _items(kind, maximum: int):
+    return Annotated[list[kind], Field(max_length=maximum)]
+
+
+def _distinct(items, name: str | None = None) -> None:
+    values = [getattr(item, name) for item in items] if name is not None else items
+    if len(set(values)) != len(values):
+        _bad()
+
+
+def _literal_int(value):
+    if type(value) is not int:
+        _bad()
+    return value
+
+
+_AudioRate = Annotated[Literal[16000, 24000, 48000], BeforeValidator(_literal_int)]
+_AudioChannels = Annotated[Literal[1, 2], BeforeValidator(_literal_int)]
+_EXECUTABLE_KINDS = frozenset({"decoder_exec", "probe_exec", "sandbox_exec", "python_exec"})
+
+
+class MediaCodePin(_MediaModel):
+    commit: _Git
+    path: _text(256)
+    git_blob: _Git
+    sha256: _Hash
+
+    @model_validator(mode="after")
+    def _relative_path(self) -> Self:
+        _path(self.path, relative=True)
+        return self
+
+
+class MediaAssetPin(_MediaModel):
+    kind: Literal[
+        "decoder_exec",
+        "probe_exec",
+        "sandbox_exec",
+        "python_exec",
+        "runtime_library",
+        "driver_source",
+    ]
+    path: _text(4096)
+    guest: _text(256)
+    bytes: Annotated[int, Field(ge=1, le=268_435_456)]
+    sha256: _Hash
+
+    @model_validator(mode="after")
+    def _asset_paths(self) -> Self:
+        _path(self.path)
+        _path(self.guest)
+        return self
+
+
+class MediaRuntime(_MediaModel):
+    v: Literal[1]
+    kind: Literal["sealed_asset_set"]
+    manifest_sha256: _Hash
+    assets: _items(MediaAssetPin, 256)
+    distribution_lock: MediaCodePin | None
+
+    @model_validator(mode="after")
+    def _closure(self) -> Self:
+        if sum(asset.bytes for asset in self.assets) > 1_073_741_824:
+            _bound()
+        if sum(asset.kind in _EXECUTABLE_KINDS for asset in self.assets) > 3:
+            _bound()
+        _distinct(self.assets, "guest")
+        if self.manifest_sha256 != _hash("Runtime", self.__dict__, "manifest_sha256"):
+            _bad()
+        return self
+
+
+class MediaAudioFormat(_MediaModel):
+    kind: Literal["audio"]
+    container: Literal["raw", "wav"]
+    codec: Literal["pcm_s16le", "pcm_s24le", "pcm_s32le"]
+    rate: _AudioRate
+    channels: _AudioChannels
+
+
+class MediaImageFormat(_MediaModel):
+    kind: Literal["image", "video_frame"]
+    container: Literal["png", "jpeg"]
+    codec: Literal["png", "mjpeg"]
+    pixel_format: Literal["rgb24"]
+
+    @model_validator(mode="after")
+    def _pair(self) -> Self:
+        if (self.container, self.codec) not in (("png", "png"), ("jpeg", "mjpeg")):
+            _bad()
+        return self
+
+
+class MediaClipFormat(_MediaModel):
+    kind: Literal["video_clip"]
+    container: Literal["mp4", "webm"]
+    video_codec: Literal["h264", "hevc", "vp9", "av1"]
+    audio_codec: Literal["aac", "opus", "none"]
+
+    @model_validator(mode="after")
+    def _pair(self) -> Self:
+        if self.container == "mp4":
+            if self.video_codec not in ("h264", "hevc", "av1") or self.audio_codec not in (
+                "aac",
+                "none",
+            ):
+                _bad()
+        elif self.video_codec not in ("vp9", "av1") or self.audio_codec not in ("opus", "none"):
+            _bad()
+        return self
+
+
+MediaFormat = Annotated[
+    MediaAudioFormat | MediaImageFormat | MediaClipFormat, Field(discriminator="kind")
+]
+
+
+class MediaTransform(_MediaModel):
+    v: Literal[1]
+    kind: Literal["identity", "audio_resample_downmix", "video_sample_scale"]
+    audio_rate: _N | None
+    audio_channels: _N | None
+    video_rate: MediaQ | None
+    width: _N | None
+    height: _N | None
+    owner_setting_ref: _Ref | None
+
+    @model_validator(mode="after")
+    def _selected_transform(self) -> Self:
+        if self.kind == "identity":
+            if any(
+                value is not None
+                for name, value in self.__dict__.items()
+                if name not in ("v", "kind")
+            ):
+                _bad()
+        else:
+            if self.owner_setting_ref is None:
+                _bad()
+            if self.kind == "audio_resample_downmix":
+                if self.audio_rate not in (16000, 24000, 48000) or self.audio_channels not in (
+                    1,
+                    2,
+                ):
+                    _bad()
+                if any(value is not None for value in (self.video_rate, self.width, self.height)):
+                    _bad()
+            else:
+                if self.audio_rate is not None or self.audio_channels is not None:
+                    _bad()
+                if self.video_rate is not None and self.video_rate.num == 0:
+                    _bad()
+                dimensions = self.width is not None and self.height is not None
+                if dimensions:
+                    if self.width == 0 or self.height == 0:
+                        _bad()
+                elif self.width is not None or self.height is not None:
+                    _bad()
+                if self.video_rate is None and not dimensions:
+                    _bad()
+        return self
+
+
+class MediaProbeTrack(_MediaModel):
+    index: _N
+    kind: Literal["audio", "video", "image"]
+    codec: Literal[
+        "pcm_s16le",
+        "pcm_s24le",
+        "pcm_s32le",
+        "aac",
+        "opus",
+        "png",
+        "mjpeg",
+        "h264",
+        "hevc",
+        "vp9",
+        "av1",
+    ]
+    rate: _P | None
+    channels: _P | None
+    width: _P | None
+    height: _P | None
+    timebase: MediaQ
+    duration: MediaQ | None
+
+    @model_validator(mode="after")
+    def _track_shape(self) -> Self:
+        if self.timebase.num == 0:
+            _bad()
+        audio = self.kind == "audio"
+        if audio != (self.rate is not None and self.channels is not None):
+            _bad()
+        if audio and (self.width is not None or self.height is not None):
+            _bad()
+        if not audio and (
+            self.width is None
+            or self.height is None
+            or self.rate is not None
+            or self.channels is not None
+        ):
+            _bad()
+        return self
+
+
+class MediaProbeResult(_MediaModel):
+    v: Literal[1]
+    source_sha256: _Hash
+    input_bytes: _P
+    container: Literal["wav", "mp4", "webm", "png", "jpeg"]
+    tracks: _items(MediaProbeTrack, 8)
+
+    @model_validator(mode="after")
+    def _indices(self) -> Self:
+        _distinct(self.tracks, "index")
+        return self
+
+
+class MediaDecoderProtocol(_MediaModel):
+    kind: Literal["decoder_fd_v1"]
+    implementation: MediaCodePin | None
+    request_schema_sha256: _Hash | None
+    response_schema_sha256: _Hash | None
+    wire: Literal["u32be_json_then_body"]
+    peer: Literal["owned_pid_incarnation_nonce"]
+    pts: Literal["original_rational"]
+    cleanup: Literal["pidfd_reap"]
+    segments: Literal["retained_child", "one_segment_child"]
+
+
+class MediaDecoderProfile(_MediaModel):
+    v: Literal[1]
+    id: _Id
+    generation: _P
+    profile_sha256: _Hash
+    driver: Literal["pyav17_timed_fd_v1", "ffmpeg_cli_fd_v1"]
+    implementation: MediaCodePin | None
+    executables: _items(MediaAssetPin, 3)
+    runtime: MediaRuntime | None
+    formats: _items(MediaFormat, 16)
+    transform: MediaTransform
+    limits: MediaLimits
+    protocol: MediaDecoderProtocol
+
+    @model_validator(mode="after")
+    def _profile(self) -> Self:
+        if any(asset.kind not in _EXECUTABLE_KINDS for asset in self.executables):
+            _bad()
+        _distinct(self.executables, "guest")
+        if self.profile_sha256 != _hash("DecoderProfile", self.__dict__, "profile_sha256"):
+            _bad()
+        return self
+
+
+class MediaTrack(_MediaModel):
+    track_id: _Id
+    source_id: _Id
+    kind: Literal["audio", "video", "image"]
+    format_sha256: _Hash
+    timebase: MediaQ
+    common_origin: MediaSignedQ
+    clock_provenance: Literal[
+        "container",
+        "native_capture",
+        "native_audio_samples",
+        "client_reported",
+        "provider_reported",
+        "untimed_image",
+    ]
+    command_lane: bool
+
+    @model_validator(mode="after")
+    def _clock_shape(self) -> Self:
+        if self.timebase.num == 0:
+            _bad()
+        if self.clock_provenance == "untimed_image" and (
+            self.kind != "image" or self.common_origin.num != 0
+        ):
+            _bad()
+        return self
+
+
+def _tracks(tracks: list[MediaTrack]) -> None:
+    _distinct(tracks, "track_id")
+    if len({track.source_id for track in tracks}) > 1:
+        _bad()
+    origins = {
+        (track.common_origin.num, track.common_origin.den)
+        for track in tracks
+        if track.clock_provenance != "untimed_image"
+    }
+    if len(origins) > 1:
+        _bad()
+
+
+class MediaCaptureTrackOffer(_MediaModel):
+    client_track_key: _text(80)
+    format_sha256: _Hash
+    timebase: MediaQ
+    command_lane: bool
+
+    @model_validator(mode="after")
+    def _positive_timebase(self) -> Self:
+        if self.timebase.num == 0:
+            _bad()
+        return self
+
+
+class MediaCaptureOffer(_MediaModel):
+    v: Literal[1]
+    key: _Key
+    source: MediaNativeRef
+    fence: MediaFence
+    common_origin: MediaSignedQ
+    tracks: _items(MediaCaptureTrackOffer, 8)
+
+    @model_validator(mode="after")
+    def _offered_tracks(self) -> Self:
+        _distinct(self.tracks, "client_track_key")
+        return self
+
+
+class MediaCaptureReady(_MediaModel):
+    v: Literal[1]
+    source: MediaNativeRef
+    fence: MediaFence
+    capture_instance: _Id
+    decoder_profile_sha256: _Hash
+    tracks: _items(MediaTrack, 8)
+
+    @model_validator(mode="after")
+    def _capture_tracks(self) -> Self:
+        _tracks(self.tracks)
+        return self
+
+
+class MediaDecodeReady(_MediaModel):
+    v: Literal[1]
+    source: MediaNativeRef
+    seal: MediaNativeRef
+    probe: MediaProbeResult
+    decoder_profile_sha256: _Hash
+    tracks: _items(MediaTrack, 8)
+
+    @model_validator(mode="after")
+    def _decoded_tracks(self) -> Self:
+        _tracks(self.tracks)
+        if any(track.command_lane for track in self.tracks):
+            _bad()
+        if sorted(track.kind for track in self.tracks) != sorted(
+            track.kind for track in self.probe.tracks
+        ):
+            _bad()
+        return self
+
+
+class MediaSegment(_MediaModel):
+    segment_id: _Id
+    index: _N
+    source: MediaNativeRef
+    source_revision: _P
+    generation: _P
+    profile_sha256: _Hash
+    continuity_id: _Id
+    start: MediaQ
+    end: MediaQ
+    track_ids: _items(_Id, 8)
+
+    @model_validator(mode="after")
+    def _segment_shape(self) -> Self:
+        _interval(self.start, self.end, 60)
+        _distinct(self.track_ids)
+        return self
+
+
+class MediaDecodeRequest(_MediaModel):
+    v: Literal[1]
+    operation_id: _Id
+    source: MediaNativeRef
+    consumer: MediaConsumerRef
+    fence: MediaFence
+    child_owner: MediaNativeRef
+    profile_sha256: _Hash
+    seq: _P
+    command: Literal["probe", "open", "next", "cancel"]
+    segment: MediaSegment | None
+
+    @model_validator(mode="after")
+    def _command_shape(self) -> Self:
+        if (self.command == "open") != (self.segment is not None):
+            _bad()
+        if self.segment is not None and (
+            self.segment.source != self.source
+            or self.segment.source_revision != self.fence.source_revision
+            or self.segment.generation != self.fence.generation
+            or self.segment.profile_sha256 != self.profile_sha256
+        ):
+            _bad()
+        return self
+
+
+class MediaTrackEnd(_MediaModel):
+    track_id: _Id
+    through_track_seq: _N
+    through_source_seq: _N
+    last_pts: MediaSourcePTS | None
+    state: Literal["segment_boundary", "eof"]
+
+    @model_validator(mode="after")
+    def _sequence_bounds(self) -> Self:
+        if self.through_track_seq > self.through_source_seq:
+            _bad()
+        return self
+
+
+class MediaDecodeEnd(_MediaModel):
+    v: Literal[1]
+    segment_id: _Id
+    source: MediaNativeRef
+    sealed_source: MediaNativeRef | None
+    child_owner: MediaNativeRef
+    profile_sha256: _Hash
+    kind: Literal["segment_end", "source_eof"]
+    through_packet_sequence: _N
+    tracks: _items(MediaTrackEnd, 8)
+
+    @model_validator(mode="after")
+    def _end_shape(self) -> Self:
+        _distinct(self.tracks, "track_id")
+        if self.kind == "source_eof" and any(track.state != "eof" for track in self.tracks):
+            _bad()
+        return self
+
+
+class MediaDecodeResponse(_MediaModel):
+    v: Literal[1]
+    operation_id: _Id
+    seq: _P
+    segment_id: _Id | None
+    result: Literal["probe", "packet", "end", "cancel_ack", "error"]
+    probe: MediaProbeResult | None
+    packet: MediaPacketHeader | None
+    end: MediaDecodeEnd | None
+    error: MediaError | None
+
+    @model_validator(mode="after")
+    def _result_shape(self) -> Self:
+        for name in ("probe", "packet", "end", "error"):
+            if (getattr(self, name) is not None) != (name == self.result):
+                _bad()
+        if self.result == "probe" and self.segment_id is not None:
+            _bad()
+        if self.result in ("packet", "end") and self.segment_id is None:
+            _bad()
+        if self.packet is not None and self.packet.operation_id != self.operation_id:
+            _bad()
+        if self.end is not None and self.end.segment_id != self.segment_id:
+            _bad()
+        return self
+
+
+class MediaInputEnd(_MediaModel):
+    v: Literal[1]
+    source: MediaNativeRef
+    fence: MediaFence
+    kind: Literal["finite_eof", "capture_closed"]
+    seal: MediaNativeRef | None
+    capture_ready: MediaNativeRef | None
+    decoder_end: MediaNativeRef | None
+    tracks: _items(MediaTrackEnd, 8)
+    through_source_seq: _N
+
+    @model_validator(mode="after")
+    def _input_end_shape(self) -> Self:
+        _distinct(self.tracks, "track_id")
+        if any(
+            track.state != "eof" or track.through_source_seq > self.through_source_seq
+            for track in self.tracks
+        ):
+            _bad()
+        if self.kind == "finite_eof":
+            if self.seal is None or self.decoder_end is None or self.capture_ready is not None:
+                _bad()
+        elif self.capture_ready is None or self.seal is not None or self.decoder_end is not None:
+            _bad()
+        return self
+
+
+class MediaDecodeBudget(_MediaModel):
+    v: Literal[1]
+    segment_id: _Id
+    child_owner: MediaNativeRef
+    previous: MediaNativeRef | None
+    cpu_baseline_ms: _N
+    wall_baseline_ms: _N
+    cpu_spent_ms: _N
+    wall_spent_ms: _N
+    state: Literal["running", "ended", "unknown"]
+
+
 _T = TypeVar("_T", bound=_MediaModel)
 
 
@@ -581,6 +1090,28 @@ _RECORDS = (
     MediaASRFeed,
     MediaASRFinish,
     MediaError,
+    MediaCodePin,
+    MediaAssetPin,
+    MediaRuntime,
+    MediaAudioFormat,
+    MediaImageFormat,
+    MediaClipFormat,
+    MediaTransform,
+    MediaProbeTrack,
+    MediaProbeResult,
+    MediaDecoderProtocol,
+    MediaDecoderProfile,
+    MediaTrack,
+    MediaCaptureOffer,
+    MediaCaptureReady,
+    MediaDecodeReady,
+    MediaSegment,
+    MediaDecodeRequest,
+    MediaTrackEnd,
+    MediaDecodeEnd,
+    MediaDecodeResponse,
+    MediaInputEnd,
+    MediaDecodeBudget,
 )
 _short_names = {kind: kind.__name__.removeprefix("Media") for kind in _RECORDS}
 _schemas = {kind.__name__: kind for kind in _RECORDS}
@@ -591,9 +1122,35 @@ for _kind in _RECORDS:
     _short_names[_found] = f"Found<{_short_names[_kind]}>"
     _schemas[f"MediaReceipt{_short_names[_kind]}"] = _receipt
     _schemas[f"MediaFound{_short_names[_kind]}"] = _found
+_receipt = MediaReceipt[MediaFormat]
+_found = MediaFound[MediaFormat]
+_short_names[_receipt] = "R<Format>"
+_short_names[_found] = "Found<Format>"
+_schemas["MediaReceiptFormat"] = _receipt
+_schemas["MediaFoundFormat"] = _found
 _SHORT_NAMES = MappingProxyType(_short_names)
-_BY_SHORT = MappingProxyType({name: kind for kind, name in _short_names.items()})
+_BY_SHORT = MappingProxyType(
+    {**{name: kind for kind, name in _short_names.items()}, "Format": MediaFormat}
+)
+_GRAPH_KINDS = frozenset(_short_names) | {MediaCaptureTrackOffer}
+_FORMAT_KINDS = (MediaAudioFormat, MediaImageFormat, MediaClipFormat)
+_FORMAT_TAGS = MappingProxyType(
+    {
+        "audio": MediaAudioFormat,
+        "image": MediaImageFormat,
+        "video_frame": MediaImageFormat,
+        "video_clip": MediaClipFormat,
+    }
+)
+_SELF = MappingProxyType(
+    {
+        MediaRuntime: "manifest_sha256",
+        MediaDecoderProfile: "profile_sha256",
+        **{kind: "sha256" for kind in _short_names if issubclass(kind, MediaReceipt)},
+    }
+)
 MEDIA_SCHEMAS = MappingProxyType(_schemas)
+MEDIA_SCHEMA_ALIASES = MappingProxyType({"MediaFormat": MediaFormat})
 del _short_names, _schemas, _kind, _receipt, _found
 
 
@@ -608,7 +1165,7 @@ def _graph(value) -> None:
             _bound()
         if isinstance(item, BaseModel):
             kind = type(item)
-            if kind not in _SHORT_NAMES:
+            if kind not in _GRAPH_KINDS:
                 _bad()
             fields = kind.model_fields
             values = getattr(item, "__dict__", None)
@@ -644,9 +1201,21 @@ def _graph(value) -> None:
 def _field(value, annotation, typed: bool):
     origin = get_origin(annotation)
     if origin is Annotated:
-        base = get_args(annotation)[0]
+        base, *metadata = get_args(annotation)
     else:
         base = annotation
+        metadata = []
+    if get_origin(base) is list:
+        if type(value) is not list:
+            _bad()
+        maxima = [getattr(marker, "max_length", None) for marker in metadata]
+        maxima = [maximum for maximum in maxima if type(maximum) is int]
+        if not maxima:
+            _bad()  # Only explicitly bounded declared lists belong to this wire.
+        if len(value) > min(maxima):
+            _bound()
+        child = get_args(base)[0]
+        return [_field(item, child, typed) for item in value]
     if get_origin(base) in (Union, types.UnionType):
         variants = get_args(base)
         if type(None) in variants:
@@ -655,6 +1224,8 @@ def _field(value, annotation, typed: bool):
             nonnull = [variant for variant in variants if variant is not type(None)]
             if len(nonnull) == 1:
                 return _field(value, nonnull[0], typed)
+        if variants == _FORMAT_KINDS:
+            return _rebuild(value, _format_kind(value, typed))
         _bad()
     if isinstance(base, type) and issubclass(base, _MediaModel):
         if typed and type(value) is not base:
@@ -663,7 +1234,22 @@ def _field(value, annotation, typed: bool):
     return TypeAdapter(annotation).validate_python(value, strict=True)
 
 
+def _format_kind(value, typed: bool):
+    if isinstance(value, BaseModel):
+        if type(value) not in _FORMAT_KINDS:
+            _bad()
+        return type(value)
+    if typed or type(value) is not dict or type(value.get("kind")) is not str:
+        _bad()
+    kind = _FORMAT_TAGS.get(value["kind"])
+    if kind is None:
+        _bad()
+    return kind
+
+
 def _rebuild(value, kind):
+    if kind is MediaFormat:
+        kind = _format_kind(value, False)
     typed = isinstance(value, BaseModel)
     if typed:
         if type(value) is not kind:
@@ -785,9 +1371,11 @@ def _lexical_bounds(text: str) -> None:
 
 
 def media_json(raw: bytes, kind: type[_T]) -> _T:
-    """Parse strict JSON (ordering/whitespace may differ); return a fresh DTO."""
+    """Parse a registered DTO or exact MediaFormat alias into fresh typed values."""
     try:
-        if type(raw) is not bytes or not isinstance(kind, type) or kind not in _SHORT_NAMES:
+        if type(raw) is not bytes or (
+            kind is not MediaFormat and (not isinstance(kind, type) or kind not in _SHORT_NAMES)
+        ):
             _bad()
         if len(raw) > MAX_MEDIA_CONTROL_BYTES:
             _bound()
@@ -828,20 +1416,21 @@ def media_bytes(model: _T) -> bytes:
 
 
 def media_digest(short_type: str, body: _MediaModel | dict) -> str:
-    """Hash a registered complete body, or the exact prehash Receipt fields."""
+    """Hash a closed body, omitting only an explicitly registered root self hash."""
     try:
         if type(short_type) is not str or short_type not in _BY_SHORT:
             _bad()
         kind = _BY_SHORT[short_type]
         _graph(body)
-        if short_type.startswith("R<"):
+        self_field = _SELF.get(kind)
+        if self_field is not None:
             typed = isinstance(body, BaseModel)
             if typed and type(body) is not kind:
                 _bad()
             values = body.__dict__ if typed else body
             if type(values) is not dict:
                 _bad()
-            expected = kind.model_fields.keys() - {"sha256"}
+            expected = kind.model_fields.keys() - {self_field}
             if values.keys() not in (expected, kind.model_fields.keys()):
                 _bad()
             if type(values["v"]) is not int or values["v"] != 1:
@@ -850,11 +1439,18 @@ def media_digest(short_type: str, body: _MediaModel | dict) -> str:
                 name: _field(values[name], kind.model_fields[name].rebuild_annotation(), typed)
                 for name in expected
             }
-            if "sha256" in values:
-                _field(values["sha256"], kind.model_fields["sha256"].rebuild_annotation(), typed)
+            if self_field in values:
+                _field(
+                    values[self_field], kind.model_fields[self_field].rebuild_annotation(), typed
+                )
             if type(fields["v"]) is not int or fields["v"] != 1:
                 _bad()
-            return _hash(short_type, fields)
+            digest = _hash(short_type, fields)
+            if kind in (MediaRuntime, MediaDecoderProfile):
+                # Construction helpers still execute every complete root semantic
+                # check and full-envelope cap with the computed self hash present.
+                kind(**fields, **{self_field: digest})
+            return digest
         return _hash(short_type, _rebuild(body, kind))
     except MediaContractError:
         raise

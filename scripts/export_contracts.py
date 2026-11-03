@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from pydantic import TypeAdapter
+
 from packages.contracts import (
     agent_control,
     agent_export,
@@ -199,4 +201,9 @@ for cls in (decisions.DecisionsCallStart, decisions.DecisionsCallFinish):
 for name, cls in media.MEDIA_SCHEMAS.items():
     (target / f"{name}.json").write_text(
         json.dumps(cls.model_json_schema(), indent=2, sort_keys=True) + "\n"
+    )
+
+for name, alias in media.MEDIA_SCHEMA_ALIASES.items():
+    (target / f"{name}.json").write_text(
+        json.dumps(TypeAdapter(alias).json_schema(), indent=2, sort_keys=True) + "\n"
     )
