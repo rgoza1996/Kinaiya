@@ -791,10 +791,16 @@ def create_app(
         try:
             # A first frame supports web clients without putting credentials in URLs.
             hello = await asyncio.wait_for(ws.receive_json(), timeout=5)
-            auth.authenticate(hello.get("token", ""))
+            token = hello.get("token", "")
+            role = auth.authenticate(token)
+            initial_epoch = getattr(auth, "owner_epoch", 1)
             after = int(hello.get("after", 0))
             session_id = hello.get("session_id")
             while True:
+                if role == "owner":
+                    auth.authenticate(token)
+                    if getattr(auth, "owner_epoch", 1) != initial_epoch:
+                        raise HTTPException(401, "Owner credential rotated")
                 entries = store.read(after=after, limit=100, session_id=session_id)
                 for event in entries:
                     await ws.send_json(event.model_dump(mode="json"))
