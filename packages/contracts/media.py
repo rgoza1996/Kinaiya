@@ -664,6 +664,9 @@ def _rebuild(value, kind):
         value = value.__dict__
     if type(value) is not dict or value.keys() != kind.model_fields.keys():
         _bad()
+    # Literal adapters may use equality; reject bool before they can normalize it.
+    if "v" in kind.model_fields and (type(value["v"]) is not int or value["v"] != 1):
+        _bad()
     fields = {
         name: _field(value[name], field.rebuild_annotation(), typed)
         for name, field in kind.model_fields.items()
@@ -831,6 +834,8 @@ def media_digest(short_type: str, body: _MediaModel | dict) -> str:
                 _bad()
             expected = kind.model_fields.keys() - {"sha256"}
             if values.keys() not in (expected, kind.model_fields.keys()):
+                _bad()
+            if type(values["v"]) is not int or values["v"] != 1:
                 _bad()
             fields = {
                 name: _field(values[name], kind.model_fields[name].rebuild_annotation(), typed)
