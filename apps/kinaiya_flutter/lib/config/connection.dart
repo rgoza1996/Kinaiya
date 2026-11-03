@@ -51,7 +51,9 @@ class LocalSignInResult {
     final rawConverse =
         (json['converse_url'] ?? json['converseUrl'] ?? defaultConverseUrl);
     final rawDecisions = json['decisions_url'] ?? json['decisionsUrl'];
-    if (rawSession is! String || rawAgent is! String || rawConverse is! String) {
+    if (rawSession is! String ||
+        rawAgent is! String ||
+        rawConverse is! String) {
       throw const FormatException(
         'Local sign-in response contains invalid service URLs.',
       );

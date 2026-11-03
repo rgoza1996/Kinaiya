@@ -235,10 +235,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Connected to local Kinaiya host'), findsOneWidget);
-      expect(
-        find.textContaining('Connected (Agent-only)'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Connected (Agent-only)'), findsOneWidget);
       expect(
         find.textContaining('Converse optional / not enabled'),
         findsOneWidget,
@@ -281,10 +278,7 @@ void main() {
         find.byKey(const Key('local-host-status-unavailable')),
         findsOneWidget,
       );
-      expect(
-        find.text('Local automatic sign-in unavailable'),
-        findsOneWidget,
-      );
+      expect(find.text('Local automatic sign-in unavailable'), findsOneWidget);
       expect(find.byKey(const Key('local-host-retry-signin')), findsOneWidget);
 
       // Expand Advanced connection to verify manual endpoint & token fields remain usable.
