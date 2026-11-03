@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "exchange_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Exchange Id",
+      "type": "string"
+    },
+    "kind": {
+      "const": "external_transport",
+      "title": "Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "exchange_id"
+  ],
+  "title": "MediaExternalTransportPeer",
+  "type": "object"
+}

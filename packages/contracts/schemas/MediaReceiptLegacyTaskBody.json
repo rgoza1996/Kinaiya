@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "MediaLegacyTaskBody": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_utf8_b64": {
+          "maxLength": 87384,
+          "minLength": 1,
+          "title": "Canonical Utf8 B64",
+          "type": "string"
+        },
+        "contract": {
+          "const": "TaskRequest",
+          "title": "Contract",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract",
+        "canonical_utf8_b64",
+        "sha256"
+      ],
+      "title": "MediaLegacyTaskBody",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaLegacyTaskBody"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaLegacyTaskBody]",
+  "type": "object"
+}

@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "commit": {
+      "maxLength": 40,
+      "minLength": 40,
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Commit",
+      "type": "string"
+    },
+    "git_blob": {
+      "maxLength": 40,
+      "minLength": 40,
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Git Blob",
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "commit",
+    "path",
+    "git_blob",
+    "sha256"
+  ],
+  "title": "MediaCodePin",
+  "type": "object"
+}
