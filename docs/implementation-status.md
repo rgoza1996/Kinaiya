@@ -11,6 +11,27 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## November 2 merged prerequisites and Agent retirement
 
+The subsequent [Resource graph-walk qualification](../evaluation/evidence/resource-finalization-graph-walk-2026-11-02.json)
+records clean source `970752b`: all 251 checks pass (63 Resource contract cases
+plus the 188 affected regressions), with all 1,519 tracked inputs and HEAD stable.
+The checked field-reconstruction entry scans the full graph once; recursive
+frames retain exact shape/type/scalar checks. Constructors, public validators,
+complete encodings, caps, native observations and transaction guards remain.
+Independent source and raw-evidence reviews found no issues. All 192 old schemas
+and 336 old test paths remain unchanged. The normal merge includes main
+`939ad7e`'s Dart/Penpot changes; the Python checks do not qualify those UI changes.
+
+[CI456](https://github.com/rgoza1996/Kinaiya/actions/runs/41491251237) on earlier
+`ac280b0` passed Python 3.11 (10,981 tests plus export/audit), Flutter/web,
+Android and both unsigned iOS simulator builds. Python 3.12 passed 10,979 and
+failed the same two unchanged eight-second finalization cases; export/audit did
+not run. The reserved-lease finalizer was done at its post-timeout snapshot;
+the large-graph native report remained pending. Neither observation establishes
+deadline-relative completion or the underlying cause. Freshly recovered raw CI
+evidence is distinguished from unavailable earlier ignored receipts. PR315
+remains draft/unmerged and requires fresh changed-source CI; local passes do
+not establish a causal timing repair. No deadline/assertion waiver or CI rerun.
+
 The subsequent [fresh native-graph reuse](../evaluation/evidence/native-report-fresh-reuse-2026-11-02.json)
 qualifies source `5bae42ea` with all 188 affected regressions passing unchanged
 tests/deadlines. Only same-call repeated validation of fresh private graphs is

@@ -118,6 +118,19 @@ earlier `102913a7` head; iOS never acquired a hosted runner. These results remai
 separate from the new local qualification. Changed-head CI is required; no
 timeout cause or causal timing repair is established.
 
+The later [Resource graph-walk qualification](../../evaluation/evidence/resource-finalization-graph-walk-2026-11-02.json)
+records clean `970752b` with 251 passing checks: 63 Resource contract cases and
+the same 188 affected regressions. `_fields` performs one complete actual-graph
+scan at its checked entry; its lexical recursive helper retains every exact
+model/dictionary/typed-child and strict scalar check. Complete encodings,
+constructors, public validators, nested caps, old-kind bridges and native guards
+remain. Independent source and raw-evidence reviews found no issues; all 192
+old schemas and 336 old test paths are unchanged. There is no cross-call cache
+or concurrent-mutation snapshot guarantee. The evidence retains terminal
+CI456's two earlier Python 3.12 timeouts and distinguishes actual recovered
+logs from missing earlier receipts. Changed-source CI remains required; this
+local qualification makes no timing-repair, H64 or full-roadmap claim.
+
 The original oversized conversation fixture was invalid: Store rejects a
 serialized AppendRequest above 65,536 bytes. Its failed run is retained rather
 than called a client-capacity regression. Corrected controls exercise exact
