@@ -26,6 +26,12 @@ An oversized declared list is bounded before expanding its children. Raw JSON
 resource checks precede closed-record validation. These distinct cases do not
 promise the same error precedence for every multiply-invalid input.
 
+Media routes return the protocol's fixed errors: an invalid bearer is
+`403 denied`, and an upload without its original WebSocket association is
+`409 stale`. Both refuse intake before spool progress. Upload reservation
+bounds precede sequence checks; a sparse-order test must otherwise fit its
+reserved byte range. These classifications preserve the native refusal gates.
+
 The encoded-record limit is not a peak memory guarantee. Bounded declared
 objects can materialize a larger encoded representation before that final
 envelope is refused. Native process and queue reservations are separate checks.

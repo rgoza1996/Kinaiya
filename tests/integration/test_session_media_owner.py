@@ -967,7 +967,7 @@ async def test_upload_requires_actual_original_websocket_association(tmp_path):
     async with _stack(tmp_path) as env:
         source, grant = await env.admit()
         header = env.put_header(source)
-        _error(await env.put(header, b"abcdef", grant), 503, "unavailable")
+        _error(await env.put(header, b"abcdef", grant), 409, "stale")
         assert env.uploads[source["body"]["source_id"]].next_offset == 0
         async with env.connected(source, grant):
             _typed_receipt(
@@ -1008,7 +1008,9 @@ async def test_fragmented_upload_exact_replay_key_lookup_and_lookup_kind(tmp_pat
             assert env.uploads[source["body"]["source_id"]].next_offset == 6
 
 
-@pytest.mark.parametrize("failure", ["trailing", "hash", "partial", "out_of_order", "sparse"])
+@pytest.mark.parametrize(
+    "failure", ["trailing", "hash", "partial", "out_of_order", "sparse", "over_reservation"]
+)
 async def test_invalid_body_or_order_has_no_complete_ack_or_spool_progress(tmp_path, failure):
     async with _stack(
         tmp_path, allow_unknown_shutdown=failure in {"trailing", "hash", "partial"}
@@ -1027,9 +1029,18 @@ async def test_invalid_body_or_order_has_no_complete_ack_or_spool_progress(tmp_p
                 header["index"] = 1
             else:
                 header["offset"] = 1
+                if failure == "sparse":
+                    # Isolate ordering from the independent reservation bound.
+                    body = b"abcde"
+                    header["body_bytes"] = len(body)
+                    header["body_sha256"] = _sha(body)
             response = await env.put(header, body, grant, trailing=trailing)
-            code = "conflict" if failure in {"out_of_order", "sparse"} else "bad_packet"
-            _error(response, 409 if code == "conflict" else 400, code)
+            if failure == "over_reservation":
+                # Preserve the original offset1 + six-byte overrun unchanged.
+                _error(response, 413, "bound")
+            else:
+                code = "conflict" if failure in {"out_of_order", "sparse"} else "bad_packet"
+                _error(response, 409 if code == "conflict" else 400, code)
             assert env.uploads[source["body"]["source_id"]].next_offset == 0
             assert env.spool.reserved_bytes == 6
 
@@ -1761,7 +1772,7 @@ async def test_credential_change_invalidates_old_media_context_not_just_old_bear
         async with env.connected(source, grant):
             env.auth.tokens["owner"] = "n" * 32
             old = await env.put(env.put_header(source), b"abcdef", grant)
-            assert old.status_code == 401
+            _error(old, 403, "denied")
             header = env.put_header(source, key="new-bearer-old-client")
             encoded = _json(header)
             headers = _headers(grant=grant)
