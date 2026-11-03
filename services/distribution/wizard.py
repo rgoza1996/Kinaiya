@@ -11,18 +11,7 @@ from pathlib import Path
 
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
-
-MASCOT = r"""          .-.( * ).
-     ~~~ / ~   .-`\
-   ~ *  (____  / - )
-    ~~~~~   \/\_ /
-       __.-'/ /\\
-   ___/   / /  \\___
-        /_/ /\_\
-       / / /  \ \
-     _/ /_/    \_\
-   ~~~(____)~~(____)~~~
-       ~~~ Kinaiya ~~~"""
+from services.distribution.terminal_animation import MASCOT, render_intro_sequence
 
 
 def mascot(*, width=80, interactive=True):
@@ -53,7 +42,7 @@ def run_wizard(layout, *, tty=None):
             raise InstallError("Setup cancelled: terminal input closed")
         return answer.strip() or default
 
-    tty.write(mascot(width=shutil.get_terminal_size().columns) + "\n")
+    render_intro_sequence(tty, width=shutil.get_terminal_size().columns)
     tty.write("Agent-only by default. No microphone capture or task execution.\n")
     tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
     workspace = ask("Authorized workspace", str(layout.workspace))
