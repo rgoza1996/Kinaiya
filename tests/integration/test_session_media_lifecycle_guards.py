@@ -559,7 +559,7 @@ class _ObservedConnection(sqlite3.Connection):
 async def _stack(tmp_path, *, count=1, allow_unknown_shutdown=False):
     # Key custody requires a protected ancestor chain, independent of the
     # checkout's permissions or pytest's configured artifact directory.
-    with tempfile.TemporaryDirectory(prefix="kinaiya-test-native-media-") as private:
+    with tempfile.TemporaryDirectory(prefix="kinaiya-test-native-media-", dir="/tmp") as private:
         async with _native_stack(
             tmp_path, Path(private), count=count, allow_unknown_shutdown=allow_unknown_shutdown
         ) as env:
