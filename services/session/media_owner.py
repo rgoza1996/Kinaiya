@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from packages.contracts import media as m
-from packages.contracts.models import AppendRequest, JournalEntry
+from packages.contracts.models import AppendRequest, JournalEntry, Session
 from services.common.media_wire import IngressBody
 from services.session.media_clients import (
     MediaGrantKeyStore,
@@ -36,6 +36,9 @@ _METADATA = 1_073_741_824
 # and seal/reader/close/delete rewrite the SAME catalog slot. Unknown outcomes
 # retain this full anticipated increment; no snapshot refund is made.
 _SPOOL_GROWTH = 4096
+# Lifetime native bookkeeping for 16 pending/unknown and 64 recent originals,
+# each with at most two ordinary-JSON Session snapshots plus fixed overhead.
+_SESSION_CHANGE_METADATA = 80 * (2 * m.MAX_MEDIA_CONTROL_BYTES + 4096)
 _LEASE = 30.0
 _KINDS = {
     "source": "SourceAdmission",
@@ -118,6 +121,7 @@ class OriginalOperation:
     kind: str
     original_id: str
     candidate_id: str
+    session_id: str
     private_binding: str = ""
     source_id: str | None = None
     client_instance: str | None = None
@@ -164,6 +168,35 @@ class _CloseOperation:
     sealed: bool = False
 
 
+@dataclass(slots=True, eq=False)
+class _SessionChange:
+    session_id: str
+    reason: str
+    state: str = "pending"
+    original: bytes | None = None
+    result: bytes | None = None
+    error_code: str | None = None
+    running: bool = False
+    fence_committed: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _SessionChangeView:
+    _session: bytes
+    state: str
+    _result: bytes | None
+    error_code: str | None
+    replayed: bool
+
+    @property
+    def session(self):
+        return Session.model_validate_json(self._session)
+
+    @property
+    def result(self):
+        return None if self._result is None else Session.model_validate_json(self._result)
+
+
 class MediaSessionOwner:
     def __init__(
         self,
@@ -204,7 +237,7 @@ class MediaSessionOwner:
             or page_bytes & (page_bytes - 1)
         ):
             refuse()
-        self._base_charge = 64 * page_bytes
+        self._base_charge = 64 * page_bytes + _SESSION_CHANGE_METADATA
         self._unit_charge = 2 * 65_536 + 64 * page_bytes + _SPOOL_GROWTH
         self._intake_charge = 16 * page_bytes + _SPOOL_GROWTH
         self._charges = {
@@ -236,6 +269,8 @@ class MediaSessionOwner:
         self._retirement_requests = {}
         self._retirement_unknown = False
         self._close_operation = None
+        self._session_changes = {}
+        self._session_change_recent = OrderedDict()
         # This is the ONLY spool accounting snapshot, before Store.lock. Every
         # subsequent possible catalog/ledger effect has an original precharge.
         self._spool_metadata_snapshot = spool.metadata_bytes
@@ -1165,7 +1200,255 @@ class MediaSessionOwner:
             refuse("unknown_ref")
         return self._read_receipt(row)
 
+    def _session_admission(self, session_id):
+        with self._mutex:
+            if session_id in self._session_changes:
+                refuse("conflict")
+
+    @staticmethod
+    def _session_change_arguments(session_id, reason):
+        if (
+            type(session_id) is not str
+            or not 1 <= len(session_id) <= 128
+            or type(reason) is not str
+            or reason not in {"reset", "deleted"}
+        ):
+            refuse("bad_packet")
+        try:
+            if len(session_id.encode("utf-8")) > 128:
+                refuse("bad_packet")
+        except UnicodeError:
+            refuse("bad_packet")
+
+    def begin_session_change(self, session_id, reason):
+        # Negative enrollment must precede Store.lock. It observes no SQL or
+        # OS state and cannot itself establish that the requested change ran.
+        self._session_change_arguments(session_id, reason)
+        if self._closing or self._closed or self._poisoned:
+            refuse()
+        with self._mutex:
+            if self._closing or self._closed or self._poisoned:
+                refuse()
+            change = self._session_changes.get(session_id)
+            if change is not None:
+                if change.reason != reason:
+                    refuse("conflict")
+            else:
+                if len(self._session_changes) >= 16:
+                    refuse("capacity")
+                change = _SessionChange(session_id, reason)
+                self._session_changes[session_id] = change
+            for source in self._sources.values():
+                if source.admission.session.session_id == session_id:
+                    source.fenced.set()
+                    source.reason = reason
+                    if source.original is not None:
+                        source.original.fenced.set()
+            for original in self._operations.values():
+                if original.session_id == session_id:
+                    original.fenced.set()
+            return change
+
+    def validate_session_change(self, change, session_id, reason):
+        self._session_change_arguments(session_id, reason)
+        if self._closing or self._closed or self._poisoned:
+            refuse()
+        with self._mutex:
+            if self._closing or self._closed or self._poisoned:
+                refuse()
+            self._session_change_registered(change)
+            if (change.session_id, change.reason) != (session_id, reason):
+                refuse("conflict")
+            if change.state == "unknown":
+                refuse()
+            if change.state == "refused":
+                refuse(change.error_code)
+            return change
+
+    def _session_change_registered(self, change):
+        # A foreign/reconstructed token never enrolls itself on observation.
+        if type(change) is not _SessionChange:
+            refuse("bad_packet")
+        if self._session_changes.get(change.session_id) is change:
+            return
+        if self._session_change_recent.get(id(change)) is not change:
+            refuse("stale")
+
+    def _session_change_finish(self, change, state, *, result=None, error_code=None):
+        with self._mutex:
+            self._session_change_registered(change)
+            change.state, change.result, change.error_code = state, result, error_code
+            if state in {"applied", "refused"}:
+                if self._session_changes.get(change.session_id) is change:
+                    del self._session_changes[change.session_id]
+                self._session_change_recent[id(change)] = change
+                for key, previous in tuple(self._session_change_recent.items()):
+                    if len(self._session_change_recent) <= 64:
+                        break
+                    if previous.state in {"applied", "refused"} and not previous.running:
+                        del self._session_change_recent[key]
+
+    def _session_change_read(self, session_id):
+        row = self._sql("SELECT value FROM sessions WHERE session_id=?", (session_id,)).fetchone()
+        if row is None:
+            return None
+        raw = row[0]
+        # Legacy Session has unbounded display strings. Refuse such a snapshot
+        # before UTF-8 copying/model reconstruction or retaining it in a token.
+        if type(raw) is not str:
+            self._poisoned = True
+            refuse()
+        if len(raw) > m.MAX_MEDIA_CONTROL_BYTES:
+            refuse("bound")
+        try:
+            if len(raw.encode("utf-8")) > m.MAX_MEDIA_CONTROL_BYTES:
+                refuse("bound")
+            session = Session.model_validate_json(raw)
+            if session.session_id != session_id:
+                self._poisoned = True
+                refuse()
+            m.MediaSession(
+                session_id=session.session_id, thread_id=session.thread_id, epoch=session.epoch
+            )
+            encoded = _canonical(session.model_dump(mode="json"))
+        except MediaSessionError:
+            raise
+        except m.MediaContractError as error:
+            refuse(error.code)
+        except Exception:
+            self._poisoned = True
+            refuse()
+        if len(encoded) > m.MAX_MEDIA_CONTROL_BYTES:
+            refuse("bound")
+        return encoded
+
+    @staticmethod
+    def _session_change_identity(raw):
+        session = Session.model_validate_json(raw)
+        return session.session_id, session.thread_id, session.epoch
+
+    def _session_change_fences(self, change):
+        if (
+            self._sql(
+                "SELECT 1 FROM media_clients WHERE session_id=? AND connection_state NOT IN('fenced','unknown','settled') LIMIT 1",
+                (change.session_id,),
+            ).fetchone()
+            or self._sql(
+                "SELECT 1 FROM media_sources WHERE session_id=? AND desired='running' LIMIT 1",
+                (change.session_id,),
+            ).fetchone()
+        ):
+            refuse("conflict")
+
+    @contextmanager
+    def session_change_transaction(self, change, phase):
+        if (
+            type(phase) is not str
+            or phase not in {"reset", "delete_fence", "delete_finalize"}
+            or type(change) is not _SessionChange
+            or (phase == "reset") != (change.reason == "reset")
+        ):
+            refuse("bad_packet")
+        if self._closing or self._closed or self._poisoned:
+            refuse()
+        with self.store.lock:
+            # Never join/commit/roll back a caller's already-open transaction.
+            if self._closing or self._closed or self._poisoned or self.store.db.in_transaction:
+                refuse()
+            with self._mutex:
+                self._session_change_registered(change)
+                if change.running:
+                    refuse("conflict")
+                if change.state == "unknown":
+                    refuse()
+                if change.state == "refused":
+                    refuse(change.error_code)
+                if (
+                    change.state == "pending"
+                    and phase == "delete_finalize"
+                    and not change.fence_committed
+                ):
+                    refuse("conflict")
+                change.running = True
+            committed = False
+            replay = change.state == "applied"
+            phase_replay = replay or phase == "delete_fence" and change.fence_committed
+            try:
+                with self._boundary():
+                    self._authority()
+                    if change.original is None:
+                        change.original = self._session_change_read(change.session_id)
+                        if change.original is None:
+                            refuse("unknown_ref")
+                    original_id = self._session_change_identity(change.original)
+                    if not replay:
+                        current = self._session_change_read(change.session_id)
+                        if current is None or self._session_change_identity(current) != original_id:
+                            refuse("stale")
+                        if phase == "reset" and original_id[2] >= _MAX:
+                            refuse("bound")
+                    before = self.store.db.total_changes
+                    yield _SessionChangeView(
+                        change.original,
+                        change.state,
+                        change.result,
+                        change.error_code,
+                        phase_replay,
+                    )
+                    self._authority()
+                    if phase_replay:
+                        # Even a mistaken caller cannot commit a second DML
+                        # operation while observing a completed original token.
+                        if self.store.db.total_changes != before:
+                            refuse("conflict")
+                    if not replay:
+                        self._session_change_fences(change)
+                        current = self._session_change_read(change.session_id)
+                        if phase == "reset":
+                            if current is None or self._session_change_identity(current) != (
+                                *original_id[:2],
+                                original_id[2] + 1,
+                            ):
+                                refuse("conflict")
+                        elif phase == "delete_fence":
+                            if (
+                                current is None
+                                or self._session_change_identity(current) != original_id
+                            ):
+                                refuse("conflict")
+                        elif current is not None:
+                            refuse("conflict")
+                committed = True
+                if not replay:
+                    # Retain Store.lock through the native postcommit read.
+                    # No caller flag, requested phase or rowcount proves this.
+                    observed = self._session_change_read(change.session_id)
+                    if observed != current:
+                        self._poisoned = True
+                        refuse()
+                    if phase == "delete_fence":
+                        change.fence_committed = True
+                    else:
+                        self._session_change_finish(change, "applied", result=observed)
+            except BaseException as error:
+                if committed or self._poisoned or not isinstance(error, Exception):
+                    self._poisoned = True
+                    self._session_change_finish(change, "unknown", error_code="unavailable")
+                elif not replay:
+                    code = error.code if isinstance(error, MediaSessionError) else "unavailable"
+                    if not (
+                        change.reason == "deleted" and change.fence_committed and code == "conflict"
+                    ):
+                        self._session_change_finish(change, "refused", error_code=code)
+                    if not isinstance(error, MediaSessionError):
+                        refuse(code)
+                raise
+            finally:
+                with self._mutex:
+                    change.running = False
+
     def _session(self, value):
+        self._session_admission(value.session_id)
         session = self.store.session(value.session_id)
         if (session.thread_id, session.epoch) != (value.thread_id, value.epoch):
             refuse("stale")
@@ -1318,6 +1601,9 @@ class MediaSessionOwner:
     async def _execute(self, request, kind, work, principal, nonce=b""):
         raw = m.media_bytes(request)
         digest = m.media_digest(_REQUESTS[kind], request)
+        session_id = (
+            request.session.session_id if kind == "admit" else request.fence.session.session_id
+        )
         if (
             type(principal) is not NativeMediaPrincipal
             or principal.issuer is not self._principal_issuer
@@ -1339,25 +1625,39 @@ class MediaSessionOwner:
                 }
             ),
         )
+        candidate = OriginalOperation(
+            request.key,
+            digest,
+            kind,
+            secrets.token_hex(16),
+            secrets.token_hex(16),
+            session_id,
+            binding,
+        )
         async with self._async_lock:
-            original = self._operations.get(request.key)
-            if original is not None:
-                if (
-                    original.kind != kind
-                    or original.digest != digest
-                    or original.private_binding != binding
-                ):
-                    refuse("conflict")
-            else:
-                active = sum(
-                    item.task is None or not item.task.done() for item in self._operations.values()
-                )
-                if self._closing or active >= 16:
-                    refuse("capacity" if not self._closing else "unavailable")
-                original = OriginalOperation(
-                    request.key, digest, kind, secrets.token_hex(16), secrets.token_hex(16), binding
-                )
-                self._operations[request.key] = original
+            with self._mutex:
+                original = self._operations.get(request.key)
+                fresh = original is None
+                if not fresh:
+                    if (
+                        original.kind != kind
+                        or original.digest != digest
+                        or original.private_binding != binding
+                        or original.session_id != session_id
+                    ):
+                        refuse("conflict")
+                else:
+                    if session_id in self._session_changes:
+                        refuse("conflict")
+                    active = sum(
+                        item.task is None or not item.task.done()
+                        for item in self._operations.values()
+                    )
+                    if self._closing or active >= 16:
+                        refuse("capacity" if not self._closing else "unavailable")
+                    original = candidate
+                    self._operations[request.key] = original
+            if fresh:
 
                 async def original_work():
                     try:
@@ -1380,13 +1680,14 @@ class MediaSessionOwner:
             return await asyncio.shield(original.task)
         finally:
             # Bounded positive recent cache; unresolved original owners never evict.
-            positives = [
-                key
-                for key, item in self._operations.items()
-                if item.task is not None and item.task.done() and not item.unknown
-            ]
-            for key in positives[:-64]:
-                self._operations.pop(key, None)
+            with self._mutex:
+                positives = [
+                    key
+                    for key, item in self._operations.items()
+                    if item.task is not None and item.task.done() and not item.unknown
+                ]
+                for key in positives[:-64]:
+                    self._operations.pop(key, None)
 
     def _capture_operation(self, original, row):
         with self._mutex:
@@ -1469,6 +1770,8 @@ class MediaSessionOwner:
             source = self._sources.get(source_id)
             if source is None:
                 refuse()
+            if source.admission.session.session_id in self._session_changes:
+                refuse("conflict")
             if self.clock() >= source.expires:
                 source.fenced.set()
                 source.reason = "lease_expired"
@@ -1572,7 +1875,7 @@ class MediaSessionOwner:
                 if client["nonce_sha256"] != nonce_sha:
                     refuse("conflict")
                 return self._existing(operation), None
-            if self._closing:
+            if self._closing or original.fenced.is_set():
                 refuse()
             self._session(request.session)
             if request.kind != "recording" or request.purpose not in {"observe", "analyze"}:
@@ -3114,15 +3417,10 @@ class MediaSessionOwner:
                         originals.append(source.original)
             for original in originals:
                 original.fenced.set()
-        # The actual Store lock/transaction still protects every client/source
-        # binding. SQL may block; it must never hold the owner memory mutex and
-        # delay another original's synchronous negative fence.
-        for item in candidates:
-            client = self._sql(
-                "SELECT session_id FROM media_clients WHERE source_id=?", (item.source_id,)
-            ).fetchone()
-            if client is not None and client[0] == session.session_id:
-                with self._mutex:
+            # Request-derived Session identity exists before any SQL prepare
+            # or Source publication, including the seal original.
+            for item in candidates:
+                if item.session_id == session.session_id:
                     if not any(item is old for old in originals):
                         originals.append(item)
                     item.fenced.set()
@@ -3206,6 +3504,12 @@ class MediaSessionOwner:
             self._local.token = previous
         # Read-only final assertion: root already committed its explicit fence.
         with self._mutex:
+            if any(
+                item.session_id == session.session_id
+                and (item.unknown or item.task is None or not item.task.done())
+                for item in self._operations.values()
+            ):
+                refuse("conflict")
             for source in self._sources.values():
                 if source.admission.session.session_id != session.session_id:
                     continue
@@ -3319,6 +3623,14 @@ class MediaSessionOwner:
         # original objects/tasks below still have their positive proof.
         with self._mutex:
             if self._intakes or self._native_jobs or operation.unknown:
+                return False
+            if any(
+                change.running or change.state == "unknown"
+                for change in (
+                    *self._session_changes.values(),
+                    *self._session_change_recent.values(),
+                )
+            ):
                 return False
             if any(
                 operation.sources.get(key) is not source for key, source in self._sources.items()
