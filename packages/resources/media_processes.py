@@ -752,6 +752,11 @@ class MediaLaunch:
                 owner.unknown = self._close_unknown = True
                 return None
             owner.fd = fd
+        except OSError:
+            # A native failed syscall returned no acquired descriptor. The
+            # original charge stays; cleanup still joins the ungranted child.
+            owner.closed = True
+            return None
         except BaseException as error:
             owner.unknown = self._close_unknown = True
             if not isinstance(error, Exception):
