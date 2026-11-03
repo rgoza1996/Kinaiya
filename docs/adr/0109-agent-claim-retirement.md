@@ -131,6 +131,33 @@ CI456's two earlier Python 3.12 timeouts and distinguishes actual recovered
 logs from missing earlier receipts. Changed-source CI remains required; this
 local qualification makes no timing-repair, H64 or full-roadmap claim.
 
+The subsequent [reply/context construction qualification](../../evaluation/evidence/resource-finalization-context-construction-2026-11-02.json)
+records clean `7dd787c` with the same 251 unchanged checks passing. After complete
+result validation and request agreement, the API locally encodes the fresh
+result and nested finalization without reconstructing them again. Its argument
+crossed an owner callback and still receives public validation. The legacy
+owner's context digest uses the same domain and complete actual-graph encoder,
+then immediately invokes the unchanged full Context constructor. All child
+reconstruction, strict metadata/scalar checks, nested caps and complete
+request/claim/initial/reservation joins remain. These are same-call private fresh
+graphs, with no cross-call cache or general concurrent-snapshot guarantee.
+Independent source review covers ownership, canonical-content equivalence,
+fixed-error normalization and exact integration. Separate raw-evidence review
+verifies the unchanged cases and retains negative/uncertain cleanup outcomes.
+All 192 schemas, 336 old test paths and seven lockfiles
+are unchanged, and whole-repository lint/format/export checks pass. The separate
+native-v2 owner change is not included here.
+
+CI497 on prior `8c060bb` passed four jobs but retained one Python 3.12 failure:
+the genuine large-graph finalization case exceeded its unchanged outer eight
+seconds. Both Python logs identify checkout `c6822ee` with the same complete
+tree. Its pending native/finalizer work and observed wrapper result do not prove
+deadline-relative completion or a cause. The new local pass does not establish
+a timing repair, capacity, general physical cleanup or model/demo readiness.
+PR315 remains draft/unmerged until all applicable changed-source checks pass;
+earlier failures remain evidence and no workflow rerun or deadline/assertion
+waiver is substituted for that gate.
+
 The original oversized conversation fixture was invalid: Store rejects a
 serialized AppendRequest above 65,536 bytes. Its failed run is retained rather
 than called a client-capacity regression. Corrected controls exercise exact

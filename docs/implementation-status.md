@@ -11,6 +11,31 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 ## November 2 merged prerequisites and Agent retirement
 
+The subsequent [reply/context construction qualification](../evaluation/evidence/resource-finalization-context-construction-2026-11-02.json)
+records clean source `7dd787c`: all 251 checks pass with zero failures, errors or
+skips and all 1,520 tracked inputs, HEAD and runner stable. The API encodes fresh
+fully validated replies without rebuilding them again; an argument passed to an
+owner callback still receives public validation. The legacy owner's private
+context precomputation hashes the actual complete graph immediately before the
+unchanged constructor rebuilds and checks every child and semantic join. Public
+validators, fresh history/pre-commit audits, native guards and cleanup ownership
+remain. All 192 schemas, 336 old test paths and seven lockfiles are unchanged.
+Independent source and raw-evidence reviews pass within that bounded scope.
+Whole-repository Ruff/format and explicit isolated contract export pass. The
+separate native-v2 context change is excluded from this publication.
+
+[CI497](https://github.com/rgoza1996/Kinaiya/actions/runs/41549775386) on earlier
+`8c060bb` passed Python 3.11 (10,981 plus export/audit), Flutter, Android and iOS.
+Python 3.12 passed 10,980 and failed the unchanged large-graph finalization case
+at its outer eight-second deadline; its export/audit steps did not run. Both
+Python logs confirm checkout `c6822ee`, whose tree exactly matches `8c060bb`.
+The report wrapper result was observed while outer call/finalizer/native HTTP
+and thread work remained pending. This does not identify deadline-relative
+completion or a cause. Earlier red runs remain recorded below. PR315 remains
+draft/unmerged pending changed-source CI; no rerun or assertion/deadline waiver.
+These local passes establish neither a causal timing repair nor H64, model,
+live-device or demonstration readiness.
+
 The subsequent [Resource graph-walk qualification](../evaluation/evidence/resource-finalization-graph-walk-2026-11-02.json)
 records clean source `970752b`: all 251 checks pass (63 Resource contract cases
 plus the 188 affected regressions), with all 1,519 tracked inputs and HEAD stable.
