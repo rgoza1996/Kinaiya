@@ -556,11 +556,6 @@ async def test_lost_spawn_return_keeps_original_unknown_and_charged_after_actual
     assert len(harness.processes) == 1 and lost_returns == harness.processes
     original = lost_returns[0]
     assert not marker.exists()
-    if original.returncode is None:
-        try:
-            original.kill()
-        except ProcessLookupError:
-            pass  # The positive wait below is still required.
     assert await asyncio.wait_for(original.wait(), _WAIT) is not None
     assert not marker.exists(), "configured code executed without a returned ownership handle"
     pool.fence(launch)
