@@ -3260,13 +3260,30 @@ class MediaSessionOwner:
             ):
                 return None
             try:
-                self._session(receipt.body.session)
-                self._memory_source(receipt.body.source_id, connected=False)
+                grant = self._grant(client)
+                # The exact original bootstrap nonce authenticates recovery.
+                # Reuse every source-currentness check with the native-derived
+                # grant; recovery cannot skip anchor, retention or fence guards.
+                recovery = NativeMediaPrincipal(
+                    principal.issuer,
+                    principal.auth_identity,
+                    principal.auth_generation,
+                    principal.app_instance,
+                    principal.role,
+                    grant,
+                )
+                self._source_guard(
+                    token,
+                    _ref(self.backend_id, receipt),
+                    receipt.body.fence,
+                    recovery,
+                    connected=False,
+                )
             except MediaSessionError:
                 return None
             if client["connection_state"] not in {"unbound", "connected"}:
                 return None
-            return self._grant(client)
+            return grant
 
     def associate_connection(self, connection, session_id):
         principal = connection.principal
