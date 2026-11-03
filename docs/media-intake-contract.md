@@ -259,3 +259,19 @@ and one native job pending before the final close barrier; it did not identify
 the exact pending worker or establish the cause. The five-second production
 deadline and history assertions remain unchanged. New phase observations are
 diagnostic evidence, not a repair or a replacement for passing acceptance/CI.
+
+### Reuse within one synchronous audit
+
+Each locked history audit has a private receipt memo. A receipt enters it only
+after fresh strict parsing, canonical encoding and every persisted-field check.
+Reuse requires an exact, type-sensitive match for all fields read by that parser;
+SQL, reference, history, request, fence and link checks still run. The memo never
+crosses a call or the transaction's mutation yield: pre- and post-audits create
+separate instances. Parsed models and their mutable children stay inside the
+audit; ordinary native lookups continue to parse fresh values.
+
+The optimization retains at most 64 entries and 4 MiB of estimated key content.
+This is not a total Python heap bound. Unsupported or oversized keys and evicted
+entries take the original fresh-parse path. These limits neither evict native
+history nor change admission limits, cleanup authority or the five-second
+shutdown deadline. Qualification and diagnostic observations remain separate.

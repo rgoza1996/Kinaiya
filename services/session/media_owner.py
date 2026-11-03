@@ -143,6 +143,69 @@ def _ref(backend, receipt):
     return m.MediaNativeRef(backend_id=backend, receipt_id=receipt.id, sha256=receipt.sha256)
 
 
+class _AuditReceiptMemo:
+    """Unexposed fresh parses for ONE synchronous locked audit, never authority.
+
+    Hits cover every immutable row field read by _read_receipt, with exact
+    types. The caller still performs each SQL/ref/history/link check. Models
+    stay private and unchanged; shallow-frozen children must not escape here.
+    LRU/key bounds only limit this optimization: misses always parse normally.
+    """
+
+    _FIELDS = (
+        "kind",
+        "owner_realm_id",
+        "canonical_receipt",
+        "receipt_id",
+        "key",
+        "request_sha256",
+        "sha256",
+    )
+    _MAX_ENTRIES = 64
+    _MAX_KEY_BYTES = 4 * 1024 * 1024
+
+    def __init__(self):
+        self._entries = OrderedDict()
+        self._key_bytes = 0
+
+    def key(self, row):
+        try:
+            values = tuple(row[name] for name in self._FIELDS)
+        except (KeyError, IndexError, TypeError):
+            return None
+        if any(type(value) not in {str, bytes} for value in values):
+            return None
+        # Bound before hashing/copying content. Four bytes per str character is
+        # a conservative scalar-content estimate; no encode/normalization or
+        # arbitrary object traversal precedes the existing strict parser.
+        size = sum(len(value) * (4 if type(value) is str else 1) for value in values)
+        if size > self._MAX_KEY_BYTES:
+            return None
+        return tuple((type(value), value) for value in values), size
+
+    def get(self, key):
+        found = self._entries.get(key)
+        if found is None:
+            return None
+        self._entries.move_to_end(key)
+        return found[1]
+
+    def put(self, key, size, receipt):
+        # Only a completed strict parse/canonical/row check may reach insertion.
+        if size > self._MAX_KEY_BYTES:
+            return
+        prior = self._entries.pop(key, None)
+        if prior is not None:
+            self._key_bytes -= prior[0]
+        while self._entries and (
+            len(self._entries) >= self._MAX_ENTRIES or self._key_bytes + size > self._MAX_KEY_BYTES
+        ):
+            _, retired = self._entries.popitem(last=False)
+            self._key_bytes -= retired[0]
+        self._entries[key] = (size, receipt)
+        self._key_bytes += size
+
+
 @dataclass(slots=True)
 class OriginalOperation:
     key: str
@@ -734,6 +797,9 @@ class MediaSessionOwner:
 
     def _validate_history(self, token):
         self._locked(token)
+        # A new private memo for this audit only: never cross the mutation yield
+        # into the separately fresh post-audit or expose these parsed models.
+        memo = _AuditReceiptMemo()
         meta = self._sql("SELECT * FROM media_meta WHERE id=1").fetchone()
         if (
             meta is None
@@ -779,7 +845,7 @@ class MediaSessionOwner:
                 break
             for row in rows:
                 after = row["receipt_id"]
-                self._read_receipt(row)
+                self._read_receipt(row, memo=memo)
         after = ""
         while True:
             rows = self._sql(
@@ -840,23 +906,25 @@ class MediaSessionOwner:
                         or result["original_instance"] != row["original_app_instance"]
                     ):
                         refuse()
-                    parsed = self._read_receipt(result)
+                    parsed = self._read_receipt(result, memo=memo)
                     if row["kind"] in {"admit", "task_proof", "anchor"}:
                         session = parsed.body.session
                     elif row["kind"] in {"control", "delete", "status_append"}:
                         session = request.fence.session
                     else:
-                        session = self._lookup_ref(token, request.source, "source").body.session
+                        session = self._lookup_ref(
+                            token, request.source, "source", memo=memo
+                        ).body.session
                     if (result["session_id"], result["thread_id"], result["epoch"]) != (
                         session.session_id,
                         session.thread_id,
                         session.epoch,
                     ):
                         refuse()
-                    self._validate_result_binding(token, row, request, parsed)
-        self._validate_links(token)
+                    self._validate_result_binding(token, row, request, parsed, memo=memo)
+        self._validate_links(token, memo=memo)
 
-    def _validate_result_binding(self, token, operation, request, receipt):
+    def _validate_result_binding(self, token, operation, request, receipt, *, memo=None):
         self._locked(token)
         body, kind = receipt.body, operation["kind"]
         original_fence = getattr(request, "fence", None)
@@ -926,7 +994,7 @@ class MediaSessionOwner:
             ):
                 refuse()
         elif kind == "seal":
-            source = self._lookup_ref(token, request.source, "source").body
+            source = self._lookup_ref(token, request.source, "source", memo=memo).body
             if (
                 body.source != request.source
                 or body.fence != request.fence
@@ -961,7 +1029,7 @@ class MediaSessionOwner:
                 body.task_admission,
             ) != (request.owner_objective, request.scope, request.task_admission):
                 refuse()
-            proof = self._lookup_ref(token, body.task_admission, "task_proof").body
+            proof = self._lookup_ref(token, body.task_admission, "task_proof", memo=memo).body
             if (
                 body.session,
                 body.task_id,
@@ -984,7 +1052,7 @@ class MediaSessionOwner:
         else:
             refuse()
 
-    def _validate_links(self, token):
+    def _validate_links(self, token, *, memo=None):
         self._locked(token)
         for row in self._sql(
             "SELECT r.*,o.kind AS operation_kind,o.phase,o.result_receipt_id FROM media_receipts r LEFT JOIN media_operations o ON o.key=r.key"
@@ -1072,7 +1140,10 @@ class MediaSessionOwner:
                 or proof_row["kind"] != "task_proof"
             ):
                 refuse()
-            anchor, proof = self._read_receipt(original).body, self._read_receipt(proof_row)
+            anchor, proof = (
+                self._read_receipt(original, memo=memo).body,
+                self._read_receipt(proof_row, memo=memo),
+            )
             pin = m.media_bytes(anchor.owner_objective)
             if (
                 pin != bytes(row["owner_objective"])
@@ -1104,9 +1175,9 @@ class MediaSessionOwner:
             ).fetchone()
             if seal_row is None or seal_row["kind"] != "seal":
                 refuse()
-            seal = self._read_receipt(seal_row).body
-            admission = self._lookup_ref(token, seal.source, "source").body
-            anchor = self._lookup_ref(token, admission.anchor, "anchor").body
+            seal = self._read_receipt(seal_row, memo=memo).body
+            admission = self._lookup_ref(token, seal.source, "source", memo=memo).body
+            anchor = self._lookup_ref(token, admission.anchor, "anchor", memo=memo).body
             if (
                 row["source_sha256"],
                 row["source_bytes"],
@@ -1125,7 +1196,7 @@ class MediaSessionOwner:
             ).fetchone()
             if original is None or original["kind"] != "source":
                 refuse()
-            receipt = self._read_receipt(original)
+            receipt = self._read_receipt(original, memo=memo)
             source = receipt.body
             if (
                 row["source_id"],
@@ -1185,7 +1256,8 @@ class MediaSessionOwner:
                 if (
                     status_row is None
                     or status_row["kind"] != "status"
-                    or self._read_receipt(status_row).body.source != _ref(self.backend_id, receipt)
+                    or self._read_receipt(status_row, memo=memo).body.source
+                    != _ref(self.backend_id, receipt)
                 ):
                     refuse()
             expected_index, expected_offset = 0, 0
@@ -1198,7 +1270,7 @@ class MediaSessionOwner:
                 ).fetchone()
                 if ack_row is None or ack_row["kind"] != "upload_ack":
                     refuse()
-                ack = self._read_receipt(ack_row)
+                ack = self._read_receipt(ack_row, memo=memo)
                 if (part["index"], part["offset"]) != (expected_index, expected_offset):
                     refuse()
                 if (
@@ -1235,7 +1307,7 @@ class MediaSessionOwner:
                 ).fetchone()
                 if child_row is None or child_row["kind"] != "child_owner":
                     refuse()
-                child = self._read_receipt(child_row)
+                child = self._read_receipt(child_row, memo=memo)
                 if (
                     child.body.source != _ref(self.backend_id, receipt)
                     or child.body.backend_id != self.backend_id
@@ -1273,7 +1345,7 @@ class MediaSessionOwner:
                         ).fetchone()
                         if cleanup_row is None or cleanup_row["kind"] != "cleanup":
                             refuse()
-                        cleanup = self._read_receipt(cleanup_row).body
+                        cleanup = self._read_receipt(cleanup_row, memo=memo).body
                         if (
                             cleanup.original_owner != _ref(self.backend_id, child)
                             or cleanup.state != "settled"
@@ -1299,9 +1371,14 @@ class MediaSessionOwner:
                 if verified is None:
                     refuse()
 
-    def _read_receipt(self, row):
+    def _read_receipt(self, row, *, memo=None):
         if row["kind"] not in _KINDS or row["owner_realm_id"] != self.owner_realm_id:
             refuse()
+        key = None if memo is None else memo.key(row)
+        if key is not None:
+            cached = memo.get(key[0])
+            if cached is not None:
+                return cached
         kind = getattr(m, "Media" + _KINDS[row["kind"]])
         receipt = m.media_json(bytes(row["canonical_receipt"]), m.MediaReceipt[kind])
         # The fresh parse already rebuilt every child and checked its digest.
@@ -1315,9 +1392,11 @@ class MediaSessionOwner:
             or receipt.sha256 != row["sha256"]
         ):
             refuse()
+        if key is not None:
+            memo.put(key[0], key[1], receipt)
         return receipt
 
-    def _lookup_ref(self, token, reference, kind):
+    def _lookup_ref(self, token, reference, kind, *, memo=None):
         self._locked(token)
         reference = _fresh(reference, m.MediaNativeRef)
         if reference.backend_id != self.backend_id:
@@ -1327,7 +1406,7 @@ class MediaSessionOwner:
         ).fetchone()
         if row is None or row["kind"] != kind or row["sha256"] != reference.sha256:
             refuse("unknown_ref")
-        return self._read_receipt(row)
+        return self._read_receipt(row, memo=memo)
 
     def _session_admission(self, session_id):
         with self._mutex:
