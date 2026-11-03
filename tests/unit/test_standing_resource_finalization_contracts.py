@@ -337,6 +337,37 @@ def schema_pin():
             "Error",
         )
     }
+    # Decoder descriptions are another exact additive family. Their separate
+    # 69-schema pin must not change which original184 bytes are verified here.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "CodePin",
+            "AssetPin",
+            "Runtime",
+            "AudioFormat",
+            "ImageFormat",
+            "ClipFormat",
+            "Transform",
+            "ProbeTrack",
+            "ProbeResult",
+            "DecoderProtocol",
+            "DecoderProfile",
+            "Track",
+            "CaptureOffer",
+            "CaptureReady",
+            "DecodeReady",
+            "Segment",
+            "DecodeRequest",
+            "TrackEnd",
+            "DecodeEnd",
+            "DecodeResponse",
+            "InputEnd",
+            "DecodeBudget",
+            "Format",
+        )
+    }
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:
