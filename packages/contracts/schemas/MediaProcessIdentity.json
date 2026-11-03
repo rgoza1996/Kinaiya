@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "boot_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Boot Id",
+      "type": "string"
+    },
+    "nonce": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Nonce",
+      "type": "string"
+    },
+    "pid": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Pid",
+      "type": "integer"
+    },
+    "pidfd_owner": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Pidfd Owner",
+      "type": "string"
+    },
+    "start_tick": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Start Tick",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "pid",
+    "start_tick",
+    "boot_id",
+    "nonce",
+    "pidfd_owner"
+  ],
+  "title": "MediaProcessIdentity",
+  "type": "object"
+}

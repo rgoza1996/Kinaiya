@@ -1,0 +1,272 @@
+{
+  "baseline": {
+    "main": "0db7b8044fed6879c3bdc0da63da05e9d4d49a57"
+  },
+  "ci": {
+    "status": "Not yet run for this increment; exact published-head applicable CI is required before merge."
+  },
+  "contract_clarification": {
+    "caps_deadlines_old_schema_assertions_preserved": true,
+    "codec_categories": "Initial grammar had a global codec enum without kind assignment. Explicit per-kind consistency is a selected post-run clarification, not an already explicit old rule; no decoder capability follows.",
+    "equal_segment_endpoints": "Remain allowed by the descriptor grammar; useful progress and EOF still require native observations.",
+    "oracle_provenance": "Original2c612 source-blind phase is preserved.0715300 corrections are source-aware following the disclosed adjudication-attachment exposure.",
+    "parameterization": "Tuple-wrap three product iterators preserving original dimensions, ordering and assertions; no cases dropped.",
+    "selected_after_first335": true,
+    "typed_unknown_extra": "bad_packet before descending extra values; an oversized declared list separately tests pre-expansion bounds with its hostile child LAST."
+  },
+  "environment": {
+    "actual_model_provider_calls": 0,
+    "dependency_changes": false,
+    "isolated_pythonpath": true,
+    "pytest": "9.1.1",
+    "python": "3.12.3",
+    "ruff": "0.17.3",
+    "serial_local_qualification": true
+  },
+  "implemented": [
+    "Closed bounded immutable media metadata codecs with rational time, receipts and explicit fields.",
+    "Bounded framed upload/capture/packet ingress with actual body byte/hash verification.",
+    "Private locked disk spool with charged reservations, exact append replay, seal hashing, bounded original readers and deferred deletion.",
+    "144 additive JSON schemas (75 initial and69 decoder/format); all192 previous schema files preserved."
+  ],
+  "independent_reviews": [
+    {
+      "artifacts_sha256": {
+        "manifest.json": "d70650d62649c7dcdaadecbc4b1c9b384860135fc98798d958c7e8765f4f53f3",
+        "receipt.json": "01dd210ac60a4ebbc260e1e81dd8dbd6a1bf6d4f113abcc6bdda0042465df3eb",
+        "review.md": "24d8f1511a8c699f6971ef9967991388257426f642664f30fc609bf80f7a054f",
+        "seal.json": "955bcc19041c8d9bd91c91a021e563e56a86b8addd432c51cc2d57d8ffd69a83"
+      },
+      "local_ignored_directory": ".dev-run/204-media-decoder-contracts-independent-source-review-v1-122de01057",
+      "scope": "Independent static source/delta review, not execution or model qualification."
+    },
+    {
+      "artifacts_sha256": {
+        "manifest.json": "693f205b78a3d46e0e8150e32bce33b3efc67ef832055a5ae7e3057c5104bae2",
+        "receipt.json": "e377358ce0766040108a6c3047f3461ef178d1f4a3d7514706ec197e08ed3594",
+        "review.md": "cdede7cc1f1417fbb61abd692b6a2d0334be7de1f6ccfaf48e1c1d05d4a7b8ef",
+        "seal.json": "6b746a3c51c25d515a4b479e71e9f76a023a477c02b0f8c09ac25544c7476c4a"
+      },
+      "local_ignored_directory": ".dev-run/204-media-spool-independent-source-review-v1",
+      "scope": "Independent static source/delta review, not execution or model qualification."
+    },
+    {
+      "artifacts_sha256": {
+        "manifest.json": "5c8b27686ff79855bda6a9e480236b44dd1943717545e26bb1ec2d4f29baf53f",
+        "receipt.json": "f968282b80dd23ab871d6ff09cccee4f0b6a532579f4cd5c0eb34db350b84c2e",
+        "review.md": "2f9c65fa42147119a7656a2146dec413199fb1b7076ef6cd86d4b7361ee5a03e",
+        "seal.json": "eef8368e84d272fafe8fa2038d6e0d6bc018c4caf7bbb5324d47de0529d20457"
+      },
+      "local_ignored_directory": ".dev-run/204-post335-independent-delta-review-v1-6f87133f3d",
+      "scope": "Independent static source/delta review, not execution or model qualification."
+    },
+    {
+      "artifacts_sha256": {
+        "receipt.json": "bf01aa945795ad24c6891705bf5f2fc1457dc07681e32e46f25482eec4cafaed",
+        "review.md": "b50fe6fc55e422358c1f233c566d7fa7ace9016dfa0ed6fcfc7e041b734ab1f1"
+      },
+      "local_ignored_directory": ".dev-run/204-corrected-integrated-media-independent-raw-review-v1",
+      "scope": "Independent raw-run/evidence review only; reviewer authored decoder oracles, so this is not independent source-blind oracle/source review."
+    },
+    {
+      "artifacts_sha256": {
+        "manifest.json": "b1dc4b4f4f27f6ace4b427bfcdf8952ae099d85f888815f4bf82dce3ece50241",
+        "receipt.json": "0e7d669b821f6326b4a8db14da7a8377ab83f53f0c15ad26b9b1f7ee6b18e226",
+        "review.md": "9f70edfc54c7a5ea32d1fadf74694275bc265113cfa928571a6ffa202fac7904",
+        "seal.json": "93444879260c29365c264e5c2ea2bb36e91572612bffc7272442646884c47b81"
+      },
+      "local_ignored_directory": ".dev-run/204-decoder-schema-independent-review-v1-92cb3ad5e2",
+      "scope": "Independent static review of69 schemas, original267 preservation, archived actual export and exact additive schema calibration; no new372 runtime result adopted."
+    }
+  ],
+  "limitations": [
+    "Experimental components, not enabled production media/Omni/camera/sign-language capabilities or AT64-AT66 completion.",
+    "Descriptors/schemas grant no permission and prove neither original clock/EOF, model quality nor physical cleanup.",
+    "Spool quotas cover one protected local domain, not distributed global accounting; stat/unlink requires a protected namespace.",
+    "The65,536-byte encoded-record bound is not a peak-memory guarantee.",
+    "First schema export lacks an archived runner; its digest is retained. Second export archives its actual runner and manifest.",
+    "Raw artifacts and failures are original ignored local files identified by hashes, not public downloadable artifacts.",
+    "No paid calls, models/GPU lifecycle, devices/private media, dependency installs, live services/configuration, primary dirty checkout or preview changes.",
+    "Separate native H64 settlement failure remains unresolved; media qualification is not its repair or rerun.",
+    "Overlapping runs are not summed as unique coverage."
+  ],
+  "qualified_source": {
+    "commit": "a816873b4fd2ee31c9effea1bae5cccce9ff3e10",
+    "production_and_document_sha256": {
+      "docs/media-intake-contract.md": "e7c06a020b09fee0be46fa98f0ab6507c00efa6df228f7f52dc8ea5333c9c9d6",
+      "packages/contracts/media.py": "1b2106a519eee29afa65229de849233426afbaeae37e88f0777e3a5270c142da",
+      "scripts/export_contracts.py": "20508ad64c17ed79d7ba84bdde23ad838e233ba30929c29024aa4e04611f81d7",
+      "services/common/media_wire.py": "3bda9938fd780d085dc11184468ebdeb98b640812755e210cf41e062d05043af",
+      "services/session/media_spool.py": "3b7c4c1e6366857e42049c53f3c3ed7764a7b772634281d9a560149c8bce9450"
+    }
+  },
+  "recorded_utc": "2026-11-03T04:36:20.622320+00:00",
+  "remaining": [
+    "Native Session admission/authorization/currentness composition and durable receipts.",
+    "Original FD3 duplex/FD4 readonly grant, explicit probe-index/track/format mapping, original clock, startup/continuation sequences and charged-budget binding.",
+    "Sealed-only decoder runtime, actual launch, per-segment enforcement and original peer/body/publication settlement.",
+    "Actual model/provider transports, transcript routing, UI integration and original-media demo qualification."
+  ],
+  "requirement": {
+    "document": "docs/media-intake-contract.md",
+    "issue": 204,
+    "roadmap": "AT64-AT66 prerequisites; full media and capability-acquisition scope remains active."
+  },
+  "runs": [
+    {
+      "artifact_directory": ".dev-run/204-first-schema-compatibility-g_1huq1f",
+      "artifact_scope": "Retained original local ignored artifacts; not uploaded CI artifacts.",
+      "artifacts_sha256": {
+        "junit.xml": "a77d8489507ec94a7937558f0e1f04a850110bf95d7cc8a3485f2bd3402b0ffa",
+        "manifest.json": "6a69ccd2afbe2f6db2c0fb3609bf407052b86a12405baeab227385cc85fc7850",
+        "pytest.log": "504cc49d524d7da75d9a439c770f03100b6096f585504330a3bf9a9ab205ac7f",
+        "receipt.json": "cf9d20a73d003239af3e0ea8297748ca2769243477b9d4ead4c00d05e784d044",
+        "runner-source.py": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be"
+      },
+      "classification": "One legacy inventory failure before exact additive calibration; original184 bytes/hash unchanged.",
+      "elapsed_wall_s": 0.5470650489987747,
+      "exit_code": 1,
+      "head": "10b3519abc7624e7cb5259567c9dd14cf08c45fb",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "0.234",
+          "timestamp": "2026-11-02T19:36:31.028067-08:00"
+        }
+      ],
+      "qualified_inputs_stable": true,
+      "runner_preserved": true,
+      "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+      "tracked_input_count": 1600
+    },
+    {
+      "artifact_directory": ".dev-run/204-first-integrated-media-i280r1ci",
+      "artifact_scope": "Retained original local ignored artifacts; not uploaded CI artifacts.",
+      "artifacts_sha256": {
+        "junit.xml": "2107810346b361ed776c8db706b825e0b7af56ea209da4050485d0539495df81",
+        "manifest.json": "c66938f08aa170191da052c7a8bd4d6acf3c291cdbbcd275e68926c5e66020da",
+        "pytest.log": "108ba61f11ef75296624b60d4b06d1881ce790491fb11b69c892c7aeca993d51",
+        "receipt.json": "42b23908ca0f4989d8b6f08b3063093692c110e5523f17378376ebd2e6dfc7c2",
+        "runner-source.py": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be"
+      },
+      "classification": "332 passed,3 failed; original source/oracle/run preserved. See explicit post-run clarification below.",
+      "elapsed_wall_s": 17.894211078997614,
+      "exit_code": 1,
+      "head": "40c10244f329a3da5303a1297d281307b61e8b86",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "3",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "335",
+          "time": "17.536",
+          "timestamp": "2026-11-02T20:13:30.446588-08:00"
+        }
+      ],
+      "qualified_inputs_stable": true,
+      "runner_preserved": true,
+      "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+      "tracked_input_count": 1605
+    },
+    {
+      "artifact_directory": ".dev-run/204-corrected-integrated-media-lfd0qv83",
+      "artifact_scope": "Retained original local ignored artifacts; not uploaded CI artifacts.",
+      "artifacts_sha256": {
+        "junit.xml": "424f410388d4f7297a34e1b1300b50f59b6ca4c8429fe63df9210f0b2e39afd8",
+        "manifest.json": "3bb413a9abe35ffc227055385fb5e1dd03121e74edf8708e653a9d1b13b7fc7c",
+        "pytest.log": "202dd63984e610920620670308be161b562eb7acffeab2e32272a3115421da9e",
+        "receipt.json": "56efa7e9be24586ba0f8b858244bcfb3e32e397508a84ebfa246d0866c587ed9",
+        "runner-source.py": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be"
+      },
+      "cases_by_module": {
+        "tests.unit.test_media_contracts": 29,
+        "tests.unit.test_media_decoder_contracts": 221,
+        "tests.unit.test_media_schema_exports": 6,
+        "tests.unit.test_media_spool": 53,
+        "tests.unit.test_media_spool_guards": 4,
+        "tests.unit.test_media_wire": 58,
+        "tests.unit.test_standing_resource_finalization_contracts": 1
+      },
+      "classification": "372 passed on changed source and corrected source-aware oracles; no skips, errors or warnings.",
+      "elapsed_wall_s": 18.09184670400282,
+      "exit_code": 0,
+      "head": "a816873b4fd2ee31c9effea1bae5cccce9ff3e10",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "372",
+          "time": "17.668",
+          "timestamp": "2026-11-02T20:31:28.325629-08:00"
+        }
+      ],
+      "qualified_inputs_stable": true,
+      "reproduce": "PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 python -B -m pytest -q -m 'not live' -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function -o junit_family=xunit1 tests/unit/test_media_contracts.py tests/unit/test_media_wire.py tests/unit/test_media_schema_exports.py tests/unit/test_media_spool.py tests/unit/test_media_spool_guards.py tests/unit/test_media_decoder_contracts.py tests/unit/test_standing_resource_finalization_contracts.py::test_old_codecs_schema_bytes_and_depth_limits_are_preserved",
+      "runner_preserved": true,
+      "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+      "targets": [
+        "tests/unit/test_media_contracts.py",
+        "tests/unit/test_media_wire.py",
+        "tests/unit/test_media_schema_exports.py",
+        "tests/unit/test_media_spool.py",
+        "tests/unit/test_media_spool_guards.py",
+        "tests/unit/test_media_decoder_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py::test_old_codecs_schema_bytes_and_depth_limits_are_preserved"
+      ],
+      "tracked_input_count": 1675
+    }
+  ],
+  "schema_exports": [
+    {
+      "archived_runner": false,
+      "artifact_directory": ".dev-run/204-first-schema-export-d_c0nu66",
+      "changed_tracked_inputs": [],
+      "expected_new_count": 75,
+      "export_exit_code": 0,
+      "head": "6fd997d6c3b9b749102cc8dbedf1e7e2a7380a28",
+      "old_schema_count": 192,
+      "old_schemas_changed": [],
+      "passed": true,
+      "receipt_sha256": "9eb6f5c5092be4b3cff61a108cd7163780917b605d371492525a068edd980a88",
+      "removed_schemas": [],
+      "runner_sha256": "d7fc110fbd4a2ba3b9bea8de222884045e1d9744771ff14e908cc5f4aaea7895"
+    },
+    {
+      "archived_runner": true,
+      "artifact_directory": ".dev-run/204-decoder-schema-export-fmgjd5nz",
+      "changed_tracked_inputs": [],
+      "expected_new_count": 69,
+      "export_exit_code": 0,
+      "head": "c63f2d3d0dd6f07d4a5f8b5cc4500179513946c4",
+      "old_schema_count": 267,
+      "old_schemas_changed": [],
+      "passed": true,
+      "receipt_sha256": "230a9129528bc25111cda8536ef3e2d3f24ab9ffb6e75fb4b253d144fcb38c2e",
+      "removed_schemas": [],
+      "runner_sha256": "dea708a6c04e79b608c4d1e1d29ec0388811d3150af019446c2ef2067c4f8934"
+    }
+  ],
+  "schema_pins": {
+    "decoder69": "a57d19e47d4b4484d59f830751c32df9bb6fa00071e1f3410e2b16418cb245d4",
+    "initial75": "1f8e19520d07aa5cc6f7f36a26b2728b3d1f34d68a3a4256c56f96db2ef2d63b",
+    "legacy_guard": "Exact additive inventories only; original184/hash, two approved evolutions, old assertions/caps/deadlines remain intact.",
+    "original184_normalized_approved_evolution": "21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a"
+  },
+  "schema_version": "1.0",
+  "static_checks": {
+    "git_diff_check": "passed",
+    "ruff_check_all": "passed",
+    "ruff_format_check_all": "798 files already formatted",
+    "schema_calibration_ast_receipt_sha256": "2fb18e7212dd8cbea72b61b2e8a856dd38148f97726e7ced28d96d0515876c8a"
+  }
+}

@@ -43,6 +43,17 @@ def configure(commands):
         "setup", help="Configure Agent without starting work or voice"
     )
     setup_parser.add_argument("--yes", action="store_true")
+    setup_mode = setup_parser.add_mutually_exclusive_group()
+    setup_mode.add_argument(
+        "--quick",
+        action="store_true",
+        help="Minimal first-run setup using safe default workspace and data paths",
+    )
+    setup_mode.add_argument(
+        "--advanced",
+        action="store_true",
+        help="Full setup including custom host paths and per-role adapters",
+    )
     setup_parser.add_argument("--endpoint")
     setup_parser.add_argument("--model")
     setup_parser.add_argument("--credential-env")
@@ -176,7 +187,12 @@ def dispatch(args):
         if not args.yes:
             from services.distribution.wizard import run_wizard
 
-            return run_wizard(layout)
+            mode = (
+                "quick"
+                if getattr(args, "quick", False)
+                else ("advanced" if getattr(args, "advanced", False) else None)
+            )
+            return run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
         return setup(
