@@ -9,6 +9,12 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
+from services.distribution.credentials import (
+    LocalCredentialsStore,
+    apply_masked_key_action,
+    default_providers_env_path,
+    prompt_masked_api_key,
+)
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
 
@@ -33,13 +39,18 @@ def mascot(*, width=80, interactive=True):
     return MASCOT
 
 
-def run_wizard(layout, *, tty=None):
+def run_wizard(layout, *, tty=None, profile_id="p01", getpass_fn=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
     if tty is None:
         try:
             with open_terminal() as terminal:
-                return run_wizard(layout, tty=terminal)
+                return run_wizard(
+                    layout,
+                    tty=terminal,
+                    profile_id=profile_id,
+                    getpass_fn=getpass_fn,
+                )
         except OSError:
             raise InstallError(
                 "No controlling terminal; use setup --yes with explicit endpoint/model"
@@ -58,6 +69,7 @@ def run_wizard(layout, *, tty=None):
     tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
     workspace = ask("Authorized workspace", str(layout.workspace))
     data = ask("Private data directory", str(layout.data))
+    chosen = replace(layout, workspace=Path(workspace).expanduser(), data=Path(data).expanduser())
     endpoint_input = ask(
         "Agent provider endpoint (or adapter=endpoint, e.g. lmstudio=http://127.0.0.1:1234)",
         "http://127.0.0.1:1234",
@@ -73,7 +85,27 @@ def run_wizard(layout, *, tty=None):
     allow_cloud = (
         ask("Allow disclosure of authorized content to this cloud provider? yes/no", "no") == "yes"
     )
-    credential_env = ask("Credential environment variable NAME only; never paste a key") or None
+    env_path = default_providers_env_path(chosen)
+    existing_present = (
+        LocalCredentialsStore(env_path).has_api_key(profile_id)
+        if env_path.exists() and not env_path.is_symlink()
+        else False
+    )
+    key_action = prompt_masked_api_key(
+        tty,
+        profile_id=profile_id,
+        endpoint=endpoint,
+        existing_present=existing_present,
+        getpass_fn=getpass_fn,
+        allow_bare_env_name=True,
+    )
+    credential_env = key_action.credential_env
+    effective_agent_adapter = adapter or ("meta" if allow_cloud else "lmstudio")
+    agent_credential_env = (
+        None
+        if (effective_agent_adapter == "lmstudio" and key_action.action in {"set", "keep"})
+        else credential_env
+    )
     converse = ask("Enable optional Converse text services? yes/no", "no") == "yes"
     converse_profile = None
     decisions_profile = None
@@ -86,7 +118,7 @@ def run_wizard(layout, *, tty=None):
             "endpoint": converse_endpoint,
             "model": converse_model,
             "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "credential_env": None if converse_adapter == "lmstudio" else credential_env,
         }
         decisions_adapter = ask(
             "Decisions provider adapter (compatible/laya/native_d1/meta)", "compatible"
@@ -100,7 +132,6 @@ def run_wizard(layout, *, tty=None):
             "allow_cloud": allow_cloud,
             "credential_env": credential_env,
         }
-    chosen = replace(layout, workspace=Path(workspace).expanduser(), data=Path(data).expanduser())
     tty.write(
         f"Planned config: {chosen.config}\nData: {chosen.data}\nWorkspace: {chosen.workspace}\n"
     )
@@ -111,7 +142,7 @@ def run_wizard(layout, *, tty=None):
         "endpoint": endpoint,
         "model": model,
         "allow_cloud": allow_cloud,
-        "credential_env": credential_env,
+        "credential_env": agent_credential_env,
         "converse": converse,
     }
     if adapter is not None:
@@ -120,4 +151,16 @@ def run_wizard(layout, *, tty=None):
         setup_kwargs["converse_profile"] = converse_profile
     if decisions_profile is not None:
         setup_kwargs["decisions_profile"] = decisions_profile
-    return setup(chosen, **setup_kwargs)
+    if chosen.config.exists():
+        setup_kwargs["allow_existing"] = True
+    result = setup(chosen, **setup_kwargs)
+    if key_action.action in {"set", "remove", "keep"} and (
+        key_action.action == "set" or env_path.exists()
+    ):
+        apply_masked_key_action(
+            env_path,
+            key_action,
+            base_url=endpoint,
+            selected_model=model,
+        )
+    return result
