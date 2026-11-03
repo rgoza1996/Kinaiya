@@ -382,9 +382,7 @@ void main() {
           }
           if (request.url.path == '/v1/providers/custom' &&
               request.method == 'POST') {
-            removePosts.add(
-              jsonDecode(request.body) as Map<String, Object?>,
-            );
+            removePosts.add(jsonDecode(request.body) as Map<String, Object?>);
             return _jsonReply({'detail': 'Should not be called'}, status: 500);
           }
           return _jsonReply({'detail': 'Not found'}, status: 404);
