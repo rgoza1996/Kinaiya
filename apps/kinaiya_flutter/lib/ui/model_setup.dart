@@ -762,11 +762,8 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                         0.0,
                         box.maxWidth - 16,
                       );
-                      final minDiameter =
-                          ((compactTwoRow ? 116 : 132) * scale).clamp(
-                            0.0,
-                            maxDiameter,
-                          );
+                      final minDiameter = ((compactTwoRow ? 116 : 132) * scale)
+                          .clamp(0.0, maxDiameter);
                       final rowExtra = compactTwoRow ? 8.0 : 24.0;
                       final verticalPad = compactTwoRow ? 12.0 : 64.0;
                       for (

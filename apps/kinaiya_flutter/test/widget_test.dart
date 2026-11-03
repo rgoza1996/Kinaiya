@@ -249,8 +249,7 @@ void main() {
           if (request.method == 'GET') {
             return quick_fixtures.jsonReply(
               quick_fixtures.snapshot(
-                selection:
-                    savedRequest?['selection'] as Map<String, Object?>?,
+                selection: savedRequest?['selection'] as Map<String, Object?>?,
                 revision: savedRequest == null ? 0 : 1,
               ),
             );
@@ -383,10 +382,7 @@ void main() {
       await tester.pump();
 
       expect(tester.getSize(card).height, closeTo(120, 1));
-      expect(
-        find.byKey(const ValueKey('home-panel-scroll')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('home-panel-scroll')), findsOneWidget);
       expect(
         find.ancestor(
           of: find.byKey(const ValueKey('home-setup')),
@@ -461,10 +457,7 @@ void main() {
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
-      expect(
-        Focus.of(tester.element(setupButton)).hasFocus,
-        isTrue,
-      );
+      expect(Focus.of(tester.element(setupButton)).hasFocus, isTrue);
 
       // Arrow keys while an ordinary panel button has focus must not resize the panel.
       final beforeButtonArrows = tester.getRect(card);
@@ -526,10 +519,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.pump();
-      expect(
-        Focus.of(tester.element(setupButton)).hasFocus,
-        isTrue,
-      );
+      expect(Focus.of(tester.element(setupButton)).hasFocus, isTrue);
       expect(
         tester.widget<Focus>(rightHandle).focusNode!.hasPrimaryFocus,
         isFalse,

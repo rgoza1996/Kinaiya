@@ -438,10 +438,8 @@ class _MoonlitHomeState extends State<MoonlitHome>
         onRight: () => _resizePanelEdges(left: 24),
         onUp: () => _resizePanelEdges(bottom: -24),
         onDown: () => _resizePanelEdges(bottom: 24),
-        onPanUpdate: (details) => _resizePanelEdges(
-          left: details.delta.dx,
-          bottom: details.delta.dy,
-        ),
+        onPanUpdate: (details) =>
+            _resizePanelEdges(left: details.delta.dx, bottom: details.delta.dy),
       ),
     ),
   ];
