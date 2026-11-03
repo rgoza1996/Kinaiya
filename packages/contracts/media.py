@@ -550,6 +550,13 @@ def _literal_int(value):
 _AudioRate = Annotated[Literal[16000, 24000, 48000], BeforeValidator(_literal_int)]
 _AudioChannels = Annotated[Literal[1, 2], BeforeValidator(_literal_int)]
 _EXECUTABLE_KINDS = frozenset({"decoder_exec", "probe_exec", "sandbox_exec", "python_exec"})
+_PROBE_CODECS = MappingProxyType(
+    {
+        "audio": frozenset({"pcm_s16le", "pcm_s24le", "pcm_s32le", "aac", "opus"}),
+        "image": frozenset({"png", "mjpeg"}),
+        "video": frozenset({"png", "mjpeg", "h264", "hevc", "vp9", "av1"}),
+    }
+)
 
 
 class MediaCodePin(_MediaModel):
@@ -720,6 +727,8 @@ class MediaProbeTrack(_MediaModel):
 
     @model_validator(mode="after")
     def _track_shape(self) -> Self:
+        if self.codec not in _PROBE_CODECS[self.kind]:
+            _bad()
         if self.timebase.num == 0:
             _bad()
         audio = self.kind == "audio"
