@@ -12,6 +12,7 @@ import json
 import re
 import sqlite3
 import struct
+import tempfile
 import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -556,14 +557,22 @@ class _ObservedConnection(sqlite3.Connection):
 
 @asynccontextmanager
 async def _stack(tmp_path, *, count=1, allow_unknown_shutdown=False):
+    # Key custody requires a protected ancestor chain, independent of the
+    # checkout's permissions or pytest's configured artifact directory.
+    with tempfile.TemporaryDirectory(prefix="kinaiya-test-native-media-") as private:
+        async with _native_stack(
+            tmp_path, Path(private), count=count, allow_unknown_shutdown=allow_unknown_shutdown
+        ) as env:
+            yield env
+
+
+@asynccontextmanager
+async def _native_stack(tmp_path, native_root, *, count, allow_unknown_shutdown):
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     spool_root = tmp_path / "spool"
     spool_root.mkdir(mode=0o700)
     spool_root.chmod(0o700)
-    native_root = tmp_path / "native"
-    native_root.mkdir(mode=0o700)
-    native_root.chmod(0o700)
     connect = sqlite3.connect
 
     def native_connection(*args, **kwargs):
@@ -580,6 +589,7 @@ async def _stack(tmp_path, *, count=1, allow_unknown_shutdown=False):
     auth = Auth(dict(_TOKENS), allowed_origins=(_ORIGIN,))
     clock = _Clock()
     key_path = native_root / "media-grant.key"
+    keys = MediaGrantKeyStore(key_path, workspace=workspace, spool_root=spool_root)
     owner = MediaSessionOwner(
         store,
         store.agent_control,
@@ -587,7 +597,7 @@ async def _stack(tmp_path, *, count=1, allow_unknown_shutdown=False):
         auth=auth,
         selected_limits=limits,
         selected_profile=profile,
-        grant_key_store=MediaGrantKeyStore(key_path, workspace=workspace, spool_root=spool_root),
+        grant_key_store=keys,
         clock=clock,
         wall_clock_ms=clock.wall_ms,
     )
@@ -727,6 +737,10 @@ async def _stack(tmp_path, *, count=1, allow_unknown_shutdown=False):
                 except AgentControlUnavailable:
                     pass
                 sqlite3.Connection.close(db)
+            finally:
+                # Explicit disposal of this fixture's actual descriptors is
+                # separate from an earlier unconfirmed native owner shutdown.
+                keys.close()
 
 
 async def _event(event):
