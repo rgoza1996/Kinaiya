@@ -98,6 +98,8 @@ class Store:
         self.path = str(path)
         self.lock = threading.RLock()
         self._converse_context_validators = {}
+        self._media_owner = None
+        self._media_operations = None
         self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
@@ -414,18 +416,119 @@ class Store:
                 maximum_generation=maximum,
             )
 
-    def reset(self, session_id: str) -> Session:
-        with self.lock, self.db:
-            session = self.session(session_id)
-            session.epoch += 1
-            self.db.execute(
-                "UPDATE sessions SET value=? WHERE session_id=?",
-                (session.model_dump_json(), session_id),
+    def register_media_owner(self, owner):
+        """Retain original custody; this registration grants no media admission."""
+        from services.session.media_owner import MediaSessionOwner
+
+        if type(owner) is not MediaSessionOwner or owner.belongs_to_store(self) is not True:
+            raise JournalError("Native media owner registration is unavailable")
+        with self.lock:
+            if self._media_owner is not None and self._media_owner is not owner:
+                raise JournalError("An original native media owner is already registered")
+            self._media_owner = owner
+
+    def register_media_operations(self, operations):
+        from services.session.media_api import MediaOperations
+
+        if type(operations) is not MediaOperations:
+            raise JournalError("Native media operation registration is unavailable")
+        with self.lock:
+            if self._media_owner is None:
+                raise JournalError("Native media operation owner is unavailable")
+            if operations.owner is not self._media_owner:
+                raise JournalError("Native media operation owner does not match")
+            if self._media_operations is not None and self._media_operations is not operations:
+                raise JournalError("Original native media operations are already registered")
+            self._media_operations = operations
+
+    def media_close_confirmed(self):
+        """Read native positive-close latches, without I/O or inferred settlement."""
+        with self.lock:
+            return (
+                self._media_owner is None or self._media_owner.store_close_confirmed() is True
+            ) and (
+                self._media_operations is None
+                or self._media_operations.store_close_confirmed() is True
             )
+
+    def _media_guard_locked(self, session_id):
+        """Missing optional runtime cannot bypass persisted original obligations."""
+        if self._media_owner is not None:
+            return self._media_owner
+        names = {"media_meta", "media_clients", "media_sources", "media_objective_anchors"}
+        try:
+            present = {
+                row[0]
+                for row in self.db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name IN ('media_meta','media_clients','media_sources',"
+                    "'media_objective_anchors')"
+                )
+            }
+            if not present:
+                return None
+            if present != names:
+                raise JournalError("Native media metadata is unavailable")
+            for name in ("media_clients", "media_sources", "media_objective_anchors"):
+                # Identifiers are fixed native table names, never request text.
+                if (
+                    self.db.execute(
+                        f"SELECT 1 FROM {name} WHERE session_id=? LIMIT 1", (session_id,)
+                    ).fetchone()
+                    is not None
+                ):
+                    raise JournalError("The original native media owner is unavailable")
+        except sqlite3.Error:
+            raise JournalError("Native media metadata is unavailable") from None
+        return None
+
+    def reset(self, session_id: str) -> Session:
+        owner, operations = None, ()
+        try:
+            with self.lock, self.db:
+                session = self.session(session_id)
+                owner = self._media_guard_locked(session_id)
+                if owner is not None:
+                    # sqlite's connection context alone does not begin a
+                    # transaction. Fence and epoch change share the actual one.
+                    if not self.db.in_transaction:
+                        self.db.execute("BEGIN IMMEDIATE")
+                    operations = owner.fence_session_locked(session, "reset")
+                session.epoch += 1
+                self.db.execute(
+                    "UPDATE sessions SET value=? WHERE session_id=?",
+                    (session.model_dump_json(), session_id),
+                )
+        finally:
+            if owner is not None:
+                # This includes uncertain commit outcomes: retain/cancel the
+                # original work, with no OS work or awaits under SQL/Store.lock.
+                owner.request_session_retirements(operations)
         return session
 
     def delete(self, session_id: str):
+        owner, operations = None, ()
+        try:
+            with self.lock, self.db:
+                owner = self._media_guard_locked(session_id)
+                if owner is not None:
+                    if not self.db.in_transaction:
+                        self.db.execute("BEGIN IMMEDIATE")
+                    operations = owner.fence_session_locked(self.session(session_id), "deleted")
+        finally:
+            if owner is not None:
+                owner.request_session_retirements(operations)
+        # The fence is already committed even if cleanup is pending. A second
+        # transaction verifies every original claim, including raced admissions,
+        # before any Session/history deletion. Refusal cannot roll back fencing.
         with self.lock, self.db:
+            current_owner = self._media_guard_locked(session_id)
+            if current_owner is not owner:
+                raise JournalError("Native media owner changed during Session deletion")
+            if owner is not None:
+                if not self.db.in_transaction:
+                    self.db.execute("BEGIN IMMEDIATE")
+                owner.require_delete_settled_locked(self.session(session_id))
             if (
                 self.db.execute(
                     "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
@@ -1696,7 +1799,10 @@ class Store:
             )
 
     def close(self):
-        self.db.close()
+        with self.lock:
+            if not self.media_close_confirmed():
+                raise JournalError("Original native media cleanup is unconfirmed")
+            self.db.close()
 
     def transcript_scan(self, request):
         from services.session.transcript_scan import transcript_scan
