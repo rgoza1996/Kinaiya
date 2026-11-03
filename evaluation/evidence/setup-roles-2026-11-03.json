@@ -4,7 +4,8 @@
     "git_diff_check": "pass",
     "independent_completed_raw_review": "PASS within stated cold/fixed93 offline scope; source-aware reviewer, no independent execution",
     "ruff_check": "pass",
-    "ruff_format_check": "793 files already formatted",
+    "ruff_format_check": "822 files already formatted after main87 integration",
+    "ruff_format_check_before_parent_integration": "793 files already formatted",
     "schemas": "unchanged"
   },
   "cold_failure_limits": "27 failures include old grammar refusing newly selected options and earlier parser exit codes; they do not all demonstrate a credential disclosure or a reached profile-validation guard. The implicit WebSocket Decisions case also exposes attempted native initialization and a created fresh home before rejection.",
@@ -13,6 +14,13 @@
     "Unsupported Agent enum expects argparse exit2, not dispatch exit1.",
     "Native d1 positive input uses its actual root-loopback endpoint grammar."
   ],
+  "integration": {
+    "main": "87ecadebc20817005cc21b20cfa1faebe91bb4ff",
+    "main_ancestry_present": true,
+    "root_review": "All seven manifest members and all 1,792 tracked before/after/current/Git input hashes verified. All 93 case identities, non-time attributes and children match prior broader93; no JUnit properties, failures, errors or skips. Three product source hashes, new oracle hash and all 46 legacy assertion ASTs preserved. This is root verification, not a second independent execution.",
+    "tested_source_head": "d339abb43f63225ed544c7bf9cf0180d698b8dfc",
+    "tested_tree": "0e34c525d900223ed24542557a5c7fa2d03d4629"
+  },
   "issue": 335,
   "limits": [
     "Focused33 is a subset of broader93; counts are not additive.",
@@ -21,7 +29,7 @@
     "No paid inference was used by these tests. A separate real Muse CLI author call generated the public prospective source patch.",
     "No user settings, model stack, GPU/device, live service or preview was changed.",
     "Raw evidence/reviews remain ignored local artifacts identified by hashes, not uploaded CI evidence.",
-    "Full changed-head CI and applicable latest-main integration remain required before merge."
+    "Full changed-head CI remains required before merge; the recorded main87 integration has passed the same focused93 suite."
   ],
   "module_cases": {
     "existing_agent_interoperability": 8,
@@ -201,6 +209,53 @@
       "qualified_inputs_stable": true,
       "receipt_sha256": "cce42525e23463b20fc778afa86e135a44946864fbc004330d2e7c58d4fd8e1a",
       "tracked_input_count": 1527
+    },
+    "main87_broader93": {
+      "bundle": "335-role-profiles-main87-broader93-v1-9tlali2a",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_setup_role_profile_inputs.py",
+        "tests/integration/test_setup_agent_interoperability.py",
+        "tests/unit/test_linux_distribution.py",
+        "tests/unit/test_linux_cli.py",
+        "tests/unit/test_linux_real_tty.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-main87-broader93-v1-9tlali2a/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-main87-broader93-v1-9tlali2a/junit.xml"
+      ],
+      "elapsed_wall_s": 4.2924135950015625,
+      "exit_code": 0,
+      "head": "d339abb43f63225ed544c7bf9cf0180d698b8dfc",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "93",
+          "time": "3.935",
+          "timestamp": "2026-11-03T10:14:08.613749-08:00"
+        }
+      ],
+      "junit_sha256": "2f39ba326acff36d73ab1414abb8cde0a7d1cdc8d3f59fe7e36c44cf2ad9a4c4",
+      "log_sha256": "54dad27f2a3f0e34e006bbed79c1220c4ccd57bf322ecc26bf84023b357ebe64",
+      "manifest_sha256": "c6f58b7c541fc73d3ef6fbf5695d46396d2c7afcec0b9fbce9c64b785cfbb814",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "0fbd32a542419e8f62a6c6a5bb3ff81531dc19bc998e8f6c7964db880d7231d9",
+      "tracked_input_count": 1792
     }
   },
   "scope": "Independent setup role inputs and profile validation before setup filesystem effects",
