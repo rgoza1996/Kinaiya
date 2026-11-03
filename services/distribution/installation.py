@@ -423,6 +423,165 @@ def _build_role_from_mapping(role: str, spec: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def reconfigure_section(
+    layout,
+    section: str,
+    *,
+    endpoint=None,
+    model=None,
+    kind=None,
+    adapter=None,
+    allow_cloud=False,
+    credential_env=None,
+    converse=False,
+    context_tokens=None,
+    converse_profile=None,
+    decisions_profile=None,
+):
+    """Atomically reconfigure one setup section while preserving all unrelated settings."""
+    import copy
+
+    from services.common.auth import load_or_create_tokens
+    from services.distribution.wizard_navigation import validate_setup_section
+    from services.launcher import initialize
+
+    check_outdated_system_blockers(probe_subprocesses=False)
+    target_section = validate_setup_section(section)
+    layout.validate()
+    if (layout.install / "layout.json").exists() and target_section != "workspace":
+        verify_layout(layout)
+    if kind is not None and adapter is not None and kind != adapter:
+        raise InstallError("Conflicting Agent adapter kind arguments")
+    selected_kind = adapter if adapter is not None else kind
+
+    if not os.path.lexists(layout.config):
+        if target_section == "model":
+            res = setup(
+                layout,
+                endpoint=endpoint,
+                model=model,
+                kind=kind,
+                adapter=adapter,
+                allow_cloud=allow_cloud,
+                credential_env=credential_env,
+                converse=False,
+                context_tokens=context_tokens,
+            )
+            res["section"] = target_section
+            return res
+        for directory in (layout.config.parent, layout.data, layout.workspace):
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with redirect_stdout(io.StringIO()):
+            initialize(SimpleNamespace(data_dir=layout.data, config=layout.config))
+        init_cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+        init_cfg.pop("voice", None)
+        init_cfg.setdefault("distribution", {"converse": False})
+        atomic_json(layout.config, init_cfg)
+
+    original_config_bytes = layout.config.read_bytes()
+    existing_config = read_json(layout.config)
+    if not isinstance(existing_config, dict):
+        raise InstallError("Malformed configuration; preserve files for recovery")
+    config = copy.deepcopy(existing_config)
+
+    backup = layout.config.with_name(layout.config.name + ".bak." + uuid.uuid4().hex)
+    with backup.open("xb") as bstream:
+        os.chmod(backup, 0o600)
+        bstream.write(original_config_bytes)
+        bstream.flush()
+        os.fsync(bstream.fileno())
+
+    try:
+        if target_section == "workspace":
+            for directory in (layout.config.parent, layout.data, layout.workspace):
+                directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if not (layout.data / "service-tokens.json").exists():
+                load_or_create_tokens(layout.data)
+            dist = config.get("distribution")
+            dist_map = dict(dist) if isinstance(dist, dict) else {"converse": False}
+            dist_map["workspace"] = str(layout.workspace)
+            dist_map["data_dir"] = str(layout.data)
+            config["distribution"] = dist_map
+            if (layout.install / "layout.json").exists():
+                atomic_json(
+                    layout.install / "layout.json",
+                    {key: str(value) for key, value in asdict(layout).items()},
+                )
+        elif target_section == "model":
+            agent_built = _build_role_profile(
+                "agent",
+                endpoint=endpoint,
+                model=model,
+                kind=selected_kind,
+                allow_cloud=allow_cloud,
+                credential_env=credential_env,
+                context_tokens=context_tokens,
+            )
+            providers = config.get("providers")
+            providers_map = dict(providers) if isinstance(providers, dict) else {}
+            providers_map["agent"] = dict(agent_built)
+            config["providers"] = providers_map
+        elif target_section == "converse":
+            providers = config.get("providers")
+            providers_map = dict(providers) if isinstance(providers, dict) else {}
+            agent_cfg = (
+                providers_map.get("agent") if isinstance(providers_map.get("agent"), dict) else {}
+            )
+            enable_converse = bool(converse or converse_profile is not None)
+            if enable_converse:
+                if converse_profile is not None:
+                    converse_built = _build_role_from_mapping("converse", converse_profile)
+                else:
+                    fallback_ep = endpoint or agent_cfg.get("base_url", "http://127.0.0.1:1234")
+                    fallback_model = model or agent_cfg.get("model", "")
+                    fallback_cloud = bool(agent_cfg.get("allow_cloud", allow_cloud))
+                    fallback_cred = credential_env or agent_cfg.get("api_key_env")
+                    converse_default_kind = (
+                        "lmstudio" if agent_cfg.get("kind") == "lmstudio" else "compatible"
+                    )
+                    converse_built = _build_role_profile(
+                        "converse",
+                        endpoint=fallback_ep,
+                        model=fallback_model,
+                        kind=converse_default_kind,
+                        allow_cloud=fallback_cloud,
+                        credential_env=fallback_cred,
+                    )
+                if decisions_profile is not None:
+                    decisions_built = _build_role_from_mapping("decisions", decisions_profile)
+                else:
+                    decisions_built = _build_role_profile(
+                        "decisions",
+                        endpoint=converse_built["base_url"],
+                        model=converse_built["model"],
+                        kind="compatible",
+                        allow_cloud=converse_built.get("allow_cloud", False),
+                        credential_env=converse_built.get("api_key_env"),
+                    )
+                providers_map["converse"] = dict(converse_built)
+                providers_map["decisions"] = dict(decisions_built)
+                config["providers"] = providers_map
+            dist = config.get("distribution")
+            dist_map = dict(dist) if isinstance(dist, dict) else {}
+            dist_map["converse"] = enable_converse
+            config["distribution"] = dist_map
+
+        atomic_json(layout.config, config)
+    except BaseException:
+        if backup.exists():
+            os.replace(backup, layout.config)
+        raise
+    finally:
+        backup.unlink(missing_ok=True)
+
+    return {
+        "ready": False,
+        "provider_connection": "not_checked",
+        "section": target_section,
+        "next": "kinaiya serve host",
+    }
+
+
 def setup(
     layout,
     *,
@@ -437,8 +596,24 @@ def setup(
     roles=None,
     converse_profile=None,
     decisions_profile=None,
+    section: str | None = None,
 ):
     """Reuse native init; configuration is not evidence of provider/task readiness."""
+    if section is not None:
+        return reconfigure_section(
+            layout,
+            section,
+            endpoint=endpoint,
+            model=model,
+            kind=kind,
+            adapter=adapter,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            converse=converse,
+            context_tokens=context_tokens,
+            converse_profile=converse_profile,
+            decisions_profile=decisions_profile,
+        )
     from services.launcher import initialize
 
     check_outdated_system_blockers(probe_subprocesses=False)

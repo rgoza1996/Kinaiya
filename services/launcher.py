@@ -1229,8 +1229,11 @@ def main(argv=None):
         from packages.distribution.releases import ReleaseError
         from services.distribution.cli import dispatch
         from services.distribution.installation import InstallError
+        from services.distribution.wizard_navigation import validate_setup_section
 
         try:
+            if args.command == "setup" and getattr(args, "section", None) is not None:
+                validate_setup_section(args.section)
             print(json.dumps(dispatch(args), indent=2))
         except (InstallError, ReleaseError) as exc:
             parser.exit(1, f"kinaiya: {exc}\n")

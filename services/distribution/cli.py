@@ -42,12 +42,19 @@ def configure(commands):
     setup_parser = commands.add_parser(
         "setup", help="Configure Agent without starting work or voice"
     )
+    setup_parser.add_argument(
+        "section",
+        nargs="?",
+        help="Optional section to reconfigure: workspace, model, or converse",
+    )
     setup_parser.add_argument("--yes", action="store_true")
     setup_parser.add_argument("--endpoint")
     setup_parser.add_argument("--model")
     setup_parser.add_argument("--credential-env")
     setup_parser.add_argument("--allow-cloud", action="store_true")
     setup_parser.add_argument("--converse", action="store_true")
+    setup_parser.add_argument("--workspace", dest="setup_workspace", type=Path)
+    setup_parser.add_argument("--data-dir", dest="setup_data_dir", type=Path)
     updater = commands.add_parser("update", help="Check or explicitly install a verified update")
     updater.add_argument("--channel", choices=("stable", "nightly"))
     updater.add_argument("--check", action="store_true")
@@ -173,10 +180,38 @@ def dispatch(args):
             "ready": "not_checked",
         }
     if args.command == "setup":
+        section = getattr(args, "section", None)
+        if section is not None:
+            from services.distribution.wizard_navigation import validate_setup_section
+
+            section = validate_setup_section(section)
         if not args.yes:
             from services.distribution.wizard import run_wizard
 
-            return run_wizard(layout)
+            return (
+                run_wizard(layout, section=section) if section is not None else run_wizard(layout)
+            )
+        if section is not None:
+            from dataclasses import replace
+
+            from services.distribution.installation import reconfigure_section
+
+            target_layout = layout
+            if getattr(args, "setup_workspace", None) is not None:
+                target_layout = replace(
+                    target_layout, workspace=Path(args.setup_workspace).expanduser()
+                )
+            if getattr(args, "setup_data_dir", None) is not None:
+                target_layout = replace(target_layout, data=Path(args.setup_data_dir).expanduser())
+            return reconfigure_section(
+                target_layout,
+                section,
+                endpoint=args.endpoint,
+                model=args.model,
+                credential_env=args.credential_env,
+                allow_cloud=args.allow_cloud,
+                converse=args.converse,
+            )
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
         return setup(
