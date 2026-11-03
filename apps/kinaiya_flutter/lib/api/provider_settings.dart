@@ -911,6 +911,10 @@ class CustomProviderRoleBinding {
     required this.qualifiedModelId,
     this.reasoningEffort,
     this.effectiveReasoningEffort = 'medium',
+    this.status = 'proposed_unavailable',
+    this.active = false,
+    this.unavailableReason,
+    this.diagnostic,
   });
 
   final String profileId;
@@ -921,6 +925,10 @@ class CustomProviderRoleBinding {
   final String qualifiedModelId;
   final String? reasoningEffort;
   final String effectiveReasoningEffort;
+  final String status;
+  final bool active;
+  final String? unavailableReason;
+  final String? diagnostic;
 
   factory CustomProviderRoleBinding.fromJson(Object? raw) {
     final m = _map(raw);
@@ -928,6 +936,9 @@ class CustomProviderRoleBinding {
     final mid = (m['model_id'] as String?)?.trim() ?? '';
     final rawEffort = (m['reasoning_effort'] as String?)?.trim();
     final rawEffective = (m['effective_reasoning_effort'] as String?)?.trim();
+    final rawStatus = (m['status'] as String?)?.trim();
+    final rawReason = (m['unavailable_reason'] as String?)?.trim();
+    final rawDiagnostic = (m['diagnostic'] as String?)?.trim();
     return CustomProviderRoleBinding(
       profileId: pid,
       providerName: (m['provider_name'] as String?)?.trim() ?? pid,
@@ -942,6 +953,16 @@ class CustomProviderRoleBinding {
           (rawEffective != null && rawEffective.isNotEmpty)
           ? rawEffective
           : (rawEffort != null && rawEffort.isNotEmpty ? rawEffort : 'medium'),
+      status: (rawStatus != null && rawStatus.isNotEmpty)
+          ? rawStatus
+          : 'proposed_unavailable',
+      active: m['active'] == true,
+      unavailableReason: (rawReason != null && rawReason.isNotEmpty)
+          ? rawReason
+          : null,
+      diagnostic: (rawDiagnostic != null && rawDiagnostic.isNotEmpty)
+          ? rawDiagnostic
+          : null,
     );
   }
 }
@@ -951,6 +972,9 @@ class CustomProvidersSnapshot {
     required this.schemaVersion,
     required this.envFileName,
     required this.unlimited,
+    this.revision = 0,
+    this.stateSha256 = '',
+    this.reconciled = false,
     this.globalReasoningEffort = 'medium',
     required this.profiles,
     required this.roleBindings,
@@ -960,6 +984,9 @@ class CustomProvidersSnapshot {
     : schemaVersion = 1,
       envFileName = 'custom_providers.env',
       unlimited = true,
+      revision = 0,
+      stateSha256 = '',
+      reconciled = false,
       globalReasoningEffort = 'medium',
       profiles = const [],
       roleBindings = const {};
@@ -967,6 +994,9 @@ class CustomProvidersSnapshot {
   final int schemaVersion;
   final String envFileName;
   final bool unlimited;
+  final int revision;
+  final String stateSha256;
+  final bool reconciled;
   final String globalReasoningEffort;
   final List<CustomProviderProfile> profiles;
   final Map<String, CustomProviderRoleBinding?> roleBindings;
@@ -998,6 +1028,9 @@ class CustomProvidersSnapshot {
       envFileName:
           (m['env_file_name'] as String?)?.trim() ?? 'custom_providers.env',
       unlimited: m['unlimited'] is! bool || (m['unlimited'] as bool),
+      revision: m['revision'] is int ? m['revision'] as int : 0,
+      stateSha256: (m['state_sha256'] as String?)?.trim() ?? '',
+      reconciled: m['reconciled'] == true,
       globalReasoningEffort: rawGlobalEffort.isEmpty
           ? 'medium'
           : rawGlobalEffort,

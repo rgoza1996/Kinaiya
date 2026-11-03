@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -79,6 +80,7 @@ void main() {
   testWidgets(
     'Custom APIs (.env) tab renders 6+ profiles, adds/edits/toggles, discovers models, and confirms referenced removal',
     (tester) async {
+      var revision = 1;
       final profiles = <Map<String, Object?>>[
         _customProfile(
           id: 'p01',
@@ -118,20 +120,37 @@ void main() {
         ),
       ];
 
+      var p01Removed = false;
       Map<String, Object?> buildSnapshot() => {
         'schema_version': 1,
         'env_file_name': 'custom_providers.env',
         'unlimited': true,
+        'revision': revision,
+        'state_sha256': 'rev-$revision',
         'profiles': profiles,
         'role_bindings': {
-          'converse': {
-            'profile_id': 'p01',
-            'provider_name': 'OpenRouter',
-            'base_url': 'https://openrouter.ai/api/v1',
-            'enabled': true,
-            'model_id': 'anthropic/claude-3.7-sonnet',
-            'qualified_model_id': 'p01:anthropic/claude-3.7-sonnet',
-          },
+          'converse': p01Removed
+              ? {
+                  'profile_id': 'p01',
+                  'provider_name': 'p01 (removed)',
+                  'base_url': '',
+                  'enabled': false,
+                  'model_id': 'anthropic/claude-3.7-sonnet',
+                  'qualified_model_id': 'p01:anthropic/claude-3.7-sonnet',
+                  'status': 'unavailable_needs_reselection',
+                  'active': false,
+                  'unavailable_reason': 'referenced_profile_removed',
+                }
+              : {
+                  'profile_id': 'p01',
+                  'provider_name': 'OpenRouter',
+                  'base_url': 'https://openrouter.ai/api/v1',
+                  'enabled': true,
+                  'model_id': 'anthropic/claude-3.7-sonnet',
+                  'qualified_model_id': 'p01:anthropic/claude-3.7-sonnet',
+                  'status': 'proposed_unavailable',
+                  'active': false,
+                },
           'agent': {
             'profile_id': 'p02',
             'provider_name': 'Together AI',
@@ -139,6 +158,8 @@ void main() {
             'enabled': true,
             'model_id': 'meta-llama/Llama-3.3-70B-Instruct',
             'qualified_model_id': 'p02:meta-llama/Llama-3.3-70B-Instruct',
+            'status': 'proposed_unavailable',
+            'active': false,
           },
         },
       };
@@ -157,6 +178,7 @@ void main() {
           }
           if (request.url.path == '/v1/providers/custom/p01/discover' &&
               request.method == 'POST') {
+            revision++;
             profiles[0] = _customProfile(
               id: 'p01',
               name: 'OpenRouter',
@@ -189,6 +211,7 @@ void main() {
             final body = jsonDecode(request.body) as Map<String, Object?>;
             actionsSeen.add(body);
             final action = body['action'];
+            revision++;
             if (action == 'add_custom_provider') {
               profiles.add(
                 _customProfile(
@@ -200,6 +223,7 @@ void main() {
               );
             } else if (action == 'remove_custom_provider') {
               final pid = body['profile_id'] as String;
+              if (pid == 'p01') p01Removed = true;
               profiles.removeWhere((p) => p['profile_id'] == pid);
             }
             return _jsonReply(buildSnapshot());
@@ -218,7 +242,7 @@ void main() {
       await tester.tap(find.text('Custom APIs (.env)'));
       await tester.pumpAndSettle();
 
-      // Verify all 6 profiles render with no 5-provider cap
+      // Verify all 6 profiles render with no 5-provider cap and role bindings show proposed_unavailable
       expect(find.text('OpenRouter (p01)'), findsOneWidget);
       expect(find.text('Together AI (p02)'), findsOneWidget);
       expect(find.text('Groq (p03)'), findsOneWidget);
@@ -229,6 +253,7 @@ void main() {
         find.byKey(const Key('custom-role-bindings-summary')),
         findsOneWidget,
       );
+      expect(find.textContaining('proposed_unavailable'), findsOneWidget);
 
       // Trigger Discover / Refresh Models on p01
       await tester.tap(find.byKey(const Key('custom-api-discover-p01')));
@@ -313,10 +338,83 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify p01 removed and remaining IDs p02..p07 are not renumbered
+      // Verify p01 removed, remaining IDs p02..p07 not renumbered, and converse role retained as unavailable_needs_reselection
       expect(find.text('OpenRouter (p01)'), findsNothing);
       expect(find.text('Together AI (p02)'), findsOneWidget);
       expect(find.text('Llama.cpp Gateway (p07)'), findsOneWidget);
+      expect(
+        find.textContaining('unavailable_needs_reselection'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Aborts destructive remove POST if owner connection becomes inactive while confirmation dialog is open',
+    (tester) async {
+      var activeFlag = true;
+      final removePosts = <Map<String, Object?>>[];
+      final api = ProviderApi(
+        baseUrl: 'http://127.0.0.1:8760',
+        ownerToken: 'owner-test-token',
+        clientFactory: () => MockClient((request) async {
+          if (request.url.path == '/v1/providers') {
+            return _jsonReply(_emptyCatalog());
+          }
+          if (request.url.path == '/v1/providers/custom' &&
+              request.method == 'GET') {
+            return _jsonReply({
+              'schema_version': 1,
+              'env_file_name': 'custom_providers.env',
+              'unlimited': true,
+              'revision': 3,
+              'state_sha256': 'sha-rev-3',
+              'profiles': [
+                _customProfile(
+                  id: 'p01',
+                  name: 'OpenRouter',
+                  url: 'https://openrouter.ai/api/v1',
+                  model: 'anthropic/claude-3.7-sonnet',
+                  referencedBy: const ['converse'],
+                ),
+              ],
+              'role_bindings': const {},
+            });
+          }
+          if (request.url.path == '/v1/providers/custom' &&
+              request.method == 'POST') {
+            removePosts.add(
+              jsonDecode(request.body) as Map<String, Object?>,
+            );
+            return _jsonReply({'detail': 'Should not be called'}, status: 500);
+          }
+          return _jsonReply({'detail': 'Not found'}, status: 404);
+        }),
+      );
+      addTearDown(api.close);
+
+      await _pumpEditor(
+        tester,
+        OptionsProviderEditor(api: api, active: () => activeFlag),
+      );
+      await tester.tap(find.text('Custom APIs (.env)'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('custom-api-remove-p01')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('custom-api-remove-confirm-dialog')),
+        findsOneWidget,
+      );
+
+      // Invalidate active fence while confirmation dialog is open
+      activeFlag = false;
+      await tester.tap(
+        find.byKey(const Key('confirm-remove-custom-api-button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(removePosts, isEmpty);
     },
   );
 }

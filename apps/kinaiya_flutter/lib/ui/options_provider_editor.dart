@@ -76,6 +76,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   bool _cloud = false, _import = true, _reading = false;
   String? _error, _notice, _formError;
   int _readVersion = 0;
+  int _refreshSeq = 0;
   bool _newProfileRequested = false;
 
   bool _current(ProviderApi api, bool Function() capturedActive) =>
@@ -106,6 +107,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.api, widget.api)) {
       _readVersion++;
+      _refreshSeq++;
       _key.clear();
       _customApiKey.clear();
       _catalog = null;
@@ -125,6 +127,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   @override
   void dispose() {
     _readVersion++;
+    _refreshSeq++;
     _pendingEvents.removeListener(_pendingChanged);
     _key.clear();
     _customApiKey.clear();
@@ -1089,7 +1092,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   }
 
   Future<void> _refreshCustomProviders() async {
-    final api = widget.api;
+    final api = widget.api, seq = ++_refreshSeq;
     final active = widget.active;
     if (api == null || !widget.active()) return;
     setState(() {
@@ -1098,19 +1101,19 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     });
     try {
       final snap = await api.inspectCustomProviders();
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _error = 'Custom .env provider store could not be read from host.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customBusy = false;
         });
@@ -1178,6 +1181,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       setState(() => _formError = 'Enter an OpenAI-Compatible Base URL.');
       return;
     }
+    final seq = ++_refreshSeq;
     setState(() {
       _customBusy = true;
       _formError = null;
@@ -1207,7 +1211,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               'chat_completions_path': chatPath,
               'models_path': modelsPath,
               'custom_endpoints': customEndpoints,
-              'max_output_tokens': maxOutputTokens ?? '',
+              'max_output_tokens': maxOutputTokens,
               'clear_max_output_tokens': maxOutputTokens == null,
               if (apiKey.isNotEmpty) 'api_key': apiKey,
               'clear_api_key': _customClearKey,
@@ -1216,7 +1220,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               'allow_remote_http': _customAllowRemoteHttp,
             };
       final snap = await api.changeCustomProvider(payload);
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
           _customApiKey.clear();
@@ -1228,14 +1232,14 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _formError =
               'Custom API settings were rejected. Verify Base URL (HTTPS or loopback HTTP), endpoint paths, and Model ID.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() => _customBusy = false);
       }
     }
@@ -1245,26 +1249,27 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     final api = widget.api;
     final active = widget.active;
     if (api == null || !_enabled || _customBusy) return;
+    final seq = ++_refreshSeq;
     setState(() => _customBusy = true);
     try {
       final snap = await api.changeCustomProvider({
         'action': 'set_global_reasoning_effort',
         'reasoning_effort': effort,
       });
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
           _notice = 'Updated global reasoning effort to $effort.';
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _error = 'Could not update global reasoning effort.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() => _customBusy = false);
       }
     }
@@ -1274,6 +1279,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     final api = widget.api;
     final active = widget.active;
     if (api == null || !_enabled || _customBusy) return;
+    final seq = ++_refreshSeq;
     setState(() {
       _customBusy = true;
       _error = null;
@@ -1282,7 +1288,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     });
     try {
       final result = await api.discoverCustomModels(profile.profileId);
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = result.snapshot;
           _customDiscoveryBanner = result.message;
@@ -1300,14 +1306,14 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customDiscoveryBanner =
               'Could not query /models for ${profile.name}. You can still save a manual Model ID.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() => _customBusy = false);
       }
     }
@@ -1320,6 +1326,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     final api = widget.api;
     final active = widget.active;
     if (api == null || !_enabled || _customBusy) return;
+    final seq = ++_refreshSeq;
     setState(() => _customBusy = true);
     try {
       final snap = await api.changeCustomProvider({
@@ -1327,7 +1334,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         'profile_id': profile.profileId,
         'enabled': enabled,
       });
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
           _notice =
@@ -1335,13 +1342,13 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _error = 'Could not update enabled state for ${profile.name}.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() => _customBusy = false);
       }
     }
@@ -1366,6 +1373,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       });
       return;
     }
+    final seq = ++_refreshSeq;
     setState(() => _customBusy = true);
     try {
       final snap = await api.changeCustomProvider({
@@ -1376,21 +1384,21 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         if (_customRoleReasoningOverride != null)
           'reasoning_effort': _customRoleReasoningOverride,
       });
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
           _notice =
-              'Bound $role to ${profile.name} (${profile.profileId}:$modelId).';
+              'Saved proposed $role selection for ${profile.name} (${profile.profileId}:$modelId) · proposed_unavailable pending native role-runtime admission.';
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _error = 'Could not bind ${profile.name} to $role.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, active) && seq == _refreshSeq) {
         setState(() => _customBusy = false);
       }
     }
@@ -1399,19 +1407,33 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   Future<void> _removeCustomProfile(
     CustomProviderProfile profile, {
     bool confirmed = false,
+  }) => _confirmAndRemoveCustomProfile(profile, confirmed: confirmed);
+
+  Future<void> _confirmAndRemoveCustomProfile(
+    CustomProviderProfile profile, {
+    bool confirmed = false,
   }) async {
     final api = widget.api;
-    final active = widget.active;
+    final generation = widget.active;
     if (api == null || !_enabled || _customBusy) return;
-    if (profile.referencedBy.isNotEmpty && !confirmed) {
+    final capturedRevision = _customCatalog.revision;
+    final capturedStateSha256 = _customCatalog.stateSha256;
+    final capturedProfileId = profile.profileId;
+    final capturedName = profile.name;
+    final capturedBaseUrl = profile.baseUrl;
+    final capturedSelectedModel = profile.selectedModel;
+    final capturedReferencedBy = List<String>.unmodifiable(
+      profile.referencedBy,
+    );
+    if (capturedReferencedBy.isNotEmpty && !confirmed) {
       final approve = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           key: const Key('custom-api-remove-confirm-dialog'),
-          title: Text('Remove ${profile.name} (${profile.profileId})?'),
+          title: Text('Remove $capturedName ($capturedProfileId)?'),
           content: Text(
-            'This custom provider is currently referenced by: ${profile.referencedBy.join(', ')}.\n\n'
-            'Removing it will clear those role bindings in ${_customCatalog.envFileName} without renumbering remaining custom provider IDs.',
+            'This custom provider is currently referenced by: ${capturedReferencedBy.join(', ')}.\n\n'
+            'Removing it retains those role bindings as unavailable (needs reselection) in ${_customCatalog.envFileName} without renumbering remaining custom provider IDs.',
           ),
           actions: [
             TextButton(
@@ -1427,30 +1449,48 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         ),
       );
       if (approve != true || !mounted) return;
+      if (!_current(api, generation) || !_enabled || _customBusy) return;
+      final currentProfile = _customCatalog.profiles
+          .where((p) => p.profileId == capturedProfileId)
+          .firstOrNull;
+      if (currentProfile == null ||
+          _customCatalog.revision != capturedRevision ||
+          _customCatalog.stateSha256 != capturedStateSha256 ||
+          currentProfile.name != capturedName ||
+          currentProfile.baseUrl != capturedBaseUrl ||
+          currentProfile.selectedModel != capturedSelectedModel) {
+        setState(() {
+          _error =
+              'Custom provider state changed while confirmation was open. Refresh and review before removing $capturedName.';
+        });
+        return;
+      }
       confirmed = true;
     }
+    final seq = ++_refreshSeq;
     setState(() => _customBusy = true);
     try {
       final snap = await api.changeCustomProvider({
         'action': 'remove_custom_provider',
-        'profile_id': profile.profileId,
+        'profile_id': capturedProfileId,
         'confirm_referenced': confirmed,
+        if (capturedRevision > 0) 'expected_revision': capturedRevision,
       });
-      if (_current(api, active)) {
+      if (_current(api, generation) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
           _notice =
-              'Removed ${profile.name} (${profile.profileId}). Remaining profile IDs were not renumbered.';
+              'Removed $capturedName ($capturedProfileId). Remaining profile IDs were not renumbered.';
         });
       }
     } catch (_) {
-      if (_current(api, active)) {
+      if (_current(api, generation) && seq == _refreshSeq) {
         setState(() {
-          _error = 'Could not remove custom provider ${profile.name}.';
+          _error = 'Could not remove custom provider $capturedName.';
         });
       }
     } finally {
-      if (_current(api, active)) {
+      if (_current(api, generation) && seq == _refreshSeq) {
         setState(() => _customBusy = false);
       }
     }
@@ -1779,8 +1819,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         ),
       if (_customCatalog.roleBindings.values.any((b) => b != null))
         SelectableText(
-          'Active custom role bindings: '
-          '${_customCatalog.roleBindings.entries.where((e) => e.value != null).map((e) => '${e.key} → ${e.value!.providerName} (${e.value!.qualifiedModelId} · reasoning: ${e.value!.effectiveReasoningEffort})').join(' · ')}',
+          'Proposed custom role selections (pending native role-runtime admission · not active in live runtime): '
+          '${_customCatalog.roleBindings.entries.where((e) => e.value != null).map((e) => '${e.key} → ${e.value!.providerName} (${e.value!.qualifiedModelId} · status: ${e.value!.status}${e.value!.unavailableReason != null ? ' [${e.value!.unavailableReason}]' : ''} · reasoning: ${e.value!.effectiveReasoningEffort})').join(' · ')}',
           key: const Key('custom-role-bindings-summary'),
         ),
       if (_customCatalog.profiles.isEmpty)
