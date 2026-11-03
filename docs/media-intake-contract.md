@@ -213,9 +213,12 @@ earlier CI529 failure's exact cause or guarantee CI/platform latency. CI529's
 unconfirmed-shutdown failure remains recorded; changed-head CI is required.
 
 The opt-in [diagnostic plugin](../evaluation/media_cleanup_diagnostic.py) publishes
-the instrument for reproduction. It is a formatting/import-order-only copy of
-the measured instrument, with the same non-import AST and import declarations.
-The plugin uses private owner methods and requires a compatible source revision.
+the instrument for reproduction. It now distinguishes the native observer from
+the synchronous worker it delegates to, correlates nested audit spans, and
+retains then-pending observations when `close` returns. This extends the earlier
+completed-span-only instrument; the historical measurements above were collected
+with that earlier revision. The plugin uses private owner methods and requires
+a compatible source revision.
 Run it in a fresh, dedicated pytest process from a checkout of the desired
 revision with this plugin on the Python path, using the locked development
 environment:
@@ -230,11 +233,29 @@ PYTHONPATH="evaluation:.:tests/integration:tests/unit" \
   tests/integration/test_session_media_owner.py::test_all_index_ack_history_survives_recent_cache_boundary
 ```
 
-The report retains bounded categorical aggregates and the last 512 completed
-spans. A missing span says nothing about work still in flight; any recorder loss
-invalidates completeness claims. Async CPU is unmeasured, and category/task/row
-state alone never proves physical cleanup. The categorical report's content
+The report retains categorical aggregates, the last 512 completed spans, at most
+512 pending spans and eight close-return snapshots. Recorder-local sequence
+numbers correlate observer, worker and audit spans; they are not native identity
+or ownership proof. Close snapshots privately select observations of the same
+owner object and retain deadline remaining/overrun when available. The worker
+wrapper calls the original function once with unchanged arguments. Its clock,
+lock and wrapper overhead, and retained recorder references, can affect timing
+and object lifetime.
+
+A missing span says nothing about work still in flight; any recorder loss
+invalidates completeness claims. Worker/audit CPU is measured on the same
+thread; async CPU is unmeasured, nested totals overlap, and category/task/row
+state alone never proves physical cleanup or timeout cause. The categorical report's content
 limits do not apply to ordinary pytest logs/JUnit. This command uses synthetic native
 Auth/ASGI/SQLite/spool machinery without a decoder, model or audio device. The
 parent media foundation has merged; decoder launch and the complete Omni demo
 remain unavailable at this boundary.
+
+Later [CI579](https://github.com/rgoza1996/Kinaiya/actions/runs/41715054223)
+at `07a2157` retained an unconfirmed native shutdown in the history case on
+Python 3.11: 12,111 passed, one failed, six skipped and two deselected. Python
+3.12 and the platform jobs passed. Its bounded snapshot showed source cleanup
+and one native job pending before the final close barrier; it did not identify
+the exact pending worker or establish the cause. The five-second production
+deadline and history assertions remain unchanged. New phase observations are
+diagnostic evidence, not a repair or a replacement for passing acceptance/CI.
