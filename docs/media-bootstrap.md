@@ -24,7 +24,8 @@ five arguments:
 ```
 
 The four descriptors must be distinct canonical decimal integers greater than
-two. The nonce is exactly 32 lowercase hexadecimal characters. Malformed,
+two and fit the native C-int range before any grant read. The nonce is exactly
+32 lowercase hexadecimal characters. Malformed,
 unsupported or out-of-range input exits with status 2 without target execution
 or exception text.
 
