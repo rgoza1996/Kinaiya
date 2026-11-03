@@ -169,6 +169,25 @@ class _CloseOperation:
 
 
 @dataclass(slots=True, eq=False)
+class _SessionChangeDispatch:
+    loop: asyncio.AbstractEventLoop
+    ordinal: int
+    previous: int | None
+    marker: object = field(default_factory=object)
+    task: asyncio.Task | None = None
+    coroutine: object = None
+    worker: asyncio.Task | None = None
+    worker_coroutine: object = None
+    setup_error: BaseException | None = None
+    outcome: str = "pending"
+    error_code: str | None = None
+    no_dispatch: bool = False
+    unknown: bool = False
+    setup_complete: bool = False
+    retired: bool = False
+
+
+@dataclass(slots=True, eq=False)
 class _SessionChange:
     session_id: str
     reason: str
@@ -178,6 +197,9 @@ class _SessionChange:
     error_code: str | None = None
     running: bool = False
     fence_committed: bool = False
+    first_dispatch: _SessionChangeDispatch | None = None
+    dispatch: _SessionChangeDispatch | None = None
+    completed_checks: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,6 +293,7 @@ class MediaSessionOwner:
         self._close_operation = None
         self._session_changes = {}
         self._session_change_recent = OrderedDict()
+        self._session_change_jobs = {}
         # This is the ONLY spool accounting snapshot, before Store.lock. Every
         # subsequent possible catalog/ledger effect has an original precharge.
         self._spool_metadata_snapshot = spool.metadata_bytes
@@ -1277,6 +1300,8 @@ class MediaSessionOwner:
     def _session_change_finish(self, change, state, *, result=None, error_code=None):
         with self._mutex:
             self._session_change_registered(change)
+            if change.state == "unknown" and state != "unknown":
+                refuse()
             change.state, change.result, change.error_code = state, result, error_code
             if state in {"applied", "refused"}:
                 if self._session_changes.get(change.session_id) is change:
@@ -1285,7 +1310,12 @@ class MediaSessionOwner:
                 for key, previous in tuple(self._session_change_recent.items()):
                     if len(self._session_change_recent) <= 64:
                         break
-                    if previous.state in {"applied", "refused"} and not previous.running:
+                    if (
+                        previous.state in {"applied", "refused"}
+                        and not previous.running
+                        and self._session_dispatch_joined(previous.dispatch)
+                        and (previous.dispatch is None or previous.dispatch.retired)
+                    ):
                         del self._session_change_recent[key]
 
     def _session_change_read(self, session_id):
@@ -1446,6 +1476,250 @@ class MediaSessionOwner:
             finally:
                 with self._mutex:
                     change.running = False
+
+    @staticmethod
+    def _session_dispatch_joined(dispatch):
+        if dispatch is None:
+            return True
+        if dispatch.unknown:
+            return False
+        if dispatch.no_dispatch and dispatch.coroutine is None:
+            return dispatch.outcome == "refused"
+        task = dispatch.task
+        return (
+            task is not None
+            and task.done()
+            and not task.cancelled()
+            and task.exception() is None
+            and task.result() == dispatch.outcome
+            and dispatch.outcome in {"applied", "refused", "conflict"}
+        )
+
+    def _session_dispatch_unknown(self, change, dispatch, error=None):
+        with self._mutex:
+            self._poisoned = True
+            dispatch.unknown = True
+            dispatch.outcome, dispatch.error_code = "unknown", "unavailable"
+            if error is not None:
+                dispatch.setup_error = error
+            self._session_change_finish(change, "unknown", error_code="unavailable")
+            # Setup may have taken effects even without returning a Task. Its
+            # exact precharged slot/original remains reachable, never retried.
+            self._native_jobs.setdefault(dispatch.marker, dispatch.task)
+            self._session_change_jobs[dispatch.marker] = (change, dispatch)
+
+    def _session_dispatch_done(self, change, dispatch, task):
+        with self._mutex:
+            if not dispatch.setup_complete:
+                return
+            if task is not dispatch.task or not self._session_dispatch_joined(dispatch):
+                self._session_dispatch_unknown(change, dispatch)
+                return
+            # Release only after the actual original Task facade returned and
+            # positively completed, including an eager factory's setup window.
+            self._native_jobs.pop(dispatch.marker, None)
+            self._session_change_jobs.pop(dispatch.marker, None)
+            dispatch.retired = True
+
+    def _session_change_store(self, change):
+        # No caller factory, role string or boolean selects native mutation.
+        try:
+            function = self.store.reset if change.reason == "reset" else self.store.delete
+            function(change.session_id, _media_change=change)
+        except BaseException as error:
+            if not isinstance(error, Exception):
+                return "unknown", "unavailable"
+            return "error", error.code if isinstance(error, MediaSessionError) else "unavailable"
+        return "returned", None
+
+    async def _run_session_change_native(self, change, dispatch):
+        with self._mutex:
+            if self._session_change_jobs.get(dispatch.marker) != (change, dispatch):
+                refuse()
+            if dispatch.unknown:
+                refuse()
+            if self._closing or self._closed or self._poisoned:
+                # This exact native branch precedes worker coroutine creation.
+                dispatch.no_dispatch = True
+                refuse()
+        dispatch.worker_coroutine = asyncio.to_thread(self._session_change_store, change)
+        try:
+            dispatch.worker = asyncio.create_task(dispatch.worker_coroutine)
+        except BaseException as error:
+            self._session_dispatch_unknown(change, dispatch, error)
+            raise
+        interrupted = False
+        while not dispatch.worker.done():
+            try:
+                await asyncio.shield(dispatch.worker)
+            except asyncio.CancelledError:
+                interrupted = True
+        if interrupted:
+            # An actual controller cancellation is distinct from an observer
+            # leaving asyncio.wait; the original worker has still been joined.
+            raise asyncio.CancelledError
+        return dispatch.worker.result()
+
+    async def _session_change_controller(self, change, dispatch):
+        try:
+            outcome, code = await self._run_session_change_native(change, dispatch)
+            with self._mutex:
+                if dispatch.unknown:
+                    pass
+                elif outcome == "returned" and change.state == "applied" and not change.running:
+                    dispatch.outcome = "applied"
+                elif outcome == "error" and change.state == "refused" and not change.running:
+                    dispatch.outcome, dispatch.error_code = "refused", change.error_code
+                elif (
+                    outcome == "error"
+                    and change.reason == "deleted"
+                    and change.state == "pending"
+                    and change.fence_committed
+                    and not change.running
+                    and code == "conflict"
+                ):
+                    dispatch.outcome, dispatch.error_code = "conflict", "conflict"
+                else:
+                    self._session_dispatch_unknown(change, dispatch)
+        except MediaSessionError as error:
+            with self._mutex:
+                if dispatch.unknown:
+                    pass
+                elif dispatch.no_dispatch:
+                    if change.state == "applied" and not change.running:
+                        dispatch.outcome = "applied"
+                    elif change.state == "refused" and not change.running:
+                        dispatch.outcome, dispatch.error_code = "refused", change.error_code
+                    elif change.state == "pending" and not change.running:
+                        self._session_change_finish(change, "refused", error_code=error.code)
+                        dispatch.outcome, dispatch.error_code = "refused", error.code
+                    else:
+                        self._session_dispatch_unknown(change, dispatch)
+                else:
+                    self._session_dispatch_unknown(change, dispatch)
+        except BaseException as error:
+            self._session_dispatch_unknown(change, dispatch, error)
+        # Keep only a fixed native outcome in the Task, not a mutable Session
+        # alias or an exception traceback retaining each completed SQL check.
+        return dispatch.outcome
+
+    async def apply_session_change(self, change):
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 5.0  # Observation only; never a physical cancellation.
+        if type(change) is not _SessionChange:
+            refuse("bad_packet")
+        fresh = complete = False
+        with self._mutex:
+            if self._closing or self._closed or self._poisoned:
+                refuse()
+            self._session_change_registered(change)
+            dispatch = change.dispatch
+            if change.state == "unknown" or dispatch is not None and dispatch.unknown:
+                refuse()
+            if change.state == "refused":
+                refuse(change.error_code)
+            if change.state == "applied" and self._session_dispatch_joined(dispatch):
+                result = change.result
+                complete = True
+            elif dispatch is None or (self._session_dispatch_joined(dispatch) and dispatch.retired):
+                if change.running:
+                    refuse("conflict")
+                if dispatch is not None and not (
+                    dispatch.outcome == "conflict"
+                    and change.reason == "deleted"
+                    and change.fence_committed
+                    and change.state == "pending"
+                ):
+                    refuse()
+                if self._loop is not None and self._loop is not loop:
+                    refuse("conflict")
+                if change.completed_checks >= _MAX - 1:
+                    refuse("bound")
+                completed = change.completed_checks + (dispatch is not None)
+                dispatch = _SessionChangeDispatch(
+                    loop,
+                    completed + 1,
+                    None if dispatch is None else dispatch.ordinal,
+                )
+                change.completed_checks = completed
+                change.dispatch = dispatch
+                if change.first_dispatch is None:
+                    change.first_dispatch = dispatch
+                # The SAME existing native16-job cap covers controller setup,
+                # queued work and its sole thread; never double-reserve a job.
+                if len(self._native_jobs) >= 16:
+                    dispatch.no_dispatch = True
+                    dispatch.outcome, dispatch.error_code = "refused", "capacity"
+                    dispatch.setup_complete = dispatch.retired = True
+                    self._session_change_finish(change, "refused", error_code="capacity")
+                    refuse("capacity")
+                self._loop = loop
+                self._native_jobs[dispatch.marker] = None
+                self._session_change_jobs[dispatch.marker] = (change, dispatch)
+                fresh = True
+            elif dispatch.loop is not loop:
+                refuse("conflict")
+            elif dispatch.task is None or not dispatch.task.done():
+                # Additional pending observers refuse rather than accumulating
+                # unbounded waiters or scheduling a second native Store call.
+                refuse("conflict")
+        if complete:
+            return self._session_change_observed_result(result, loop, deadline)
+        if fresh:
+            task = None
+            try:
+                dispatch.coroutine = self._session_change_controller(change, dispatch)
+                task = asyncio.create_task(dispatch.coroutine)
+            except BaseException as error:
+                self._session_dispatch_unknown(change, dispatch, error)
+                if not isinstance(error, Exception):
+                    raise
+                refuse()
+            finally:
+                with self._mutex:
+                    if task is not None:
+                        dispatch.task = task
+                        if dispatch.marker in self._native_jobs:
+                            self._native_jobs[dispatch.marker] = task
+            try:
+                task.add_done_callback(
+                    lambda done: self._session_dispatch_done(change, dispatch, done)
+                )
+            except BaseException as error:
+                self._session_dispatch_unknown(change, dispatch, error)
+                if not isinstance(error, Exception):
+                    raise
+                refuse()
+            with self._mutex:
+                dispatch.setup_complete = True
+            if task.done():
+                self._session_dispatch_done(change, dispatch, task)
+        if dispatch.task is None:
+            refuse("conflict")  # Same original is still in setup; no second runner.
+        if not dispatch.task.done():
+            _, pending = await asyncio.wait(
+                {dispatch.task}, timeout=max(0.0, deadline - loop.time())
+            )
+            if pending or loop.time() >= deadline:
+                refuse()  # Original gate/task/slot stay owned after this observation.
+        with self._mutex:
+            self._session_change_registered(change)
+            if not self._session_dispatch_joined(dispatch):
+                self._session_dispatch_unknown(change, dispatch)
+                refuse()
+            if dispatch.outcome != "applied":
+                refuse(dispatch.error_code)
+            if change.state != "applied":
+                refuse()
+            result = change.result
+        return self._session_change_observed_result(result, loop, deadline)
+
+    @staticmethod
+    def _session_change_observed_result(raw, loop, deadline):
+        result = None if raw is None else Session.model_validate_json(raw)
+        if loop.time() >= deadline:
+            refuse()
+        return result
 
     def _session(self, value):
         self._session_admission(value.session_id)
@@ -3625,7 +3899,9 @@ class MediaSessionOwner:
             if self._intakes or self._native_jobs or operation.unknown:
                 return False
             if any(
-                change.running or change.state == "unknown"
+                change.running
+                or change.state == "unknown"
+                or not self._session_dispatch_joined(change.dispatch)
                 for change in (
                     *self._session_changes.values(),
                     *self._session_change_recent.values(),
