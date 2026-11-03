@@ -6,23 +6,32 @@ Audio is transient by default. Client playback, not this server, measures audibi
 
 import asyncio
 import base64
+import hashlib
 import io
 import json
 import math
 import os
 import queue
+import secrets
 import sys
 import threading
 import time
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from fractions import Fraction
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from packages.contracts.tts_models import (
+    TTS_SETTLEMENT_PROTOCOL,
+    TTSWorkerOperation,
+    TTSWorkerProof,
+    TTSWorkerReservation,
+)
 from packages.providers.speech import RETAINED_TTS
 from packages.providers.stt_settlement import (
     STTWorkerCleanupUnknown,
@@ -260,6 +269,205 @@ def create_app(
     stt_operations = STTWorkerOperations(recognize_settled, allow_inference)
     install_stt_settlement(app, auth, stt_operations)
 
+    def _tts_request_sha256(text_sha256: str, profile: str) -> str:
+        canonical = json.dumps(
+            {"input_sha256": text_sha256, "profile": profile},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    class TTSWorkerOperations:
+        ACTIVE_LIMIT = 32
+        RECEIPT_LIMIT = 1024
+        RESERVATION_SECONDS = 30.0
+
+        def __init__(self):
+            self.instance = stt_operations.instance
+            self._counter = secrets.randbits(64) << 64
+            self._lock = threading.Lock()
+            self._records = OrderedDict()
+
+        def _reap_locked(self, now: float):
+            for record in self._records.values():
+                if (
+                    record["state"] == "reserved"
+                    and not record["dispatched"]
+                    and now - record["reserved_at"] >= self.RESERVATION_SECONDS
+                ):
+                    record["state"] = "settled"
+                    record["outcome"] = "not_dispatched"
+                    record["settled"] = True
+            settled_keys = [key for key, item in self._records.items() if item["settled"]]
+            while len(settled_keys) > self.RECEIPT_LIMIT:
+                oldest = settled_keys.pop(0)
+                self._records.pop(oldest, None)
+
+        def reserve(self, reservation: TTSWorkerReservation) -> TTSWorkerOperation:
+            allow_inference()
+            if reservation.profile != tts_profile:
+                raise HTTPException(503, "Selected retained profile needs its configured backend")
+            if reservation.request_sha256 != _tts_request_sha256(
+                reservation.text_sha256, reservation.profile
+            ):
+                raise HTTPException(422, "Invalid native TTS request digest")
+            now = time.monotonic()
+            with self._lock:
+                self._reap_locked(now)
+                unsettled = sum(not item["settled"] for item in self._records.values())
+                if unsettled >= self.ACTIVE_LIMIT:
+                    raise HTTPException(503, "Native TTS operation capacity is busy")
+                self._counter += 1
+                operation_id = f"tts_op_{self._counter:032x}"
+                descriptor = TTSWorkerOperation(
+                    worker_instance=self.instance,
+                    operation_id=operation_id,
+                    text_sha256=reservation.text_sha256,
+                    profile=reservation.profile,
+                    request_sha256=reservation.request_sha256,
+                )
+                self._records[operation_id] = {
+                    "descriptor": descriptor,
+                    "reserved_at": now,
+                    "state": "reserved",
+                    "outcome": None,
+                    "settled": False,
+                    "dispatched": False,
+                    "stream": None,
+                }
+                self._reap_locked(now)
+                return descriptor
+
+        def claim_headers(self, headers, text: str, profile: str):
+            names = (
+                "worker_instance",
+                "operation_id",
+                "text_sha256",
+                "profile",
+                "request_sha256",
+            )
+            values = {name: headers.get("x-kinaiya-" + name.replace("_", "-")) for name in names}
+            if all(value is None for value in values.values()):
+                return None
+            try:
+                descriptor = TTSWorkerOperation.model_validate(
+                    {"protocol": TTS_SETTLEMENT_PROTOCOL, **values}
+                )
+            except (ValidationError, ValueError, TypeError):
+                raise HTTPException(422, "Invalid native TTS dispatch descriptor") from None
+            if descriptor.worker_instance != self.instance:
+                raise HTTPException(409, "Native TTS worker instance mismatch")
+            text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            if (
+                descriptor.profile != profile
+                or descriptor.text_sha256 != text_sha256
+                or descriptor.request_sha256 != _tts_request_sha256(text_sha256, profile)
+            ):
+                raise HTTPException(409, "Native TTS dispatch payload mismatch")
+            now = time.monotonic()
+            with self._lock:
+                self._reap_locked(now)
+                record = self._records.get(descriptor.operation_id)
+                if (
+                    record is None
+                    or record["descriptor"] != descriptor
+                    or record["state"] != "reserved"
+                    or record["dispatched"]
+                ):
+                    raise HTTPException(409, "Native TTS reservation is not active")
+                record["dispatched"] = True
+                record["state"] = "running"
+                return record
+
+        def finish(self, record, outcome: str):
+            if record is None:
+                return
+            with self._lock:
+                if record["state"] == "unknown":
+                    return
+                record["state"] = "settled"
+                record["outcome"] = outcome
+                record["settled"] = True
+                record["stream"] = None
+                self._reap_locked(time.monotonic())
+
+        def mark_unknown(self, record):
+            if record is None:
+                return
+            with self._lock:
+                record["state"] = "unknown"
+                record["outcome"] = None
+                record["settled"] = False
+
+        def proof(self, operation: TTSWorkerOperation) -> dict:
+            reap_producers()
+            if operation.worker_instance != self.instance:
+                raise HTTPException(409, "Native TTS worker instance mismatch")
+            now = time.monotonic()
+            with self._lock:
+                self._reap_locked(now)
+                record = self._records.get(operation.operation_id)
+                if record is None:
+                    return TTSWorkerProof(
+                        **operation.model_dump(),
+                        state="unknown",
+                        outcome=None,
+                        settled=False,
+                    ).model_dump(mode="json")
+                if record["descriptor"] != operation:
+                    raise HTTPException(409, "Native TTS operation descriptor mismatch")
+                if record["state"] == "running" and quarantined.is_set():
+                    record["state"] = "unknown"
+                    record["outcome"] = None
+                    record["settled"] = False
+                return TTSWorkerProof(
+                    **operation.model_dump(),
+                    state=record["state"],
+                    outcome=record["outcome"],
+                    settled=record["settled"],
+                ).model_dump(mode="json")
+
+    tts_operations = TTSWorkerOperations()
+    tts_access = [Depends(auth.require("converse", "owner"))]
+
+    def _tts_json_response(payload: dict) -> JSONResponse:
+        return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+    async def _tts_control_body(request: Request, model):
+        raw = bytearray()
+        try:
+            async with asyncio.timeout(5):
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > 4096:
+                        raise HTTPException(413, "Native TTS metadata exceeds its bound")
+                    raw.extend(chunk)
+        except TimeoutError:
+            raise HTTPException(408, "Native TTS metadata deadline expired") from None
+        try:
+            return model.model_validate(json.loads(raw.decode("utf-8")))
+        except (ValueError, TypeError, RecursionError):
+            raise HTTPException(422, "Invalid native TTS descriptor") from None
+
+    @app.get("/v1/audio/tts-operations/capability", dependencies=tts_access)
+    async def tts_capability():
+        return _tts_json_response(
+            {
+                "protocol": TTS_SETTLEMENT_PROTOCOL,
+                "worker_instance": tts_operations.instance,
+            }
+        )
+
+    @app.post("/v1/audio/tts-operations/reserve", dependencies=tts_access)
+    async def tts_reserve(request: Request):
+        reservation = await _tts_control_body(request, TTSWorkerReservation)
+        return _tts_json_response(tts_operations.reserve(reservation).model_dump(mode="json"))
+
+    @app.post("/v1/audio/tts-operations/lookup", dependencies=tts_access)
+    async def tts_lookup(request: Request):
+        operation = await _tts_control_body(request, TTSWorkerOperation)
+        return _tts_json_response(tts_operations.proof(operation))
+
     @app.post("/v1/audio/transcriptions", dependencies=[Depends(auth.require("converse", "owner"))])
     async def transcribe(file: Annotated[UploadFile, File()]):
         allow_inference()
@@ -279,9 +487,10 @@ def create_app(
         pass
 
     class SynthesisStream:
-        def __init__(self, text, request):
+        def __init__(self, text, request, *, operation_record=None):
             self.text = text
             self.request = request
+            self.operation_record = operation_record
             self.cancelled = threading.Event()
             self.frames = queue.Queue(maxsize=2)
             self.thread = None
@@ -302,6 +511,8 @@ def create_app(
             self.policy_revision = allow_inference()
             self.closed = False
             self.close_lock = asyncio.Lock()
+            if operation_record is not None:
+                operation_record["stream"] = self
 
         def check(self):
             if self.cancelled.is_set():
@@ -398,6 +609,13 @@ def create_app(
             except BaseException:
                 self.failure = TTSBackendError("Selected voice backend returned invalid audio")
             finally:
+                if device == "cuda":
+                    try:
+                        torch = sys.modules.get("torch")
+                        if torch is not None and torch.cuda.is_initialized():
+                            torch.cuda.synchronize("cuda:0")
+                    except BaseException:
+                        quarantined.set()
                 self.producer_seconds = time.perf_counter() - started
                 self.producer_cancelled = self.cancelled.is_set()
 
@@ -497,6 +715,7 @@ def create_app(
                 await asyncio.sleep(poll_seconds)
             if self.thread is not None and self.thread.is_alive():
                 quarantined.set()
+                tts_operations.mark_unknown(self.operation_record)
                 # Keep admission and the real model lock owned. Only restarting
                 # the process can establish a usable model after this failure.
             else:
@@ -505,6 +724,24 @@ def create_app(
                     admission.release()
                     self.owns_slot = False
                 self.text = None
+                if quarantined.is_set():
+                    tts_operations.mark_unknown(self.operation_record)
+                else:
+                    outcome = (
+                        "failed"
+                        if self.failure is not None
+                        and not isinstance(self.failure, SynthesisCancelled)
+                        and not (
+                            isinstance(self.failure, HTTPException)
+                            and self.failure.status_code == 499
+                        )
+                        else (
+                            "cancelled"
+                            if self.cancelled.is_set() or self.monitor_failure is not None
+                            else "completed"
+                        )
+                    )
+                    tts_operations.finish(self.operation_record, outcome)
             self.closed = True
             sessions.discard(self)
 
@@ -546,13 +783,22 @@ def create_app(
 
     @app.post("/v1/audio/speech", dependencies=[Depends(auth.require("converse", "owner"))])
     async def speech(request: Synthesis, connection: Request):
-        allow_inference()
-        if request.profile != tts_profile:
-            raise HTTPException(503, "Selected retained profile needs its configured backend")
-        if len(request.input) > input_limit(tts_profile):
-            raise HTTPException(413, "Voice input exceeds the configured profile limit")
-        stream = SynthesisStream(request.input, connection)
+        record = tts_operations.claim_headers(connection.headers, request.input, request.profile)
+        try:
+            allow_inference()
+            if request.profile != tts_profile:
+                raise HTTPException(503, "Selected retained profile needs its configured backend")
+            if len(request.input) > input_limit(tts_profile):
+                raise HTTPException(413, "Voice input exceeds the configured profile limit")
+            stream = SynthesisStream(request.input, connection, operation_record=record)
+        except BaseException:
+            if quarantined.is_set() or shutting_down.is_set():
+                tts_operations.mark_unknown(record)
+            else:
+                tts_operations.finish(record, "failed")
+            raise
         sessions.add(stream)
+
         try:
             await stream.start()
             first = await stream.next_frame(first=True)

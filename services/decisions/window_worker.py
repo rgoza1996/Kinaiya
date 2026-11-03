@@ -7,12 +7,19 @@ import time
 from collections import OrderedDict
 from contextlib import nullcontext
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import httpx
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
-from packages.providers.decision_capture import CaptureNativeUnavailable, decision_attempt
+from packages.providers.decision_capture import (
+    CaptureNativeUnavailable,
+    capture_sources,
+    decision_attempt,
+)
+from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
+from services.decisions.window_routing import admissible_window_projection
 
 MAX_PENDING = 32
 MAX_ATTEMPTS = 2
@@ -132,19 +139,126 @@ class WindowDecisionsWorker:
         ):
             return await self._classify(source, attempt=attempt)
 
+    async def _scoped_source(self, source, window):
+        if window.revision == 1:
+            return source, window
+        if not (
+            hasattr(self.journal, "entry")
+            and hasattr(self.journal, "resolve")
+            and hasattr(self.journal, "read")
+        ):
+            return source, window
+        try:
+            floor = await source_scope(self.journal, source.event_id, resolved=source)
+        except Exception as exc:
+            raise JournalUnavailable("Native journal is unavailable") from exc
+        scope = combine_scopes(window.content_scope, floor)
+        if scope == window.content_scope:
+            return source, window
+        updated = source.model_copy(update={"payload": {**source.payload, "content_scope": scope}})
+        return updated, SpeechWindow.model_validate(updated.payload)
+
+    async def _resolve_context(self, source, window, recent):
+        has_resolver = (
+            hasattr(self.journal, "entry")
+            and hasattr(self.journal, "resolve")
+            and hasattr(self.journal, "read")
+        )
+        revised_targets = {
+            e.payload.get("target_event_id")
+            for e in recent
+            if e.epoch == source.epoch
+            and e.thread_id == source.thread_id
+            and e.kind == "conversation.revision"
+            and isinstance(e.payload, dict)
+        }
+        window_slot_counts = {}
+        for e in recent:
+            if (
+                e.epoch == source.epoch
+                and e.thread_id == source.thread_id
+                and e.kind == "conversation.window"
+                and isinstance(e.payload, dict)
+            ):
+                slot = (e.payload.get("utterance_id"), e.payload.get("window_index"))
+                window_slot_counts[slot] = window_slot_counts.get(slot, 0) + 1
+
+        candidates = [
+            e
+            for e in recent
+            if e.epoch == source.epoch
+            and e.thread_id == source.thread_id
+            and e.sequence < source.sequence
+            and e.kind in {"conversation.window", "conversation.user", "conversation.converse"}
+        ]
+        seen_slots = set()
+        resolved_entries = []
+        full_page = len(recent) >= 100
+        source_hyp = hypothesis(source)
+        for e in candidates:
+            entry = e
+            if e.kind == "conversation.window":
+                try:
+                    w = SpeechWindow.model_validate(e.payload)
+                except ValueError:
+                    continue
+                slot = (w.utterance_id, w.window_index)
+                if slot in seen_slots:
+                    continue
+                needs_resolve = has_resolver and (
+                    full_page or w.revision > 1 or window_slot_counts.get(slot, 0) > 1
+                )
+                if needs_resolve:
+                    try:
+                        latest = await self.journal.resolve(e.event_id)
+                        floor = await source_scope(self.journal, latest.event_id, resolved=latest)
+                    except Exception as exc:
+                        raise JournalUnavailable("Native journal is unavailable") from exc
+                    w_latest = SpeechWindow.model_validate(latest.payload)
+                    scope = combine_scopes(w_latest.content_scope, floor)
+                    entry = (
+                        latest
+                        if scope == w_latest.content_scope
+                        else latest.model_copy(
+                            update={"payload": {**latest.payload, "content_scope": scope}}
+                        )
+                    )
+                seen_slots.add(slot)
+                if w.utterance_id == window.utterance_id and hypothesis(entry) == source_hyp:
+                    continue
+            elif e.kind == "conversation.user":
+                needs_resolve = has_resolver and (
+                    full_page or e.event_id in revised_targets or e.payload.get("revision", 1) > 1
+                )
+                if needs_resolve:
+                    try:
+                        latest = await self.journal.resolve(e.event_id)
+                        floor = await source_scope(self.journal, e.event_id, resolved=latest)
+                    except Exception as exc:
+                        raise JournalUnavailable("Native journal is unavailable") from exc
+                    scope = combine_scopes(latest.payload.get("content_scope", "local_only"), floor)
+                    entry = latest.model_copy(
+                        update={"payload": {**latest.payload, "content_scope": scope}}
+                    )
+            resolved_entries.append(entry)
+        return resolved_entries[-12:]
+
+    def _active_provider_info(self):
+        if self.model_settings is not None:
+            state = self.model_settings._state()
+            info, _ = self.model_settings._selection_info(state[2])
+            return info
+        provider = getattr(self.classifier, "provider", None)
+        return getattr(provider, "info", None)
+
     async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
             return
         window = SpeechWindow.model_validate(source.payload)
         await self.status(source, "classifying", "content_window", attempt=attempt)
+        source, window = await self._scoped_source(source, window)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
-        context = [
-            e
-            for e in recent
-            if e.epoch == source.epoch
-            and e.sequence < source.sequence
-            and e.kind in {"conversation.window", "conversation.user", "conversation.converse"}
-        ][-12:]
+        context = await self._resolve_context(source, window, recent)
         tasks, available = [], self.agent_enabled
         if available:
             try:
@@ -165,15 +279,30 @@ class WindowDecisionsWorker:
             await self.status(source, "agent_unavailable", "agent_status_unavailable")
         started = time.monotonic()
         key = (source.session_id, source.epoch, window.utterance_id)
-        task_binding = (
-            available,
-            tuple(sorted((t.task_id, t.objective_revision, str(t.state)) for t in tasks)),
+        model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
+        provider_info = self._active_provider_info()
+        window_chars = getattr(self.classifier, "window_chars", 36000)
+        (
+            source_admissible,
+            admissible_context,
+            _kept_context,
+            _task_refs,
+            input_digest,
+        ) = admissible_window_projection(
+            source,
+            context,
+            tasks,
+            provider_info=provider_info,
+            window_chars=window_chars,
+            agent_enabled=self.agent_enabled,
+            agent_available=available,
+            model_stamp=model_stamp,
         )
         cached = self.outputs.get(key)
-        model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
         reused = (
-            cached is not None
-            and cached[:2] == (hypothesis(source), task_binding)
+            source_admissible
+            and cached is not None
+            and cached[0] == input_digest
             and self.output_models.get(key) == model_stamp
         )
         if reused:
@@ -187,6 +316,13 @@ class WindowDecisionsWorker:
                     attempt=attempt,
                     reused_from=original_call,
                 ) as capture:
+                    capture_sources(source, admissible_context)
+                    if hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                        await capture.check_current(
+                            SimpleNamespace(info=provider_info)
+                            if provider_info is not None
+                            else getattr(self.classifier, "provider", None)
+                        )
                     capture.validated_output = labels
         elif window.text.strip():
             if self.model_settings is None:
@@ -197,7 +333,7 @@ class WindowDecisionsWorker:
                     attempt=attempt,
                 ) as capture:
                     labels = await asyncio.wait_for(
-                        self.classifier.classify(source, context, tasks), self.timeout
+                        self.classifier.classify(source, admissible_context, tasks), self.timeout
                     )
                     capture.validated_output = labels
             else:
@@ -216,7 +352,7 @@ class WindowDecisionsWorker:
                         current=lease.current,
                     ) as capture:
                         labels = await asyncio.wait_for(
-                            classifier.classify(source, context, tasks), self.timeout
+                            classifier.classify(source, admissible_context, tasks), self.timeout
                         )
                         capture.validated_output = labels
             original_call = capture.call_id if capture.started else None
@@ -227,7 +363,7 @@ class WindowDecisionsWorker:
                 "reason_code": "no_transcript_text",
             }
             original_call = None
-        self.outputs[key] = (hypothesis(source), task_binding, dict(labels), original_call)
+        self.outputs[key] = (input_digest, hypothesis(source), dict(labels), original_call)
         self.output_models[key] = model_stamp
         self.outputs.move_to_end(key)
         if len(self.outputs) > 128:

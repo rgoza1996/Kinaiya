@@ -240,9 +240,7 @@ class StandingBarrier:
             raise StandingUnavailable
         if len(row["claim"].encode()) > 147456:
             raise StandingUnavailable
-        claim = checked_finalization(
-            StandingExecutionClaim.from_json(row["claim"].encode()), StandingExecutionClaim
-        )
+        claim = StandingExecutionClaim.from_json(row["claim"].encode())
         binding = StandingResourceBindingRequest.from_json(row["binding"].encode())
         if (
             fresh_wire(claim) != row["claim"]

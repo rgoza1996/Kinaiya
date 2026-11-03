@@ -131,6 +131,9 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
     if kind == "meta":
         if role == "agent":
             profile.setdefault("structured_actions", True)
+        key_ref = profile.pop("api_key_env", None)
+        if key_ref and not profile.get("api_key"):
+            profile["api_key"] = os.environ.get(key_ref, "")
         result = MetaResponsesProvider(**profile)
     elif kind == "lmstudio":
         if role not in {"converse", "agent", "auxiliary"}:
@@ -258,12 +261,74 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
     return result
 
 
+def validate_setup_provider(role, profile):
+    """Validate setup role adapter selection and role-required capabilities without inference."""
+    if not isinstance(profile, dict) or not isinstance(profile.get("kind"), str):
+        raise ValueError(f"Missing explicit adapter kind for {role}")
+    kind = profile["kind"]
+    if role == "agent":
+        if kind == "compatible":
+            raise ValueError(
+                "Adapter 'compatible' does not support exact complete-request measurement "
+                "(prepare_complete) required by Agent; select 'lmstudio' for local native "
+                "loopback or 'meta' with explicit cloud disclosure"
+            )
+        if kind not in {"lmstudio", "meta"}:
+            raise ValueError(
+                f"Unsupported Agent adapter kind {kind!r}; Agent requires a measured adapter "
+                "('lmstudio' or 'meta') that implements prepare_complete"
+            )
+    elif role == "converse":
+        if kind not in {"lmstudio", "compatible", "meta"}:
+            raise ValueError(
+                f"Unsupported Converse setup adapter kind {kind!r}; select 'lmstudio', "
+                "'compatible', or 'meta'"
+            )
+    elif role == "decisions":
+        if kind not in {"compatible", "laya", "native_d1", "meta"}:
+            raise ValueError(
+                f"Unsupported Decisions setup adapter kind {kind!r}; select 'compatible', "
+                "'laya', 'native_d1', or 'meta'"
+            )
+    else:
+        raise ValueError(f"Unsupported setup provider role {role!r}")
+
+    probe_profile = dict(profile)
+    key_ref = probe_profile.get("api_key_env")
+    if key_ref and not os.environ.get(key_ref) and not probe_profile.get("api_key"):
+        probe_profile["api_key"] = "setup-validation-placeholder"
+    if kind == "laya" and "expected_artifact_sha256" not in probe_profile:
+        probe_profile["expected_artifact_sha256"] = "0" * 64
+    try:
+        adapter = provider({"providers": {role: probe_profile}}, role)
+    except SystemExit as exc:
+        raise ValueError(str(exc)) from None
+    if role == "agent":
+        if not callable(getattr(adapter, "prepare_complete", None)):
+            raise ValueError(
+                f"Adapter {kind!r} does not implement prepare_complete required by Agent"
+            )
+        if kind == "meta" and not getattr(adapter, "cloud_prompt_measurement", False):
+            raise ValueError(
+                "Cloud Agent adapter 'meta' requires an explicit context_tokens budget for prepare_complete"
+            )
+    return adapter
+
+
 def initialize(args):
     directory = args.data_dir.resolve()
     load_or_create_tokens(directory)
     config_path = args.config or directory / "config.json"
     if not config_path.exists():
-        profile = {
+        agent_profile = {
+            "kind": "lmstudio",
+            "base_url": "http://127.0.0.1:1234",
+            "model": "configure-your-local-model",
+            "allow_cloud": False,
+            "max_tokens": 128,
+            "reasoning_effort": "none",
+        }
+        compatible_profile = {
             "kind": "compatible",
             "base_url": "http://127.0.0.1:8080/v1",
             "model": "configure-your-local-model",
@@ -273,7 +338,11 @@ def initialize(args):
         config_path.write_text(
             json.dumps(
                 {
-                    "providers": {key: profile for key in ("agent", "converse", "decisions")},
+                    "providers": {
+                        "agent": dict(agent_profile),
+                        "converse": dict(compatible_profile),
+                        "decisions": dict(compatible_profile),
+                    },
                     "session_url": "http://127.0.0.1:8760",
                     "agent_url": "http://127.0.0.1:8761",
                     "voice": {"url": "http://127.0.0.1:8765", "profile": "Kokoro 82M"},
