@@ -33,13 +33,15 @@ def mascot(*, width=80, interactive=True):
     return MASCOT
 
 
-def run_wizard(layout, *, tty=None):
+def run_wizard(layout, *, tty=None, store_factory=None, read_secret=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
     if tty is None:
         try:
             with open_terminal() as terminal:
-                return run_wizard(layout, tty=terminal)
+                return run_wizard(
+                    layout, tty=terminal, store_factory=store_factory, read_secret=read_secret
+                )
         except OSError:
             raise InstallError(
                 "No controlling terminal; use setup --yes with explicit endpoint/model"
@@ -72,7 +74,7 @@ def run_wizard(layout, *, tty=None):
     tty.write("Provider connection is not checked; saved configuration does not mean ready.\n")
     if ask("Write configuration and private service tokens? type yes", "no") != "yes":
         raise InstallError("Setup cancelled; no configuration written")
-    return setup(
+    result = setup(
         chosen,
         endpoint=endpoint,
         model=model,
@@ -80,3 +82,25 @@ def run_wizard(layout, *, tty=None):
         credential_env=credential_env,
         converse=converse,
     )
+    return _offer_custom_api_profile(chosen, tty, result, store_factory, read_secret)
+
+
+def _offer_custom_api_profile(layout, tty, result, store_factory, read_secret):
+    """Optional #402 step after config is written; never blocks completed setup."""
+    from services.distribution import profile_form
+
+    tty.write("Optional: save a named custom OpenAI-compatible API profile now.\n")
+    try:
+        if not profile_form.confirm(tty, "Add or choose a custom API profile?"):
+            return result
+        store = (store_factory or profile_form.custom_providers_store)(layout)
+        profile_id = profile_form.choose_or_add_profile(
+            store, tty, read_secret=read_secret or profile_form.masked_input
+        )
+    except profile_form.ProfileFormCancelled as exc:
+        tty.write(f"{exc} Setup configuration is unchanged.\n")
+        return result
+    except profile_form.CustomProviderError as exc:
+        tty.write(f"Custom API profiles are unavailable: {exc}\n")
+        return result
+    return {**result, "custom_profile_id": profile_id}

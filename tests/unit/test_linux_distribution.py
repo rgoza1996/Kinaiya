@@ -335,7 +335,8 @@ def test_tty_wizard_requires_confirmation_and_keeps_agent_only(tmp_path, monkeyp
 
     class Terminal:
         def __init__(self):
-            self.answers = iter(["", "", "", "local-model", "", "", "", "yes"])
+            # Final "" declines the optional #402 custom API profile step.
+            self.answers = iter(["", "", "", "local-model", "", "", "", "yes", ""])
             self.output = ""
 
         def write(self, value):
