@@ -293,7 +293,7 @@ class MediaSessionOwner:
             names = {
                 row[0]
                 for row in self._sql(
-                    "SELECT name FROM sqlite_schema WHERE type='table' AND name LIKE 'media_%'"
+                    "SELECT name FROM sqlite_schema WHERE type='table' AND substr(name,1,6)='media_'"
                 )
             }
             expected = {statement.split("(", 1)[0].split()[-1] for statement in _DDL}
