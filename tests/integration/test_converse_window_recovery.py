@@ -744,7 +744,8 @@ async def test_late_old_abandon_cannot_fence_reused_generation_after_reset(env):
     await settle(env)
 
 
-async def test_stop_tick_budget_rotates_past_a_hanging_session(env):
+@pytest.mark.parametrize("ordinary_delay_s", [0, 0.05], ids=["ordinary-io", "delayed-ordinary-io"])
+async def test_stop_tick_budget_rotates_past_a_hanging_session(env, ordinary_delay_s):
     sessions = [env.session] + [
         env.store.create_session(SessionRequest(channel="converse")) for _ in range(4)
     ]
@@ -752,24 +753,43 @@ async def test_stop_tick_budget_rotates_past_a_hanging_session(env):
         await env.runtime._epoch(session.session_id)
         env.runtime.fence_playback(session.session_id)
     env.controller._stop_batch_size = 2
+    ordinary_budget_s = env.controller._journal_timeout_s
     env.controller._journal_timeout_s = 0.02
     original = env.journal.session
     calls = []
+    ordinary = SimpleNamespace(entered=0, completed=0, cancelled=0, task=None)
 
     async def held(session_id):
         calls.append(session_id)
         if session_id == sessions[0].session_id:
             await asyncio.Event().wait()
+        if session_id == sessions[1].session_id and not ordinary.entered:
+            ordinary.entered += 1
+            ordinary.task = asyncio.current_task()
+            try:
+                await asyncio.sleep(ordinary_delay_s)
+                result = await original(session_id)
+            except asyncio.CancelledError:
+                ordinary.cancelled += 1
+                raise
+            ordinary.completed += 1
+            return result
         return await original(session_id)
 
     env.journal.session = held
     try:
         await asyncio.wait_for(env.controller.tick(), 0.3)
         assert calls == [sessions[0].session_id]
-        await asyncio.wait_for(env.controller.tick(), 0.3)
+        # The short fault timer belongs to the deliberately hung batch. The
+        # next batch uses the native budget for genuine healthy journal I/O.
+        env.controller._journal_timeout_s = ordinary_budget_s
+        healthy_tick = asyncio.create_task(env.controller.tick())
+        await asyncio.wait_for(healthy_tick, 0.3)
         stops = env.store.read(kinds=["delivery.updated"])
         assert [e.session_id for e in stops] == [s.session_id for s in sessions[1:3]]
         assert len(calls) == 5
+        assert (ordinary.entered, ordinary.completed, ordinary.cancelled) == (1, 1, 0)
+        assert ordinary.task is healthy_tick
         assert not env.runtime.playback[sessions[0].session_id].stop.retired
         assert env.runtime.playback[sessions[0].session_id].stop.request is not None
         assert env.provider.calls == 0
