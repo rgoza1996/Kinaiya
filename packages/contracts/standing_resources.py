@@ -93,7 +93,7 @@ def _actual(value):
             pending.extend(item)
 
 
-def _complete(value, kind):
+def _field_dict(value, kind):
     _actual(value)
     if isinstance(value, BaseModel):
         if type(value) is not kind:
@@ -101,7 +101,11 @@ def _complete(value, kind):
         value = dict(value.__dict__)
     if type(value) is not dict or value.keys() != kind.model_fields.keys():
         raise ValueError(_ERROR)
-    return kind.model_validate(value, strict=True)
+    return value
+
+
+def _complete(value, kind):
+    return kind.model_validate(_field_dict(value, kind), strict=True)
 
 
 def checked_resource(value, kind):
@@ -221,12 +225,12 @@ class TaskResourceContext(_Resource):
     @field_validator("query", mode="before")
     @classmethod
     def exact_query(cls, value):
-        return _complete(value, TaskResourceQuery)
+        return _field_dict(value, TaskResourceQuery)
 
     @field_validator("standing", mode="before")
     @classmethod
     def exact_initial(cls, value):
-        return None if value is None else _complete(value, StandingInitialProof)
+        return None if value is None else _field_dict(value, StandingInitialProof)
 
     @field_validator("ordinary", mode="before")
     @classmethod
@@ -266,7 +270,7 @@ class StandingResourceReservation(_Resource):
     @field_validator("context", mode="before")
     @classmethod
     def exact_context(cls, value):
-        return _complete(value, TaskResourceContext)
+        return _field_dict(value, TaskResourceContext)
 
     @model_validator(mode="after")
     def standing_only(self):
@@ -296,7 +300,7 @@ class StandingResourceReservationReceipt(_Resource):
     @field_validator("request", mode="before")
     @classmethod
     def exact_request(cls, value):
-        return _complete(value, StandingResourceReservation)
+        return _field_dict(value, StandingResourceReservation)
 
     @model_validator(mode="after")
     def full_digest(self):
@@ -389,7 +393,7 @@ class StandingResourceObservation(_Resource):
     @field_validator("reservation", mode="before")
     @classmethod
     def exact_reservation(cls, value):
-        return None if value is None else _complete(value, StandingResourceReservation)
+        return None if value is None else _field_dict(value, StandingResourceReservation)
 
     @model_validator(mode="after")
     def full_observation(self):

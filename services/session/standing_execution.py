@@ -23,6 +23,7 @@ from packages.contracts.standing_work import (
     StandingConflict,
     StandingUnavailable,
     _checked,
+    _encode,
     _utc,
     canonical_bytes,
     latest_relevant,
@@ -270,7 +271,7 @@ class StandingExecutionOwner:
         claim = StandingExecutionClaim.from_json(row["claim"].encode("utf-8"))
         request = claim.request
         if (
-            canonical_bytes(claim).decode("utf-8") != row["claim"]
+            _encode(claim).decode("utf-8") != row["claim"]
             or row["key"] != request.idempotency_key
             or row["claim_id"] != claim.claim_id
             or row["occurrence_id"] != claim.occurrence_id
