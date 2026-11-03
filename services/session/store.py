@@ -455,31 +455,18 @@ class Store:
         """Missing optional runtime cannot bypass persisted original obligations."""
         if self._media_owner is not None:
             return self._media_owner
-        names = {"media_meta", "media_clients", "media_sources", "media_objective_anchors"}
         try:
-            present = {
-                row[0]
-                for row in self.db.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name IN ('media_meta','media_clients','media_sources',"
-                    "'media_objective_anchors')"
-                )
-            }
-            if not present:
-                return None
-            if present != names:
-                raise JournalError("Native media metadata is unavailable")
-            for name in ("media_clients", "media_sources", "media_objective_anchors"):
-                # Identifiers are fixed native table names, never request text.
-                if (
-                    self.db.execute(
-                        f"SELECT 1 FROM {name} WHERE session_id=? LIMIT 1", (session_id,)
-                    ).fetchone()
-                    is not None
-                ):
-                    raise JournalError("The original native media owner is unavailable")
+            present = self.db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND substr(name,1,6)='media_' LIMIT 1"
+            ).fetchone()
         except sqlite3.Error:
             raise JournalError("Native media metadata is unavailable") from None
+        if present is not None:
+            # Only the original runtime can validate complete scoped custody.
+            # A surviving reservation/dependency/preparation table also blocks
+            # deletion or epoch reset when the optional runtime is absent.
+            raise JournalError("The original native media owner is unavailable")
         return None
 
     def reset(self, session_id: str) -> Session:
