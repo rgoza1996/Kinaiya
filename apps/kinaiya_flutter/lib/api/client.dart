@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
+import 'companion_client.dart';
 import 'memory_client.dart';
 import 'decisions_client.dart';
 import 'models.dart';
@@ -90,6 +91,7 @@ class KinaiyaClient {
     required String ownerToken,
     http.Client? httpClient,
     http.Client Function()? memoryClientFactory,
+    http.Client Function()? companionClientFactory,
     http.Client Function()? sttModelClientFactory,
     http.Client Function()? contextClientFactory,
     http.Client Function()? ttsModelClientFactory,
@@ -113,6 +115,7 @@ class KinaiyaClient {
            artifactClientFactory ??
            (httpClient == null ? http.Client.new : _artifactInjectionRequired),
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _companionClientFactory = companionClientFactory ?? http.Client.new,
        _sttModelClientFactory =
            sttModelClientFactory ??
            (httpClient == null ? http.Client.new : _sttModelInjectionRequired),
@@ -224,6 +227,7 @@ class KinaiyaClient {
     clientFactory: _artifactClientFactory,
   );
   final http.Client Function() _memoryClientFactory;
+  final http.Client Function() _companionClientFactory;
   final http.Client Function() _decisionsClientFactory;
   static http.Client _decisionsInjectionRequired() =>
       throw StateError('Decisions transport requires its own injected factory');
@@ -351,6 +355,13 @@ class KinaiyaClient {
     clientFactory: _memoryClientFactory,
   );
 
+  /// Independent per-request owner companion transport.
+  late final OwnerCompanionApi companion = OwnerCompanionApi(
+    sessionBase: sessionBase,
+    ownerToken: _token,
+    clientFactory: _companionClientFactory,
+  );
+
   /// Test constructor wrapping a mock transport; always labeled.
   KinaiyaClient.mock({
     required String sessionBase,
@@ -360,6 +371,7 @@ class KinaiyaClient {
     required http.Client mockTransport,
     String label = 'mock',
     http.Client Function()? memoryClientFactory,
+    http.Client Function()? companionClientFactory,
     http.Client Function()? sttModelClientFactory,
     http.Client Function()? contextClientFactory,
     http.Client Function()? ttsModelClientFactory,
@@ -382,6 +394,7 @@ class KinaiyaClient {
        _artifactClientFactory =
            artifactClientFactory ?? _artifactInjectionRequired,
        _memoryClientFactory = memoryClientFactory ?? http.Client.new,
+       _companionClientFactory = companionClientFactory ?? http.Client.new,
        _sttModelClientFactory =
            sttModelClientFactory ?? _sttModelInjectionRequired,
        _contextClientFactory =
@@ -1111,6 +1124,7 @@ class KinaiyaClient {
       _http.close();
     } finally {
       unawaited(memory.close());
+      unawaited(companion.close());
       unawaited(providers.close());
       decisionInspections.close();
       unawaited(_agentWorkspaceReader.close());

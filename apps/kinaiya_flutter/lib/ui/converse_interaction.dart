@@ -36,13 +36,14 @@ class ConverseInteraction extends StatelessWidget {
     required this.onHistory,
     required this.onVoiceOptions,
     required this.onMemory,
+    this.onCompanions,
     this.activeVoice = false,
   });
 
   final Widget character, transcript, composer, modelSummary;
   final String status, callLabel, microphoneLabel;
   final ConverseStageState? stageState;
-  final VoidCallback? onCall, onMicrophone;
+  final VoidCallback? onCall, onMicrophone, onCompanions;
   final VoidCallback onModelSettings, onHistory, onVoiceOptions, onMemory;
   final bool activeVoice;
 
@@ -195,6 +196,13 @@ class ConverseInteraction extends StatelessWidget {
               icon: const Icon(Icons.bookmark_outline, size: 20),
               label: const Text('Memory'),
             ),
+            if (onCompanions != null)
+              TextButton.icon(
+                key: const ValueKey('converse-companions'),
+                onPressed: onCompanions,
+                icon: const Icon(Icons.devices_outlined, size: 20),
+                label: const Text('Companions'),
+              ),
           ],
         ),
       ],
