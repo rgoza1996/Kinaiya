@@ -43,11 +43,23 @@ def configure(commands):
         "setup", help="Configure Agent without starting work or voice"
     )
     setup_parser.add_argument("--yes", action="store_true")
+    setup_parser.add_argument("--adapter")
     setup_parser.add_argument("--endpoint")
     setup_parser.add_argument("--model")
     setup_parser.add_argument("--credential-env")
     setup_parser.add_argument("--allow-cloud", action="store_true")
+    setup_parser.add_argument("--context-tokens", type=int)
     setup_parser.add_argument("--converse", action="store_true")
+    setup_parser.add_argument("--converse-adapter")
+    setup_parser.add_argument("--converse-endpoint")
+    setup_parser.add_argument("--converse-model")
+    setup_parser.add_argument("--converse-credential-env")
+    setup_parser.add_argument("--converse-allow-cloud", action="store_true")
+    setup_parser.add_argument("--decisions-adapter")
+    setup_parser.add_argument("--decisions-endpoint")
+    setup_parser.add_argument("--decisions-model")
+    setup_parser.add_argument("--decisions-credential-env")
+    setup_parser.add_argument("--decisions-allow-cloud", action="store_true")
     updater = commands.add_parser("update", help="Check or explicitly install a verified update")
     updater.add_argument("--channel", choices=("stable", "nightly"))
     updater.add_argument("--check", action="store_true")
@@ -179,14 +191,60 @@ def dispatch(args):
             return run_wizard(layout)
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
-        return setup(
-            layout,
-            endpoint=args.endpoint,
-            model=args.model,
-            credential_env=args.credential_env,
-            allow_cloud=args.allow_cloud,
-            converse=args.converse,
+        converse_flags = (
+            getattr(args, "converse_adapter", None),
+            getattr(args, "converse_endpoint", None),
+            getattr(args, "converse_model", None),
+            getattr(args, "converse_credential_env", None),
         )
+        converse_profile = None
+        if any(v is not None for v in converse_flags) or bool(
+            getattr(args, "converse_allow_cloud", False)
+        ):
+            converse_endpoint = getattr(args, "converse_endpoint", None)
+            converse_model = getattr(args, "converse_model", None)
+            converse_profile = {
+                "kind": getattr(args, "converse_adapter", None),
+                "endpoint": args.endpoint if converse_endpoint is None else converse_endpoint,
+                "model": args.model if converse_model is None else converse_model,
+                "allow_cloud": bool(getattr(args, "converse_allow_cloud", False)),
+                "credential_env": getattr(args, "converse_credential_env", None),
+            }
+        decisions_flags = (
+            getattr(args, "decisions_adapter", None),
+            getattr(args, "decisions_endpoint", None),
+            getattr(args, "decisions_model", None),
+            getattr(args, "decisions_credential_env", None),
+        )
+        decisions_profile = None
+        if any(v is not None for v in decisions_flags) or bool(
+            getattr(args, "decisions_allow_cloud", False)
+        ):
+            decisions_endpoint = getattr(args, "decisions_endpoint", None)
+            decisions_model = getattr(args, "decisions_model", None)
+            decisions_profile = {
+                "kind": getattr(args, "decisions_adapter", None),
+                "endpoint": args.endpoint if decisions_endpoint is None else decisions_endpoint,
+                "model": args.model if decisions_model is None else decisions_model,
+                "allow_cloud": bool(getattr(args, "decisions_allow_cloud", False)),
+                "credential_env": getattr(args, "decisions_credential_env", None),
+            }
+        setup_kwargs = {
+            "endpoint": args.endpoint,
+            "model": args.model,
+            "credential_env": args.credential_env,
+            "allow_cloud": args.allow_cloud,
+            "converse": args.converse,
+        }
+        if getattr(args, "adapter", None) is not None:
+            setup_kwargs["adapter"] = args.adapter
+        if getattr(args, "context_tokens", None) is not None:
+            setup_kwargs["context_tokens"] = args.context_tokens
+        if converse_profile is not None:
+            setup_kwargs["converse_profile"] = converse_profile
+        if decisions_profile is not None:
+            setup_kwargs["decisions_profile"] = decisions_profile
+        return setup(layout, **setup_kwargs)
     if args.command in {"recover", "rollback", "uninstall"}:
         from services.distribution.installation import recover, rollback, uninstall
 

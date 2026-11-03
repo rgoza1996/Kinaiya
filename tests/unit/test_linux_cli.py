@@ -232,3 +232,104 @@ def test_cli_install_installs_missing_system_dependencies_without_upgrade(tmp_pa
     assert result["ready"] is False
     assert dep_calls == [["bubblewrap", "libseccomp2"]]
     assert preflight_calls == [True, False]
+
+
+def test_unattended_cli_setup_forwards_adapter_and_independent_role_profiles(
+    tmp_path, monkeypatch, capsys
+):
+    import json
+
+    from services import launcher
+
+    cli = cli_module()
+    module = distribution()
+    layout = module.Layout.for_home(tmp_path / "cli-roles")
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
+
+    launcher.main(
+        [
+            "setup",
+            "--yes",
+            "--adapter",
+            "lmstudio",
+            "--endpoint",
+            "http://127.0.0.1:1234",
+            "--model",
+            "qwen2.5-coder-7b",
+            "--converse",
+            "--converse-adapter",
+            "meta",
+            "--converse-endpoint",
+            "https://api.meta.ai/v1",
+            "--converse-model",
+            "muse-converse",
+            "--converse-allow-cloud",
+            "--converse-credential-env",
+            "CONVERSE_META_KEY",
+            "--decisions-adapter",
+            "native_d1",
+            "--decisions-endpoint",
+            "http://127.0.0.1:8082",
+            "--decisions-model",
+            "lfm3-d1",
+        ]
+    )
+    out = json.loads(capsys.readouterr().out)
+    assert out["ready"] is False
+    cfg = json.loads(layout.config.read_text())
+    assert cfg["providers"]["agent"]["kind"] == "lmstudio"
+    assert cfg["providers"]["agent"]["base_url"] == "http://127.0.0.1:1234"
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-7b"
+    assert cfg["providers"]["converse"]["kind"] == "meta"
+    assert cfg["providers"]["converse"]["base_url"] == "https://api.meta.ai/v1"
+    assert cfg["providers"]["converse"]["model"] == "muse-converse"
+    assert cfg["providers"]["converse"]["allow_cloud"] is True
+    assert cfg["providers"]["converse"]["api_key_env"] == "CONVERSE_META_KEY"
+    assert cfg["providers"]["decisions"]["kind"] == "native_d1"
+    assert cfg["providers"]["decisions"]["base_url"] == "http://127.0.0.1:8082"
+    assert cfg["providers"]["decisions"]["model"] == "lfm3-d1"
+    assert cfg["distribution"]["converse"] is True
+
+    # Also verify cloud Agent + local Converse/Decisions via cli.main.
+    layout_c2l = module.Layout.for_home(tmp_path / "cli-cloud-to-local")
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout_c2l)
+    cli.main(
+        [
+            "setup",
+            "--yes",
+            "--adapter",
+            "meta",
+            "--endpoint",
+            "https://api.meta.ai/v1",
+            "--model",
+            "muse-agent",
+            "--allow-cloud",
+            "--credential-env",
+            "AGENT_META_KEY",
+            "--context-tokens",
+            "16384",
+            "--converse",
+            "--converse-adapter",
+            "lmstudio",
+            "--converse-endpoint",
+            "http://127.0.0.1:1234",
+            "--converse-model",
+            "local-converse",
+            "--decisions-adapter",
+            "laya",
+            "--decisions-endpoint",
+            "http://127.0.0.1:8082",
+            "--decisions-model",
+            "local-laya",
+        ]
+    )
+    capsys.readouterr()
+    cfg_c2l = json.loads(layout_c2l.config.read_text())
+    assert cfg_c2l["providers"]["agent"]["kind"] == "meta"
+    assert cfg_c2l["providers"]["agent"]["context_tokens"] == 16384
+    assert cfg_c2l["providers"]["agent"]["api_key_env"] == "AGENT_META_KEY"
+    assert cfg_c2l["providers"]["converse"]["kind"] == "lmstudio"
+    assert cfg_c2l["providers"]["converse"]["allow_cloud"] is False
+    assert "api_key_env" not in cfg_c2l["providers"]["converse"]
+    assert cfg_c2l["providers"]["decisions"]["kind"] == "laya"
+    assert "api_key_env" not in cfg_c2l["providers"]["decisions"]

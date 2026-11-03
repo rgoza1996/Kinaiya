@@ -477,16 +477,35 @@ def setup(
             context_tokens=context_tokens,
         )
 
-    converse_built = (
-        _build_role_from_mapping("converse", role_map["converse"])
-        if "converse" in role_map
-        else None
-    )
-    decisions_built = (
-        _build_role_from_mapping("decisions", role_map["decisions"])
-        if "decisions" in role_map
-        else None
-    )
+    converse_enabled = bool(converse or "converse" in role_map or "decisions" in role_map)
+    if "converse" in role_map:
+        converse_built = _build_role_from_mapping("converse", role_map["converse"])
+    elif converse_enabled:
+        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
+        converse_built = _build_role_profile(
+            "converse",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind=converse_default_kind,
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    else:
+        converse_built = None
+
+    if "decisions" in role_map:
+        decisions_built = _build_role_from_mapping("decisions", role_map["decisions"])
+    elif converse_enabled:
+        decisions_built = _build_role_profile(
+            "decisions",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind="compatible",
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    else:
+        decisions_built = None
 
     for directory in (layout.config.parent, layout.data, layout.workspace):
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -498,29 +517,10 @@ def setup(
     config["providers"]["agent"] = dict(agent_built)
     if converse_built is not None:
         config["providers"]["converse"] = dict(converse_built)
-    elif converse:
-        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
-        config["providers"]["converse"] = _build_role_profile(
-            "converse",
-            endpoint=agent_built["base_url"],
-            model=agent_built["model"],
-            kind=converse_default_kind,
-            allow_cloud=agent_built["allow_cloud"],
-            credential_env=agent_built.get("api_key_env"),
-        )
     if decisions_built is not None:
         config["providers"]["decisions"] = dict(decisions_built)
-    elif converse:
-        config["providers"]["decisions"] = _build_role_profile(
-            "decisions",
-            endpoint=agent_built["base_url"],
-            model=agent_built["model"],
-            kind="compatible",
-            allow_cloud=agent_built["allow_cloud"],
-            credential_env=agent_built.get("api_key_env"),
-        )
 
-    config["distribution"] = {"converse": bool(converse or converse_built is not None)}
+    config["distribution"] = {"converse": converse_enabled}
     atomic_json(layout.config, config)
     return {"ready": False, "provider_connection": "not_checked", "next": "kinaiya serve host"}
 

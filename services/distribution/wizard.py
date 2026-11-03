@@ -8,9 +8,15 @@ No runtime image dependency. The artwork's separate provenance is not establishe
 import shutil
 from dataclasses import replace
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
+
+
+def _is_loopback_endpoint(raw_endpoint: str) -> bool:
+    return urlsplit(raw_endpoint).hostname in {"localhost", "127.0.0.1", "::1"}
+
 
 MASCOT = r"""          .-.( * ).
      ~~~ / ~   .-`\
@@ -81,24 +87,67 @@ def run_wizard(layout, *, tty=None):
         converse_adapter = ask("Converse provider adapter (lmstudio/compatible/meta)", "compatible")
         converse_endpoint = ask("Converse provider endpoint", endpoint)
         converse_model = ask("Exact Converse model name", model)
+        if converse_adapter == "meta" or not _is_loopback_endpoint(converse_endpoint):
+            converse_allow_cloud = (
+                ask(
+                    "Allow disclosure of authorized Converse content to this cloud provider? yes/no",
+                    "no",
+                )
+                == "yes"
+            )
+            converse_credential_env = (
+                ask("Converse credential environment variable NAME only; never paste a key") or None
+            )
+        else:
+            converse_allow_cloud = False
+            converse_credential_env = (
+                credential_env
+                if (
+                    not allow_cloud
+                    and converse_endpoint == endpoint
+                    and converse_adapter != "lmstudio"
+                )
+                else None
+            )
         converse_profile = {
             "kind": converse_adapter,
             "endpoint": converse_endpoint,
             "model": converse_model,
-            "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "allow_cloud": converse_allow_cloud,
+            "credential_env": converse_credential_env,
         }
         decisions_adapter = ask(
             "Decisions provider adapter (compatible/laya/native_d1/meta)", "compatible"
         )
         decisions_endpoint = ask("Decisions provider endpoint", converse_endpoint)
         decisions_model = ask("Exact Decisions model name", converse_model)
+        if decisions_adapter == "meta" or not _is_loopback_endpoint(decisions_endpoint):
+            decisions_allow_cloud = (
+                ask(
+                    "Allow disclosure of authorized Decisions content to this cloud provider? yes/no",
+                    "no",
+                )
+                == "yes"
+            )
+            decisions_credential_env = (
+                ask("Decisions credential environment variable NAME only; never paste a key")
+                or None
+            )
+        else:
+            decisions_allow_cloud = False
+            decisions_credential_env = (
+                converse_credential_env
+                if (not converse_allow_cloud and decisions_endpoint == converse_endpoint)
+                else (
+                    credential_env if (not allow_cloud and decisions_endpoint == endpoint) else None
+                )
+            )
         decisions_profile = {
             "kind": decisions_adapter,
             "endpoint": decisions_endpoint,
             "model": decisions_model,
-            "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "allow_cloud": decisions_allow_cloud,
+            "credential_env": decisions_credential_env,
         }
     chosen = replace(layout, workspace=Path(workspace).expanduser(), data=Path(data).expanduser())
     tty.write(

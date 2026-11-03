@@ -546,3 +546,182 @@ def test_setup_never_infers_provider_kind_from_model_name(tmp_path, model_name):
     cfg = json.loads(layout.config.read_text())
     assert cfg["providers"]["agent"]["kind"] == "lmstudio"
     assert cfg["providers"]["agent"]["model"] == model_name
+
+
+def test_wizard_collects_independent_role_disclosure_and_credentials_across_mixed_topologies(
+    tmp_path,
+):
+    class _TTY:
+        def __init__(self, answers):
+            self.answers = iter(answers)
+            self.output = ""
+
+        def write(self, text):
+            self.output += text
+
+        def flush(self):
+            pass
+
+        def readline(self):
+            return next(self.answers) + "\n"
+
+    # 1. Local LM Studio Agent + Cloud Meta Converse + Local native_d1 Decisions.
+    layout_local_to_cloud = installation.Layout.for_home(tmp_path / "local-to-cloud")
+    tty_local_to_cloud = _TTY(
+        [
+            "",
+            "",
+            "lmstudio=http://127.0.0.1:1234",
+            "agent-local-coder",
+            "no",
+            "",
+            "yes",
+            "meta",
+            "https://api.meta.ai/v1",
+            "muse-converse-cloud",
+            "yes",
+            "CONVERSE_META_KEY",
+            "native_d1",
+            "http://127.0.0.1:8082",
+            "lfm3-d1",
+            "yes",
+        ]
+    )
+    wizard.run_wizard(layout_local_to_cloud, tty=tty_local_to_cloud)
+    cfg_l2c = json.loads(layout_local_to_cloud.config.read_text())
+    assert cfg_l2c["providers"]["agent"]["kind"] == "lmstudio"
+    assert cfg_l2c["providers"]["agent"]["allow_cloud"] is False
+    assert "api_key_env" not in cfg_l2c["providers"]["agent"]
+    assert cfg_l2c["providers"]["converse"]["kind"] == "meta"
+    assert cfg_l2c["providers"]["converse"]["allow_cloud"] is True
+    assert cfg_l2c["providers"]["converse"]["api_key_env"] == "CONVERSE_META_KEY"
+    assert cfg_l2c["providers"]["decisions"]["kind"] == "native_d1"
+    assert "api_key_env" not in cfg_l2c["providers"]["decisions"]
+
+    # 2. Cloud Meta Agent + Local LM Studio Converse + Local Laya Decisions
+    # (must not leak Agent's allow_cloud=True or credential_env into local roles).
+    layout_cloud_to_local = installation.Layout.for_home(tmp_path / "cloud-to-local")
+    tty_cloud_to_local = _TTY(
+        [
+            "",
+            "",
+            "meta=https://api.meta.ai/v1",
+            "muse-agent-cloud",
+            "yes",
+            "AGENT_META_KEY",
+            "yes",
+            "lmstudio",
+            "http://127.0.0.1:1234",
+            "converse-local-lmstudio",
+            "laya",
+            "http://127.0.0.1:8082",
+            "laya-local-router",
+            "yes",
+        ]
+    )
+    wizard.run_wizard(layout_cloud_to_local, tty=tty_cloud_to_local)
+    cfg_c2l = json.loads(layout_cloud_to_local.config.read_text())
+    assert cfg_c2l["providers"]["agent"]["kind"] == "meta"
+    assert cfg_c2l["providers"]["agent"]["allow_cloud"] is True
+    assert cfg_c2l["providers"]["agent"]["api_key_env"] == "AGENT_META_KEY"
+    assert cfg_c2l["providers"]["converse"]["kind"] == "lmstudio"
+    assert cfg_c2l["providers"]["converse"]["allow_cloud"] is False
+    assert "api_key_env" not in cfg_c2l["providers"]["converse"]
+    assert cfg_c2l["providers"]["decisions"]["kind"] == "laya"
+    assert "api_key_env" not in cfg_c2l["providers"]["decisions"]
+
+    # 3. Multi-host cloud: each cloud role requires its own disclosure consent and credential env.
+    layout_denied_converse = installation.Layout.for_home(tmp_path / "denied-converse")
+    tty_denied_converse = _TTY(
+        [
+            "",
+            "",
+            "meta=https://agent.example/v1",
+            "agent-cloud-model",
+            "yes",
+            "AGENT_CLOUD_KEY",
+            "yes",
+            "compatible",
+            "https://converse.example/v1",
+            "converse-cloud-model",
+            "no",
+            "CONVERSE_CLOUD_KEY",
+            "compatible",
+            "https://decisions.example/v1",
+            "decisions-cloud-model",
+            "yes",
+            "DECISIONS_CLOUD_KEY",
+            "yes",
+        ]
+    )
+    with pytest.raises(installation.InstallError, match="explicit cloud disclosure"):
+        wizard.run_wizard(layout_denied_converse, tty=tty_denied_converse)
+    assert not layout_denied_converse.config.exists() and not layout_denied_converse.data.exists()
+
+    layout_multi_cloud = installation.Layout.for_home(tmp_path / "multi-cloud")
+    tty_multi_cloud = _TTY(
+        [
+            "",
+            "",
+            "meta=https://agent.example/v1",
+            "agent-cloud-model",
+            "yes",
+            "AGENT_CLOUD_KEY",
+            "yes",
+            "compatible",
+            "https://converse.example/v1",
+            "converse-cloud-model",
+            "yes",
+            "CONVERSE_CLOUD_KEY",
+            "meta",
+            "https://decisions.example/v1",
+            "decisions-cloud-model",
+            "yes",
+            "DECISIONS_CLOUD_KEY",
+            "yes",
+        ]
+    )
+    wizard.run_wizard(layout_multi_cloud, tty=tty_multi_cloud)
+    cfg_mc = json.loads(layout_multi_cloud.config.read_text())
+    assert cfg_mc["providers"]["agent"]["api_key_env"] == "AGENT_CLOUD_KEY"
+    assert cfg_mc["providers"]["converse"]["api_key_env"] == "CONVERSE_CLOUD_KEY"
+    assert cfg_mc["providers"]["decisions"]["api_key_env"] == "DECISIONS_CLOUD_KEY"
+
+
+def test_setup_prevalidates_implicit_default_roles_before_initializing_files(tmp_path):
+    """A ws:// LM Studio Agent with converse=True and default compatible Decisions
+    must fail before writing config.json or service-tokens.json so retry succeeds."""
+    layout = installation.Layout.for_home(tmp_path)
+    with pytest.raises(installation.InstallError, match="loopback endpoint"):
+        installation.setup(
+            layout,
+            endpoint="ws://127.0.0.1:1234",
+            model="qwen2.5-coder-7b",
+            adapter="lmstudio",
+            converse=True,
+        )
+    assert not layout.config.exists()
+    assert not (layout.data / "service-tokens.json").exists()
+    assert not layout.data.exists()
+
+    # Subsequent corrected setup on the exact same layout succeeds cleanly.
+    result = installation.setup(
+        layout,
+        endpoint="ws://127.0.0.1:1234",
+        model="qwen2.5-coder-7b",
+        adapter="lmstudio",
+        converse=True,
+        decisions_profile={
+            "kind": "native_d1",
+            "endpoint": "http://127.0.0.1:8082",
+            "model": "lfm3-d1",
+        },
+    )
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text())
+    assert cfg["providers"]["agent"]["kind"] == "lmstudio"
+    assert cfg["providers"]["agent"]["base_url"] == "ws://127.0.0.1:1234"
+    assert cfg["providers"]["converse"]["kind"] == "lmstudio"
+    assert cfg["providers"]["converse"]["base_url"] == "ws://127.0.0.1:1234"
+    assert cfg["providers"]["decisions"]["kind"] == "native_d1"
+    assert cfg["providers"]["decisions"]["base_url"] == "http://127.0.0.1:8082"
