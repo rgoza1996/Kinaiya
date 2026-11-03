@@ -5,32 +5,22 @@ robe and ripples. Original text adaptation under the repository Apache-2.0 licen
 No runtime image dependency. The artwork's separate provenance is not established.
 """
 
-import shutil
 from dataclasses import replace
 from pathlib import Path
 
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
+from services.distribution.mascot import MASCOT, render_mascot
 from services.distribution.terminal import open_terminal
 
-MASCOT = r"""          .-.( * ).
-     ~~~ / ~   .-`\
-   ~ *  (____  / - )
-    ~~~~~   \/\_ /
-       __.-'/ /\\
-   ___/   / /  \\___
-        /_/ /\_\
-       / / /  \ \
-     _/ /_/    \_\
-   ~~~(____)~~(____)~~~
-       ~~~ Kinaiya ~~~"""
+__all__ = ["MASCOT", "mascot", "run_wizard"]
 
 
 def mascot(*, width=80, interactive=True):
     if not interactive:
         return "Kinaiya"
-    if width < max(map(len, MASCOT.splitlines())):
+    if width < 16:
         return "Kinaiya"[: max(0, width)]
-    return MASCOT
+    return render_mascot(width=width, is_tty=True)
 
 
 def run_wizard(layout, *, tty=None):
@@ -53,7 +43,7 @@ def run_wizard(layout, *, tty=None):
             raise InstallError("Setup cancelled: terminal input closed")
         return answer.strip() or default
 
-    tty.write(mascot(width=shutil.get_terminal_size().columns) + "\n")
+    tty.write(render_mascot(tty=tty) + "\n")
     tty.write("Agent-only by default. No microphone capture or task execution.\n")
     tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
     workspace = ask("Authorized workspace", str(layout.workspace))
