@@ -14,14 +14,17 @@ import httpx
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
+    DecisionCapture,
     capture_sources,
     decision_attempt,
 )
 from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
 from services.decisions.window_routing import (
+    _project_tasks_with_sources,
     admissible_window_projection,
     is_ambiguous_multi_task_target,
+    resolve_scoped_tasks,
 )
 
 MAX_PENDING = 32
@@ -255,30 +258,7 @@ class WindowDecisionsWorker:
         return getattr(provider, "info", None)
 
     async def _scoped_tasks(self, tasks):
-        if len(tasks) <= 1 or not (
-            hasattr(self.journal, "entry")
-            and hasattr(self.journal, "resolve")
-            and hasattr(self.journal, "read")
-        ):
-            return tasks
-        scoped = []
-        for task in tasks:
-            scope = getattr(task, "content_scope", "local_only") or "local_only"
-            source_ids = getattr(task, "source_event_ids", None) or []
-            for source_id in source_ids:
-                if not isinstance(source_id, str) or not source_id:
-                    continue
-                try:
-                    floor = await source_scope(self.journal, source_id)
-                    scope = combine_scopes(scope, floor)
-                except Exception:
-                    scope = "local_only"
-            if scope != getattr(task, "content_scope", "local_only") and hasattr(
-                task, "model_copy"
-            ):
-                task = task.model_copy(update={"content_scope": scope})
-            scoped.append(task)
-        return scoped
+        return await resolve_scoped_tasks(self.journal, tasks)
 
     async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
@@ -328,6 +308,9 @@ class WindowDecisionsWorker:
             agent_available=available,
             model_stamp=model_stamp,
         )
+        _, disclosed_task_sources = _project_tasks_with_sources(
+            tasks, provider_info=provider_info, limit=len(_task_refs)
+        )
         cached = self.outputs.get(key)
         reused = (
             source_admissible
@@ -338,22 +321,45 @@ class WindowDecisionsWorker:
         if reused:
             labels = dict(cached[2])
             original_call = cached[3]
-            if original_call is not None:
-                async with decision_attempt(
-                    self.journal,
-                    source,
-                    getattr(self.classifier, "provider", None),
-                    attempt=attempt,
-                    reused_from=original_call,
-                ) as capture:
-                    capture_sources(source, admissible_context)
-                    if hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
-                        await capture.check_current(
-                            SimpleNamespace(info=provider_info)
-                            if provider_info is not None
-                            else getattr(self.classifier, "provider", None)
-                        )
-                    capture.validated_output = labels
+            provider_ref = (
+                SimpleNamespace(info=provider_info)
+                if provider_info is not None
+                else getattr(self.classifier, "provider", None)
+            )
+            try:
+                if original_call is not None:
+                    async with decision_attempt(
+                        self.journal,
+                        source,
+                        getattr(self.classifier, "provider", None),
+                        attempt=attempt,
+                        reused_from=original_call,
+                    ) as capture:
+                        capture_sources(source, [*admissible_context, *disclosed_task_sources])
+                        if hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                            await capture.start(
+                                getattr(self.classifier, "provider", None) or provider_ref,
+                                None,
+                                "reused",
+                            )
+                            await capture.check_current(provider_ref)
+                        capture.validated_output = labels
+                elif hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                    capture = DecisionCapture(
+                        self.journal,
+                        source,
+                        getattr(self.classifier, "provider", None) or provider_ref,
+                        attempt,
+                    )
+                    capture.disclosure_sources = [
+                        entry.model_copy(deep=True)
+                        for entry in [source, *admissible_context, *disclosed_task_sources]
+                    ]
+                    await capture.check_current(provider_ref)
+            except ProviderRefusal:
+                self.outputs.pop(key, None)
+                self.output_models.pop(key, None)
+                raise
         elif window.text.strip():
             if self.model_settings is None:
                 async with decision_attempt(
@@ -362,6 +368,7 @@ class WindowDecisionsWorker:
                     getattr(self.classifier, "provider", None),
                     attempt=attempt,
                 ) as capture:
+                    capture_sources(source, [*admissible_context, *disclosed_task_sources])
                     labels = await asyncio.wait_for(
                         self.classifier.classify(source, admissible_context, tasks), self.timeout
                     )
@@ -381,6 +388,7 @@ class WindowDecisionsWorker:
                         model_pin=lease.pin,
                         current=lease.current,
                     ) as capture:
+                        capture_sources(source, [*admissible_context, *disclosed_task_sources])
                         labels = await asyncio.wait_for(
                             classifier.classify(source, admissible_context, tasks), self.timeout
                         )

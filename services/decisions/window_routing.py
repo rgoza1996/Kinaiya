@@ -28,8 +28,8 @@ from packages.contracts.models import (
     WindowDecision,
     new_id,
 )
-from packages.providers.decision_capture import capture_sources
-from packages.providers.disclosure import combine_scopes, scope_allowed
+from packages.providers.decision_capture import _capture, capture_sources
+from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 
 CONVERSATION_LABELS = (
     "IGNORE",
@@ -162,10 +162,81 @@ def is_ambiguous_multi_task_target(target, tasks: list, *, provider_info=None) -
     return False
 
 
-def _task_projection(tasks: list, *, provider_info=None, limit: int = MAX_TASKS) -> list[dict]:
+async def resolve_scoped_tasks(journal, tasks: list) -> list:
+    """Fold each task's native source scopes and pin resolved source entries."""
+    if len(tasks) <= 1:
+        return tasks
+    has_resolver = (
+        hasattr(journal, "entry") and hasattr(journal, "resolve") and hasattr(journal, "read")
+    )
+    scoped = []
+    for task in tasks:
+        scope = getattr(task, "content_scope", "local_only") or "local_only"
+        source_ids = list(getattr(task, "source_event_ids", None) or ())
+        task_sources: list[JournalEntry] = []
+        if source_ids and not has_resolver:
+            scope = "local_only"
+        else:
+            for source_id in source_ids:
+                if not isinstance(source_id, str) or not source_id:
+                    scope = "local_only"
+                    task_sources = []
+                    break
+                try:
+                    original = await journal.entry(source_id)
+                    target_id = (
+                        original.payload.get("target_event_id")
+                        if original.kind == "conversation.revision"
+                        else original.event_id
+                    )
+                    if not isinstance(target_id, str) or not target_id:
+                        raise ValueError("Task source target is unavailable")
+                    target_entry = (
+                        await journal.entry(target_id)
+                        if target_id != original.event_id
+                        else original
+                    )
+                    resolved = await journal.resolve(target_id)
+                    if (
+                        (original.session_id, original.thread_id, original.epoch)
+                        != (task.session_id, task.thread_id, task.epoch)
+                        or (target_entry.session_id, target_entry.thread_id, target_entry.epoch)
+                        != (task.session_id, task.thread_id, task.epoch)
+                        or (resolved.session_id, resolved.thread_id, resolved.epoch)
+                        != (task.session_id, task.thread_id, task.epoch)
+                    ):
+                        raise ValueError("Task source session mismatch")
+                    floor = await source_scope(journal, target_id, resolved=resolved)
+                    resolved_scope = (
+                        SpeechWindow.model_validate(resolved.payload).content_scope
+                        if resolved.kind == "conversation.window"
+                        else resolved.payload.get("content_scope", "local_only")
+                    )
+                    scope = combine_scopes(scope, resolved_scope, floor)
+                    task_sources.append(resolved)
+                except Exception:
+                    scope = "local_only"
+                    task_sources = []
+                    break
+        if scope != getattr(task, "content_scope", "local_only") and hasattr(task, "model_copy"):
+            task = task.model_copy(update={"content_scope": scope})
+        bound_sources = tuple(
+            entry.model_copy(update={"payload": {**entry.payload, "content_scope": scope}})
+            for entry in task_sources
+        )
+        object.__setattr__(task, "_disclosure_sources", bound_sources)
+        scoped.append(task)
+    return scoped
+
+
+def _project_tasks_with_sources(
+    tasks: list, *, provider_info=None, limit: int = MAX_TASKS
+) -> tuple[list[dict], list[JournalEntry]]:
     bounded = list(tasks)[:limit]
     include_descriptions = len(bounded) > 1
     projected = []
+    disclosed_sources: list[JournalEntry] = []
+    seen: set[tuple[str, str]] = set()
     for t in bounded:
         item = {
             "task_id": t.task_id,
@@ -174,7 +245,18 @@ def _task_projection(tasks: list, *, provider_info=None, limit: int = MAX_TASKS)
         }
         if include_descriptions and task_description_admissible(t, provider_info):
             item["description"] = t.objective.strip()[:MAX_TASK_DESCRIPTION_CHARS]
+            for src in getattr(t, "_disclosure_sources", ()) or ():
+                if isinstance(src, JournalEntry):
+                    key = (src.event_id, _entry_scope(src))
+                    if key not in seen:
+                        seen.add(key)
+                        disclosed_sources.append(src)
         projected.append(item)
+    return projected, disclosed_sources
+
+
+def _task_projection(tasks: list, *, provider_info=None, limit: int = MAX_TASKS) -> list[dict]:
+    projected, _ = _project_tasks_with_sources(tasks, provider_info=provider_info, limit=limit)
     return projected
 
 
@@ -213,7 +295,9 @@ def admissible_window_projection(
                 "text": _entry_text(entry)[:MAX_ENTRY_CHARS],
             }
         )
-    task_refs = _task_projection(tasks, provider_info=provider_info, limit=MAX_TASKS)
+    task_refs, task_sources = _project_tasks_with_sources(
+        tasks, provider_info=provider_info, limit=MAX_TASKS
+    )
     body = json.dumps(
         {
             "latest": {
@@ -231,7 +315,9 @@ def admissible_window_projection(
     if len(body) > window_chars:
         admissible_entries = []
         kept_context = []
-        task_refs = _task_projection(tasks, provider_info=provider_info, limit=5)
+        task_refs, task_sources = _project_tasks_with_sources(
+            tasks, provider_info=provider_info, limit=5
+        )
     canonical = {
         "hypothesis": {
             "text": window.text,
@@ -243,6 +329,15 @@ def admissible_window_projection(
         "agent_enabled": bool(agent_enabled),
         "agent_available": bool(agent_available),
         "tasks": task_refs,
+        "task_sources": [
+            {
+                "event_id": e.event_id,
+                "kind": e.kind,
+                "revision": e.payload.get("revision", 1) if isinstance(e.payload, dict) else 1,
+                "content_scope": _entry_scope(e),
+            }
+            for e in task_sources
+        ],
         "context": [
             {
                 "event_id": e.event_id,
@@ -303,12 +398,26 @@ class WindowClassifier:
             )
         return kept, withheld
 
-    def _request_body(self, source: JournalEntry, context: list[JournalEntry], tasks: list) -> str:
+    def _prepare_request(
+        self, source: JournalEntry, context: list[JournalEntry], tasks: list
+    ) -> tuple[str, list[dict], list[JournalEntry]]:
         window = SpeechWindow.model_validate(source.payload)
         if not scope_allowed(self.provider.info, window.content_scope):
             raise ValueError("Window disclosure does not permit this provider")
-        kept, _ = self._filter_context(context)
-        task_refs = _task_projection(tasks, provider_info=self.provider.info, limit=MAX_TASKS)
+        allowed = _provider_scopes(self.provider)
+        kept_entries = [
+            entry for entry in context[-MAX_CONTEXT_ENTRIES:] if _entry_scope(entry) in allowed
+        ]
+        kept = [
+            {
+                "kind": entry.kind,
+                "text": _entry_text(entry)[:MAX_ENTRY_CHARS],
+            }
+            for entry in kept_entries
+        ]
+        task_refs, task_sources = _project_tasks_with_sources(
+            tasks, provider_info=self.provider.info, limit=MAX_TASKS
+        )
         body = json.dumps(
             {
                 "latest": {
@@ -324,6 +433,11 @@ class WindowClassifier:
             }
         )
         if len(body) > self.window_chars:
+            kept_entries = []
+            kept = []
+            task_refs, task_sources = _project_tasks_with_sources(
+                tasks, provider_info=self.provider.info, limit=5
+            )
             body = json.dumps(
                 {
                     "latest": {
@@ -332,11 +446,15 @@ class WindowClassifier:
                         "capture_ended": window.capture_ended,
                     },
                     "context": [],
-                    "tasks": _task_projection(tasks, provider_info=self.provider.info, limit=5),
+                    "tasks": task_refs,
                 }
             )
         if len(body) > self.window_chars:
             raise ValueError("Current window exceeds classifier context bound")
+        return body, kept, [*kept_entries, *task_sources]
+
+    def _request_body(self, source: JournalEntry, context: list[JournalEntry], tasks: list) -> str:
+        body, _, _ = self._prepare_request(source, context, tasks)
         return body
 
     async def classify(
@@ -348,6 +466,12 @@ class WindowClassifier:
         if source.kind != "conversation.window":
             raise ValueError(f"WindowClassifier needs a conversation.window, got {source.kind!r}")
         window = SpeechWindow.model_validate(source.payload)
+        capture = _capture.get()
+        if capture is not None and any(
+            getattr(t, "source_event_ids", None) and getattr(t, "_disclosure_sources", None) is None
+            for t in tasks
+        ):
+            tasks = await resolve_scoped_tasks(capture.journal, tasks)
         instructions = (
             "Decide how a live transcript window affects conversation timing and, "
             "separately, Agent work. Return ONLY JSON with exactly these keys: "
@@ -370,18 +494,8 @@ class WindowClassifier:
             " A request to stop only the companion's speech uses WAIT_FOR_NEXT_WINDOW and ignores Agent routing."
         )
         started = time.monotonic()
-        body = self._request_body(source, context, tasks)
-        context_used = json.loads(body)["context"]
-        capture_sources(
-            source,
-            [
-                entry
-                for entry in context[-MAX_CONTEXT_ENTRIES:]
-                if _entry_scope(entry) in _provider_scopes(self.provider)
-            ]
-            if context_used
-            else [],
-        )
+        body, context_used, disclosure_entries = self._prepare_request(source, context, tasks)
+        capture_sources(source, disclosure_entries)
         raw = await self.provider.complete(
             [
                 {"role": "system", "content": instructions},

@@ -596,3 +596,397 @@ async def test_task_description_bounds_and_streaming_cache_invalidation_on_descr
     finally:
         await provider.close()
         store.close()
+
+
+@pytest.mark.parametrize("mode", ["finalized", "window"])
+@pytest.mark.parametrize("overflow_fallback", [False, True])
+async def test_task_source_revoked_to_local_only_during_call_start_refuses_before_cloud_disclosure(
+    tmp_path, mode, overflow_fallback
+):
+    """P1 regression: a disclosed task's source revised to local_only during decisions_call_start must be refused before cloud disclosure."""
+    seen_requests = []
+
+    def respond(request):
+        seen_requests.append(json.loads(request.content))
+        pytest.fail(
+            "Cloud provider must not be called when a disclosed task source became local_only"
+        )
+
+    provider = CompatibleTextProvider(
+        "http://localhost/v1", "synthetic-contributor", transport=httpx.MockTransport(respond)
+    )
+    provider.info = ProviderInfo(provider="meta", model="synthetic-contributor", local=False)
+    store = Store(tmp_path / "journal.sqlite")
+    try:
+        session = store.create_session(SessionRequest(channel="converse"))
+        task_source_a = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.user",
+                payload={
+                    "text": "Build the sensitive spreadsheet",
+                    "revision": 1,
+                    "final": True,
+                    "content_scope": "public_synthetic",
+                },
+                idempotency_key="task-src-a",
+            ),
+            "owner",
+        )
+        task_source_b = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.user",
+                payload={
+                    "text": "Render the public chart",
+                    "revision": 1,
+                    "final": True,
+                    "content_scope": "public_synthetic",
+                },
+                idempotency_key="task-src-b",
+            ),
+            "owner",
+        )
+        if overflow_fallback:
+            # Force the 5-task overflow fallback by supplying 6 tasks and a long context turn.
+            store.append(
+                AppendRequest(
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    kind="conversation.converse",
+                    payload={
+                        "text": "C" * 1800,
+                        "final": True,
+                        "content_scope": "public_synthetic",
+                    },
+                    idempotency_key="overflow-ctx",
+                ),
+                "converse",
+            )
+            tasks = [
+                Task(
+                    task_id=f"task-{idx}",
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    objective=(
+                        "Build the sensitive spreadsheet"
+                        if idx == 0
+                        else f"Public task {idx} objective"
+                    ),
+                    content_scope="public_synthetic",
+                    objective_revision=1,
+                    state="running",
+                    source_event_ids=[
+                        task_source_a.event_id if idx == 0 else task_source_b.event_id
+                    ],
+                    idempotency_key=f"key-{idx}",
+                )
+                for idx in range(6)
+            ]
+            window_chars = 1200
+        else:
+            tasks = [
+                Task(
+                    task_id="task-a",
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    objective="Build the sensitive spreadsheet",
+                    content_scope="public_synthetic",
+                    objective_revision=1,
+                    state="running",
+                    source_event_ids=[task_source_a.event_id],
+                    idempotency_key="key-a",
+                ),
+                Task(
+                    task_id="task-b",
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    objective="Render the public chart",
+                    content_scope="public_synthetic",
+                    objective_revision=1,
+                    state="running",
+                    source_event_ids=[task_source_b.event_id],
+                    idempotency_key="key-b",
+                ),
+            ]
+            window_chars = 36000
+
+        class RevokingJournal(LocalJournal):
+            revoked = False
+
+            async def decisions_call_start(self, request):
+                result = await super().decisions_call_start(request)
+                if not self.revoked:
+                    self.revoked = True
+                    store.append(
+                        AppendRequest(
+                            session_id=session.session_id,
+                            thread_id=session.thread_id,
+                            epoch=session.epoch,
+                            kind="conversation.revision",
+                            payload={
+                                "target_event_id": task_source_a.event_id,
+                                "text": "REDACTED_LOCAL_ONLY_SPREADSHEET",
+                                "revision": 2,
+                                "content_scope": "local_only",
+                            },
+                            idempotency_key="revoke-task-src-a",
+                        ),
+                        "owner",
+                    )
+                return result
+
+        journal = RevokingJournal(store, "decisions")
+        agent = FakeAgent(tasks)
+        # Pre-existing task sources were already processed when the tasks were created.
+        store.acknowledge("decisions", "decisions-v1", store.read()[-1].sequence)
+
+        if mode == "finalized":
+            entry = store.append(
+                AppendRequest(
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    kind="conversation.user",
+                    payload={
+                        "text": "Cancel the spreadsheet task.",
+                        "revision": 1,
+                        "final": True,
+                        "content_scope": "public_synthetic",
+                    },
+                    idempotency_key="finalized-cancel-after-revoke",
+                ),
+                "owner",
+            )
+            worker = DecisionsWorker(
+                journal, agent, ModelClassifier(provider, window_chars=window_chars)
+            )
+            await worker.tick()
+            refusals = store.read(kinds=["routing.classification_refused"])
+            assert len(refusals) == 1
+            assert refusals[0].causes == [entry.event_id]
+            assert refusals[0].payload["reason"] == "provider_refused"
+            assert not store.read(kinds=["routing.decided", "routing.dispatch"])
+        else:
+            win = SpeechWindow(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                utterance_id="utt-revoke-during-call",
+                window_index=0,
+                revision=1,
+                text="Cancel the spreadsheet task.",
+                start_ms=0,
+                end_ms=1000,
+                user_speaking=False,
+                capture_ended=True,
+                content_scope="public_synthetic",
+            )
+            entry = store.append(
+                AppendRequest(
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    kind="conversation.window",
+                    payload=win.model_dump(mode="json"),
+                    idempotency_key="window-cancel-after-revoke",
+                ),
+                "owner",
+            )
+            worker = WindowDecisionsWorker(
+                journal, agent, WindowClassifier(provider, window_chars=window_chars)
+            )
+            with pytest.raises(ProviderRefusal, match="disclosure scope changed"):
+                await worker.classify(entry)
+            assert store.window_decision(entry.event_id) is None
+
+        assert not seen_requests
+        assert not agent.interrupted
+        assert not agent.steered
+        detail = store.decisions.detail(entry.event_id)
+        assert detail["calls"][0]["status"] == "refused"
+        assert detail["calls"][0]["raw_response"] is None
+    finally:
+        await provider.close()
+        store.close()
+
+
+async def test_window_cache_reuse_refuses_when_disclosed_task_source_revoked_during_reused_call_start(
+    tmp_path,
+):
+    """P1 regression: cached window classification reuse must recheck disclosed task sources after decisions_call_start."""
+    seen_requests = []
+
+    def respond(request):
+        seen_requests.append(json.loads(request.content))
+        body = {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": json.dumps(
+                            {
+                                "conversation": "WAIT_FOR_NEXT_WINDOW",
+                                "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+                                "target_task_id": None,
+                                "expected_objective_revision": None,
+                                "reason_code": "cached_multi_task",
+                            }
+                        ),
+                    },
+                    "finish_reason": "stop",
+                }
+            ]
+        }
+        return httpx.Response(200, stream=httpx.ByteStream(json.dumps(body).encode()))
+
+    provider = CompatibleTextProvider(
+        "http://localhost/v1", "synthetic-contributor", transport=httpx.MockTransport(respond)
+    )
+    provider.info = ProviderInfo(provider="meta", model="synthetic-contributor", local=False)
+    store = Store(tmp_path / "journal.sqlite")
+    try:
+        session = store.create_session(SessionRequest(channel="converse"))
+        task_source_a = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.user",
+                payload={
+                    "text": "Build the sensitive spreadsheet",
+                    "revision": 1,
+                    "final": True,
+                    "content_scope": "public_synthetic",
+                },
+                idempotency_key="reuse-src-a",
+            ),
+            "owner",
+        )
+        task_source_b = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.user",
+                payload={
+                    "text": "Render the public chart",
+                    "revision": 1,
+                    "final": True,
+                    "content_scope": "public_synthetic",
+                },
+                idempotency_key="reuse-src-b",
+            ),
+            "owner",
+        )
+        tasks = [
+            Task(
+                task_id="task-a",
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                objective="Build the sensitive spreadsheet",
+                content_scope="public_synthetic",
+                objective_revision=1,
+                state="running",
+                source_event_ids=[task_source_a.event_id],
+                idempotency_key="reuse-key-a",
+            ),
+            Task(
+                task_id="task-b",
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                objective="Render the public chart",
+                content_scope="public_synthetic",
+                objective_revision=1,
+                state="running",
+                source_event_ids=[task_source_b.event_id],
+                idempotency_key="reuse-key-b",
+            ),
+        ]
+
+        class RevokeOnReuseJournal(LocalJournal):
+            async def decisions_call_start(self, request):
+                result = await super().decisions_call_start(request)
+                if request.request_format == "reused":
+                    store.append(
+                        AppendRequest(
+                            session_id=session.session_id,
+                            thread_id=session.thread_id,
+                            epoch=session.epoch,
+                            kind="conversation.revision",
+                            payload={
+                                "target_event_id": task_source_a.event_id,
+                                "text": "REDACTED_ON_REUSE",
+                                "revision": 2,
+                                "content_scope": "local_only",
+                            },
+                            idempotency_key="revoke-on-reuse",
+                        ),
+                        "owner",
+                    )
+                return result
+
+        journal = RevokeOnReuseJournal(store, "decisions")
+        worker = WindowDecisionsWorker(journal, FakeAgent(tasks), WindowClassifier(provider))
+
+        w0 = SpeechWindow(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            utterance_id="utt-reuse-revoke",
+            window_index=0,
+            revision=1,
+            text="Hold on",
+            start_ms=0,
+            end_ms=1000,
+            user_speaking=False,
+            capture_ended=True,
+            content_scope="public_synthetic",
+        )
+        e0 = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.window",
+                payload=w0.model_dump(mode="json"),
+                idempotency_key="w0-reuse-revoke",
+            ),
+            "owner",
+        )
+        await worker.classify(e0)
+        assert len(seen_requests) == 1
+        assert store.window_decision(e0.event_id) is not None
+
+        w1 = w0.model_copy(update={"window_index": 1, "end_ms": 1500})
+        e1 = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.window",
+                payload=w1.model_dump(mode="json"),
+                idempotency_key="w1-reuse-revoke",
+            ),
+            "owner",
+        )
+        with pytest.raises(ProviderRefusal, match="disclosure scope changed"):
+            await worker.classify(e1)
+        assert store.window_decision(e1.event_id) is None
+        assert not worker.outputs
+        detail_e1 = store.decisions.detail(e1.event_id)
+        assert detail_e1["calls"][0]["status"] == "refused"
+    finally:
+        await provider.close()
+        store.close()
