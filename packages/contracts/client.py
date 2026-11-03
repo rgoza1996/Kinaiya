@@ -233,6 +233,10 @@ class _JournalMetadataExchange(_SubmitExchange):
     after the best-effort publication facade is cancelled.
     """
 
+    def __init__(self, *args, maximum=_RESOURCE_PUBLICATION_BYTES, raw=False):
+        self.maximum, self.raw = maximum, raw
+        super().__init__(*args)
+
     async def _run(self, request, proposal, result_type, deadline):
         try:
             self.response = await self.owner.http.send(request, stream=True, follow_redirects=False)
@@ -246,10 +250,10 @@ class _JournalMetadataExchange(_SubmitExchange):
                 raise AgentSubmitUnavailable
             raw = bytearray()
             async for chunk in self.response.stream:
-                if type(chunk) is not bytes or len(raw) + len(chunk) > _RESOURCE_PUBLICATION_BYTES:
+                if type(chunk) is not bytes or len(raw) + len(chunk) > self.maximum:
                     raise AgentSubmitUnavailable
                 raw.extend(chunk)
-            return json.loads(bytes(raw))
+            return bytes(raw) if self.raw else json.loads(bytes(raw))
         finally:
             if self.response is not None:
                 self.close_task = asyncio.create_task(self._close())
@@ -272,13 +276,17 @@ class JournalClient:
         self._submit_cleanup_failed = False
         self._submit_closed = False
 
-    async def _owned_metadata(self, method, path, **kwargs):
+    async def _owned_metadata(
+        self, method, path, *, maximum=_RESOURCE_PUBLICATION_BYTES, raw=False, **kwargs
+    ):
         if self._submit_closed or self._submit_cleanup_failed:
             raise AgentSubmitUnavailable
         request = self.http.build_request(
             method, path, headers={"Accept-Encoding": "identity"}, **kwargs
         )
-        exchange = _JournalMetadataExchange(self, request, None, None, None)
+        exchange = _JournalMetadataExchange(
+            self, request, None, None, None, maximum=maximum, raw=raw
+        )
         return await asyncio.shield(exchange.task)
 
     async def standing_renew(self, request):
@@ -598,6 +606,9 @@ class JournalClient:
         params = {k: v for k, v in kwargs.items() if v is not None}
         if "kinds" in params:
             params["kinds"] = ",".join(params["kinds"])
+        if current_owner() is not None:
+            result = await self._owned_metadata("GET", "/v1/transcript", params=params)
+            return [JournalEntry.model_validate(value) for value in result]
         response = await self.http.get("/v1/transcript", params=params)
         response.raise_for_status()
         return [JournalEntry.model_validate(value) for value in response.json()]
@@ -621,15 +632,23 @@ class JournalClient:
             before_sequence=before_sequence,
             limit=limit,
         )
-        response = await self.http.get(
-            "/v1/transcript/context-history",
-            params=request.model_dump(exclude_none=True, exclude={"schema_version"}),
-        )
-        response.raise_for_status()
+        params = request.model_dump(exclude_none=True, exclude={"schema_version"})
+        if current_owner() is not None:
+            raw = await self._owned_metadata(
+                "GET",
+                "/v1/transcript/context-history",
+                params=params,
+                maximum=MAX_CONTEXT_RESPONSE_BYTES,
+                raw=True,
+            )
+        else:
+            response = await self.http.get("/v1/transcript/context-history", params=params)
+            response.raise_for_status()
+            raw = response.content
         # JSON-mode strict validation accepts native ISO timestamps while rejecting
         # coerced identities, booleans and counters, including nested entries.
-        context_json(response.content, maximum=MAX_CONTEXT_RESPONSE_BYTES)
-        page = ContextHistoryPage.model_validate_json(response.content, strict=True)
+        context_json(raw, maximum=MAX_CONTEXT_RESPONSE_BYTES)
+        page = ContextHistoryPage.model_validate_json(raw, strict=True)
         return page.validate_request(request)
 
     async def context_qualifications(
@@ -642,15 +661,29 @@ class JournalClient:
             before_sequence=before_sequence,
             limit=limit,
         )
-        response = await self.http.post(
-            "/v1/transcript/context-qualifications", json=request.model_dump(mode="json")
-        )
-        response.raise_for_status()
-        context_json(response.content, maximum=MAX_CONTEXT_RESPONSE_BYTES)
-        page = ContextQualificationPage.model_validate_json(response.content, strict=True)
+        if current_owner() is not None:
+            raw = await self._owned_metadata(
+                "POST",
+                "/v1/transcript/context-qualifications",
+                json=request.model_dump(mode="json"),
+                maximum=MAX_CONTEXT_RESPONSE_BYTES,
+                raw=True,
+            )
+        else:
+            response = await self.http.post(
+                "/v1/transcript/context-qualifications", json=request.model_dump(mode="json")
+            )
+            response.raise_for_status()
+            raw = response.content
+        context_json(raw, maximum=MAX_CONTEXT_RESPONSE_BYTES)
+        page = ContextQualificationPage.model_validate_json(raw, strict=True)
         return page.validate_request(request)
 
     async def session(self, session_id):
+        if current_owner() is not None:
+            return Session.model_validate(
+                await self._owned_metadata("GET", f"/v1/sessions/{session_id}")
+            )
         response = await self.http.get(f"/v1/sessions/{session_id}")
         response.raise_for_status()
         return Session.model_validate(response.json())
@@ -692,11 +725,21 @@ class JournalClient:
         return Session.model_validate(response.json())
 
     async def entry(self, event_id):
+        if current_owner() is not None:
+            return JournalEntry.model_validate(
+                await self._owned_metadata("GET", f"/v1/transcript/entries/{event_id}")
+            )
         response = await self.http.get(f"/v1/transcript/entries/{event_id}")
         response.raise_for_status()
         return JournalEntry.model_validate(response.json())
 
     async def resolve(self, event_id):
+        if current_owner() is not None:
+            return JournalEntry.model_validate(
+                await self._owned_metadata(
+                    "GET", f"/v1/transcript/entries/{event_id}", params={"resolve": True}
+                )
+            )
         response = await self.http.get(
             f"/v1/transcript/entries/{event_id}", params={"resolve": True}
         )
@@ -707,6 +750,11 @@ class JournalClient:
         params = {"session_id": session_id, "epoch": epoch, "utterance_id": utterance_id}
         if window_index is not None:
             params["window_index"] = window_index
+        if current_owner() is not None:
+            value = await self._owned_metadata(
+                "GET", "/v1/transcript/windows/latest", params=params
+            )
+            return JournalEntry.model_validate(value) if value is not None else None
         response = await self.http.get("/v1/transcript/windows/latest", params=params)
         response.raise_for_status()
         return JournalEntry.model_validate(response.json()) if response.json() is not None else None
@@ -748,6 +796,17 @@ class JournalClient:
         return [JournalEntry.model_validate(e) for e in response.json()]
 
     async def window_control(self, session_id, epoch, agent_interrupt=False):
+        if current_owner() is not None:
+            value = await self._owned_metadata(
+                "GET",
+                "/v1/transcript/windows/control",
+                params={
+                    "session_id": session_id,
+                    "epoch": epoch,
+                    "agent_interrupt": agent_interrupt,
+                },
+            )
+            return JournalEntry.model_validate(value) if value is not None else None
         response = await self.http.get(
             "/v1/transcript/windows/control",
             params={"session_id": session_id, "epoch": epoch, "agent_interrupt": agent_interrupt},

@@ -2,6 +2,7 @@
 
 import asyncio
 
+from packages.contracts.operation_ownership import actual_owner, current_owner
 from packages.providers.text import ProviderCleanupError
 
 
@@ -15,6 +16,19 @@ class TaskModelLease:
         self.auxiliary_routes = {}
         self.retiring = set()
         self.retiring_providers = set()
+        self.ownership = None
+
+    def retain(self, owner):
+        if self.ownership is not None and self.ownership is not owner:
+            owner.fail()
+            raise ProviderCleanupError("Catalog task cleanup owner changed")
+        if self.ownership is owner:
+            return
+        self.ownership = owner
+        if self.cleanup is not None:
+            owner.retain_task(self.cleanup, cleanup=True)
+        for task in self.retiring:
+            owner.retain_task(task, cleanup=True)
 
     def own(self, provider):
         if self.cleanup is not None or self.failed or len(self.adapters) >= 6:
@@ -37,7 +51,10 @@ class TaskModelLease:
             if provider in self.adapters:
                 self.adapters.remove(provider)
 
-        operation = asyncio.create_task(close_owned())
+        with actual_owner(self.ownership if self.ownership is not None else current_owner()):
+            operation = asyncio.create_task(close_owned())
+        if self.ownership is not None:
+            self.ownership.retain_task(operation, cleanup=True)
         self.retiring.add(operation)
         self.retiring_providers.add(id(provider))
         interrupted = False
@@ -70,7 +87,10 @@ class TaskModelLease:
 
     def start_close(self):
         if self.cleanup is None:
-            self.cleanup = asyncio.create_task(self._close())
+            with actual_owner(self.ownership if self.ownership is not None else current_owner()):
+                self.cleanup = asyncio.create_task(self._close())
+            if self.ownership is not None:
+                self.ownership.retain_task(self.cleanup, cleanup=True)
             self.cleanup.add_done_callback(
                 lambda task: task.exception() if not task.cancelled() else None
             )

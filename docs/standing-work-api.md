@@ -731,6 +731,11 @@ complete #239, M7 or the roadmap.
 
 ## Agent resource completion after worker retirement
 
+The following notification contract remains for ordinary tasks. Current-process
+standing claim owners unconditionally suppress that legacy callback and instead
+use [claim-wide retirement and automatic native finalization](adr/0109-agent-claim-retirement.md).
+An incomplete Resources binder cannot fall back to early restoration.
+
 Agent now sends its existing `task_finished` notification from a separately
 retained operation after the original worker has ended successfully. Task outcome
 and `wait()` retain their existing meanings: a terminal task can precede cleanup.
@@ -761,11 +766,35 @@ preserves the original 14 behavioral failures/eight controls and the two later
 review-derived failures. Earlier qualification groups overlap with the integrated
 run and must not be added to it.
 
-This repairs the live notification ordering and dependency lifetime. It is not
-a durable Agent retirement certificate, a physical Resources report, settlement
-or claim release. Full claim-wide preflight/effect/model ownership retirement and
-the native standing-work settlement chain remain unfinished, as does exact-head
-full CI for the changed source.
+That notification increment repairs its ordering and dependency lifetime; its
+original qualification did not establish claim-wide Agent retirement or a
+physical Resources report. [ADR0109](adr/0109-agent-claim-retirement.md)
+subsequently adds current-process claim retirement and automatic native
+finalization. Native settlement, claim/slot release and the rest of the
+standing-work chain remain unfinished; applicable exact-head CI is required.
+
+## Current-process standing claim finalization
+
+Agent retains an owner before the first preflight lookup, with exact original
+intent, restricted closure capability and captured Journal/Resources clients.
+One rooted work scope retains actual preflight, worker, model cleanup, controls
+and late native HTTP/read/sole-close children. External callers are not joined
+as work. A separate finalizer fences new effects, obtains permanent native
+admission closure and Resources seal, and joins original Agent work before
+calling the existing physical finalization endpoint.
+
+Missing binding replies require original bind cleanup before lookup. Lost final
+replies reconcile the same complete native request after actual cleanup, using
+`agent-standing-finalize:` plus the original claim digest as the stable key.
+Complete binding/closure/created-proof joins remain required. Historical retained
+initials cannot certify foreign work or authorize restart adoption. Failed
+cleanup stays uncertain and preserves truthful Task evidence.
+
+Shutdown retains one closer per captured original dependency through finalizer
+gaps between RPCs. Replacement, cancellation and an empty transport registry do
+not prove retirement. [ADR0109](adr/0109-agent-claim-retirement.md) defines the
+bounded lifecycle and verification limits. This adds no public schema or new
+permission, native Task settlement, claim/slot release, recurrence or inbox.
 
 ## Native dispatch gate
 

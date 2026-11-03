@@ -93,6 +93,7 @@ from packages.contracts.models import (
     TaskState,
     new_id,
 )
+from packages.contracts.operation_ownership import current_owner
 from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
 from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.providers.disclosure import (
@@ -108,7 +109,12 @@ from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, Artifact
 from services.agent.completion import append_completion
 from services.agent.history_budget import select_history
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
-from services.agent.resource_completion import ResourceCompletion, start_resource_retirement
+from services.agent.resource_completion import (
+    ResourceCompletion,
+    close_standing_dependency,
+    start_resource_retirement,
+    start_standing_shutdown,
+)
 from services.agent.tools import (
     ToolFailure,
     _FailedWithEvidence,
@@ -323,6 +329,7 @@ class _Record:
     steer_attempt: _SteerAttempt | None = None
     workspace_context: Any | None = None
     standing_initial: StandingInitialProof | None = None
+    standing_owner: Any | None = None
     standing_cleanup_uncertain: bool = False
     resource_completion: Any | None = None
     # A later adapter close cannot confirm an earlier failed request cleanup.
@@ -443,6 +450,10 @@ class AgentRuntime:
         self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
         self._pending_submits: dict[tuple[str, str], _PendingSubmit] = {}
         self._standing_pending = {}
+        self._standing_claims = set()
+        self._standing_dependencies = []
+        self._standing_dependency_closers = []
+        self._standing_shutdown = None
         self._submit_operations: set[asyncio.Task] = set()
         self._submit_waiters: set[asyncio.Future] = set()
         self._submit_preflights: set[_SubmitPreflight] = set()
@@ -522,7 +533,12 @@ class AgentRuntime:
             + sum(
                 owner.operation is not None and not owner.operation.done()
                 for owner in self._resource_retirements
-            ),
+            )
+            + sum(
+                owner.operation is None or not owner.operation.done()
+                for owner in self._standing_claims
+            )
+            + int(self._standing_shutdown is not None and not self._standing_shutdown.done()),
             "cleanup_failed": int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
@@ -532,6 +548,7 @@ class AgentRuntime:
             + sum(failed_operation(owner.operation) for owner in self._resource_completions)
             + int(failed_operation(self._resource_retirement))
             + sum(failed_operation(owner.operation) for owner in self._resource_retirements)
+            + sum(owner.failed or owner.scope.failed for owner in self._standing_claims)
             + len(uncertain_hosts),
         }
 
@@ -571,6 +588,11 @@ class AgentRuntime:
             watch(self._resource_retirement, cleanup=True)
             for owner in self._resource_retirements:
                 watch(owner.operation, cleanup=True)
+            for owner in tuple(self._standing_claims):
+                watch(owner.preflight)
+                watch(owner.worker)
+                watch(owner.operation, cleanup=True)
+            watch(self._standing_shutdown, cleanup=True)
             for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
                 watch(lease.cleanup)
                 for operation in tuple(lease.retiring):
@@ -773,8 +795,14 @@ class AgentRuntime:
             idempotency_key=f"agent:{rec.task.task_id}:{kind}:{rec.journal_seq}",
         )
 
+    def _claim_journal(self, rec=None):
+        owner = getattr(rec, "standing_owner", None)
+        if owner is None:
+            owner = getattr(current_owner(), "standing_claim", None)
+        return owner.journal if owner is not None and owner.runtime is self else self.journal
+
     async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
-        entry = await self.journal.append(self._append_request(rec, kind, payload))
+        entry = await self._claim_journal(rec).append(self._append_request(rec, kind, payload))
         if kind == "agent.command" and payload.get("op") == "submit":
             rec.submit_sequence = entry.sequence
 
@@ -812,7 +840,7 @@ class AgentRuntime:
     async def _require_session(self, session_id: str) -> Any:
         """Fail closed when the session is unknown to the journal."""
         try:
-            return await self.journal.session(session_id)
+            return await self._claim_journal().session(session_id)
         except Exception as exc:
             raise ValueError(f"unknown session {session_id!r}") from exc
 
@@ -829,7 +857,7 @@ class AgentRuntime:
     async def _epoch_error(self, rec: _Record) -> str | None:
         """Re-validate thread/epoch before a side effect or finish."""
         try:
-            session = await self.journal.session(rec.task.session_id)
+            session = await self._claim_journal(rec).session(rec.task.session_id)
         except Exception as exc:
             return f"session unavailable before execution: {exc}"
         error = self._check_task_epoch(rec, session)
@@ -837,7 +865,7 @@ class AgentRuntime:
             return error
         for event_id, revision in rec.source_revisions.items():
             try:
-                source = await self.journal.resolve(event_id)
+                source = await self._claim_journal(rec).resolve(event_id)
             except Exception:
                 return "Source became unavailable before execution"
             if source.payload.get("revision", 1) != revision:
@@ -866,7 +894,7 @@ class AgentRuntime:
         """
         if guard is not None:
             guard()
-        resolve = getattr(self.journal, "resolve", None)
+        resolve = getattr(self._claim_journal(), "resolve", None)
         if resolve is None:
             raise PolicyDenied(f"decisions-routed {op} cannot be validated: journal has no resolve")
         texts: list[str] = []
@@ -906,7 +934,7 @@ class AgentRuntime:
                     guard()
                 try:
                     window = SpeechWindow.model_validate(resolved.payload)
-                    latest = await self.journal.latest_window(
+                    latest = await self._claim_journal().latest_window(
                         session_id, epoch, window.utterance_id
                     )
                 except Exception as exc:
@@ -917,7 +945,9 @@ class AgentRuntime:
                     guard()
                 if latest is None or latest.payload.get("text") != window.text:
                     raise PolicyDenied("Transcript-window instruction was superseded")
-                control = await self.journal.window_control(session_id, epoch, agent_interrupt=True)
+                control = await self._claim_journal().window_control(
+                    session_id, epoch, agent_interrupt=True
+                )
                 if guard is not None:
                     guard()
                 if control is not None and control.payload["source_sequence"] > resolved.sequence:
@@ -983,13 +1013,13 @@ class AgentRuntime:
         if guard is None:
             guard = _STEER_SOURCE_GUARD.get()
         if guard is None:
-            return await source_scope(self.journal, source_id, resolved)
+            return await source_scope(self._claim_journal(), source_id, resolved)
 
         def read(method):
             async def guarded(*args, **kwargs):
                 guard()
                 try:
-                    return await getattr(self.journal, method)(*args, **kwargs)
+                    return await getattr(self._claim_journal(), method)(*args, **kwargs)
                 finally:
                     guard()
 
@@ -1006,7 +1036,7 @@ class AgentRuntime:
         scopes = [rec.task.content_scope]
         for source_id in rec.task.source_event_ids:
             try:
-                source = await self.journal.resolve(source_id)
+                source = await self._claim_journal(rec).resolve(source_id)
                 if (source.session_id, source.thread_id, source.epoch) != (
                     rec.task.session_id,
                     rec.task.thread_id,
@@ -1029,14 +1059,16 @@ class AgentRuntime:
         )
         for event_id in sorted(rec.context_event_ids):
             try:
-                entry = await self.journal.entry(event_id)
+                entry = await self._claim_journal(rec).entry(event_id)
                 if (entry.session_id, entry.thread_id, entry.epoch) != (
                     rec.task.session_id,
                     rec.task.thread_id,
                     rec.task.epoch,
                 ):
                     raise ValueError("Wrong context scope")
-                scopes.append(await context_scope(self.journal, entry, closure=context_closure))
+                scopes.append(
+                    await context_scope(self._claim_journal(rec), entry, closure=context_closure)
+                )
             except Exception as exc:
                 if require_open:
                     self._check_completion_open(rec, require_active=True)
@@ -1950,7 +1982,7 @@ class AgentRuntime:
         for source_id in tuple(rec.task.source_event_ids):
             guard()
             try:
-                source = await self.journal.resolve(source_id)
+                source = await self._claim_journal(rec).resolve(source_id)
                 guard()
                 if (
                     (source.session_id, source.thread_id, source.epoch)
@@ -1970,7 +2002,7 @@ class AgentRuntime:
             async def guarded(*args, **kwargs):
                 guard()
                 try:
-                    return await getattr(self.journal, method)(*args, **kwargs)
+                    return await getattr(self._claim_journal(rec), method)(*args, **kwargs)
                 finally:
                     guard()
 
@@ -2012,7 +2044,7 @@ class AgentRuntime:
         observations = []
         for source_id in request.source_event_ids:
             guard()
-            resolved = await self.journal.resolve(source_id)
+            resolved = await self._claim_journal(rec).resolve(source_id)
             guard()
             floor = await self._source_scope(source_id, resolved)
             guard()
@@ -2027,7 +2059,7 @@ class AgentRuntime:
         effective = combine_scopes(scope, source_scope, request.content_scope)
         if not scope_allowed(self.provider_for(rec).info, effective):
             raise PolicyDenied("Steering disclosure does not permit the configured Agent provider")
-        backend = getattr(self.journal, "agent_control_backend", None)
+        backend = getattr(self._claim_journal(rec), "agent_control_backend", None)
         if not callable(backend) or rec.native_task_identity is None:
             raise AgentControlUnavailable
         guard()
@@ -2070,12 +2102,12 @@ class AgentRuntime:
             raise PolicyDenied("Steering source changed before installation")
         for observed in proposal.source_revisions:
             guard()
-            resolved = await self.journal.resolve(observed.event_id)
+            resolved = await self._claim_journal(rec).resolve(observed.event_id)
             guard()
             if resolved.payload.get("revision", 1) != observed.revision:
                 raise PolicyDenied("Steering source revision changed before installation")
         guard()
-        if await self.journal.agent_control_backend() != proposal.expected_backend:
+        if await self._claim_journal(rec).agent_control_backend() != proposal.expected_backend:
             raise AgentControlUnavailable
         guard()
         scope = combine_scopes(
@@ -2086,6 +2118,13 @@ class AgentRuntime:
         return scope
 
     async def steer(self, task_id: str, request: SteerRequest, actor: str = "owner") -> Task:
+        rec = self._get(task_id)
+        if rec.standing_owner is not None:
+            request = request.model_copy(deep=True)
+            return await rec.standing_owner.control(lambda: self._steer(task_id, request, actor))
+        return await self._steer(task_id, request, actor)
+
+    async def _steer(self, task_id, request, actor):
         request = request.model_copy(deep=True)
         original = AgentSteerChange.model_validate(request.model_dump(mode="json"))
         rec = self._get(task_id)
@@ -2114,7 +2153,7 @@ class AgentRuntime:
             if previous.digest != digest:
                 raise AgentControlConflict
             if previous.proposal is not None and previous.sent and not previous.active:
-                lookup = getattr(self.journal, "lookup_steer", None)
+                lookup = getattr(self._claim_journal(rec), "lookup_steer", None)
                 if not callable(lookup):
                     raise AgentControlUnavailable
                 operation = self._start_submit_operation(lambda: lookup(previous.proposal))
@@ -2157,7 +2196,7 @@ class AgentRuntime:
         try:
             attempt.proposal = await self._prepare_steer(attempt)
             guard()
-            admit = getattr(self.journal, "admit_steer", None)
+            admit = getattr(self._claim_journal(rec), "admit_steer", None)
             if not callable(admit):
                 raise AgentControlUnavailable
             attempt.deadline = time.monotonic() + 15.0
@@ -2232,7 +2271,7 @@ class AgentRuntime:
                 )
                 revision_changed = False
                 for source_id, revision in pending.get("source_revisions", {}).items():
-                    resolved = await self.journal.resolve(source_id)
+                    resolved = await self._claim_journal(rec).resolve(source_id)
                     revision_changed |= resolved.payload.get("revision", 1) != revision
                 if pending["actor"] == "decisions" and (
                     "\n".join(texts) != pending["instruction"] or revision_changed
@@ -2318,6 +2357,15 @@ class AgentRuntime:
     async def interrupt(
         self, task_id: str, request: InterruptRequest, actor: str = "owner"
     ) -> Task:
+        rec = self._get(task_id)
+        if rec.standing_owner is not None:
+            request = request.model_copy(deep=True)
+            return await rec.standing_owner.control(
+                lambda: self._interrupt(task_id, request, actor)
+            )
+        return await self._interrupt(task_id, request, actor)
+
+    async def _interrupt(self, task_id, request, actor):
         rec = self._get(task_id)
         if (
             actor == "owner"
@@ -2561,6 +2609,17 @@ class AgentRuntime:
         return rec.task.model_copy(deep=True)
 
     async def close(self) -> None:
+        if (
+            self._standing_dependencies
+            or self._standing_claims
+            or self._standing_shutdown is not None
+        ):
+            original = start_standing_shutdown(self)
+            await asyncio.wait({original}, timeout=5)
+            return
+        await self._close_runtime()
+
+    async def _close_runtime(self) -> None:
         self._closed = True
         resource_retirement = start_resource_retirement(self)
         resource_retirement_deadline = time.monotonic() + 5
@@ -2665,7 +2724,10 @@ class AgentRuntime:
         # refuses: it owns late send/read/sole-close and transport retirement.
         try:
             if self.standing_resource_client is not None:
-                await self.standing_resource_client.close()
+                if self._standing_dependencies:
+                    await close_standing_dependency(self, self.standing_resource_client)
+                else:
+                    await self.standing_resource_client.close()
         finally:
             if self.workspace_settings is not None:
                 self._workspace_settled()
@@ -2740,6 +2802,17 @@ class AgentRuntime:
         if actor != "owner":
             raise PolicyDenied(f"approval resolve requires owner, got {actor!r}")
         rec = self._approval_record(approval_id)
+        if rec.standing_owner is not None:
+            resolution = resolution.model_copy(deep=True)
+            return await rec.standing_owner.control(
+                lambda: self._resolve_approval(approval_id, resolution, actor)
+            )
+        return await self._resolve_approval(approval_id, resolution, actor)
+
+    async def _resolve_approval(self, approval_id, resolution, actor):
+        if actor != "owner":
+            raise PolicyDenied(f"approval resolve requires owner, got {actor!r}")
+        rec = self._approval_record(approval_id)
         async with rec.approval_lock:
             pending = rec.pending
             self._approval_binding(rec, pending, approval_id, resolution)
@@ -2795,6 +2868,8 @@ class AgentRuntime:
         raise ApprovalError(f"unknown or superseded approval {approval_id!r}")
 
     def _approval_binding(self, rec, pending, approval_id, request):
+        if rec.standing_owner is not None:
+            rec.standing_owner.guard()
         reservation = self._pending_submits.get((rec.task.session_id, rec.task.idempotency_key))
         if reservation is not None and reservation.record is rec and not rec.submit_confirmed:
             raise AgentSubmitUnconfirmed
@@ -2907,6 +2982,18 @@ class AgentRuntime:
         ).model_dump(mode="json")
 
     async def reissue_approval(self, approval_id, request: ApprovalReissue, actor="owner"):
+        if actor != "owner":
+            raise PolicyDenied("Approval renewal requires owner")
+        identity = self.authorizations.bindings.get(approval_id)
+        rec = None if identity is None else self._tasks.get(identity.task_id)
+        if rec is not None and rec.standing_owner is not None:
+            request = request.model_copy(deep=True)
+            return await rec.standing_owner.control(
+                lambda: self._reissue_approval(approval_id, request, actor)
+            )
+        return await self._reissue_approval(approval_id, request, actor)
+
+    async def _reissue_approval(self, approval_id, request, actor):
         if actor != "owner":
             raise PolicyDenied("Approval renewal requires owner")
         original = self.policy.peek_approval(approval_id)
@@ -3104,6 +3191,8 @@ class AgentRuntime:
 
     @staticmethod
     def _check_completion_open(rec: _Record, *, require_active: bool = False) -> None:
+        if rec.standing_owner is not None:
+            rec.standing_owner.guard()
         if rec.completion_pending:
             raise TaskTerminal(
                 "Task completion confirmation is in progress or unconfirmed; "
@@ -3428,7 +3517,9 @@ class AgentRuntime:
         )
         rec.completion_pending = True
         try:
-            confirmed = await append_completion(self.journal, body, after=rec.submit_sequence)
+            confirmed = await append_completion(
+                self._claim_journal(rec), body, after=rec.submit_sequence
+            )
         except (Exception, asyncio.CancelledError):
             # The POST may have committed. A stop/shutdown or unavailable
             # read-back cannot authorize another, contradictory outcome.
@@ -3460,7 +3551,7 @@ class AgentRuntime:
         or permits a stale proposal to execute. Source/catalog dependencies
         remain task-wide even when their original exchange leaves the prompt.
         """
-        provider, policy, journal = self.provider_for(rec), self.policy, self.journal
+        provider, policy, journal = self.provider_for(rec), self.policy, self._claim_journal(rec)
         if rec.task.model_pin is not None and rec.provider is None:
             raise PromptCountUnavailable("Recovered model pin cannot be rebound to a new provider")
         if rec.task.model_pin is not None:
@@ -3530,6 +3621,8 @@ class AgentRuntime:
 
         def current():
             nonlocal revised
+            if rec.standing_owner is not None:
+                rec.standing_owner.guard()
             self._workspace_current(rec)
             if rec.cancel_requested or rec.closing or self._closed:
                 raise PolicyDenied("Agent inference stopped by native control")
@@ -3588,7 +3681,7 @@ class AgentRuntime:
             if stale is not None:
                 raise PolicyDenied(stale)
             # Source validation can yield after its first session read.
-            session = await self.journal.session(rec.task.session_id)
+            session = await self._claim_journal(rec).session(rec.task.session_id)
             current()
             stale = self._check_task_epoch(rec, session)
             if stale is not None:
@@ -3838,6 +3931,8 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
+            if rec.standing_owner is not None:
+                rec.standing_owner.fence()
             completion = ResourceCompletion(self, rec)
             lease = completion.lease
             model_closed = lease is None
@@ -4026,7 +4121,7 @@ class AgentRuntime:
         uncommitted = []
         for source_id in rec.task.source_event_ids:
             try:
-                source = await self.journal.resolve(source_id)
+                source = await self._claim_journal(rec).resolve(source_id)
                 if source.kind != "conversation.window":
                     continue
                 window = SpeechWindow.model_validate(source.payload)
@@ -4427,7 +4522,7 @@ class AgentRuntime:
             stale = await self._epoch_error(rec)
             if stale is None:
                 try:
-                    session = await self.journal.session(rec.task.session_id)
+                    session = await self._claim_journal(rec).session(rec.task.session_id)
                     stale = self._check_task_epoch(rec, session)
                 except Exception:
                     stale = "Session authority unavailable before UI publication"

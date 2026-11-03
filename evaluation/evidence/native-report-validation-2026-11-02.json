@@ -1,0 +1,282 @@
+{
+  "baseline_commit": "9b40bf38b2d3e1265cac8d0e99cc592004697e55",
+  "baseline_one_shot": {
+    "artifacts": {
+      "junit.xml": "28447836dc3540d97afaecb66abe6f372d25147c1a81c54c903ead4175cc3e32",
+      "post-pins.json": "c3e7e6c40c2446e587ecf55bc4e80f1a660280867083778de98aca1759688d54",
+      "pre-pins.json": "c3e7e6c40c2446e587ecf55bc4e80f1a660280867083778de98aca1759688d54",
+      "pytest.log": "083c35a7ed2f86b6fb00e2ce81ba075fdc59696c26a76a8c2c9a1ef5bc78ad25",
+      "receipt.json": "2ac1a68d2cf9af882f10adc23d3d96345768dcee633b4164d098a0dbcf3e279d"
+    },
+    "changed_pins": [],
+    "command_note": "This template replaces private absolute paths. The exact executed argv, isolated PYTHONPATH and complete pre/post pins remain in the hash-bound local receipt and artifacts.",
+    "command_template": [
+      "<pinned-venv>/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "<test_targets>",
+      "--junitxml=<local_artifact_directory>/junit.xml"
+    ],
+    "elapsed_wall_s": 21.82262278799317,
+    "exit_code": 0,
+    "head": "db8e66a85e9e03289fffb9f9621ac6af6f0b0ef9",
+    "head_after": "db8e66a85e9e03289fffb9f9621ac6af6f0b0ef9",
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "2",
+        "time": "21.340",
+        "timestamp": "2026-11-02T07:30:29.938183-08:00"
+      }
+    ],
+    "local_artifact_directory": "239-ci441-local-reproduction-v1-n3msjtfx",
+    "manifest_sha256": "95e1926e2df216cca67b689830253b5755ba670d918acbce3a0fe821e9af689a",
+    "pins_preserved": true,
+    "test_targets": [
+      "tests/integration/test_standing_physical_finalization.py::test_finalizer_restores_only_exact_original_reserved_lease",
+      "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap"
+    ],
+    "tracked_input_count": 1516
+  },
+  "baseline_one_shot_limit": "Local Python3.12.3 two-case pass on byteexact published production+unused new test does not reconstruct or causally repair CI3.12.15 failure.",
+  "candidate_regressions": {
+    "artifacts": {
+      "junit.xml": "9ba9e76bd5f5d3a7ef34ee5f7fa71be12ccaf40a95ddd89d8115a515f27641c1",
+      "post-pins.json": "bfc18847fac7ddc5cd2ce3fa1c074718aed1c776cdbc41dbf843aac082c9b2b4",
+      "pre-pins.json": "bfc18847fac7ddc5cd2ce3fa1c074718aed1c776cdbc41dbf843aac082c9b2b4",
+      "pytest.log": "4027b59d1da15fc95eea86bb23b8ccbf64cd289330fb83e5e216d995701bd49f",
+      "receipt.json": "4e06b4d7bcfab28924af40dce301e76a9f700c649155684438bc7c5bcd25a3ac"
+    },
+    "changed_pins": [],
+    "command_note": "This template replaces private absolute paths. The exact executed argv, isolated PYTHONPATH and complete pre/post pins remain in the hash-bound local receipt and artifacts.",
+    "command_template": [
+      "<pinned-venv>/bin/python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "<test_targets>",
+      "--junitxml=<local_artifact_directory>/junit.xml"
+    ],
+    "elapsed_wall_s": 389.8800199559919,
+    "exit_code": 0,
+    "head": "15fbc836c57f71bc8726a970c0d293b33382f476",
+    "head_after": "15fbc836c57f71bc8726a970c0d293b33382f476",
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "188",
+        "time": "388.685",
+        "timestamp": "2026-11-02T07:37:30.880961-08:00"
+      }
+    ],
+    "local_artifact_directory": "239-native-report-validation-regressions-v1-0asb_u2e",
+    "manifest_sha256": "08d1c228d2850d1b7393d47a56fe07828e0103aed1fe38af42e723ab57c215f4",
+    "pins_preserved": true,
+    "test_targets": [
+      "tests/integration/test_standing_physical_finalization.py",
+      "tests/integration/test_standing_resource_finalization_api.py",
+      "tests/integration/test_standing_resources_finalization_transport_api.py",
+      "tests/integration/test_standing_physical_timeout_controls.py",
+      "tests/unit/test_standing_finalization_join_equivalence.py",
+      "tests/integration/test_agent_standing_claim_retirement.py",
+      "tests/integration/test_agent_standing_external_control_retirement.py",
+      "tests/integration/test_agent_standing_binding_retirement.py"
+    ],
+    "tracked_input_count": 1515
+  },
+  "candidate_scope": "188 tests across eight affected modules, with zero failures/errors/skips. Original tests and eight-second limits unchanged. Offline controlled inference outputs, real temporary ASGI/SQLite and disposable CPU owners; no model or live-device qualification.",
+  "cleanup_scope": {
+    "intentional_failed_model_manual_workspace_disposal_rows": 1,
+    "interpretation": "Eventual disposal properties do not prove timely original8s completion. Intentional sticky cleanup-negative remains negative capability evidence, never blanket healthy retirement.",
+    "nonempty_physical_cleanup_rows": 80,
+    "physical_cleanup_property_case_count": 78,
+    "physical_historical_cleanup_error_values": [
+      null
+    ],
+    "physical_rows_inference0": true,
+    "physical_rows_originalclose_manager_stream_http_positive": true,
+    "standing_claim_cleanup_rows": 8
+  },
+  "date": "2026-11-02",
+  "independent_review": {
+    "author_source_proof_sha256": "0643540295ba064b4a153f5776fad54ea53ee4fb7ae3993132c2cd0c36f5c033",
+    "decision": "No blocker in exact seven changed native lines; bounded source/local qualification accepted. CI failure gate remains REFUSE, and changed-head CI would be a separate requirement.",
+    "findings": [],
+    "original_ci_refusal_receipt_sha256": "a57401cb826013da0cc8e58c05b7c8d3c13a6d8512611c677f9dd9791c2eb74c",
+    "reviewer": "Independent subagent; neither fix author nor test executor.",
+    "source_and_local_gate_receipt_sha256": "2a4041475edda603a49b55172777cdd4734e71d5fae2c1123607237ab3c0b5f0"
+  },
+  "issues": [
+    239,
+    228
+  ],
+  "limitations": [
+    "The baseline also passes its one-shot local run. Neither that result nor the candidate local pass demonstrates the cause of CI441 timeouts or a causal performance repair.",
+    "No profiler/current-thread instruction/Store lock/SQL scheduling evidence was collected; observed retained work is not proof of completion.",
+    "Raw logs, JUnit, full pins and exact receipts are retained as ignored local artifacts with the hashes above; they are not claimed to be GitHub-uploaded artifacts.",
+    "Native Task settlement, claim/reservation and active-slot release, recurrence, inbox and editor are not qualified by this increment.",
+    "This does not complete the roadmap, qualify model accuracy or change the running preview."
+  ],
+  "local_environment": {
+    "httpx": "0.28.1",
+    "pytest": "9.1.1",
+    "pytest-asyncio": "1.4.1",
+    "python": "3.12.3",
+    "ruff": "0.17.3"
+  },
+  "original_ci": {
+    "actual_checkout": "34f84c6fb2283c0694e7998995c497028442e207",
+    "actual_checkout_tree": "8eaab40571e315ceb1e6226e6ef4cbbf8d6959b3",
+    "failed_nodeids": [
+      "tests/integration/test_standing_physical_finalization.py::test_finalizer_restores_only_exact_original_reserved_lease",
+      "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap"
+    ],
+    "jobs": [
+      {
+        "conclusion": "success",
+        "exact_original_tool_content": true,
+        "job_id": 125341957651,
+        "name": "flutter",
+        "sha256": "3f4d8b5c868eb04d33e4033bb9c574a967dce15bb4881cb1e180ea159a93556a",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "exact_original_tool_content": true,
+        "job_id": 125341957973,
+        "name": "android",
+        "sha256": "d94c55c5cce35f99b92d351137203b65b4927aff1471cb53463b817bcccad048",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "exact_original_tool_content": true,
+        "job_id": 125341958033,
+        "name": "python (3.11)",
+        "sha256": "8616e3bb5055841d16ea7581832c8d7bcf9808ba94753aa5e7a82cf8e01f3e16",
+        "status": "completed"
+      },
+      {
+        "conclusion": "failure",
+        "exact_original_tool_content": true,
+        "job_id": 125341958057,
+        "name": "python (3.12)",
+        "sha256": "0087bdd97322fe12d3d57d55bc0856c70e3ff1c02fac6c8d82208e1452b85a1b",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "exact_original_tool_content": true,
+        "job_id": 125341958417,
+        "name": "ios",
+        "sha256": "54257bc8583743085c946a7ebde62be309a32ec699ee01b0623c22c29899e8f9",
+        "status": "completed"
+      }
+    ],
+    "merge_gate": "REFUSE for this failed source/run; no rerun or timeout/assertion waiver.",
+    "observation_limits": "Actual original native child still live; call and owner-report wrapper entered with no observed result/error. Coordinator/Manager/admission cached locks false; Store lock, actual worker-thread instruction/SQL/COMMIT, CPU/IO scheduling and cause are unobserved. No success/absence/cleanup proof inferred.",
+    "observed_timeout_notes": [
+      {
+        "call_error_observed": false,
+        "call_result_observed": false,
+        "call_wrapper_entered": true,
+        "captured_resource_locks": {
+          "admission": false,
+          "coordinator": false,
+          "manager": false
+        },
+        "effects_entered": true,
+        "finalizer_done": false,
+        "finalizer_scope_finished": false,
+        "native_child_done": false,
+        "native_child_observed": true,
+        "owner_report_error_observed": false,
+        "owner_report_result_observed": false,
+        "owner_report_wrapper_entered": true,
+        "pending_count": 1,
+        "phase": "ready",
+        "shared": true,
+        "truncated": false
+      },
+      {
+        "call_error_observed": false,
+        "call_result_observed": false,
+        "call_wrapper_entered": true,
+        "captured_resource_locks": {
+          "admission": false,
+          "coordinator": false,
+          "manager": false
+        },
+        "effects_entered": false,
+        "finalizer_done": false,
+        "finalizer_scope_finished": false,
+        "native_child_done": false,
+        "native_child_observed": true,
+        "owner_report_error_observed": false,
+        "owner_report_result_observed": false,
+        "owner_report_wrapper_entered": true,
+        "pending_count": 1,
+        "phase": "off",
+        "shared": true,
+        "truncated": false
+      }
+    ],
+    "published_head": "9b40bf38b2d3e1265cac8d0e99cc592004697e55",
+    "python311": "10981passed6skipped2deselected1Starlette warning1560.90s;export/auditpassed",
+    "python312": "2failed10979passed6skipped2deselected1Starlette warning2539.75s;export/auditskipped",
+    "python312_skipped_steps": [
+      "Run python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas",
+      "Dependency audit",
+      "Post Run actions/setup-python@v5"
+    ],
+    "run_id": 41464568709,
+    "terminal_metadata_sha256": "5da45675077d6ce6dce9e8531bfa7bbddd218acbd99b00a52565e0aa138c1cf7",
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41464568709"
+  },
+  "publication_bridge": "A documentation-only child may publish this source qualification. Runtime/test source must remain byte-identical to qualified_source_commit; applicable CI must pass on the actual published head before merge.",
+  "pull_request": 315,
+  "qualification": "Bounded native validation de-duplication; changed-head CI remains required.",
+  "qualified_source_commit": "15fbc836c57f71bc8726a970c0d293b33382f476",
+  "schema_version": "1.0",
+  "source": {
+    "equivalence_review": [
+      "Fresh preCOMMIT _observation still reads and strict-parses retained report and native state; _schema301-314 independently builds/joins expected native context. Complete retained==original report check490 therefore entails original.context==fresh expected context. Removed second _context/check was redundant under that exact same synchronous local state.",
+      "Receipt constructor retains strict _Finalization.complete_graph/_fields/handler full old/new graph revalidation/canonical cap and detach. Former validate_request argument was report.context.request from that same already-validated report, so compared receipt request only to itself; no independent authority removed.",
+      "report original checked_finalization, initial independent _context validation, preDMLwriter guard, original BEGINIMMEDIATE/rollback poison/final fresh native observation/deadline/cancellation/writer beforeCOMMIT and postCOMMITguard all unchanged. lookup independent original/context-request comparison remains before receipt. No cross-await cache/user serializer/construct/dump shortcut."
+    ],
+    "path": "services/session/standing_resource_finalization.py",
+    "scope": "Whole module equals baseline after only removing receipt own-request validate call, changing unused binding target to underscore and removing final duplicate expected-context assignment/check. No other imports/functions/SQL/guards/transactions/caps/schema/async/cleanup changed.",
+    "sha256": "f2d74567fb0239344eb91d79777b53ab7b8a311e69d6773e2cb18ee563bf570b"
+  },
+  "static_checks": {
+    "contract_export": "passed, all 192 existing schemas byte-identical",
+    "diff_check": "passed",
+    "ruff_check": "passed",
+    "ruff_format": "passed, 788 files"
+  }
+}

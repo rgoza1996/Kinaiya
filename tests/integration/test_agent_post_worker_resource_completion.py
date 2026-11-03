@@ -15,11 +15,13 @@ import pytest
 from test_agent_mode_permissions import bind_workspace
 from test_agent_resource_restore_retirement import PriorCleanup
 from test_agent_resource_restore_retirement import ordinary as ordinary
+from test_agent_standing_claim_retirement import claim_chain as claim_chain
 from test_resource_restore_model_retirement import gated_standing
 from test_standing_agent_runtime import TEXT
 from test_standing_agent_runtime import factory as factory
 from test_standing_agent_runtime import stack as stack
 from test_standing_agent_runtime import submit as standing_submit
+from test_standing_physical_finalization import physical as physical
 
 from core.policy import ToolPolicy
 from packages.contracts.models import TaskState
@@ -173,12 +175,13 @@ class ObservableResourceClient(ResourceClient):
 
 
 @pytest.fixture
-async def cases(ordinary, stack, tmp_path, record_property):
+async def cases(ordinary, stack, claim_chain, tmp_path, record_property):
     opened = []
 
     async def make(*, standing=False, with_lease=True, hold=False, error=None, phase=None):
         if standing:
-            old = await stack()
+            chain = await claim_chain()
+            old = chain.agent
             close_gate, closing = gated_standing(old)
             runtime = old.runtime
             value = SimpleNamespace(
@@ -196,6 +199,7 @@ async def cases(ordinary, stack, tmp_path, record_property):
                 callers=[],
                 extra_clients=[],
                 owner=old.workspace_owner,
+                claim_chain=chain,
             )
         else:
             old = await ordinary(with_lease=with_lease)
@@ -261,6 +265,8 @@ async def cases(ordinary, stack, tmp_path, record_property):
                 restore()
             value.runtime.skill_service = value.runtime.plugin_service = None
             await joined(value.runtime.close())
+            if hasattr(value, "claim_chain"):
+                await value.claim_chain.retire()
             if value.callers:
                 await joined(asyncio.gather(*value.callers, return_exceptions=True))
             if value.transport is not None and value.transport.close_owner is not None:
@@ -312,21 +318,29 @@ async def test_notification_observes_original_successful_worker_and_actual_model
     if value.lease is not None:
         assert not value.worker.done() and value.observation.calls == []
     value.close_gate.set()
-    await reached(value.observation.entered)
-    await joined(value.worker)
-    await reached(value.observation.ended)
-    assert value.observation.calls == [
-        {
-            "task_id": value.task_id,
-            "worker_done": True,
-            "worker_success": True,
-            "different_owner": True,
-            "lease_settled": None if value.lease is None else True,
-            "lease_failed": None if value.lease is None else False,
-            "cleanup_done": None if value.lease is None else True,
-            "cleanup_success": None if value.lease is None else True,
-        }
-    ]
+    if mode == "standing":
+        # Claim-wide retirement supersedes the old per-worker physical call.
+        await joined(value.worker)
+        assert value.worker.exception() is None and value.observation.calls == []
+        assert value.provider.closed and value.lease.settled and not value.lease.failed
+        assert value.cleanup.done() and not value.cleanup.cancelled()
+        assert value.cleanup.exception() is None
+    else:
+        await reached(value.observation.entered)
+        await joined(value.worker)
+        await reached(value.observation.ended)
+        assert value.observation.calls == [
+            {
+                "task_id": value.task_id,
+                "worker_done": True,
+                "worker_success": True,
+                "different_owner": True,
+                "lease_settled": None if value.lease is None else True,
+                "lease_failed": None if value.lease is None else False,
+                "cleanup_done": None if value.lease is None else True,
+                "cleanup_success": None if value.lease is None else True,
+            }
+        ]
     assert (await value.runtime.status(value.task_id)).model_dump(mode="json") == truth
     if mode == "standing":
         assert (value.old.workspace / "result.txt").read_text() == TEXT

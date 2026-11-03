@@ -20,7 +20,6 @@ from packages.contracts.standing_resource_finalization import (
     checked_finalization,
     finalization_bytes,
     resource_binding_digest,
-    resource_finalize_context_digest,
 )
 from packages.contracts.standing_resources import (
     StandingResourceObservation,
@@ -231,6 +230,8 @@ class StandingResourceFinalizationOwner:
         return None if not count else self._one(f"SELECT claim_id,{field} FROM {table}")
 
     def _context(self, request, binding, state):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _hash
+
         meta, generations, claim, initial, coverage, reservation, closure = state
         original = request.original
         if original.expected_backend != meta["backend_id"]:
@@ -260,17 +261,34 @@ class StandingResourceFinalizationOwner:
         }
         observation = StandingResourceObservation(
             **body, observation_digest=standing_resource_observation_digest(body)
-        ).validate_request(original)
-        return StandingResourceFinalizeContext(
-            schema_version="1.0",
-            request=request,
-            binding=binding,
-            closure=closure,
-            observation=observation,
-            context_digest=resource_finalize_context_digest(request, binding, closure, observation),
-        ).validate_request(request)
+        )
+        context_body = {
+            "schema_version": "1.0",
+            "request": request,
+            "binding": binding,
+            "closure": closure,
+            "observation": observation,
+        }
+        try:
+            context_digest = _hash(b"kinaiya.standing.resource-finalize-context.v1", context_body)
+        except _FAILURES:
+            raise ValueError(_ERROR) from None
+        # The context constructor rebuilds every child and checks complete
+        # request, claim, initial and reservation joins on these fresh locals.
+        # Hash their actual fields without repeating that construction here.
+        return StandingResourceFinalizeContext(**context_body, context_digest=context_digest)
 
     def _schema(self, state):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _encode
+
+        def fresh_bytes(value):
+            # Only freshly parsed/constructed new-family locals reach here.
+            # Every encoding still walks the complete actual graph.
+            try:
+                return _encode(value)
+            except _FAILURES:
+                raise ValueError(_ERROR) from None
+
         meta, generations, claim, initial, _, reservation, _ = state
         self._tables(meta)
         row = self._row(_BINDINGS, "request", MAX_STANDING_RESOURCE_BINDING_BYTES)
@@ -280,8 +298,8 @@ class StandingResourceFinalizationOwner:
             if (
                 claim is None
                 or row["claim_id"] != claim.claim_id
-                or finalization_bytes(binding).decode("utf-8") != row["request"]
-                or finalization_bytes(binding.claim) != finalization_bytes(claim)
+                or fresh_bytes(binding).decode("utf-8") != row["request"]
+                or fresh_bytes(binding.claim) != finalization_bytes(claim)
                 or binding.claim.request.expected_backend != meta["backend_id"]
             ):
                 raise StandingUnavailable
@@ -303,14 +321,14 @@ class StandingResourceFinalizationOwner:
                 claim is None
                 or binding is None
                 or row["claim_id"] != claim.claim_id
-                or finalization_bytes(report).decode("utf-8") != row["report"]
+                or fresh_bytes(report).decode("utf-8") != row["report"]
             ):
                 raise StandingUnavailable
             try:
                 expected = self._context(report.context.request, binding, state)
             except StandingConflict:
                 raise StandingUnavailable from None
-            if finalization_bytes(report.context) != finalization_bytes(expected):
+            if fresh_bytes(report.context) != fresh_bytes(expected):
                 raise StandingUnavailable
         return binding, report
 
@@ -474,7 +492,7 @@ class StandingResourceFinalizationOwner:
     def _receipt(report, disposition):
         return StandingResourceFinalizationReceipt(
             schema_version="1.0", disposition=disposition, finalization=report
-        ).validate_request(report.context.request)
+        )
 
     @_native
     def report(
@@ -486,11 +504,8 @@ class StandingResourceFinalizationOwner:
         created = False
 
         def final():
-            state, binding, retained = self._observation()
+            state, _, retained = self._observation()
             if retained is None or finalization_bytes(retained) != finalization_bytes(original):
-                raise StandingUnavailable
-            expected = self._context(original.context.request, binding, state)
-            if finalization_bytes(expected) != finalization_bytes(original.context):
                 raise StandingUnavailable
             self._guard(deadline, cancelled)
             if created:

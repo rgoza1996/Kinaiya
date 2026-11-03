@@ -91,7 +91,9 @@ Selected history/session reads, external controls and shutdown dependency order
 still need that enrollment. No historical typed record can reconstruct lost
 original ownership after restart.
 
-That next increment is design only. Native Task settlement, active-slot release,
-recurrence, inbox and editor remain subsequent gates. No model accuracy,
+That boundary is subsequently implemented by
+[ADR0109](0109-agent-claim-retirement.md), with separately attributed offline
+qualification and exact-head CI requirements. Native Task settlement,
+active-slot release, recurrence, inbox and editor remain subsequent gates. No model accuracy,
 inference, device/GPU operation, paid call, live service/configuration or preview
 change is part of this transport qualification. The full roadmap remains open.

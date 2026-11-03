@@ -1,0 +1,123 @@
+{
+  "candidate_run": {
+    "all_inputs_head_runner_unchanged": true,
+    "availability": "Ignored raw payloads remain in the publication checkout and a byte-exact B mirror; they are not claimed uploaded CI artifacts. Synthetic temporary SQLite/process paths.",
+    "elapsed_wall_s": 390.4885275939996,
+    "environment": "Existing pinned Python3.12 .venv; explicit isolated-worktree PYTHONPATH; no bytecode/cache writes. Full argv and explicit PYTHONPATH remain in the hash-bound local receipt.",
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "junit_seconds": 388.71,
+    "legacy_affected_cases": 188,
+    "qualified_head": "970752bd88ed04b54d86f0c7ff5cabf1ee095561",
+    "raw_bundle": "239-published-graph-qualified251-v1-jopyan21",
+    "raw_sha256": {
+      "junit.xml": "3e22494802b353fa0c5b39c9a55e79b1a934dc223d8e70f05feb4ed4d20c88ee",
+      "manifest.json": "5c775df3ddc7ed4b43cde59ea8c6186a9e19e4fad10360a62f7104091011f961",
+      "post-pins.json": "a24ed6f9aaea6c43a9a29a26d1c5a8e18c1aa80e89b1a0c16c06a3c9198b599d",
+      "pre-pins.json": "a24ed6f9aaea6c43a9a29a26d1c5a8e18c1aa80e89b1a0c16c06a3c9198b599d",
+      "pytest.log": "ff024785ad0dd03c68b9c59f45cf47947ef3ab8527e9e9e6aea5130fd5e2be71",
+      "receipt.json": "2b44a923b4286635c8968039e0f0a2cbc964de51274190ffb737cfb3508da2c7",
+      "runner-source.py": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d",
+      "start.json": "756c420116794bfec1d292594b2190ccedad22bafb996f5c2d591cadd4c8d5a1"
+    },
+    "resource_contract_cases": 63,
+    "skipped": 0,
+    "test_targets": [
+      "tests/unit/test_standing_resource_finalization_contracts.py",
+      "tests/integration/test_standing_physical_finalization.py",
+      "tests/integration/test_standing_resource_finalization_api.py",
+      "tests/integration/test_standing_resources_finalization_transport_api.py",
+      "tests/integration/test_standing_physical_timeout_controls.py",
+      "tests/unit/test_standing_finalization_join_equivalence.py",
+      "tests/integration/test_agent_standing_claim_retirement.py",
+      "tests/integration/test_agent_standing_external_control_retirement.py",
+      "tests/integration/test_agent_standing_binding_retirement.py"
+    ],
+    "tests": 251,
+    "tracked_input_count": 1519
+  },
+  "cleanup_evidence": {
+    "actual_inference_calls": 0,
+    "interpretation": "Join/close/reap fields are positive original-owner teardown observations in this offline harness. Five logical StandingUnavailable outcomes remain negative despite successful joining. The failed-cleanup case remains uncertain without positive report and records manual failed-workspace-descriptor release; it is not automatic cleanup success. No physical cleanup is inferred solely from Task/row state or empty registries.",
+    "logical_standing_unavailable_records": 5,
+    "native_teardown_records": 73,
+    "physical_actual_cleanup_records": 80
+  },
+  "date": "2026-11-02",
+  "independent_artifact_review": {
+    "decision": "No findings. Full Git970 pins, raw manifests, ordered63+188 cases, unchanged old modules/assertions/deadlines and exact old188 cleanup properties verified.",
+    "limits": "Reviewer did not author the Resource change or execute tests. Earlier source cuts differ; no same-source timing comparison or causal repair.",
+    "review_sha256": "be697b0c129b6c40952b4baf791b348b5b771424b47de3dadb1ca174f0af9270",
+    "reviewer": "/root/native_reuse_source_review/codec_field_scan_equivalence",
+    "seal_sha256": "0f76a840c72a89c731d06fdfe5f751444ada2c5310b610b5c7d8877f9489d5b5"
+  },
+  "issues": [
+    239,
+    228
+  ],
+  "limitations": [
+    "Fresh changed-source CI is required before merge; no workflow rerun or assertion/deadline waiver.",
+    "All251 are local architecture/contract checks with synthetic inputs and controlled inference outputs; no model accuracy, provider, GPU, live device, demo or full-roadmap qualification.",
+    "CI441/442/456 failures and earlier local failures remain evidence; this pass establishes no common cause, causal timing repair or general performance result.",
+    "Nativev2 Agent settlement, H64 capacity, finite-run quota work, recurrence, inbox and editor remain separate unpublished work."
+  ],
+  "prior_ci456": {
+    "actual_checkout": "1b26ce7a772f6bf4c345c087fb2fe8ca4e725897",
+    "android": "passed",
+    "complete_shared_tree": "4d01a3397776e92e53833d70c87d4475bb1969f5",
+    "failed_cases": [
+      "tests/integration/test_standing_physical_finalization.py::test_finalizer_restores_only_exact_original_reserved_lease",
+      "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap"
+    ],
+    "flutter": "1143Flutter and38audio-bridge tests plus analysis/format/web builds passed",
+    "head": "ac280b0e5a1ecabca4a1db342c8cd2b07b6056ce",
+    "ios": "both unsigned simulator builds passed; no device execution claim",
+    "observations": "Reserved-lease finalizer was done at its post-timeout snapshot; large-graph native report remained pending. These distinct observations establish neither deadline-relative completion nor worker instruction, SQL/COMMIT, Store-lock or scheduling cause.",
+    "python311": "10981passed,6skipped,2deselected;export/audit passed",
+    "python312": "10979passed,2failed,6skipped,2deselected;export/audit skipped",
+    "raw_python311_log_sha256": "e9b0ede139b41fb2409c3585f3a4712d7830a28eba5c54003b9b3c08f981f4e7",
+    "raw_python312_log_sha256": "f66215366fc2f36b8f4e3069ddcfc29389e58155203494853ac3adc7814eae10",
+    "recovered_raw_manifest_sha256": "f0386ea2ec6b2bf28051121d784c78c783ccbf92ac4bde2dfed1f776abe2b3ac",
+    "recovery_notice": "Earlier managed checkout removal made earlier ignored receipts unavailable. These CI payloads were freshly re-fetched and independently reviewed; missing old receipts were not recreated.",
+    "run_id": 41491251237,
+    "unchanged_outer_seconds": 8,
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41491251237"
+  },
+  "publication_boundary": "The following publication commit adds only this evidence and the two linked documentation addenda. Every other qualified970 source/test/schema/lock/UI path must remain exact; complete fresh CI remains required.",
+  "pull_request": 315,
+  "purpose": "Remove descendant-root rescans within one checked Resource field reconstruction while preserving complete graphs, strict fields, native authority and original cleanup. No timing-repair claim.",
+  "schema_version": "1.0",
+  "source": {
+    "assembly_receipt_sha256": "f202ef843fc491dc5f8774022247df7023d7afcc35b2c81ed6786974ae24f6a1",
+    "base": "ac280b0e5a1ecabca4a1db342c8cd2b07b6056ce",
+    "change": "The checked entry walks the complete actual graph once. A lexical recursive helper retains exact model/dictionary/typed-child checks and strict scalar reconstruction. Every encoding, constructor, public validator, nested cap and old-kind bridge remains checked. No cross-call cache, public bypass or concurrent-mutation snapshot guarantee.",
+    "changed_function": "_fields",
+    "current_main": "939ad7e04ead414cda8f5c61a8cf7e3ed2bcdaca",
+    "full_dart_files_exact_main": 250,
+    "full_penpot_entries_exact_main": 5,
+    "git_blob": "f09eab629da3664dfad47b3dd96306fef28aff9f",
+    "independent_source_addendum_sha256": "bf3a3498e67f5b4e88ba00bf0388d2ca6b743b2a512f063deda7f7b7db697f0b",
+    "main_imported_paths": 34,
+    "main_qualification_limit": "The Python gates do not qualify newer Flutter/Penpot behavior; fresh complete CI is required.",
+    "path": "packages/contracts/standing_resource_finalization.py",
+    "preserved_from_base": {
+      "lockfiles": 7,
+      "old_root_test_paths": 336,
+      "other_python_paths": 623,
+      "schema_files": 192
+    },
+    "qualified_head": "970752bd88ed04b54d86f0c7ff5cabf1ee095561",
+    "qualified_tree": "95c143c24b3cc7a42295452e7669584f900263d4",
+    "sha256": "0b39139a617c8b87166993fe10db23f45b878f647883bca1b17ffae230307c5a"
+  },
+  "static_checks": {
+    "contract_export": "passed with explicit isolated PYTHONPATH;192schema bytes unchanged",
+    "diff_check": "passed",
+    "raw_manifest_sha256": "4a0a34f1a2c6cc5209298b0c2d294942453874c139073c3b390a757e646e25af",
+    "raw_receipt_sha256": "510706ff9334ef1e4f9b92fa714d51ff35b397406f8b4abb0688d4477e007ab2",
+    "ruff_check": "passed",
+    "ruff_format_check": "passed:788files",
+    "scope": "Actual archived final static/export checks at qualified970 with only the three documentation/evidence changes; all1517 other qualified paths exact. This evidence then links their receipt without changing runtime/tests/schemas/UI."
+  }
+}

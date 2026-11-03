@@ -15,6 +15,7 @@ from core.policy import PolicyDenied
 from packages.contracts.agent_submit import AgentSubmitUnavailable, AgentSubmitUnconfirmed
 from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, NativeToolSnapshot
 from packages.contracts.models import AgentModelPin, Session, Task, TaskState
+from packages.contracts.operation_ownership import actual_owner
 from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
 from packages.contracts.standing_execution import (
     StandingExecutionClaim,
@@ -32,6 +33,7 @@ from packages.contracts.standing_resource_finalization import (
 from packages.contracts.standing_work import _tree
 from packages.providers.disclosure import scope_allowed
 from packages.providers.text import ProviderCleanupError
+from services.agent.resource_completion import StandingClaimOwner
 from services.agent.task_model_lease import TaskModelLease
 from services.agent.workspace_ownership import captured_context
 
@@ -63,6 +65,10 @@ def tool_snapshot(runtime) -> NativeToolSnapshot:
 
 
 def check_action(runtime, rec, tool):
+    owner = getattr(rec, "standing_owner", None)
+    if owner is None:
+        raise PolicyDenied("Standing native owner is unavailable")
+    owner.guard()
     if (
         runtime._tasks.get(rec.task.task_id) is not rec
         or runtime._closed
@@ -112,6 +118,7 @@ class _Attempt:
     capability: bytes | None = field(repr=False)
     journal: object = None
     resource_client: object = None
+    claim_owner: object = None
     suppressed: asyncio.Future = field(
         default_factory=lambda: asyncio.get_running_loop().create_future()
     )
@@ -126,10 +133,10 @@ class _Attempt:
     lease: TaskModelLease | None = None
     authority: tuple | None = None
 
-    def suppress(self):
+    def suppress(self, *, notify=True):
         self.active = False
         self.capability = None
-        if not self.suppressed.done():
+        if notify and not self.suppressed.done():
             self.suppressed.set_result(None)
         if not self.launched and self.lease is not None:
             self.lease.start_close()
@@ -139,6 +146,7 @@ class _Attempt:
 
     def guard(self):
         runtime, task = self.runtime, self.original.task
+        self.claim_owner.guard()
         current = asyncio.current_task()
         if (
             not self.active
@@ -308,7 +316,7 @@ class _Attempt:
             claim = checked_finalization(claim, StandingExecutionClaim)
             if finalization_bytes(claim.request) != finalization_bytes(original):
                 raise AgentSubmitUnavailable
-            receipt = await bind(claim)
+            receipt = await self.claim_owner.bind(claim)
             before_allocation()
             if type(receipt) is not StandingResourceBindingReceipt:
                 raise AgentSubmitUnavailable
@@ -335,6 +343,9 @@ class _Attempt:
                     include_auxiliary=False,
                 )
                 self.lease = lease
+                if type(lease) is TaskModelLease:
+                    self.claim_owner.lease = lease
+                    lease.retain(self.claim_owner.scope)
                 if (
                     type(lease) is not TaskModelLease
                     or lease.adapters != [provider]
@@ -369,6 +380,7 @@ class _Attempt:
                     model_lease=lease,
                     workspace_context=self.context,
                 )
+                self.claim_owner.attach_record(self.record, lease)
                 self.authority = _authority(runtime, self.record)
                 self.fresh()
             await self.session()
@@ -377,7 +389,7 @@ class _Attempt:
             if not callable(admit):
                 raise AgentSubmitUnavailable
             self.sent = True
-            result = await admit(original, capability=self.capability)
+            result = await self.claim_owner.admit(self.capability)
             self.guard()
             if type(result) is not StandingTaskAdmission:
                 raise AgentSubmitUnavailable
@@ -402,6 +414,7 @@ class _Attempt:
             self.launched = True
             runtime._tasks[rec.task.task_id] = rec
             rec.worker = asyncio.create_task(runtime._run(rec))
+            self.claim_owner.retain_worker(rec.worker)
             return result
         except asyncio.CancelledError:
             self.suppress()
@@ -414,6 +427,9 @@ class _Attempt:
             raise AgentSubmitUnavailable from None
         finally:
             if not self.launched:
+                # A resolved retained reply is knowledge, not a launch. Keep
+                # its facade alive through original unused-model cleanup.
+                self.claim_owner.fence(abort=not self.resolved)
                 if self.resolved:
                     self.active = False
                     self.capability = None
@@ -456,12 +472,17 @@ async def submit_standing(runtime, original, *, capability: bytes) -> StandingTa
     except Exception:
         raise PolicyDenied("Standing launch request is invalid") from None
     attempt = _Attempt(runtime, original, deadline, capability, journal=runtime.journal)
+    owner = attempt.claim_owner = StandingClaimOwner(runtime, original, capability)
+    owner.attempt = attempt
     runtime._submit_preflights.add(attempt)
     try:
-        operation = runtime._start_submit_operation(attempt.run)
+        with actual_owner(owner.scope):
+            operation = runtime._start_submit_operation(attempt.run)
+        owner.retain_preflight(operation)
     except BaseException:
         attempt.suppress()
         runtime._submit_preflights.discard(attempt)
+        owner.start_retirement()
         raise
     # A task cancelled before its coroutine first runs never enters run's
     # finally. Retire its entry ownership at actual task settlement too.

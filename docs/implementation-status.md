@@ -9,6 +9,114 @@ The owner requested reconciliation before further feature work. Inputs were the 
 
 **Implemented** means the cited bounded behavior exists and has the stated verification. **Experimental** retains research, environment or reliability limits. **Unverified** identifies an acceptance gate without sufficient evidence. **Planned** identifies work without a qualified implementation. A milestone can contain all four. Open parent issues are not closed by this ledger; stale “queued” descriptions do not erase merged work. No percentage-complete or production-readiness claim is made.
 
+## November 2 merged prerequisites and Agent retirement
+
+The subsequent [reply/context construction qualification](../evaluation/evidence/resource-finalization-context-construction-2026-11-02.json)
+records clean source `7dd787c`: all 251 checks pass with zero failures, errors or
+skips and all 1,520 tracked inputs, HEAD and runner stable. The API encodes fresh
+fully validated replies without rebuilding them again; an argument passed to an
+owner callback still receives public validation. The legacy owner's private
+context precomputation hashes the actual complete graph immediately before the
+unchanged constructor rebuilds and checks every child and semantic join. Public
+validators, fresh history/pre-commit audits, native guards and cleanup ownership
+remain. All 192 schemas, 336 old test paths and seven lockfiles are unchanged.
+Independent source and raw-evidence reviews pass within that bounded scope.
+Whole-repository Ruff/format and explicit isolated contract export pass. The
+separate native-v2 context change is excluded from this publication.
+
+[CI497](https://github.com/rgoza1996/Kinaiya/actions/runs/41549775386) on earlier
+`8c060bb` passed Python 3.11 (10,981 plus export/audit), Flutter, Android and iOS.
+Python 3.12 passed 10,980 and failed the unchanged large-graph finalization case
+at its outer eight-second deadline; its export/audit steps did not run. Both
+Python logs confirm checkout `c6822ee`, whose tree exactly matches `8c060bb`.
+The report wrapper result was observed while outer call/finalizer/native HTTP
+and thread work remained pending. This does not identify deadline-relative
+completion or a cause. Earlier red runs remain recorded below. PR315 remains
+draft/unmerged pending changed-source CI; no rerun or assertion/deadline waiver.
+These local passes establish neither a causal timing repair nor H64, model,
+live-device or demonstration readiness.
+
+The subsequent [Resource graph-walk qualification](../evaluation/evidence/resource-finalization-graph-walk-2026-11-02.json)
+records clean source `970752b`: all 251 checks pass (63 Resource contract cases
+plus the 188 affected regressions), with all 1,519 tracked inputs and HEAD stable.
+The checked field-reconstruction entry scans the full graph once; recursive
+frames retain exact shape/type/scalar checks. Constructors, public validators,
+complete encodings, caps, native observations and transaction guards remain.
+Independent source and raw-evidence reviews found no issues. All 192 old schemas
+and 336 old test paths remain unchanged. The normal merge includes main
+`939ad7e`'s Dart/Penpot changes; the Python checks do not qualify those UI changes.
+
+[CI456](https://github.com/rgoza1996/Kinaiya/actions/runs/41491251237) on earlier
+`ac280b0` passed Python 3.11 (10,981 tests plus export/audit), Flutter/web,
+Android and both unsigned iOS simulator builds. Python 3.12 passed 10,979 and
+failed the same two unchanged eight-second finalization cases; export/audit did
+not run. The reserved-lease finalizer was done at its post-timeout snapshot;
+the large-graph native report remained pending. Neither observation establishes
+deadline-relative completion or the underlying cause. Freshly recovered raw CI
+evidence is distinguished from unavailable earlier ignored receipts. PR315
+remains draft/unmerged and requires fresh changed-source CI; local passes do
+not establish a causal timing repair. No deadline/assertion waiver or CI rerun.
+
+The subsequent [fresh native-graph reuse](../evaluation/evidence/native-report-fresh-reuse-2026-11-02.json)
+qualifies source `5bae42ea` with all 188 affected regressions passing unchanged
+tests/deadlines. Only same-call repeated validation of fresh private graphs is
+removed; complete constructors, canonical graph walks, fresh observations and
+pre-commit/cleanup guards remain. Independent source and artifact reviews pass.
+This remains a local gate: PR315 is draft/unmerged and needs changed-head CI.
+
+[CI442](https://github.com/rgoza1996/Kinaiya/actions/runs/41478156959) for earlier
+`102913a7` is terminal: Python 3.11 passed 10,981 plus export/audit; Python 3.12
+passed 10,979 but failed the same two unchanged eight-second finalization cases,
+with export/audit skipped. Flutter/web and Android passed. iOS never acquired a
+hosted runner and was cancelled before any step. No rerun, assertion/deadline
+waiver or causal timing-fix claim follows from the later local passes.
+
+While this correction was qualified, main advanced to `19b8363` with six UI
+increments. Normal merge `1f4623e` preserves all 12 newer Dart app/test files
+exactly, while qualified Python/runtime/test/schema inputs remain unchanged.
+The combined publication still requires its own complete CI gate; the 188 local
+Python checks do not qualify the newly integrated Flutter behavior.
+
+[PR314](https://github.com/rgoza1996/Kinaiya/pull/314) merged the reviewed
+standing-work prerequisites into main `d2bbd30a`, whose tree exactly matches
+qualified head `a553a7d3`. All five
+[CI439 jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966365)
+passed; Python 3.11 and 3.12 each passed 10,951 tests with six skips and two
+deselections. All five
+[Linux lifecycle jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966375)
+also passed their 16 ordered checks. Earlier red runs remain evidence; these
+passes do not reconstruct or establish a causal fix for their timing failures.
+The older dated entries below retain their original source cutoffs.
+
+The subsequent [current-process Agent claim owner](adr/0109-agent-claim-retirement.md)
+retains preflight, original worker/model/control/HTTP cleanup and a separate
+automatic Resources finalizer. A permanent fence prevents new effects, late
+replies cannot reopen launch, and captured original clients survive replacement
+and bounded shutdown. Standing claims no longer use the early per-worker legacy
+restoration callback; ordinary behavior remains. The
+[qualification record](../evaluation/evidence/agent-claim-retirement-2026-11-02.json)
+records 30 new controlled checks and 414 existing regressions, separately
+attributed source cuts, preserved failures, fixture calibration and independent
+review. Applicable exact-head CI remains required for this new increment.
+
+[CI441](https://github.com/rgoza1996/Kinaiya/actions/runs/41464568709) subsequently
+passed Flutter/web, Android, iOS and Python 3.11, but Python 3.12 failed two
+unchanged eight-second physical-finalization cases. PR315 remains draft and
+unmerged. The follow-up source `15fbc836` removes two redundant same-call native
+validation passes while retaining fresh pre-commit observation, complete graph
+validation and the original transaction guards. Its
+[qualification record](../evaluation/evidence/native-report-validation-2026-11-02.json)
+records 188 passing affected local regressions and independent source review.
+The baseline also passed a local one-shot of the two failed cases: neither local
+result establishes the CI timeout cause or a causal timing fix. No deadline or
+assertion was relaxed; changed-head CI is still required before merge.
+
+These tests establish architectural behavior with controlled inference outputs.
+They do not qualify model accuracy, a live stack or a demonstration. Native Task
+settlement, claim/reservation and active-slot release, recurrence, inbox and
+editor remain unfinished under #228 / #239. Historical records cannot reconstruct
+lost original work ownership after restart. The full roadmap remains open.
+
 ## October 31 Options increment
 
 [ADR0092](adr/0092-approval-expiry-renewal.md) adds visible paused approval
