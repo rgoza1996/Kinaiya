@@ -59,7 +59,6 @@ from packages.contracts.standing_resource_finalization import (
     StandingResourceFinalizeRequest,
     checked_finalization,
     finalization_bytes,
-    resource_finalize_context_digest,
 )
 from packages.contracts.standing_resources import (
     StandingResourceObservation,
@@ -879,6 +878,8 @@ class StandingSettlementOwner:
         ).validate_request(original)
 
     def _context(self, request, item, meta, generations, coverage):
+        from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _hash
+
         if request.original.expected_backend != meta["backend_id"]:
             raise StandingConflict
         self.tasks.dispatch._known(request.original.expected_instance, generations)
@@ -891,18 +892,21 @@ class StandingSettlementOwner:
         ):
             raise StandingConflict
         observation = self._observation(item, coverage)
+        context_body = {
+            "schema_version": "1.0",
+            "request": request,
+            "binding": item.binding,
+            "closure": item.closure,
+            "observation": observation,
+        }
+        try:
+            context_digest = _hash(b"kinaiya.standing.resource-finalize-context.v1", context_body)
+        except _FAILURES:
+            raise ValueError(_ERROR) from None
         # The complete constructor rebuilds every child and verifies the full
         # request/claim/initial/reservation joins on these fresh locals.
-        return StandingResourceFinalizeContext(
-            schema_version="1.0",
-            request=request,
-            binding=item.binding,
-            closure=item.closure,
-            observation=observation,
-            context_digest=resource_finalize_context_digest(
-                request, item.binding, item.closure, observation
-            ),
-        )
+        # Hash their actual fields without repeating that construction here.
+        return StandingResourceFinalizeContext(**context_body, context_digest=context_digest)
 
     def _settlement_joins(self, item, request):
         from packages.contracts import standing_agent_settlement as agent_codec
