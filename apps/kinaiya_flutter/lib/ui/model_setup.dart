@@ -8,6 +8,7 @@ import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'floating_bubbles.dart';
 import 'bubble_options_morph.dart';
+import 'options_converse_model.dart';
 
 /// Read-only host configuration and a separately saved local view preference.
 /// Opening this surface never loads a model, captures audio or changes consent.
@@ -750,9 +751,29 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                     final wide =
                         box.maxWidth / scale >= 1050 &&
                         box.maxHeight / scale >= 650;
-                    final diameter = wide
-                        ? 178 * scale
-                        : (160 * scale).clamp(0.0, box.maxWidth - 16);
+                    double narrowDiameter() {
+                      final maxDiameter = (160 * scale).clamp(
+                        0.0,
+                        box.maxWidth - 16,
+                      );
+                      final minDiameter = (132 * scale).clamp(0.0, maxDiameter);
+                      for (
+                        var candidate = maxDiameter;
+                        candidate >= minDiameter;
+                        candidate -= 8 * scale
+                      ) {
+                        final cols = ((box.maxWidth + 16) / (candidate + 16))
+                            .floor()
+                            .clamp(1, _sections.length);
+                        final rows = (_sections.length / cols).ceil();
+                        if (rows * (candidate + 24) + 64 <= box.maxHeight) {
+                          return candidate;
+                        }
+                      }
+                      return maxDiameter;
+                    }
+
+                    final diameter = wide ? 178 * scale : narrowDiameter();
                     if (_bubbleLayoutSize != box.biggest ||
                         _bubbleDiameter != diameter) {
                       // Responsive replacement does not deliver MouseRegion.onExit.
@@ -926,10 +947,16 @@ class ConverseModelSummary extends StatefulWidget {
     required this.state,
     this.onModelSettings,
     this.onConnectionSetup,
+    this.onOpenModelOptions,
+    this.onAddModel,
+    this.menuController,
   });
   final AppState state;
   final VoidCallback? onModelSettings;
   final VoidCallback? onConnectionSetup;
+  final VoidCallback? onOpenModelOptions;
+  final VoidCallback? onAddModel;
+  final MenuController? menuController;
 
   @override
   State<ConverseModelSummary> createState() => _ConverseModelSummaryState();
@@ -937,8 +964,102 @@ class ConverseModelSummary extends StatefulWidget {
 
 class _ConverseModelSummaryState extends State<ConverseModelSummary> {
   bool _expanded = false;
+  final _localMenu = MenuController();
+  final _modelFavorites = <String>{};
+  int? _favoritesGeneration;
+  AppState? _favoritesOwner;
 
   AppState get _s => widget.state;
+
+  Widget _modelPicker() {
+    final owner = _s;
+    final client = owner.client;
+    final generation = owner.connectionGeneration;
+    if (!identical(_favoritesOwner, owner) ||
+        _favoritesGeneration != generation) {
+      _modelFavorites.clear();
+      _favoritesOwner = owner;
+      _favoritesGeneration = generation;
+    }
+    bool current() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        client != null &&
+        owner.connected &&
+        owner.sessionAuthenticated &&
+        owner.converseOnline &&
+        owner.ownsConnection(generation, client);
+    return MenuAnchor(
+      controller: widget.menuController ?? _localMenu,
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(
+          Theme.of(context).colorScheme.surfaceContainerLow,
+        ),
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      menuChildren: [
+        Builder(
+          builder: (context) {
+            final size = MediaQuery.sizeOf(context);
+            return SizedBox(
+              width: math.min(380, math.max(180, size.width - 32)),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: math.min(550, math.max(150, size.height - 48)),
+                ),
+                child: OptionsConverseModel(
+                  api: current() ? client?.converseModels : null,
+                  active: current,
+                  compact: true,
+                  favorites: _modelFavorites,
+                  onInvalidate: () {
+                    if (current()) owner.invalidateConverseInference();
+                  },
+                  onSettled: () async {
+                    if (current()) {
+                      await owner.revalidateConverseInference(
+                        invalidate: false,
+                      );
+                    }
+                  },
+                  onOpenModelOptions:
+                      (widget.onOpenModelOptions ?? widget.onModelSettings) ==
+                          null
+                      ? null
+                      : () {
+                          MenuController.maybeOf(context)?.close();
+                          (widget.onOpenModelOptions ??
+                              widget.onModelSettings)!();
+                        },
+                  onAddModel: widget.onAddModel == null
+                      ? null
+                      : () {
+                          MenuController.maybeOf(context)?.close();
+                          widget.onAddModel!();
+                        },
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+      builder: (context, controller, child) => TextButton.icon(
+        key: const ValueKey('converse-model-summary-settings'),
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+        icon: const Icon(Icons.expand_more, size: 18),
+        label: const Text('Choose model'),
+      ),
+    );
+  }
 
   String get _modelLabel {
     final model = (_s.converseProvider?['model'] as String?)?.trim();
@@ -1004,31 +1125,34 @@ class _ConverseModelSummaryState extends State<ConverseModelSummary> {
           spacing: 12,
           runSpacing: 6,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  needsAttention
-                      ? Icons.info_outline_rounded
-                      : isLocal
-                      ? Icons.memory_rounded
-                      : Icons.cloud_outlined,
-                  size: 18,
-                  color: needsAttention
-                      ? scheme.error
-                      : scheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    _modelLabel,
-                    key: const ValueKey('converse-model-summary-identity'),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+            InkWell(
+              onTap: () => (widget.menuController ?? _localMenu).open(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    needsAttention
+                        ? Icons.info_outline_rounded
+                        : isLocal
+                        ? Icons.memory_rounded
+                        : Icons.cloud_outlined,
+                    size: 18,
+                    color: needsAttention
+                        ? scheme.error
+                        : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _modelLabel,
+                      key: const ValueKey('converse-model-summary-identity'),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             Text(
               _qualificationLabel,
@@ -1052,12 +1176,7 @@ class _ConverseModelSummaryState extends State<ConverseModelSummary> {
                   ),
                   label: Text(_expanded ? 'Hide details' : 'Model details'),
                 ),
-                if (widget.onModelSettings != null)
-                  TextButton(
-                    key: const ValueKey('converse-model-summary-settings'),
-                    onPressed: widget.onModelSettings,
-                    child: const Text('Change / Model settings'),
-                  ),
+                _modelPicker(),
                 if ((!isLocal || needsAttention) &&
                     widget.onConnectionSetup != null)
                   TextButton(

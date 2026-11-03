@@ -76,6 +76,8 @@ class CharacterView extends StatefulWidget {
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
     this.onConnectionSetup,
+    this.onOpenModelOptions,
+    this.onAddModel,
     this.showConverseView = true,
     this.setupOpen = false,
     this.animateTransitions = true,
@@ -96,6 +98,7 @@ class CharacterView extends StatefulWidget {
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
   final VoidCallback? onConnectionSetup;
+  final VoidCallback? onOpenModelOptions, onAddModel;
   final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
   final bool richArtifactsEnabled;
   final ValueChanged<bool>? onRichArtifactsEnabled;
@@ -108,6 +111,7 @@ class CharacterView extends StatefulWidget {
 const List<int> endSilenceOptionsMs = <int>[800, 1500, 2500];
 
 class _CharacterViewState extends State<CharacterView> {
+  final _modelMenu = MenuController();
   ConverseViewControls? _registeredControls;
   Future<void> Function()? _registeredVoiceOptions;
   Widget? Function()? _registeredVoicePanel;
@@ -1826,13 +1830,7 @@ class _CharacterViewState extends State<CharacterView> {
           ? 'Open Agent Chat'
           : 'Open Kinaiya setup',
       child: InkWell(
-        onTap:
-            (widget.surface == CharacterSurface.home && !_s.connected
-                ? widget.onConnectionSetup
-                : null) ??
-            widget.onModelSettings ??
-            widget.onConnectionSetup ??
-            _openAgent,
+        onTap: widget.onModelSettings ?? widget.onConnectionSetup ?? _openAgent,
         borderRadius: BorderRadius.circular(24),
         child: pack == null
             ? SizedBox(width: size, height: size)
@@ -2812,6 +2810,15 @@ class _CharacterViewState extends State<CharacterView> {
         : 'Microphone unavailable here',
     setupLabel: _homeSetupLabel,
     onSetup: _homeSetupAction,
+    onConverseSetup: widget.onModelSettings ?? _homeSetupAction,
+    sleepingCharacterWrapper: (artwork) => Semantics(
+      button: true,
+      label: 'Open Kinaiya setup',
+      child: InkWell(
+        onTap: widget.onModelSettings ?? _homeSetupAction,
+        child: artwork,
+      ),
+    ),
     agentStatus: !_s.agentOnline
         ? 'Not connected'
         : !_s.sessionAuthenticated || _s.tasksStatusStale
@@ -2902,6 +2909,9 @@ class _CharacterViewState extends State<CharacterView> {
                   state: _s,
                   onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
                   onConnectionSetup: widget.onConnectionSetup,
+                  onOpenModelOptions: widget.onOpenModelOptions,
+                  onAddModel: widget.onAddModel,
+                  menuController: _modelMenu,
                 ),
                 status: _status,
                 stageState: _converseStageState,
@@ -2919,7 +2929,7 @@ class _CharacterViewState extends State<CharacterView> {
                     : _armed || _recording || _micStopUnconfirmed
                     ? 'Mute'
                     : 'Unmute',
-                onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+                onModelSettings: _modelMenu.open,
                 onHistory: _openHistory,
                 onVoiceOptions: _openVoiceOptions,
                 onMemory: () =>
@@ -3028,6 +3038,22 @@ class _CharacterViewState extends State<CharacterView> {
                               ),
                             ],
                             _ownerSleepControl(),
+                            if (!widget.showConverseView)
+                              TextButton.icon(
+                                key: const ValueKey(
+                                  'home-converse-hidden-setup',
+                                ),
+                                onPressed:
+                                    widget.onModelSettings ?? _homeSetupAction,
+                                icon: const Icon(
+                                  Icons.visibility_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Converse view is hidden · Enable it in Setup',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                           ],
                         ),
                       ),

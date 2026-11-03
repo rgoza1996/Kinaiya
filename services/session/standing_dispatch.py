@@ -33,6 +33,7 @@ from packages.contracts.standing_dispatch import (
 from packages.contracts.standing_work import (
     StandingConflict,
     StandingUnavailable,
+    _encode,
     canonical_bytes,
 )
 
@@ -231,7 +232,7 @@ class StandingDispatchOwner:
         if type(text) is not str:
             raise StandingUnavailable
         value = kind.from_json(text.encode("utf-8"))
-        if canonical_bytes(value).decode("utf-8") != text:
+        if _encode(value).decode("utf-8") != text:
             raise StandingUnavailable
         return value
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
@@ -50,6 +51,34 @@ void main() {
   );
 
   testWidgets(
+    'clicking the resting Home mascot when disconnected opens floating setup bubbles',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final state = AppState();
+      await tester.pumpWidget(KinaiyaApp(state: state));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final sleepingMascot = find.byKey(
+        const ValueKey('home-sleeping-artwork'),
+      );
+      expect(sleepingMascot, findsOneWidget);
+      final rect = tester.getRect(sleepingMascot);
+      await tester.tapAt(
+        Offset(rect.left + rect.width * .5, rect.top + rect.height * .35),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ModelSetupDialog), findsOneWidget);
+      expect(find.byKey(const ValueKey('setup-bubble-model')), findsOneWidget);
+      expect(find.byKey(const ValueKey('setup-bubble-view')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
+
+  testWidgets(
     'mascot opens setup during a resource pause and Agent remains independent',
     (tester) async {
       final semantics = tester.ensureSemantics();
@@ -76,6 +105,37 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets('Converse model button and summary open the same picker', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final state = AppState();
+    await tester.pumpWidget(KinaiyaApp(state: state));
+    await tester.pump(const Duration(milliseconds: 300));
+    await navigateTo(tester, AppView.character);
+    final button = find.byKey(const ValueKey('converse-model-settings'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('quick-model-picker')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('quick-model-picker')), findsNothing);
+    final summary = find.byKey(
+      const ValueKey('converse-model-summary-identity'),
+    );
+    await tester.ensureVisible(summary);
+    await tester.tap(summary);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('quick-model-picker')), findsOneWidget);
+    expect(state.converseDraft, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    state.dispose();
+  });
 
   testWidgets('converse has no command UI; slash text stays ordinary', (
     tester,
