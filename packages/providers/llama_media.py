@@ -134,6 +134,57 @@ def _strict_json_object(raw: bytes, limit: int, label: str) -> dict:
     return value
 
 
+def _same_closed_json(expected: object, actual: object, *, ordered: bool = True) -> bool:
+    """Compare only along an already bounded decoded JSON blueprint.
+
+    Exact builtins prevent caller equality/iteration hooks. Length and shape
+    checks reject larger independent graphs before encoding or copying them.
+    """
+    pending = [(expected, actual)]
+    while pending:
+        left, right = pending.pop()
+        kind = type(left)
+        if type(right) is not kind:
+            return False
+        if kind is dict:
+            if len(left) != len(right):
+                return False
+            if ordered:
+                for (key, value), (other_key, other_value) in zip(
+                    left.items(), right.items(), strict=True
+                ):
+                    if type(other_key) is not str or len(other_key) != len(key) or other_key != key:
+                        return False
+                    pending.append((value, other_value))
+            else:
+                maximum_key_chars = max((len(key) for key in left), default=0)
+                # Validate every caller key before any lookup can compare it.
+                for key in right:
+                    if type(key) is not str or len(key) > maximum_key_chars:
+                        return False
+                for key, value in left.items():
+                    if key not in right:
+                        return False
+                    pending.append((value, right[key]))
+        elif kind is list:
+            if len(left) != len(right):
+                return False
+            pending.extend(zip(left, right, strict=True))
+        elif kind is str:
+            if len(left) != len(right) or left != right:
+                return False
+        elif kind is float:
+            # JSON distinguishes -0.0 from 0.0 despite numeric equality.
+            if left.hex() != right.hex():
+                return False
+        elif kind in (type(None), bool, int):
+            if left != right:
+                return False
+        else:
+            return False
+    return True
+
+
 def _validate_utf8_text(value: object, maximum_chars: int, label: str) -> str:
     if type(value) is not str or not 1 <= len(value) <= maximum_chars:
         raise LlamaMediaProtocolError(f"{label} must be a non-empty bounded string")
@@ -1355,15 +1406,15 @@ def _validate_prepared_request(
     _validate_sha256(prepared.request_sha256, "Prepared media request_sha256")
     if hashlib.sha256(prepared.raw_body).hexdigest() != prepared.request_sha256:
         raise LlamaMediaProtocolError("Prepared media request_sha256 did not match raw_body digest")
-    if type(prepared.body) is not dict or _compact_json(prepared.body) != prepared.raw_body:
-        raise LlamaMediaProtocolError(
-            "Prepared media request body was mutated or did not match raw_body"
-        )
     decoded_body = _strict_json_object(
         prepared.raw_body, MAX_REQUEST_WIRE_BYTES, "Prepared local media request"
     )
-    if decoded_body != prepared.body or _compact_json(decoded_body) != prepared.raw_body:
+    if _compact_json(decoded_body) != prepared.raw_body:
         raise LlamaMediaProtocolError("Prepared media request JSON encoding is not canonical")
+    if not _same_closed_json(decoded_body, prepared.body):
+        raise LlamaMediaProtocolError(
+            "Prepared media request body was mutated or did not match raw_body"
+        )
 
     max_parts = MAX_MEDIA_PARTS if prepared.mode == "converse_chat" else MAX_SYSTEMONE_FILES
     if type(prepared.provenance) is not tuple or not (1 <= len(prepared.provenance) <= max_parts):
@@ -1527,7 +1578,7 @@ def _validate_prepared_request(
             raise LlamaMediaProtocolError("decisions_systemone body model did not match")
         _validate_utf8_text(decoded_body["state"], MAX_STATE_CHARS, "SystemOne state")
         validated_questions = _validate_questions(decoded_body["questions"])
-        if type(prepared.questions) is not dict or prepared.questions != validated_questions:
+        if not _same_closed_json(validated_questions, prepared.questions, ordered=False):
             raise LlamaMediaProtocolError(
                 "decisions_systemone prepared questions did not match body"
             )

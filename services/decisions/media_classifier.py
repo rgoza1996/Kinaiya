@@ -61,6 +61,7 @@ _SPEAKER_POSTURES = frozenset(
 _RANGE_KINDS = frozenset({"audio", "image", "video_frame", "video_clip"})
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _MAX_TASK_DESCRIPTION_CHARS = 360
+MAX_TASK_DESCRIPTION_INPUT_CHARS = MAX_TEXT_CHARS
 _MAX_RANGES = 16
 
 
@@ -282,6 +283,10 @@ def _normalize_tasks(tasks: Sequence[MediaTaskCandidate | dict]) -> tuple[MediaT
                 raw_desc = ""
             if type(raw_desc) is not str:
                 raise ProviderRefusal("Task description must be a string")
+            if len(raw_desc) > MAX_TASK_DESCRIPTION_INPUT_CHARS:
+                raise ProviderRefusal(
+                    "Raw task description exceeds the 16000-character input limit"
+                )
             desc = " ".join(raw_desc.split())[:_MAX_TASK_DESCRIPTION_CHARS]
             candidate = MediaTaskCandidate(
                 task_id=item.get("task_id"),
