@@ -97,7 +97,11 @@ class ConnectionProfile {
       final problem = validateServiceUrl(entry.value);
       if (problem != null) return '${entry.key}: $problem';
     }
-    if (ownerToken.isEmpty) return 'Owner Bearer [REDACTED] is required.';
+    if (ownerToken.isEmpty) {
+      return 'Owner access token is required. Enter your host owner token '
+          '(from KINAIYA_OWNER_TOKEN in .env or Load local access token) '
+          'before clicking Connect.';
+    }
     return null;
   }
 
