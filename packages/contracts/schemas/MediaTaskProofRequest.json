@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "MediaSession": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "MediaSession",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "original_admission_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Original Admission Id",
+      "type": "string"
+    },
+    "session": {
+      "$ref": "#/$defs/MediaSession"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "key",
+    "session",
+    "original_admission_id"
+  ],
+  "title": "MediaTaskProofRequest",
+  "type": "object"
+}
