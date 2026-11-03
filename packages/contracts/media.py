@@ -1182,12 +1182,16 @@ def _graph(value) -> None:
                 _bad()
             item = values
         if type(item) is dict:
+            if nodes + len(pending) + len(item) > MAX_MEDIA_NODES:
+                _bound()
             for key, child in item.items():
                 if type(key) is not str:
                     _bad()
                 key.encode("utf-8")
                 pending.append((child, depth + 1))
         elif type(item) is list:
+            if nodes + len(pending) + len(item) > MAX_MEDIA_NODES:
+                _bound()
             pending.extend((child, depth + 1) for child in item)
         elif type(item) is str:
             item.encode("utf-8")
