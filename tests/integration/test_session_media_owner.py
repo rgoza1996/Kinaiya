@@ -568,6 +568,162 @@ async def _stack(tmp_path, *, limits=None, lose_first_ack=False, allow_unknown_s
             _RETAINED_FIXTURES.append((private, custody))
 
 
+def _shutdown_exception_snapshot(error):
+    if error is None:
+        return None
+    name = type(error).__name__
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name):
+        return {"type": "non_ascii_type_name", "truncated": True}
+    return {"type": name[:64], "truncated": len(name) > 64}
+
+
+def _shutdown_task_snapshot(task, loop):
+    if task is None:
+        return {"state": "missing"}
+    if type(task) is not asyncio.Task:
+        return {"state": "not_native_task"}
+    if task.get_loop() is not loop:
+        return {"state": "foreign_loop"}
+    value = {"done": task.done(), "cancelled": task.cancelled()}
+    if not value["done"]:
+        value["state"] = "pending"
+    elif value["cancelled"]:
+        value["state"] = "cancelled"
+    else:
+        error = task.exception()
+        if error is not None:
+            value.update(state="exception", exception=_shutdown_exception_snapshot(error))
+        else:
+            result = task.result()
+            value.update(
+                state="returned",
+                result_is_bool=type(result) is bool,
+                result_bool=result if type(result) is bool else None,
+            )
+    return value
+
+
+def _shutdown_snapshot(owner, app):
+    # Diagnostic caps only: no authority, cleanup, SQL/OS, clock or retry calls.
+    limits = {"bytes": 8192, "list_items": 8, "depth": 8, "string_chars": 64}
+    loop = asyncio.get_running_loop()
+
+    def sample(values, describe):
+        return [
+            describe(item) for _, item in zip(range(limits["list_items"]), values, strict=False)
+        ]
+
+    def original_snapshot(original):
+        return {
+            "unknown": original.unknown is True,
+            "fenced": original.fenced.is_set(),
+            "task": _shutdown_task_snapshot(original.task, loop),
+        }
+
+    def cleanup_snapshot(cleanup):
+        if cleanup is None:
+            return {"present": False}
+        return {
+            "present": True,
+            "unknown": cleanup.unknown is True,
+            "task": _shutdown_task_snapshot(cleanup.task, loop),
+            "entered_is_task": type(cleanup.task) is asyncio.Task
+            and cleanup.task.get_loop() is loop
+            and cleanup.entered_task is cleanup.task,
+            "completed_is_task": type(cleanup.task) is asyncio.Task
+            and cleanup.task.get_loop() is loop
+            and cleanup.completed_task is cleanup.task,
+        }
+
+    def source_snapshot(source):
+        connection = source.connection
+        return {
+            "fenced": source.fenced.is_set(),
+            "connection_present": connection is not None,
+            "connection_joined": connection is not None and connection.joined is True,
+            "connection_unknown": connection is not None and connection.unknown is True,
+            "delete_task": _shutdown_task_snapshot(source.delete_task, loop),
+            "expiry_task": _shutdown_task_snapshot(source.expiry_task, loop),
+            "probe": cleanup_snapshot(source.cleanup_probe),
+            "continuation": cleanup_snapshot(source.cleanup_continuation),
+            "upload_deleted": source.upload.deleted is True,
+            "reader_count": len(source.upload._readers),
+        }
+
+    operations = app.state.media_operations
+    with owner._mutex:
+        close = owner._close_operation
+        value = {
+            "limits": limits,
+            "diagnostic_only": True,
+            "truncated": False,
+            "shutdown_unconfirmed": app.state.media_owner_shutdown_unconfirmed is True,
+            "http_close_confirmed": operations._close_confirmed is True,
+            "http_original_count": len(operations._operations),
+            "owner_closing": owner._closing is True,
+            "owner_closed": owner._closed is True,
+            "owner_poisoned": owner._poisoned is True,
+            "intake_count": len(owner._intakes),
+            "native_job_count": len(owner._native_jobs),
+            "native_jobs": sample(
+                owner._native_jobs.values(), lambda task: _shutdown_task_snapshot(task, loop)
+            ),
+            "omitted_native_jobs": max(0, len(owner._native_jobs) - limits["list_items"]),
+            "original_count": len(owner._operations),
+            "originals": sample(owner._operations.values(), original_snapshot),
+            "omitted_originals": max(0, len(owner._operations) - limits["list_items"]),
+            "source_count": len(owner._sources),
+            "sources": sample(owner._sources.values(), source_snapshot),
+            "omitted_sources": max(0, len(owner._sources) - limits["list_items"]),
+            "close_present": close is not None,
+        }
+        if close is not None:
+            value["close"] = {
+                "unknown": close.unknown is True,
+                "sealed": close.sealed is True,
+                "setup_error": _shutdown_exception_snapshot(close.setup_error),
+                "task": _shutdown_task_snapshot(close.task, loop),
+                "phases": {
+                    name: _shutdown_task_snapshot(close.phases.get(name), loop)
+                    for name in ("hub", "spool", "key")
+                },
+                "retained_task_count": len(close.retained),
+                "captured_original_count": len(close.originals),
+                "captured_source_count": len(close.sources),
+                "captured_sources": sample(close.sources.values(), source_snapshot),
+                "omitted_captured_sources": max(0, len(close.sources) - limits["list_items"]),
+            }
+        value["truncated"] = any(
+            value[name] for name in ("omitted_native_jobs", "omitted_originals", "omitted_sources")
+        ) or (close is not None and value["close"]["omitted_captured_sources"] > 0)
+    encoded = _json(value)
+    if len(encoded) > limits["bytes"]:
+        # Keep a valid bounded JSON object, explicitly omitting detail on overflow.
+        close_value = value.get("close")
+        value = {
+            "limits": limits,
+            "diagnostic_only": True,
+            "truncated": True,
+            "byte_bound_fallback": True,
+            "http_close_confirmed": value["http_close_confirmed"],
+            "owner_closed": value["owner_closed"],
+            "owner_poisoned": value["owner_poisoned"],
+            "close_present": value["close_present"],
+            "native_job_count": value["native_job_count"],
+            "original_count": value["original_count"],
+            "source_count": value["source_count"],
+            "omitted_detail": "all_task_source_and_phase_details",
+        }
+        if close_value is not None:
+            value["close"] = {
+                name: close_value[name]
+                for name in ("unknown", "sealed", "setup_error", "task", "phases")
+            }
+            value["omitted_detail"] = "source_original_native_job_task_details"
+        encoded = _json(value)
+    return encoded.decode("utf-8")
+
+
 async def _finish_stack(owner, app, lifespan, initial_tasks, uploads, allow_unknown, observations):
     errors = []
     confirmed = False
@@ -578,6 +734,13 @@ async def _finish_stack(owner, app, lifespan, initial_tasks, uploads, allow_unkn
     except BaseException as error:
         unknown = getattr(app.state, "media_owner_shutdown_unconfirmed", False) is True
         observations.append("native owner shutdown unknown")
+        try:
+            observations.append("native shutdown snapshot: " + _shutdown_snapshot(owner, app))
+        except BaseException as diagnostic_error:
+            observations.append(
+                "native shutdown snapshot unavailable: "
+                + _json(_shutdown_exception_snapshot(diagnostic_error)).decode("utf-8")
+            )
         if not (allow_unknown and unknown and isinstance(error, RuntimeError)):
             errors.append(error)
 
@@ -803,7 +966,10 @@ async def _native_stack(native_root, *, limits, lose_first_ack, allow_unknown_sh
                 )
                 raise primary
         elif errors:
-            raise BaseExceptionGroup("Native media fixture teardown failed", errors)
+            group = BaseExceptionGroup("Native media fixture teardown failed", errors)
+            for observation in observations:
+                group.add_note("Fixture teardown: " + observation)
+            raise group
 
 
 def _submits(env):
