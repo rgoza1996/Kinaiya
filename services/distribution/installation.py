@@ -539,9 +539,9 @@ class Layout:
     bin: Path
 
     @classmethod
-    def for_home(cls, home: Path):
+    def for_home(cls, home: Path, *, install_root: Path | None = None):
         return cls(
-            home / ".local/share/kinaiya/install",
+            install_root if install_root is not None else home / ".local/share/kinaiya/install",
             home / ".local/share/kinaiya/data",
             home / ".config/kinaiya/config.json",
             home / "Kinaiya Workspace",
@@ -562,6 +562,208 @@ class Layout:
                     raise InstallError(
                         "Install, data, config, workspace and cache must be disjoint"
                     )
+
+
+PROTECTED_INSTALL_ROOTS: frozenset[str] = frozenset(
+    {
+        "/",
+        "/bin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/home",
+        "/lib",
+        "/lib32",
+        "/lib64",
+        "/libx32",
+        "/opt",
+        "/proc",
+        "/root",
+        "/run",
+        "/sbin",
+        "/srv",
+        "/sys",
+        "/tmp",
+        "/usr",
+        "/var",
+    }
+)
+PROTECTED_INSTALL_TREES: tuple[str, ...] = (
+    "/bin",
+    "/boot",
+    "/dev",
+    "/etc",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/libx32",
+    "/proc",
+    "/root",
+    "/run",
+    "/sbin",
+    "/sys",
+    "/usr",
+)
+
+
+def install_root_marker(home: Path) -> Path:
+    return home / ".config/kinaiya/install-root.json"
+
+
+def load_recorded_layout(home: Path) -> Layout | None:
+    marker = install_root_marker(home)
+    if marker.is_symlink():
+        raise InstallError("Managed install location marker cannot be a symlink alias")
+    if marker.exists():
+        data = read_json(marker)
+        if not isinstance(data, dict) or not isinstance(data.get("install"), str):
+            raise InstallError("Malformed install location marker; preserve files for recovery")
+        install_path = Path(data["install"])
+        if install_path.is_symlink() or install_path.resolve() != Path(
+            os.path.abspath(install_path)
+        ):
+            raise InstallError("Recorded install root cannot use symlink aliases")
+        layout_file = install_path / "layout.json"
+        if not layout_file.exists():
+            raise InstallError(
+                "Recorded install root is missing layout metadata; preserve files for recovery"
+            )
+        saved = read_json(layout_file)
+        try:
+            layout = Layout(**{key: Path(value) for key, value in saved.items()})
+        except (TypeError, ValueError):
+            raise InstallError(
+                "Invalid managed layout; preserve existing files for recovery"
+            ) from None
+        if layout.install != install_path:
+            raise InstallError("Recorded install root does not match layout receipt")
+        layout.validate()
+        return layout
+    default_marker = (home / ".local/share/kinaiya/install") / "layout.json"
+    if default_marker.is_symlink():
+        raise InstallError("Managed path alias is unsafe; refusing operation")
+    if default_marker.exists():
+        saved = read_json(default_marker)
+        try:
+            layout = Layout(**{key: Path(value) for key, value in saved.items()})
+        except (TypeError, ValueError):
+            raise InstallError(
+                "Invalid managed layout; preserve existing files for recovery"
+            ) from None
+        layout.validate()
+        return layout
+    return None
+
+
+def validate_install_root(
+    candidate: Path | str, layout: Layout, *, home: Path | None = None
+) -> Layout:
+    if not isinstance(candidate, Path):
+        candidate = Path(candidate)
+    if not candidate.is_absolute() or any(ord(c) < 32 for c in str(candidate)):
+        raise InstallError("Install location must be an absolute path without control characters")
+    normalized = Path(os.path.abspath(candidate))
+    if candidate.is_symlink() or candidate.resolve() != normalized:
+        raise InstallError("Install location cannot use symlink aliases")
+    posix_str = normalized.as_posix()
+    if posix_str in PROTECTED_INSTALL_ROOTS or any(
+        posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
+    ):
+        raise InstallError(f"Refusing protected system root as install location: {normalized}")
+    inferred_home = Path(os.path.abspath(home or layout.config.parent.parent))
+    if normalized == inferred_home or normalized in inferred_home.parents:
+        raise InstallError("Install location cannot be the home directory or its parent")
+    updated = Layout(
+        normalized,
+        layout.data,
+        layout.config,
+        layout.workspace,
+        layout.cache,
+        layout.bin,
+    )
+    updated.validate()
+    if normalized.exists():
+        if not normalized.is_dir():
+            raise InstallError("Install location exists and is not a directory")
+        if not os.access(normalized, os.R_OK | os.W_OK | os.X_OK):
+            raise InstallError("Install location lacks read/write/execute permissions")
+        verify_layout(updated, required=False)
+    else:
+        ancestor = next((p for p in normalized.parents if p.exists()), None)
+        if ancestor is None or not ancestor.is_dir() or not os.access(ancestor, os.W_OK | os.X_OK):
+            raise InstallError("Install location parent directory is not writable")
+    return updated
+
+
+def resolve_install_location(
+    home: Path,
+    *,
+    base_layout: Layout | None = None,
+    install_dir: Path | str | None = None,
+    install_location: str | None = None,
+    invoking_dir: Path | None = None,
+    interactive: bool = False,
+    tty: Any = None,
+) -> tuple[Layout, bool]:
+    if install_dir is not None and install_location is not None:
+        raise InstallError("Specify either --install-dir or --install-location, not both")
+    base = base_layout or Layout.for_home(home)
+    default_install = base.data.parent / "install"
+    recorded = base if (base.install / "layout.json").exists() else load_recorded_layout(home)
+    explicit = install_dir if install_dir is not None else install_location
+    if recorded is not None:
+        if explicit is not None:
+            raw = str(explicit)
+            if raw == "default":
+                requested = default_install
+            elif raw == "current":
+                if invoking_dir is None:
+                    raise InstallError(
+                        "Cannot infer current directory from a managed launcher; pass an explicit path"
+                    )
+                requested = invoking_dir
+            else:
+                requested = Path(raw)
+            if not requested.is_absolute() or Path(os.path.abspath(requested)) != recorded.install:
+                raise InstallError(
+                    f"Existing installation is recorded at {recorded.install}; refusing to relocate existing installation"
+                )
+        return validate_install_root(recorded.install, recorded, home=home), False
+    if explicit is not None:
+        raw = str(explicit)
+        if raw == "default":
+            candidate = default_install
+        elif raw == "current":
+            if invoking_dir is None:
+                raise InstallError(
+                    "Cannot infer current directory from a managed launcher; pass an explicit path"
+                )
+            candidate = invoking_dir
+        else:
+            candidate = Path(raw)
+        return validate_install_root(candidate, base, home=home), False
+    if not interactive or invoking_dir is None:
+        return validate_install_root(default_install, base, home=home), False
+    canonical_default = default_install.resolve()
+    canonical_invoking = invoking_dir.resolve()
+    if canonical_invoking == canonical_default:
+        return validate_install_root(default_install, base, home=home), False
+    tty.write(
+        "Select Kinaiya install location:\n"
+        f"  1) Default (recommended): {canonical_default}\n"
+        f"  2) Current directory:     {canonical_invoking}\n"
+        "Choose install location [1]: "
+    )
+    answer = tty.readline().strip().lower()
+    if answer in {"", "1", "default"}:
+        return validate_install_root(default_install, base, home=home), False
+    if answer == "yes":
+        return validate_install_root(default_install, base, home=home), True
+    if answer in {"2", "current"}:
+        return validate_install_root(invoking_dir, base, home=home), False
+    raise InstallError(
+        "Installation cancelled or invalid install location choice; select 1 (Default) or 2 (Current directory)"
+    )
 
 
 def atomic_json(path, value):
@@ -911,6 +1113,11 @@ def _install_release(layout, release, archive, *, prepare, busy):
             layout.install / "layout.json",
             {key: str(value) for key, value in asdict(layout).items()},
         )
+        layout.config.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        atomic_json(
+            layout.config.parent / "install-root.json",
+            {"install": str(layout.install)},
+        )
         layout.bin.mkdir(parents=True, exist_ok=True)
         wrapper = layout.bin / "kinaiya"
         wrapper.write_text(wrapper_text, encoding="utf-8", newline="\n")
@@ -1049,6 +1256,7 @@ def uninstall(layout, *, delete_data=False, confirmation=None, busy=ports_busy):
                 if directory.exists():
                     shutil.rmtree(directory)
             layout.config.unlink(missing_ok=True)
+            (layout.config.parent / "install-root.json").unlink(missing_ok=True)
         result = {"action": "uninstalled", "data_deleted": delete_data, "workspace_deleted": False}
         # Keep the marker and same lock inode so competing installers cannot bypass
         # serialization by recreating a removed lock while it is still held.

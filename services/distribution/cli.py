@@ -21,8 +21,10 @@ from services.distribution.installation import (
     dependency_install_command,
     install_missing_dependencies,
     install_release,
+    load_recorded_layout,
     missing_system_dependencies,
     preflight,
+    resolve_install_location,
     setup,
     source_artifact,
     update_plan,
@@ -39,6 +41,15 @@ def configure(commands):
         "--yes", action="store_true", help="Confirm the displayed installation plan"
     )
     install.add_argument("--no-setup", action="store_true")
+    install.add_argument(
+        "--install-dir",
+        type=Path,
+        help="Explicit target directory for managed Kinaiya install root",
+    )
+    install.add_argument(
+        "--install-location",
+        help="Install root selection: 'default', 'current', or an absolute directory path",
+    )
     setup_parser = commands.add_parser(
         "setup", help="Configure Agent without starting work or voice"
     )
@@ -74,7 +85,8 @@ def configure(commands):
     )
 
 
-def chosen_layout():
+def chosen_layout(home: Path | None = None):
+    home = home or Path.home()
     root = os.environ.get("KINAIYA_INSTALL_ROOT")
     if root:
         from services.distribution.installation import read_json
@@ -89,7 +101,8 @@ def chosen_layout():
         if layout.install != Path(root):
             raise InstallError("Managed layout does not match launcher install root")
     else:
-        layout = Layout.for_home(Path.home())
+        recorded = load_recorded_layout(home)
+        layout = recorded if recorded is not None else Layout.for_home(home)
     layout.validate()
     return layout
 
@@ -144,18 +157,28 @@ def download_artifact(artifact, target):
     return target
 
 
-def confirm(yes, message):
+def confirm(yes, message, *, pre_consented=False):
     print(message, flush=True)
     if yes:
         return
     try:
         with open_terminal() as tty:
             tty.write("Type yes to continue: ")
-            if tty.readline().strip() == "yes":
+            line = tty.readline()
+            if line.strip() == "yes" or (pre_consented and line == ""):
                 return
     except OSError:
         pass
     raise InstallError("Cancelled; use --yes only after reviewing the plan")
+
+
+def _invoking_directory() -> Path | None:
+    env_pwd = os.environ.get("KINAIYA_INVOKING_PWD", "").strip()
+    if env_pwd:
+        return Path(env_pwd)
+    if not os.environ.get("KINAIYA_INSTALL_ROOT"):
+        return Path.cwd()
+    return None
 
 
 def dispatch(args):
@@ -169,6 +192,7 @@ def dispatch(args):
         receipt = current_receipt(layout)
         return {
             "managed": receipt is not None,
+            "install": str(layout.install),
             "release": receipt["release"] if receipt else None,
             "ready": "not_checked",
         }
@@ -202,6 +226,37 @@ def dispatch(args):
     # intentionally remain usable for read-only diagnosis on unqualified hosts.
     if args.command == "update" and (args.check or args.plan):
         return check_update(layout, args.channel)
+    pre_consented = False
+    if args.command == "install":
+        install_dir = getattr(args, "install_dir", None)
+        install_location = getattr(args, "install_location", None)
+        home = layout.config.parent.parent
+        invoking_dir = _invoking_directory()
+        if install_dir is not None or install_location is not None or args.yes:
+            layout, _ = resolve_install_location(
+                home,
+                base_layout=layout,
+                install_dir=install_dir,
+                install_location=install_location,
+                invoking_dir=invoking_dir,
+                interactive=False,
+            )
+        else:
+            try:
+                with open_terminal() as tty:
+                    layout, pre_consented = resolve_install_location(
+                        home,
+                        base_layout=layout,
+                        install_dir=install_dir,
+                        install_location=install_location,
+                        invoking_dir=invoking_dir,
+                        interactive=True,
+                        tty=tty,
+                    )
+            except OSError:
+                raise InstallError(
+                    "Interactive install requires a controlling terminal (/dev/tty) or --yes"
+                ) from None
     try:
         host = preflight(layout, allow_missing_dependencies=(args.command == "install"))
         missing = (
@@ -219,7 +274,7 @@ def dispatch(args):
     if missing:
         confirmation_payload["missing_dependencies"] = missing
         confirmation_payload["dependency_command"] = " ".join(dependency_install_command(missing))
-    confirm(args.yes, json.dumps(confirmation_payload, indent=2))
+    confirm(args.yes, json.dumps(confirmation_payload, indent=2), pre_consented=pre_consented)
     if missing:
         install_missing_dependencies(missing)
         host = preflight(layout)
