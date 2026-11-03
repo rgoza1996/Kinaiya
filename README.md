@@ -110,17 +110,17 @@ curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh |
 
 ```mermaid
 flowchart LR
-    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04 · Python 3.11–3.13"] --> B["2. Missing Dependencies<br/>sudo apt-get install --no-upgrade"]
+    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04 · Python 3.11–3.13"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
     B --> C["3. Release Verification<br/>HTTPS + Immutable Tag + SHA-256"]
     C --> D["4. Isolated Runtime<br/>Per-Generation .venv + Locked Wheels"]
     D --> E["5. Interactive Setup Wizard<br/>~/.config/kinaiya/config.json"]
 ```
 
 > [!IMPORTANT]
-> **Dependency & System Update Policy (`--no-upgrade`):**
-> - **Installs missing dependencies only:** If `bubblewrap`, `libseccomp2`, or `python3.<minor>-venv` is missing, the CLI includes `sudo apt-get install --no-upgrade -y <missing>` in the confirmation plan and installs only those missing packages.
-> - **Never updates your system:** The CLI **never** runs `sudo apt-get update` or `sudo apt-get upgrade`, and `--no-upgrade` prevents `apt-get` from upgrading any already-installed package on your machine.
-> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`, or a stale local package index blocking `--no-upgrade`) is out of date, the CLI and setup wizard stop and warn you to update that specific component first.
+> **Dependency & System Update Policy (Solver-Verified No-Upgrade / No-Remove / No-Downgrade):**
+> - **Installs missing dependencies only:** If `bubblewrap`, `libseccomp2`, or `python3.<minor>-venv` is missing, the CLI includes the non-mutating `apt-get -s` solver check and `sudo apt-get install --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y -- <missing>` in the confirmation plan. Before invoking `sudo`, it simulates the complete transaction against the `dpkg` status snapshot, verifies that every `Inst` record is a newly installed package with zero upgrades, removals, or downgrades, and binds the approved `package=version` pairs to the install command.
+> - **Never updates or mutates existing system packages:** Because `apt-get --no-upgrade` alone only prevents upgrading packages explicitly named on the command line (and can still upgrade already-installed transitive dependencies), Kinaiya inspects the full solver transaction and **never** runs `sudo apt-get update` or `sudo apt-get upgrade`.
+> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`), a transitive dependency upgrade/removal/downgrade requirement, or a stale local package index blocks installation, the CLI and setup wizard stop before any mutating command and warn you to update that specific component first.
 
 **Release channel notes:**
 - **Nightly (`--channel nightly`):** Installs only a qualified, SHA-256-pinned GitHub release (never arbitrary commits from `main`). Nightly builds are scheduled for **midnight Las Vegas time (`America/Los_Angeles`)** and require passing gates.

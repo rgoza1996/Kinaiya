@@ -173,24 +173,64 @@ def test_bootstrap_warns_on_outdated_system_blockers_and_installs_missing_deps_w
         bootstrap.check_outdated_system_blockers()
 
     commands = []
-    monkeypatch.setattr(
-        bootstrap.subprocess,
-        "run",
-        lambda argv, **kw: (
-            commands.append(argv) or SimpleNamespace(returncode=0, stdout="", stderr="")
-        ),
-    )
+
+    def fake_run(argv, **kw):
+        commands.append(argv)
+        if "-s" in argv:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.\n"
+                    "Inst bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Inst libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                    "Inst python3.12-venv (3.12.3-1ubuntu0.17 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf python3.12-venv (3.12.3-1ubuntu0.17 Ubuntu:24.04/noble [amd64])\n"
+                ),
+                stderr="",
+            )
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(bootstrap.subprocess, "run", fake_run)
     bootstrap.install_missing_dependencies(["bubblewrap", "libseccomp2", "python3.12-venv"])
     assert commands == [
+        [
+            "apt-get",
+            "-s",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "install",
+            "--",
+            "bubblewrap",
+            "libseccomp2",
+            "python3.12-venv",
+        ],
         [
             "sudo",
             "apt-get",
             "install",
             "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
             "-y",
-            "bubblewrap",
-            "libseccomp2",
-            "python3.12-venv",
-        ]
+            "--",
+            "bubblewrap=0.9.0-1ubuntu0.3",
+            "libseccomp2=2.5.5-1ubuntu3.1",
+            "python3.12-venv=3.12.3-1ubuntu0.17",
+        ],
     ]
-    assert "update" not in commands[0] and "upgrade" not in commands[0]
+    for cmd in commands:
+        assert "update" not in cmd and "upgrade" not in cmd

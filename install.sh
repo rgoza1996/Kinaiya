@@ -41,6 +41,50 @@ MAX_BYTES = 512 * 1024**2
 VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 MIN_BUBBLEWRAP_VERSION = (0, 6, 1)
 MIN_LIBSECCOMP_VERSION = (2, 5)
+DEFAULT_DPKG_STATUS_PATH = Path("/var/lib/dpkg/status")
+APT_STRICT_OPTIONS = (
+    "--no-upgrade",
+    "--no-remove",
+    "-o",
+    "APT::Get::Upgrade=false",
+    "-o",
+    "APT::Get::Remove=false",
+    "-o",
+    "APT::Get::Allow-Downgrades=false",
+)
+_REAL_SUBPROCESS_RUN = subprocess.run
+_APT_PKG_NAME_RE = re.compile(r"[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?")
+_APT_VERSION_RE = re.compile(r"[0-9][A-Za-z0-9.+:~-]*")
+_APT_SUMMARY_RE = re.compile(
+    r"^(?P<upgraded>\d+)\s+upgraded,\s+"
+    r"(?P<newly_installed>\d+)\s+newly installed,"
+    r"(?:\s+(?P<downgraded>\d+)\s+downgraded,)?"
+    r"\s+(?P<to_remove>\d+)\s+to remove\s+and\s+"
+    r"(?P<not_upgraded>\d+)\s+not upgraded\."
+)
+_APT_INST_RE = re.compile(
+    r"^Inst\s+"
+    r"(?P<pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?)"
+    r"(?:\s+\[(?P<old_ver>[^\]]*)\])?"
+    r"\s+\((?P<new_ver>[0-9][A-Za-z0-9.+:~-]*)(?:\s+[^\)]*)?\)"
+    r"(?:\s*(?P<trailing>\[.*\]))?\s*$"
+)
+_APT_CONF_RE = re.compile(
+    r"^Conf\s+"
+    r"(?P<pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?)"
+    r"\s+\((?P<new_ver>[0-9][A-Za-z0-9.+:~-]*)(?:\s+[^\)]*)?\)"
+    r"(?:\s*(?P<trailing>\[.*\]))?\s*$"
+)
+_APT_REMV_RE = re.compile(
+    r"^(?:Remv|Purg)\s+"
+    r"(?P<pkg>\S+)"
+    r"(?:\s+\[(?P<old_ver>[^\]]*)\])?"
+    r"(?:\s*(?P<trailing>\[.*\]))?\s*$"
+)
+_APT_SKIP_INSTALLED_RE = re.compile(
+    r"^(?:Skipping\s+(?P<skip_pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?),\s+it is already installed|"
+    r"(?P<newest_pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?)\s+is already the newest version)"
+)
 
 
 class BootstrapError(RuntimeError):
@@ -59,20 +103,128 @@ def _parse_version_tuple(raw):
     return tuple(int(part) for part in match.group(1).split(".")) if match else None
 
 
-def installed_package_version(package, status_path=Path("/var/lib/dpkg/status")):
+def _deb_char_order(ch):
+    if ch == "~":
+        return -1
+    if not ch:
+        return 0
+    if ch.isalpha():
+        return ord(ch)
+    return ord(ch) + 256
+
+
+def _compare_deb_part(left, right):
+    i, j = 0, 0
+    while i < len(left) or j < len(right):
+        while (i < len(left) and not left[i].isdigit()) or (j < len(right) and not right[j].isdigit()):
+            lc = left[i] if i < len(left) and not left[i].isdigit() else ""
+            rc = right[j] if j < len(right) and not right[j].isdigit() else ""
+            if lc != rc:
+                return -1 if _deb_char_order(lc) < _deb_char_order(rc) else 1
+            if lc:
+                i += 1
+            if rc:
+                j += 1
+        i_start, j_start = i, j
+        while i < len(left) and left[i].isdigit():
+            i += 1
+        while j < len(right) and right[j].isdigit():
+            j += 1
+        l_num = int(left[i_start:i] or "0")
+        r_num = int(right[j_start:j] or "0")
+        if l_num != r_num:
+            return -1 if l_num < r_num else 1
+    return 0
+
+
+def _split_deb_version(version):
+    rest = version.strip()
+    if ":" in rest:
+        epoch_str, rest = rest.split(":", 1)
+        epoch = int(epoch_str) if epoch_str.isdigit() else 0
+    else:
+        epoch = 0
+    if "-" in rest:
+        upstream, revision = rest.rsplit("-", 1)
+    else:
+        upstream, revision = rest, ""
+    return epoch, upstream, revision
+
+
+def _compare_deb_versions(left, right):
+    l_epoch, l_up, l_rev = _split_deb_version(left)
+    r_epoch, r_up, r_rev = _split_deb_version(right)
+    if l_epoch != r_epoch:
+        return -1 if l_epoch < r_epoch else 1
+    up_cmp = _compare_deb_part(l_up, r_up)
+    return up_cmp if up_cmp != 0 else _compare_deb_part(l_rev, r_rev)
+
+
+def _validate_apt_package_spec(spec, *, allow_version_pin=False):
+    require(isinstance(spec, str) and bool(spec), f"Invalid dependency name: {spec!r}")
+    if allow_version_pin and "=" in spec:
+        pkg, ver = spec.split("=", 1)
+        require(
+            _APT_PKG_NAME_RE.fullmatch(pkg) is not None and _APT_VERSION_RE.fullmatch(ver) is not None,
+            f"Invalid dependency pin: {spec!r}",
+        )
+        return pkg, ver
+    require(_APT_PKG_NAME_RE.fullmatch(spec) is not None, f"Invalid dependency name: {spec!r}")
+    return spec, None
+
+
+def _resolve_dpkg_status_path(status_path=None, *, env=None):
+    if status_path is not None:
+        return Path(status_path)
+    active_env = os.environ if env is None else env
+    apt_config = active_env.get("APT_CONFIG")
+    if apt_config:
+        try:
+            cfg_text = Path(apt_config).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            cfg_text = ""
+        status_match = re.search(r'Dir::State::status\s+"([^"]+)"\s*;', cfg_text)
+        if status_match:
+            raw_status = Path(status_match.group(1))
+            if raw_status.is_absolute():
+                return raw_status
+            dir_match = re.search(r'Dir\s+"([^"]+)"\s*;', cfg_text)
+            base_dir = Path(dir_match.group(1)) if dir_match else Path(apt_config).parent
+            return base_dir / raw_status
+    return DEFAULT_DPKG_STATUS_PATH
+
+
+def installed_packages_snapshot(status_path=None, *, env=None):
+    resolved = _resolve_dpkg_status_path(status_path, env=env)
+    if resolved is None:
+        return {}
     try:
-        text = status_path.read_text(encoding="utf-8", errors="replace")
+        text = resolved.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        return None
+        return {}
+    snapshot = {}
     for stanza in text.split("\n\n"):
         fields = {}
         for line in stanza.splitlines():
             if ":" in line and not line[:1].isspace():
                 key, val = line.split(":", 1)
                 fields[key.strip()] = val.strip()
-        if fields.get("Package") == package and "installed" in fields.get("Status", "").split():
-            return fields.get("Version")
-    return None
+        pkg = fields.get("Package")
+        ver = fields.get("Version")
+        status_tokens = fields.get("Status", "").split()
+        is_present = "installed" in status_tokens or (
+            len(status_tokens) >= 3 and status_tokens[2] not in {"not-installed", "config-files"}
+        )
+        if pkg and ver and is_present:
+            snapshot[pkg] = ver
+            arch = fields.get("Architecture")
+            if arch:
+                snapshot[f"{pkg}:{arch}"] = ver
+    return snapshot
+
+
+def installed_package_version(package, status_path=DEFAULT_DPKG_STATUS_PATH):
+    return installed_packages_snapshot(status_path).get(package)
 
 
 def _venv_available():
@@ -95,26 +247,418 @@ def missing_dependencies():
     return missing
 
 
+def apt_simulation_command(packages):
+    require(bool(packages), "Refusing empty apt simulation package list")
+    for pkg in packages:
+        _validate_apt_package_spec(pkg, allow_version_pin=True)
+    return ["apt-get", "-s", *APT_STRICT_OPTIONS, "-y", "install", "--", *packages]
+
+
 def dependency_install_command(missing):
-    return ["sudo", "apt-get", "install", "--no-upgrade", "-y", *missing]
+    for pkg in missing:
+        _validate_apt_package_spec(pkg, allow_version_pin=True)
+    return ["sudo", "apt-get", "install", *APT_STRICT_OPTIONS, "-y", "--", *missing]
 
 
-def install_missing_dependencies(missing):
+def parse_apt_simulation_output(
+    stdout,
+    stderr="",
+    *,
+    returncode=0,
+    requested_packages=(),
+    installed_snapshot=None,
+):
+    snapshot = dict(installed_snapshot or {})
+    upgrades, removals, downgrades, already_installed, broken = [], [], [], [], []
+    new_installs = []
+    configured = {}
+    summary = None
+    section = None
+    section_upgrades, section_removals, section_downgrades = [], [], []
+    section_headers = {
+        "The following packages will be upgraded:": "upgraded",
+        "The following packages will be REMOVED:": "removed",
+        "The following packages will be DOWNGRADED:": "downgraded",
+        "The following packages have unmet dependencies:": "unmet",
+        "The following NEW packages will be installed:": "new",
+        "The following additional packages will be installed:": "additional",
+        "The following packages have been kept back:": "kept_back",
+    }
+
+    for raw_line in (stdout or "").splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        if stripped in section_headers:
+            section = section_headers[stripped]
+            continue
+        if raw_line[:1].isspace() and section in {"upgraded", "removed", "downgraded", "unmet"}:
+            if section == "unmet":
+                broken.append(stripped)
+            else:
+                tokens = [tok.rstrip("*") for tok in stripped.split() if tok.rstrip("*")]
+                if section == "upgraded":
+                    section_upgrades.extend(tokens)
+                elif section == "removed":
+                    section_removals.extend(tokens)
+                elif section == "downgraded":
+                    section_downgrades.extend(tokens)
+            continue
+        section = None
+
+        skip_match = _APT_SKIP_INSTALLED_RE.match(stripped)
+        if skip_match:
+            pkg_hit = skip_match.group("skip_pkg") or skip_match.group("newest_pkg")
+            if pkg_hit and pkg_hit not in already_installed:
+                already_installed.append(pkg_hit)
+            continue
+
+        summary_match = _APT_SUMMARY_RE.match(stripped)
+        if summary_match:
+            summary = {
+                "upgraded": int(summary_match.group("upgraded")),
+                "newly_installed": int(summary_match.group("newly_installed")),
+                "downgraded": int(summary_match.group("downgraded") or "0"),
+                "to_remove": int(summary_match.group("to_remove")),
+                "not_upgraded": int(summary_match.group("not_upgraded")),
+            }
+            continue
+
+        if stripped.startswith(("Remv ", "Purg ")):
+            remv_match = _APT_REMV_RE.match(stripped)
+            if remv_match:
+                pkg = remv_match.group("pkg")
+                old_ver = remv_match.group("old_ver")
+                label = f"{pkg} ({old_ver})" if old_ver else pkg
+                if label not in removals:
+                    removals.append(label)
+            else:
+                removals.append(stripped)
+            continue
+
+        if stripped.startswith("Inst "):
+            inst_match = _APT_INST_RE.match(stripped)
+            if not inst_match:
+                broken.append(f"malformed Inst line: {stripped}")
+                continue
+            pkg = inst_match.group("pkg")
+            base_pkg = pkg.split(":", 1)[0]
+            old_ver = inst_match.group("old_ver")
+            new_ver = inst_match.group("new_ver")
+            trailing = inst_match.group("trailing")
+            if trailing:
+                broken.append(f"{pkg} has unresolved dependencies {trailing}")
+            if old_ver is not None:
+                is_downgrade = (
+                    pkg in section_downgrades
+                    or base_pkg in section_downgrades
+                    or (bool(old_ver) and _compare_deb_versions(old_ver, new_ver) > 0)
+                )
+                label = f"{pkg} ({old_ver or 'installed'} -> {new_ver})"
+                target_list = downgrades if is_downgrade else upgrades
+                if label not in target_list:
+                    target_list.append(label)
+            else:
+                snap_ver = snapshot.get(pkg) or snapshot.get(base_pkg)
+                if snap_ver is not None:
+                    label = f"{pkg} ({snap_ver} -> {new_ver})"
+                    target_list = (
+                        downgrades if _compare_deb_versions(snap_ver, new_ver) > 0 else upgrades
+                    )
+                    if label not in target_list:
+                        target_list.append(label)
+                else:
+                    new_installs.append((pkg, new_ver))
+            continue
+
+        if stripped.startswith("Conf "):
+            conf_match = _APT_CONF_RE.match(stripped)
+            if not conf_match or conf_match.group("trailing"):
+                broken.append(f"broken Conf line: {stripped}")
+                continue
+            configured[conf_match.group("pkg")] = conf_match.group("new_ver")
+            continue
+
+        if stripped.startswith("E:"):
+            broken.append(stripped)
+
+    for raw_err in (stderr or "").splitlines():
+        err_stripped = raw_err.strip()
+        if err_stripped:
+            broken.append(err_stripped)
+
+    def _already_recorded(pkg_name, items):
+        base = pkg_name.split(":", 1)[0]
+        return any(
+            item == pkg_name
+            or item == base
+            or item.startswith(f"{pkg_name} ")
+            or item.startswith(f"{base} ")
+            for item in items
+        )
+
+    for pkg in section_upgrades:
+        if not _already_recorded(pkg, upgrades):
+            snap_ver = snapshot.get(pkg) or snapshot.get(pkg.split(":", 1)[0])
+            upgrades.append(f"{pkg} ({snap_ver} -> upgraded)" if snap_ver else pkg)
+    for pkg in section_downgrades:
+        if not _already_recorded(pkg, downgrades):
+            snap_ver = snapshot.get(pkg) or snapshot.get(pkg.split(":", 1)[0])
+            downgrades.append(f"{pkg} ({snap_ver} -> downgraded)" if snap_ver else pkg)
+    for pkg in section_removals:
+        if not _already_recorded(pkg, removals):
+            snap_ver = snapshot.get(pkg) or snapshot.get(pkg.split(":", 1)[0])
+            removals.append(f"{pkg} ({snap_ver})" if snap_ver else pkg)
+
+    req_label = ", ".join(requested_packages) if requested_packages else "requested packages"
+    policy_tail = (
+        "Kinaiya refuses to upgrade, downgrade, or remove existing system packages, "
+        "and never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+    )
+
+    mutation_reasons = []
+    if upgrades or (summary is not None and summary["upgraded"] > 0):
+        offending = ", ".join(upgrades) if upgrades else f"{summary['upgraded']} package(s)"
+        mutation_reasons.append(f"upgrade existing package(s) [{offending}]")
+    if downgrades or (summary is not None and summary["downgraded"] > 0):
+        offending = ", ".join(downgrades) if downgrades else f"{summary['downgraded']} package(s)"
+        mutation_reasons.append(f"downgrade existing package(s) [{offending}]")
+    if removals or (summary is not None and summary["to_remove"] > 0):
+        offending = ", ".join(removals) if removals else f"{summary['to_remove']} package(s)"
+        mutation_reasons.append(f"remove existing package(s) [{offending}]")
+    if mutation_reasons:
+        raise BootstrapError(
+            f"Out-of-date system blocker: cannot install missing dependencies ({req_label}): "
+            f"apt solver transaction would {'; '.join(mutation_reasons)}. "
+            f"Please update or reconcile those packages manually first; {policy_tail}"
+        )
+
+    if already_installed:
+        raise BootstrapError(
+            f"Out-of-date system blocker: cannot install ({req_label}): "
+            f"package(s) [{', '.join(already_installed)}] are already installed. {policy_tail}"
+        )
+
+    if returncode != 0 or broken:
+        detail = broken[-1] if broken else f"apt-get exited {returncode}"
+        raise BootstrapError(
+            f"Out-of-date system blocker: could not install missing dependencies ({req_label}) "
+            f"with `--no-upgrade` ({detail}). An existing installed package or your local apt package index "
+            f"is out of date. Please update that specific package or refresh your package index manually "
+            f"first; {policy_tail}"
+        )
+
+    if summary is None:
+        raise BootstrapError(
+            f"Out-of-date system blocker: apt-get simulation for ({req_label}) did not produce a "
+            f"verifiable solver summary. {policy_tail}"
+        )
+
+    if summary["newly_installed"] <= 0 or summary["newly_installed"] != len(new_installs):
+        raise BootstrapError(
+            f"Out-of-date system blocker: apt-get simulation for ({req_label}) reported "
+            f"{summary['newly_installed']} newly installed package(s), but {len(new_installs)} "
+            f"verified Inst entry/entries were parsed. {policy_tail}"
+        )
+
+    seen_pkgs = set()
+    by_name = {}
+    for pkg, ver in new_installs:
+        base_pkg = pkg.split(":", 1)[0]
+        if pkg in seen_pkgs or base_pkg in seen_pkgs:
+            raise BootstrapError(
+                f"Out-of-date system blocker: duplicate Inst entry for {pkg} in apt simulation. {policy_tail}"
+            )
+        if configured.get(pkg) != ver:
+            raise BootstrapError(
+                f"Out-of-date system blocker: missing or mismatched Conf entry for {pkg}={ver} in apt simulation. {policy_tail}"
+            )
+        seen_pkgs.add(pkg)
+        seen_pkgs.add(base_pkg)
+        by_name[pkg] = ver
+        by_name[base_pkg] = ver
+
+    for req in requested_packages:
+        req_name, req_ver = _validate_apt_package_spec(req, allow_version_pin=True)
+        req_base = req_name.split(":", 1)[0]
+        resolved_ver = by_name.get(req_name) or by_name.get(req_base)
+        if resolved_ver is None:
+            raise BootstrapError(
+                f"Out-of-date system blocker: requested package {req_name} was not present in "
+                f"verified new-install set for ({req_label}). {policy_tail}"
+            )
+        if req_ver is not None and resolved_ver != req_ver:
+            raise BootstrapError(
+                f"Out-of-date system blocker: requested package {req} resolved to {resolved_ver}. {policy_tail}"
+            )
+
+    return {
+        "requested_packages": list(requested_packages),
+        "new_installs": list(new_installs),
+        "pinned_packages": [f"{pkg}={ver}" for pkg, ver in new_installs],
+        "summary": summary,
+    }
+
+
+def _active_dpkg_snapshot(*, status_path, env, runner):
+    active_env = os.environ if env is None else env
+    has_explicit_status = (
+        status_path is not None
+        or "APT_CONFIG" in active_env
+        or DEFAULT_DPKG_STATUS_PATH != Path("/var/lib/dpkg/status")
+    )
+    is_real_runner = runner is _REAL_SUBPROCESS_RUN and subprocess.run is _REAL_SUBPROCESS_RUN
+    if not has_explicit_status and not is_real_runner:
+        return {}
+    return installed_packages_snapshot(status_path, env=env)
+
+
+def verify_apt_no_existing_package_changes(
+    packages,
+    *,
+    env=None,
+    runner=None,
+    status_path=None,
+    expected_snapshot=None,
+    expected_pinned=None,
+):
+    require(bool(packages), "Refusing to verify an empty dependency package list")
+    for pkg in packages:
+        _validate_apt_package_spec(pkg, allow_version_pin=True)
+
+    active_runner = subprocess.run if runner is None else runner
+    policy_tail = (
+        "Kinaiya refuses to upgrade, downgrade, or remove existing system packages, "
+        "and never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+    )
+
+    pre_snapshot = _active_dpkg_snapshot(
+        status_path=status_path, env=env, runner=active_runner
+    )
+    if expected_snapshot is not None and pre_snapshot != expected_snapshot:
+        raise BootstrapError(
+            "Out-of-date system blocker: system package state changed between preflight inspection "
+            f"and dependency installation. {policy_tail}"
+        )
+
+    already_present = []
+    for spec in packages:
+        pkg_name, _ = _validate_apt_package_spec(spec, allow_version_pin=True)
+        base_name = pkg_name.split(":", 1)[0]
+        existing_ver = pre_snapshot.get(pkg_name) or pre_snapshot.get(base_name)
+        if existing_ver is not None:
+            already_present.append(f"{pkg_name} ({existing_ver})")
+    if already_present:
+        raise BootstrapError(
+            f"Out-of-date system blocker: refusing to install ({', '.join(packages)}) because "
+            f"requested package(s) [{', '.join(already_present)}] are already installed. {policy_tail}"
+        )
+
+    sim_cmd = apt_simulation_command(packages)
+    sim_env = {
+        **(os.environ if env is None else env),
+        "DEBIAN_FRONTEND": "noninteractive",
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+    try:
+        sim_result = active_runner(
+            sim_cmd, capture_output=True, text=True, timeout=120, env=sim_env
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise BootstrapError(
+            f"Failed to simulate dependency installation ({', '.join(packages)}) via `{' '.join(sim_cmd)}`: {exc}"
+        ) from None
+
+    parsed = parse_apt_simulation_output(
+        getattr(sim_result, "stdout", "") or "",
+        getattr(sim_result, "stderr", "") or "",
+        returncode=getattr(sim_result, "returncode", 1),
+        requested_packages=packages,
+        installed_snapshot=pre_snapshot,
+    )
+
+    post_snapshot = _active_dpkg_snapshot(
+        status_path=status_path, env=env, runner=active_runner
+    )
+    if post_snapshot != pre_snapshot:
+        raise BootstrapError(
+            "Out-of-date system blocker: system package state changed during apt-get solver verification. "
+            f"{policy_tail}"
+        )
+    for pkg, _ver in parsed["new_installs"]:
+        base_pkg = pkg.split(":", 1)[0]
+        if pkg in post_snapshot or base_pkg in post_snapshot:
+            existing_ver = post_snapshot.get(pkg) or post_snapshot.get(base_pkg)
+            raise BootstrapError(
+                f"Out-of-date system blocker: package {pkg} ({existing_ver}) is already installed "
+                f"in dpkg status. {policy_tail}"
+            )
+    if expected_pinned is not None and parsed["pinned_packages"] != list(expected_pinned):
+        raise BootstrapError(
+            "Out-of-date system blocker: apt-get solver transaction changed between preflight inspection "
+            f"and execution ({parsed['pinned_packages']} != {list(expected_pinned)}). {policy_tail}"
+        )
+
+    return {
+        **parsed,
+        "installed_snapshot": pre_snapshot,
+        "simulation_command": sim_cmd,
+        "install_command": dependency_install_command(parsed["pinned_packages"]),
+    }
+
+
+def install_missing_dependencies(
+    missing,
+    *,
+    env=None,
+    runner=None,
+    status_path=None,
+    expected_snapshot=None,
+    expected_pinned=None,
+):
     if not missing:
         return []
     for pkg in missing:
-        require(isinstance(pkg, str) and re.fullmatch(r"[a-z0-9][a-z0-9.+-]*", pkg), f"Invalid dependency name: {pkg!r}")
-    cmd = dependency_install_command(missing)
-    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, env=env)
+        require(
+            isinstance(pkg, str) and re.fullmatch(r"[a-z0-9][a-z0-9.+-]*", pkg),
+            f"Invalid dependency name: {pkg!r}",
+        )
+    active_runner = subprocess.run if runner is None else runner
+    verified = verify_apt_no_existing_package_changes(
+        missing,
+        env=env,
+        runner=active_runner,
+        status_path=status_path,
+        expected_snapshot=expected_snapshot,
+        expected_pinned=expected_pinned,
+    )
+    current_snapshot = _active_dpkg_snapshot(
+        status_path=status_path, env=env, runner=active_runner
+    )
+    if current_snapshot != verified["installed_snapshot"]:
+        raise BootstrapError(
+            "Out-of-date system blocker: system package state changed before executing apt-get install. "
+            "Kinaiya refuses to upgrade, downgrade, or remove existing system packages, "
+            "and never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+        )
+    cmd = verified["install_command"]
+    exec_env = {
+        **(os.environ if env is None else env),
+        "DEBIAN_FRONTEND": "noninteractive",
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+    result = active_runner(cmd, capture_output=True, text=True, timeout=300, env=exec_env)
     if result.returncode != 0:
         detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
         suffix = f" ({detail.splitlines()[-1]})" if detail else ""
         raise BootstrapError(
             f"Out-of-date system blocker: could not install missing dependencies ({', '.join(missing)}) "
-            f"with `--no-upgrade`{suffix}. An existing installed package or your local apt package index "
-            "is out of date. Please update that specific package or refresh your package index manually "
-            "first; Kinaiya never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+            f"with pinned `--no-upgrade --no-remove`{suffix}. An existing installed package or your local apt "
+            "package index is out of date. Please update that specific package or refresh your package index "
+            "manually first; Kinaiya refuses to upgrade, downgrade, or remove existing system packages, and "
+            "never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
         )
     return list(missing)
 
@@ -179,10 +723,12 @@ def preflight(*, allow_missing_dependencies=False):
     require(shutil.disk_usage(Path.home()).free >= 1024**3, "At least 1 GiB free disk is required")
     missing = missing_dependencies()
     if missing and not allow_missing_dependencies:
+        sim = " ".join(apt_simulation_command(missing))
         cmd = " ".join(dependency_install_command(missing))
         raise BootstrapError(
             f"Missing required system dependencies: {', '.join(missing)}. "
-            f"Run `{cmd}` (never runs apt-get update/upgrade)"
+            f"Verify with `{sim}` before `{cmd}` "
+            "(pins exact package=version; refuses any upgrade, downgrade, or removal; never runs apt-get update/upgrade)"
         )
     binary = shutil.which("bwrap")
     if binary is not None:
@@ -361,7 +907,11 @@ def run(argv=None):
     plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(Path.home() / ".local/share/kinaiya/install"), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
     if missing:
         plan_summary["missing_system_dependencies"] = missing
+        plan_summary["system_dependency_check"] = " ".join(apt_simulation_command(missing))
         plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
+        plan_summary["system_dependency_policy"] = (
+            "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+        )
     print(json.dumps(plan_summary), flush=True)
     if not args.yes:
         with open_terminal() as tty:

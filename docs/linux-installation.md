@@ -28,24 +28,31 @@ error, never permission to install `main`, an alpha, or nightly. See
   backends are not qualified by this installer.
 
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
-upgrades existing system packages, never changes kernel policy, and never starts
-inference, captures a microphone, or submits an Agent task. It refuses to run as
-root. When required host packages (`bubblewrap`, `libseccomp2`, or
-`python3.<minor>-venv`) are missing, `install.sh` and `kinaiya install` include
-the exact `sudo apt-get install --no-upgrade -y <missing>` command in the
-confirmation plan and install only the missing packages after confirmation. If an
-existing system component (`Ubuntu` release `< 22.04`, `Python < 3.11`,
-`bubblewrap < 0.6.1`, `libseccomp2 < 2.5`, or an out-of-date local package index
-that prevents `--no-upgrade` installation) is out of date and blocks
-installation, the CLI and setup wizard warn the user to update that specific
+upgrades, downgrades, or removes existing system packages, never changes kernel
+policy, and never starts inference, captures a microphone, or submits an Agent
+task. It refuses to run as root. Because `apt-get --no-upgrade` alone only skips
+upgrades for packages explicitly named on the command line (and can still upgrade
+already-installed transitive dependencies), when required host packages
+(`bubblewrap`, `libseccomp2`, or `python3.<minor>-venv`) are missing, `install.sh`
+and `kinaiya install` first run a non-mutating `apt-get -s --no-upgrade --no-remove
+-o APT::Get::Upgrade=false -o APT::Get::Remove=false
+-o APT::Get::Allow-Downgrades=false -y install -- <missing>` simulation against the
+`dpkg` status snapshot, verify that every `Inst` record is a newly installed
+package with zero upgrades, removals, or downgrades, and bind the exact approved
+`package=version` pairs to `sudo apt-get install`. If an existing system component
+(`Ubuntu` release `< 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`,
+`libseccomp2 < 2.5`, a transitive dependency requiring an upgrade/removal/downgrade,
+or an out-of-date local package index) blocks installation, the CLI and setup
+wizard stop before any mutating command and warn the user to update that specific
 component first rather than updating the system automatically.
 
 ## Single-command install & shell entry point
 
 Run the standalone root `install.sh` in a single command (it handles prerequisite
-checks, missing dependency installation with `--no-upgrade`, verified release
-bundle download, isolated `.venv` creation, hash-locked runtime wheels, the
-`~/.local/bin/kinaiya` launcher, and interactive `kinaiya setup` via `/dev/tty`):
+checks, solver-verified missing dependency installation with pinned
+`package=version` pairs, verified release bundle download, isolated `.venv`
+creation, hash-locked runtime wheels, the `~/.local/bin/kinaiya` launcher, and
+interactive `kinaiya setup` via `/dev/tty`):
 
 ```sh
 # Single-command install (experimental nightly channel):
