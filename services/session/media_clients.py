@@ -486,7 +486,14 @@ class MediaOwnerEventHub:
         # A resistant sender/receiver remains owned; no parallel close can
         # interrupt it and be mistaken for a positive join.
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+            if any(task.cancelled() for task in tasks) or any(
+                isinstance(result, BaseException) and not isinstance(result, Exception)
+                for result in outcomes
+            ):
+                # Retirement may finish before the serving observer sees the
+                # same cancelled worker. Its absence is not a positive join.
+                connection.unknown = True
         if connection.unknown or connection.starting_worker is not None:
             return False
         try:
