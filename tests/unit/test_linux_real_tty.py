@@ -85,3 +85,17 @@ def test_standalone_bootstrap_reads_real_terminal_consent(tmp_path):
         "ns['download']=ns['stop_download']; ns['run'](['--no-setup'])"
     )
     assert "BOOTSTRAP_CONSENT_READ" in run_tty(code, "yes\n", tmp_path)
+    assert "BOOTSTRAP_CONSENT_READ" in run_tty(code, "y\n", tmp_path)
+
+
+def test_setup_wizard_accepts_short_y_n_on_real_controlling_terminal(tmp_path):
+    answers = "\n".join(["", "", "", "tty-short-yn", "n", "", "n", "y"]) + "\n"
+    output = run_tty(
+        "from services.distribution.cli import main; main(['setup'])",
+        answers,
+        tmp_path,
+    )
+    assert "(y/n) [n]" in output
+    assert '"provider_connection": "not_checked"' in output
+    config = json.loads((tmp_path / ".config/kinaiya/config.json").read_text())
+    assert config["providers"]["agent"]["model"] == "tty-short-yn"

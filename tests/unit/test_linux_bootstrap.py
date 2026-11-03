@@ -194,3 +194,30 @@ def test_bootstrap_warns_on_outdated_system_blockers_and_installs_missing_deps_w
         ]
     ]
     assert "update" not in commands[0] and "upgrade" not in commands[0]
+
+
+def test_bootstrap_confirm_yn_accepts_short_y_and_rejects_n(bootstrap):
+    out_y = io.StringIO()
+    tty_y = type(
+        "TTY",
+        (),
+        {
+            "write": out_y.write,
+            "flush": lambda self: None,
+            "readline": lambda self: "y\n",
+        },
+    )()
+    assert bootstrap.confirm_yn(tty_y) is True
+    assert "(y/n) [n]: " in out_y.getvalue()
+
+    out_n = io.StringIO()
+    tty_n = type(
+        "TTY",
+        (),
+        {
+            "write": out_n.write,
+            "flush": lambda self: None,
+            "readline": lambda self: "n\n",
+        },
+    )()
+    assert bootstrap.confirm_yn(tty_n) is False

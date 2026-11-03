@@ -150,8 +150,10 @@ def confirm(yes, message):
         return
     try:
         with open_terminal() as tty:
-            tty.write("Type yes to continue: ")
-            if tty.readline().strip() == "yes":
+            tty.write("Continue? (y/n) [n]: ")
+            if hasattr(tty, "flush"):
+                tty.flush()
+            if tty.readline().strip().lower() in {"y", "yes"}:
                 return
     except OSError:
         pass

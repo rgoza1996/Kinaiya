@@ -338,6 +338,18 @@ def open_terminal():
             yield terminal
 
 
+def is_yes_response(value):
+    return isinstance(value, str) and value.strip().lower() in ("y", "yes")
+
+
+def confirm_yn(tty, prompt="Review the plan. Download and install? (y/n) [n]: "):
+    tty.write(prompt)
+    if hasattr(tty, "flush"):
+        tty.flush()
+    line = tty.readline()
+    return is_yes_response(line)
+
+
 def run(argv=None):
     parser = argparse.ArgumentParser(description="Verified native Linux Kinaiya bootstrap; installs missing dependencies without upgrading existing packages")
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
@@ -365,8 +377,7 @@ def run(argv=None):
     print(json.dumps(plan_summary), flush=True)
     if not args.yes:
         with open_terminal() as tty:
-            tty.write("Review the plan. Type yes to download and install: ")
-            require(tty.readline().strip() == "yes", "Installation cancelled; no files changed")
+            require(confirm_yn(tty), "Installation cancelled; no files changed")
     if missing:
         install_missing_dependencies(missing)
         preflight()

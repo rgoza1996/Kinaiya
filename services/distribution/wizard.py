@@ -33,6 +33,26 @@ def mascot(*, width=80, interactive=True):
     return MASCOT
 
 
+def ask_yn(tty, label: str, *, default: bool = False) -> bool:
+    """Prompt for a boolean y/n choice, accepting y/n and yes/no."""
+    default_hint = "y" if default else "n"
+    while True:
+        tty.write(f"{label} (y/n) [{default_hint}]: ")
+        tty.flush()
+        answer = tty.readline()
+        if not answer:
+            raise InstallError("Setup cancelled: terminal input closed")
+        cleaned = answer.strip().lower()
+        if not cleaned:
+            return default
+        if cleaned in {"y", "yes"}:
+            return True
+        if cleaned in {"n", "no"}:
+            return False
+        tty.write("Please enter y or n.\n")
+        tty.flush()
+
+
 def run_wizard(layout, *, tty=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
@@ -70,11 +90,13 @@ def run_wizard(layout, *, tty=None):
         adapter = None
         endpoint = endpoint_input
     model = ask("Exact model name (required)")
-    allow_cloud = (
-        ask("Allow disclosure of authorized content to this cloud provider? yes/no", "no") == "yes"
+    allow_cloud = ask_yn(
+        tty,
+        "Allow disclosure of authorized content to this cloud provider?",
+        default=False,
     )
     credential_env = ask("Credential environment variable NAME only; never paste a key") or None
-    converse = ask("Enable optional Converse text services? yes/no", "no") == "yes"
+    converse = ask_yn(tty, "Enable optional Converse text services?", default=False)
     converse_profile = None
     decisions_profile = None
     if converse:
@@ -105,7 +127,7 @@ def run_wizard(layout, *, tty=None):
         f"Planned config: {chosen.config}\nData: {chosen.data}\nWorkspace: {chosen.workspace}\n"
     )
     tty.write("Provider connection is not checked; saved configuration does not mean ready.\n")
-    if ask("Write configuration and private service tokens? type yes", "no") != "yes":
+    if not ask_yn(tty, "Write configuration and private service tokens?", default=False):
         raise InstallError("Setup cancelled; no configuration written")
     setup_kwargs: dict = {
         "endpoint": endpoint,
