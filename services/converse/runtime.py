@@ -656,6 +656,8 @@ class ConverseRuntime:
                 stop.request = None
             if not stop.covers(stop.desired_generation):
                 raise RuntimeError("Newer playback stop needs reconciliation")
+        if self.tts_model_settings is not None and self.tts_model_settings.unknown_admissions():
+            await self.tts_model_settings.reconcile_settled_turns()
 
     def stop_reconciliation_batch(self, limit):
         # Rotate the existing playback map rather than scan retained history or
@@ -711,6 +713,7 @@ class ConverseRuntime:
             + len(self._tts_turns)
             + (
                 len(self.tts_model_settings._native_unsettled)
+                + len(self.tts_model_settings._reconciling)
                 if self.tts_model_settings is not None
                 else 0
             ),
@@ -1092,7 +1095,9 @@ class ConverseRuntime:
                         # Scope/currentness belong to this producer task. Explicit
                         # arguments cannot be lost across copied task contexts.
                         iterator = (
-                            synthesize_scoped(
+                            tts_turn.dispatch_native(spoken)
+                            if tts_turn is not None and tts_turn.native_binding is not None
+                            else synthesize_scoped(
                                 spoken, content_scope=content_scope, current=synthesis_current
                             )
                             if synthesize_scoped is not None
@@ -1198,6 +1203,7 @@ class ConverseRuntime:
                             operation.cleanup_failed = True
                         if tts_turn is not None:
                             tts_turn.lease.cleanup_failed = True
+                            tts_turn.lease.cleanup_actual_failed = True
                     else:
                         if operation is not None:
                             operations = self._speech.get(event.session_id)
@@ -1642,12 +1648,17 @@ class ConverseRuntime:
         await self._validate_memory_speech(event)
         if not self.admission_current(admission) or not playback.accepts(generation_epoch):
             raise ValueError("Obsolete or unauthorized speech")
+        if self.tts_model_settings is not None and self.tts_model_settings.unknown_admissions():
+            await self.tts_model_settings.reconcile_settled_turns()
         return event
 
     async def acknowledge_delivery(self, request: DeliveryRequest):
         tts_turn = self._tts_history.get((request.event_id, request.generation_epoch))
         if tts_turn is not None and request.status in {"interrupted", "delivery_unknown"}:
-            return await tts_turn.publish_terminal_delivery(request)
+            entry = await tts_turn.publish_terminal_delivery(request)
+            if self.tts_model_settings is not None and self.tts_model_settings.unknown_admissions():
+                await self.tts_model_settings.reconcile_settled_turns()
+            return entry
         event = await self.validate_speech(request.event_id, request.generation_epoch)
         if request.chunk_id != event.payload["chunk_id"]:
             raise ValueError("Wrong speech chunk")
