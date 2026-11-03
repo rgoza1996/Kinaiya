@@ -1,7 +1,8 @@
 # ADR0110: Native standing Agent settlement and immutable history
 
 Status: implemented on the working integration branch for #228 / #239;
-capacity, broader regressions, final independent review and CI remain gates.
+604 integration checks pass at the source below. Capacity and exact-head CI
+remain gates; the complete standing-work chain remains unfinished.
 This extends [ADR0109](0109-agent-claim-retirement.md). It does not establish
 the scheduler, durable inbox, owner editor or full autonomous-work acceptance.
 
@@ -74,6 +75,41 @@ eviction, truncation or archival. Otherwise eligible fresh work at a full histor
 is unavailable; active/duplicate conflicts retain their distinct semantics.
 H64, maximum valid graphs and ordinary-service availability remain unqualified
 until their dedicated actual storage/transport runs complete.
+
+## Finite prepared-run budgets
+
+Native v2 preparation enforces `StandingAuthorization.maximum_runs` (1–32)
+for the exact backend, responsibility and immutable authorization revision.
+Every distinct retained prepared claim consumes one run, including unlaunched,
+uncertain, migrated-origin, admitted and settled history. First admission spends
+no second run, and settlement never refunds preparation. Otherwise eligible
+fresh work over quota returns HTTP 409 without authoritative database mutation;
+existing duplicate, active-claim and full-history refusal precedence remains.
+An explicit owner CAS revision grants a new finite future budget. Separate
+responsibilities have separate budgets, while unresolved work and the native v2
+lifetime 64-claim limit remain shared guards. Coherent pre-fix/migrated excess
+history keeps its original inspection, replay and cleanup guards; it is neither
+erased nor given new original-process authority. Explicit v1 behavior remains
+unchanged.
+
+At source `bf10f57bfe655acb633fecb93ae16a6c059c00a9`, the same four frozen
+protocol cases pass with all 1,543 input pins and HEAD stable. Before the source
+change, three cases observed HTTP 200 after quota exhaustion where 409 was
+required; the uncertain-acknowledgement control passed. Oracle bytes, node order,
+old tests and all 201 packet schemas are unchanged. A subsequent 23-module run
+passes 604 checks, including those four and the earlier 258-case regression
+set, with the same source and stable inputs. The source review and separate raw
+four-case and 604-case evidence reviews pass. See
+[the finite-budget evidence](../../evaluation/evidence/standing-prepared-run-budget-2026-11-02.json)
+for their hashes, attribution and limits.
+
+These are controlled SQLite/ASGI and guarded original-Resources fixture checks,
+with no model inference. They establish no H64 capacity, live-device cleanup,
+performance repair or CI result. The four new cases do not cover retrospective
+migrated over-quota history or the complete cancellation/pre-COMMIT fault matrix.
+H64 and exact-head CI remain pending. Scheduler, durable inbox and editor
+acceptance remain unfinished. This source change is excluded from legacy
+publication PR315.
 
 ## Transport
 

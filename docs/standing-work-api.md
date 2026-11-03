@@ -804,7 +804,32 @@ immutable per-claim settlement and matching active-slot release. Its four new
 Agent-only routes, packet caps, purpose-separated capability and storage/replay
 limits are specified in ADR0110. Earlier dated v1 and finalization-only scope
 statements above remain historical. Capacity, broader regression and final CI
-qualification are pending; scheduler/inbox/editor acceptance remains unfinished.
+qualification are described in ADR0110; scheduler/inbox/editor acceptance
+remains unfinished.
+
+### Finite native preparation budgets
+
+`StandingAuthorization.maximum_runs` is a native prepared-run budget of 1–32
+for one backend, responsibility and immutable authorization revision. Its budget
+spans the revision: each unique durably prepared claim remains spent across
+unlaunched, uncertain, migrated-origin, admitted and settled history. Calendar
+rollover, retained replay and settlement never reset it. First admission of the
+last permitted prepared claim spends no additional run. Otherwise eligible
+fresh preparation after exhaustion returns HTTP 409 with no claim, origin,
+active-slot, entry or ledger change; existing duplicate/active/full-history
+guards retain their precedence.
+
+An explicit owner CAS revision grants a separate finite future budget, and a
+different responsibility has its own budget. Earlier spend and coherent pre-fix
+or migrated history stay immutable under their existing replay/cleanup guards;
+unresolved earlier work still blocks fresh work globally. The native v2
+64-claim lifetime history remains bounded. The
+[finite-budget evidence](../evaluation/evidence/standing-prepared-run-budget-2026-11-02.json)
+records the original four-case regression and subsequent 604-case integration
+pass. H64 and exact-head CI remain pending; the full scheduler, inbox and owner
+editor are outside this native quota qualification.
+
+### Dispatch lifecycle
 
 `services/session/standing_dispatch.py` implements explicit registration,
 producer renewal, gate observation, owner activation, historical lookup and

@@ -1,0 +1,346 @@
+{
+  "artifact_access": "Raw artifacts and frozen review receipts are retained under ignored .dev-run directories; names and hashes identify local evidence, not public download links.",
+  "contract_references": {
+    "field_only_erratum_v1_1": {
+      "path": ".dev-run/239-prepared-run-budget-contract-erratum-v1.1.md",
+      "sha256": "cda9a092195773a723bfccdd1b9cc383361c246724c6e99fd7c08293d92f43ec"
+    },
+    "v1": {
+      "path": ".dev-run/239-prepared-run-budget-contract-v1.md",
+      "sha256": "ffbdf3b9906ac9f9f9ce49c985469edaa79a83f2dfa41e3ff84b9df79882840a"
+    }
+  },
+  "current_gates": {
+    "H64_native64": "Pending/unqualified at this evidence cut; historical failed/interrupted attempts remain distinct.",
+    "broader_regressions": {
+      "bundle": ".dev-run/239-quota-expanded-integration-v1-um9xka1w",
+      "errors": 0,
+      "failed": 0,
+      "modules": 23,
+      "passed": 604,
+      "skipped": 0,
+      "status": "PASS",
+      "tests": 604
+    },
+    "exact_head_CI": "Pending for native quota integration. These local passes do not qualify legacy publicationPR315 or another source.",
+    "scheduler_inbox_editor": "Unfinished; full recurrence/evaluation/inbox proposal remains proposed and is outside this quota change."
+  },
+  "date": "2026-11-02",
+  "document_status": "Root-adopted local qualification evidence; native working integration only, not full standing-work acceptance.",
+  "field_spelling": "StandingAuthorization.maximum_runs; DailySchedule has no maximum_runs field. Erratum changes no behavior or oracle.",
+  "independence_and_authorship": {
+    "documentation_draft": "Oracle author prepared the initial ignored draft and read raw artifacts; that author is not an independent evidence reviewer.",
+    "final_documentation": "Root adopted the completed604 result and independent reviews, preserving the original draft.",
+    "implementation_author": "Separate source author; commit71f41, integrated asbf10.",
+    "independent_reviewer": "/root/native_reuse_source_review/codec_field_scan_equivalence; authored neither implementation nor oracle. Source-only opinion was frozen before separate raw-evidence phases.",
+    "oracle_author": "Implementation-blind oracle subagent; author commit and SHA retained below.",
+    "review_limits": "The raw-evidence phases inspected manifests, Git metadata and raw output without project execution or source/test-body inspection. They do not substitute for source review or capacity/CI gates."
+  },
+  "independent_reviews": {
+    "raw_604": {
+      "artifact": ".dev-run/239-prepared-run-budget-604-annex-v1-bf19aab91a",
+      "result": "PASS",
+      "review_sha256": "15435508b5f4456e34f850c440b9efc9f8170ea22e530e071695ad1753e21359",
+      "seal_sha256": "3f3a666b0cedd17e43a24fce9095d64fafa2b6638d1ef43a6efab7d20776c2de"
+    },
+    "raw_four": {
+      "artifact": ".dev-run/239-prepared-run-budget-raw-review-v1-c466289a84",
+      "result": "PASS",
+      "review_sha256": "48189d3b15529c5541cc17cffede437dc6283b870c717cc1bb85c9e99efbc967",
+      "seal_sha256": "9710f9c5cace0c473338f3c08c02a2fd4a12c6a84ab2c43f9640e8b4db37d2a3"
+    },
+    "source": {
+      "artifact": ".dev-run/239-prepared-run-budget-source-review-v1-cc703b5564",
+      "result": "PASS",
+      "review_sha256": "af2f2dcca7e6cd2b46b2ebea40ea44e08539754987116401c787f4a1d5b2795f",
+      "seal_sha256": "666cfaa17916999dfd1c80959e8a895f935bd24ed3f6fcaaf7079439533103d8"
+    }
+  },
+  "input_preservation": {
+    "all201_packet_schema_hashes_unchanged": true,
+    "only_baseline_to_qualified_pin_change": [
+      "services/session/standing_settlement.py"
+    ],
+    "pre_post_pin_sets_equal_each_run": true,
+    "tracked_input_count_each": 1543,
+    "unchanged_inputs_include_oracle_and_all201_packet_schemas": true,
+    "unchanged_tracked_input_count": 1542
+  },
+  "integration_cleanup_scope": {
+    "interpretation": "Controlled original-close/join/reap observations are narrow fixture evidence. Failed cleanup, uncertain descriptors and absent physical reports remain negative/uncertain; no Task/row/empty-registry shortcut proves original physical retirement.",
+    "native_teardown_records": 73,
+    "negative_or_uncertain": {
+      "Agent_cleanup_cases_without_physical_report_or_settlement_call": 4,
+      "logical_StandingUnavailable_records": 5,
+      "manual_failed_workspace_descriptor_release_cases": 6,
+      "sticky_failed_or_cancelled_reconciliations": 2
+    },
+    "observed_inference_calls": 0,
+    "positive_physical_fixture_records": 145
+  },
+  "integration_partition": {
+    "additional_cases": 342,
+    "additional_modules": 10,
+    "ordered_prefix": 4,
+    "ordered_suffix": 258,
+    "total_cases": 604,
+    "total_modules": 23,
+    "verification": "Independent604 annex verifies exact ordered identities and raw properties for the four-case prefix and earlier258 suffix; no sum of overlapping runs is claimed as distinct coverage."
+  },
+  "observed_baseline_defect": {
+    "actual_status": 200,
+    "description": "Three otherwise eligible exhausted future preparations returned created claims instead of409. The uncertain prepare-ACK/global-active-retention control passed.",
+    "failed": 3,
+    "failure_reason_source": "Raw JUnit failure text and pytest log; no common-cause or performance conclusion.",
+    "passed_control": 1,
+    "required_status": 409
+  },
+  "oracles": {
+    "author_commit": "f8a05b095c180e83373a73cc700a324e0d682e11",
+    "coverage": [
+      "Quota1/2 preparation and last-permitted initial admission.",
+      "Exact prepare/claim/admission/task replay, changed-body refusal and exhausted eligible occurrence409 with full schema/all-table nonmutation.",
+      "Created-unlaunched and outcome-unconfirmed retained claims do not refund finite spend.",
+      "Lost successful prepare acknowledgement retains the original active claim across explicit owner revision, Stop and expiry.",
+      "Explicit new revision and separate responsibility receive their own finite future budgets after genuine prior settlement; original history stays retained."
+    ],
+    "implementation_blind_authorship": true,
+    "ordered_case_ids": [
+      "tests.integration.test_standing_prepared_run_budget::test_finite_preparations_last_admission_and_settlement_do_not_refund[1]",
+      "tests.integration.test_standing_prepared_run_budget::test_finite_preparations_last_admission_and_settlement_do_not_refund[2]",
+      "tests.integration.test_standing_prepared_run_budget::test_uncertain_prepare_keeps_global_active_claim_across_revision_stop_and_expiry",
+      "tests.integration.test_standing_prepared_run_budget::test_explicit_revision_and_other_responsibility_have_separate_retained_budgets"
+    ],
+    "path": "tests/integration/test_standing_prepared_run_budget.py",
+    "same_bytes_and_ordered_four_ids_across_runs": true,
+    "sha256": "d5c1c27cb0341553e281b6fca6381a58668cae53af84e5c6238662f71b5d2ba0"
+  },
+  "proof_scope": {
+    "limits": [
+      "Controlled fixture/protocol checks do not qualify live devices, model quality, real workload process cleanup or the broader scheduler.",
+      "A passing finite4 run is not H64 qualification or a performance/CI/common-cause finding.",
+      "Coherent pre-fix/migrated over-quota inspection/replay/cleanup remains required under its original guards, but retrospective migrated-overquota, full-history64 and full cancellation/pre-COMMIT/malformed-storage matrices are not covered by these four new cases.",
+      "No schema migration, packet change or v1 behavior change is authorized by this requirement."
+    ],
+    "native_calls": "Authenticated native Session ASGI routes and genuine SQLite state; no scheduler scan is involved.",
+    "observed_fixture_inference_calls": 0,
+    "physical_lineage": "Unchanged factory/physical/prepared_settlement/actual_report/commit fixture lineage supplies original Resources binding, admission closure and guarded native settlement. No positive report is fabricated from rows.",
+    "qualified_physical_fixture_records": 6,
+    "qualified_record_flags": "Six records report original close done, manager reaped, native/control HTTP closed once and actual stream tasks joined, with no historical cleanup error.",
+    "uncertain_ack_case": "No Resources fixture or cleanup property is present for that case; its retained active claim is not a physical cleanup claim."
+  },
+  "publication_scope": "Nativev2/quota source and this evidence are outside legacy PR315. No CI, H64, scheduler, performance or demo completion is claimed.",
+  "requirements": [
+    "Roadmap sections13/19 finite owner grants",
+    "StandingAuthorization.maximum_runs1..32",
+    "Frozen contract v1 numbered rules and field-only erratumv1.1"
+  ],
+  "runs": {
+    "baseline": {
+      "artifacts": {
+        "junit.xml": {
+          "bytes": 11835,
+          "sha256": "04750712f65e3bbca75fdf24a82318b30ea38c9863cc050f18f0c6f43db48094"
+        },
+        "manifest.json": {
+          "bytes": 605,
+          "sha256": "1af34b51b5826e9b82e7982c991a74412a1ea74987c64637c7944f88a0f08fb7"
+        },
+        "post-pins.json": {
+          "bytes": 185629,
+          "sha256": "a37766c298116e0f3b7ee4efa5a261f43a5826d3022149ad8dc57d042fd6b382"
+        },
+        "pre-pins.json": {
+          "bytes": 185629,
+          "sha256": "a37766c298116e0f3b7ee4efa5a261f43a5826d3022149ad8dc57d042fd6b382"
+        },
+        "pytest.log": {
+          "bytes": 7908,
+          "sha256": "cf508add3ab3e980bac5a7bfdf826715bab494765eadd4576404ef1eb034df39"
+        },
+        "receipt.json": {
+          "bytes": 1940,
+          "sha256": "40cc08c56373948d73de11695f0e4379516ef509ccedd17350bdbf3639e22de6"
+        },
+        "runner-source.py": {
+          "bytes": 4262,
+          "sha256": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d"
+        },
+        "start.json": {
+          "bytes": 1151,
+          "sha256": "a28c8b45cd6934198c033440525ea0249ba693b70d8910506258e0e086cca330"
+        }
+      },
+      "bundle": ".dev-run/239-prepared-quota-baseline4-v1-vrmure6r",
+      "errors": 0,
+      "exit_code": 1,
+      "failed": 3,
+      "failure_case_indices": [
+        0,
+        1,
+        3
+      ],
+      "head": "4a81a33a669f3e30fbc7ab383250c8357ff12815",
+      "head_and_pre_post_pins_stable": true,
+      "initial_and_final_status": "clean",
+      "junit_seconds": 27.612,
+      "passed": 1,
+      "physical_fixture_record_count": 4,
+      "runner_sha256": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d",
+      "runner_wall_seconds": 28.231123720999676,
+      "skipped": 0,
+      "tests": 4,
+      "tracked_input_count": 1543
+    },
+    "expanded_integration": {
+      "artifacts": {
+        "junit.xml": {
+          "bytes": 268511,
+          "sha256": "6d14eebbcbcc2d479094ad4e109c4678b2bb5bce8c7bb24017028317f48ff9b5"
+        },
+        "manifest.json": {
+          "bytes": 605,
+          "sha256": "3c12d000b037ec3197d1bd0409b0a662cf789d48f83204b76738a086aea1c7ab"
+        },
+        "post-pins.json": {
+          "bytes": 185629,
+          "sha256": "850a2d22fc151d6d52dd98b607f39dfc5489ffd56a81e084afaab3c6990ed91a"
+        },
+        "pre-pins.json": {
+          "bytes": 185629,
+          "sha256": "850a2d22fc151d6d52dd98b607f39dfc5489ffd56a81e084afaab3c6990ed91a"
+        },
+        "pytest.log": {
+          "bytes": 753,
+          "sha256": "9bd48f54f56f53d5fd73515b81e48301684a5bb1fcbcdf9c2b936a463038bc52"
+        },
+        "receipt.json": {
+          "bytes": 3369,
+          "sha256": "56f7556347a4f137934435a8c874e748957bb2b9be2766c10fe1c56cd8abaf04"
+        },
+        "runner-source.py": {
+          "bytes": 4262,
+          "sha256": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d"
+        },
+        "start.json": {
+          "bytes": 2576,
+          "sha256": "94c7250ae8474336f76ba9aea750d787a7b8eecb98bb13977db41f9c50428fb8"
+        }
+      },
+      "bundle": ".dev-run/239-quota-expanded-integration-v1-um9xka1w",
+      "command_source": "Exact argv and explicit PYTHONPATH are archived in start/receipt; full inherited environment is not archived.",
+      "elapsed_wall_s": 1033.7959951470002,
+      "errors": 0,
+      "exit_code": 0,
+      "failed": 0,
+      "head": "bf10f57bfe655acb633fecb93ae16a6c059c00a9",
+      "head_after": "bf10f57bfe655acb633fecb93ae16a6c059c00a9",
+      "junit_seconds": 1031.762,
+      "modules": [
+        "tests/integration/test_standing_prepared_run_budget.py",
+        "tests/integration/test_standing_execution_owner.py",
+        "tests/integration/test_standing_execution_api.py",
+        "tests/integration/test_standing_execution_schema.py",
+        "tests/integration/test_standing_task_admission.py",
+        "tests/integration/test_standing_admission_closure_native.py",
+        "tests/integration/test_standing_admission_closure_http.py",
+        "tests/integration/test_standing_export_admission.py",
+        "tests/integration/test_standing_export_guard_bounds.py",
+        "tests/integration/test_standing_export_guard_corruption.py",
+        "tests/integration/test_standing_agent_runtime.py",
+        "tests/integration/test_standing_agent_settlement.py",
+        "tests/integration/test_standing_settlement_registration_close.py",
+        "tests/integration/test_agent_standing_settlement.py",
+        "tests/integration/test_agent_standing_settlement_reconciliation.py",
+        "tests/integration/test_standing_physical_finalization.py",
+        "tests/integration/test_standing_resource_finalization_api.py",
+        "tests/integration/test_standing_resources_finalization_transport_api.py",
+        "tests/integration/test_standing_physical_timeout_controls.py",
+        "tests/unit/test_standing_finalization_join_equivalence.py",
+        "tests/integration/test_agent_standing_claim_retirement.py",
+        "tests/integration/test_agent_standing_external_control_retirement.py",
+        "tests/integration/test_agent_standing_binding_retirement.py"
+      ],
+      "passed": 604,
+      "pins_preserved": true,
+      "qualified_inputs_stable": true,
+      "runner_preserved": true,
+      "runner_sha256": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d",
+      "skipped": 0,
+      "started_at": "2026-11-03T00:04:43.559666+00:00",
+      "tests": 604,
+      "tracked_input_count": 1543
+    },
+    "qualified": {
+      "artifacts": {
+        "junit.xml": {
+          "bytes": 3876,
+          "sha256": "31f8549bf67b19a044d1b01de9d5c71439c4303493f7c2db455131dd37d37994"
+        },
+        "manifest.json": {
+          "bytes": 605,
+          "sha256": "0793b89c916ec165f2a59cfd53f692fdf70a5f333a06a171576c0a22c1b2d614"
+        },
+        "post-pins.json": {
+          "bytes": 185629,
+          "sha256": "850a2d22fc151d6d52dd98b607f39dfc5489ffd56a81e084afaab3c6990ed91a"
+        },
+        "pre-pins.json": {
+          "bytes": 185629,
+          "sha256": "850a2d22fc151d6d52dd98b607f39dfc5489ffd56a81e084afaab3c6990ed91a"
+        },
+        "pytest.log": {
+          "bytes": 99,
+          "sha256": "c7f5604a577de8d1f7db3bfd71e85998d06ac06ce5a0e4c916f781d49e078c6b"
+        },
+        "receipt.json": {
+          "bytes": 1942,
+          "sha256": "4a9f8afac9b639bbce2555979d43012beac6a0255c2628ace525461ddc76326e"
+        },
+        "runner-source.py": {
+          "bytes": 4262,
+          "sha256": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d"
+        },
+        "start.json": {
+          "bytes": 1153,
+          "sha256": "b94d221d815bdaefe70f911308ebc9b912cfc9079862518d37a9cfbead4c7683"
+        }
+      },
+      "bundle": ".dev-run/239-prepared-quota-qualified4-v1-ikjdcc1f",
+      "errors": 0,
+      "exit_code": 0,
+      "failed": 0,
+      "failure_case_indices": [],
+      "head": "bf10f57bfe655acb633fecb93ae16a6c059c00a9",
+      "head_and_pre_post_pins_stable": true,
+      "initial_and_final_status": "clean",
+      "junit_seconds": 56.501,
+      "passed": 4,
+      "physical_fixture_record_count": 6,
+      "runner_sha256": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d",
+      "runner_wall_seconds": 57.224545559000035,
+      "skipped": 0,
+      "tests": 4,
+      "tracked_input_count": 1543
+    }
+  },
+  "source": {
+    "baseline_head": "4a81a33a669f3e30fbc7ab383250c8357ff12815",
+    "baseline_sha256": "8f87edcd2505970d2d4cc682dfede19f20b94d5167304326753771c1d0c79539",
+    "git_metadata_scope": {
+      "added_lines": 23,
+      "changed_files": [
+        "services/session/standing_settlement.py"
+      ],
+      "deleted_lines": 0
+    },
+    "hash_provenance": "Raw tracked-input pin manifests; product source bodies were not read.",
+    "path": "services/session/standing_settlement.py",
+    "qualified_head": "bf10f57bfe655acb633fecb93ae16a6c059c00a9",
+    "qualified_sha256": "08c4047749842d46d61c40403c1fd7a62230c54cec57f696b5587bb42faea104",
+    "root_integration_commit": "bf10f57bfe655acb633fecb93ae16a6c059c00a9",
+    "root_reported_reviewed_author_commit": "71f41fff4cb17def4f305cf3f75a29526f18c5ea",
+    "source_review_attribution": "Independent source-only review of author71f41 and the byte-identical source integrated asbf10; review frozen before separate raw-evidence phases."
+  },
+  "title": "Native finite prepared-run budgets"
+}
