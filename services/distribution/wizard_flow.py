@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from services.distribution.credentials import (
+    LocalCredentialsStore,
+    apply_masked_key_action,
+    default_providers_env_path,
+    prompt_masked_api_key,
+)
 from services.distribution.installation import (
     InstallError,
     Layout,
@@ -55,6 +61,8 @@ class WizardFlowCoordinator:
         mode: str | None = None,
         mascot_fn: Callable[..., str] | None = None,
         setup_fn: Callable[..., dict[str, Any]] = setup,
+        profile_id: str = "p01",
+        getpass_fn: Callable[..., str] | None = None,
     ) -> None:
         if mode not in VALID_WIZARD_MODES:
             raise InstallError(f"Unsupported wizard mode {mode!r}; select 'quick' or 'advanced'")
@@ -63,6 +71,8 @@ class WizardFlowCoordinator:
         self.mode = mode
         self.mascot_fn = mascot_fn
         self.setup_fn = setup_fn
+        self.profile_id = profile_id
+        self.getpass_fn = getpass_fn
 
     def ask(self, label: str, default: str = "") -> str:
         self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
@@ -165,6 +175,8 @@ class WizardFlowCoordinator:
             setup_kwargs["converse_profile"] = converse_profile
         if decisions_profile is not None:
             setup_kwargs["decisions_profile"] = decisions_profile
+        if chosen.config.exists():
+            setup_kwargs["allow_existing"] = True
         return self.setup_fn(chosen, **setup_kwargs)
 
     def run_quick(self) -> dict[str, Any]:
@@ -274,8 +286,31 @@ class WizardFlowCoordinator:
             ),
             default=False,
         )
-        credential_env = (
-            self.ask("Credential environment variable NAME only; never paste a key") or None
+        chosen = replace(
+            self.layout,
+            workspace=Path(workspace).expanduser(),
+            data=Path(data).expanduser(),
+        )
+        env_path = default_providers_env_path(chosen)
+        existing_present = (
+            LocalCredentialsStore(env_path).has_api_key(self.profile_id)
+            if env_path.exists() and not env_path.is_symlink()
+            else False
+        )
+        key_action = prompt_masked_api_key(
+            self.tty,
+            profile_id=self.profile_id,
+            endpoint=endpoint,
+            existing_present=existing_present,
+            getpass_fn=self.getpass_fn,
+            allow_bare_env_name=True,
+        )
+        credential_env = key_action.credential_env
+        effective_agent_adapter = adapter or ("meta" if allow_cloud else "lmstudio")
+        agent_credential_env = (
+            None
+            if (effective_agent_adapter == "lmstudio" and key_action.action in {"set", "keep"})
+            else credential_env
         )
         converse = _parse_yes_no(
             self.ask("Enable optional Converse text services? yes/no", "no"),
@@ -290,11 +325,6 @@ class WizardFlowCoordinator:
                 allow_cloud=allow_cloud,
                 credential_env=credential_env,
             )
-        chosen = replace(
-            self.layout,
-            workspace=Path(workspace).expanduser(),
-            data=Path(data).expanduser(),
-        )
         self._write_review_and_confirm(
             chosen,
             adapter=adapter,
@@ -303,20 +333,30 @@ class WizardFlowCoordinator:
             allow_cloud=allow_cloud,
             converse=converse,
         )
-        return self._execute_setup(
+        result = self._execute_setup(
             chosen,
             adapter=adapter,
             endpoint=endpoint,
             model=model,
             allow_cloud=allow_cloud,
-            credential_env=credential_env,
+            credential_env=agent_credential_env,
             converse=converse,
             converse_profile=converse_profile,
             decisions_profile=decisions_profile,
         )
+        if key_action.action in {"set", "remove", "keep"} and (
+            key_action.action == "set" or env_path.exists()
+        ):
+            apply_masked_key_action(
+                env_path,
+                key_action,
+                base_url=endpoint,
+                selected_model=model,
+            )
+        return result
 
     def run(self) -> dict[str, Any]:
-        if os.path.lexists(self.layout.config):
+        if self.mode == "quick" and os.path.lexists(self.layout.config):
             raise InstallError("Preserving existing configuration; edit it explicitly instead")
         if self.mode == "quick":
             return self.run_quick()

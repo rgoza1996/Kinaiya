@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "MediaQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaQ",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "address_space_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Address Space Bytes",
+      "type": "integer"
+    },
+    "children_global": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Children Global",
+      "type": "integer"
+    },
+    "children_per_operation": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Children Per Operation",
+      "type": "integer"
+    },
+    "cpu_affinity_count": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Cpu Affinity Count",
+      "type": "integer"
+    },
+    "cpu_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Cpu Ms",
+      "type": "integer"
+    },
+    "frame_rate": {
+      "$ref": "#/$defs/MediaQ"
+    },
+    "frames_per_track_segment": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Frames Per Track Segment",
+      "type": "integer"
+    },
+    "max_edge": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Max Edge",
+      "type": "integer"
+    },
+    "pixels_per_frame": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Pixels Per Frame",
+      "type": "integer"
+    },
+    "probe_metadata_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Probe Metadata Bytes",
+      "type": "integer"
+    },
+    "segment_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Segment Ms",
+      "type": "integer"
+    },
+    "stderr_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Stderr Bytes",
+      "type": "integer"
+    },
+    "track_limit": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Track Limit",
+      "type": "integer"
+    },
+    "wall_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Wall Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "segment_ms",
+    "cpu_ms",
+    "wall_ms",
+    "address_space_bytes",
+    "cpu_affinity_count",
+    "children_per_operation",
+    "children_global",
+    "track_limit",
+    "frames_per_track_segment",
+    "pixels_per_frame",
+    "max_edge",
+    "frame_rate",
+    "probe_metadata_bytes",
+    "stderr_bytes"
+  ],
+  "title": "MediaDecodeLimits",
+  "type": "object"
+}

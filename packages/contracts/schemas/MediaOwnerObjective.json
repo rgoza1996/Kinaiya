@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaOwnerMediaObjective": {
+      "additionalProperties": false,
+      "properties": {
+        "intent": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "kind": {
+          "const": "owner_media",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "intent"
+      ],
+      "title": "MediaOwnerMediaObjective",
+      "type": "object"
+    },
+    "MediaOwnerTextObjective": {
+      "additionalProperties": false,
+      "properties": {
+        "event_ref": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Event Ref",
+          "type": "string"
+        },
+        "kind": {
+          "const": "owner_text",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "event_ref"
+      ],
+      "title": "MediaOwnerTextObjective",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "owner_media": "#/$defs/MediaOwnerMediaObjective",
+      "owner_text": "#/$defs/MediaOwnerTextObjective"
+    },
+    "propertyName": "kind"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/MediaOwnerTextObjective"
+    },
+    {
+      "$ref": "#/$defs/MediaOwnerMediaObjective"
+    }
+  ]
+}

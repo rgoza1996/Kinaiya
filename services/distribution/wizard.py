@@ -41,13 +41,19 @@ def run_quick_wizard(layout, *, tty=None):
     return _run_quick_wizard(layout, tty=tty, mascot_fn=mascot, setup_fn=setup)
 
 
-def run_wizard(layout, *, tty=None, mode: str | None = None):
+def run_wizard(layout, *, tty=None, mode: str | None = None, profile_id="p01", getpass_fn=None):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
     if tty is None:
         try:
             with open_terminal() as terminal:
-                return run_wizard(layout, tty=terminal, mode=mode)
+                return run_wizard(
+                    layout,
+                    tty=terminal,
+                    mode=mode,
+                    profile_id=profile_id,
+                    getpass_fn=getpass_fn,
+                )
         except OSError:
             raise InstallError(
                 "No controlling terminal; use setup --yes with explicit endpoint/model"
@@ -59,6 +65,8 @@ def run_wizard(layout, *, tty=None, mode: str | None = None):
         mode=mode,
         mascot_fn=mascot,
         setup_fn=setup,
+        profile_id=profile_id,
+        getpass_fn=getpass_fn,
     )
     return coordinator.run()
 
