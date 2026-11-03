@@ -41,12 +41,20 @@ model dropdown demonstrates changing a selection in each harness. Values are
 prototype examples and do not save application settings.
 
 The current provider catalog designs distinguish saved profile declarations from
-credential references and immutable generations. They include native Meta text,
-LM Studio, compatible endpoints and Laya declarations. Saving a profile does not
-prove readiness or make every adapter eligible for Agent text completion.
-Credentials are represented by synthetic references; the design contains no
-owner key. Earlier Meta account sign-in explorations are historical proposals,
-not an implemented authentication path.
+credential references and immutable generations. Adding a provider profile sticks
+to custom OpenAI-compatible `.env` profiles (`#352`) with configurable endpoint
+paths (chat completions, models discovery, and optional engine-specific routes
+such as `/v1/systemone` on `llama.cpp` vs standard `/v1` on `LM Studio`),
+optional maximum output tokens (leaving blank delegates token limits to the
+model/engine), per-profile `GET /models` discovery, manual model ID fallback,
+masked API key preservation/rotation, and `(provider_profile_id, model_id)` role
+identity. Reasoning effort is configured globally or per-model in `Models`
+rather than per provider. Saving a profile or discovering
+`/models` does not prove readiness or make every adapter eligible for measured
+Agent text completion. Credentials are represented by synthetic references or
+masked `.env` placeholders; the design contains no real owner key. Earlier Meta
+account sign-in explorations are historical proposals, not an implemented
+authentication path.
 
 The current Models and Harness Customization boards show host versus exact
 catalog-generation selection, unavailable generations, inheritance, dedicated
@@ -62,6 +70,58 @@ recovery, same-instance fencing and retired-scope reset. These operation rules
 do not imply blanket filesystem or network access. Search and individual MCP
 rule designs remain a later increment. Motion-on routes dissolve over 220ms;
 motion-off routes are instant. Examples never save runtime settings.
+
+The master design also includes a 14-step interactive **CLI Installer & Setup
+Wizard decision tree** (28 paired boards in motion-on and motion-off variants)
+covering every choice and branch in `install.sh` and `kinaiya` CLI onboarding
+(`#261`, `#335`, `#336`, `#381–#402`):
+1. **01 · Bootstrap Entry**: release channel (`stable` vs `nightly`), install root
+   location (`~/.local/share/kinaiya` default XDG vs invoking directory `./kinaiya`
+   vs custom `--workspace`/`--data-dir`), and human stage progress vs `--json`.
+2. **02 · Preflight & APT No-Upgrade Refusal Branches**: absent stable release
+   refusal (never falls back to `main`/nightly), strict `apt-get install
+   --no-upgrade -o APT::Get::Upgrade=false -o APT::Get::Remove=false` solver
+   refusal (`#336`), root/WSL/OS/disk/sandbox namespace denial branches.
+3. **03 · Installation Plan Review & `[y/N]` Consent**: `/dev/tty` `y`/`n`/`Enter`
+   consent (`#381`), `--yes` non-interactive approval, and `--json` plan output.
+4. **04 · 5-Stage Progress & Setup Handoff**: human-readable stage progress with
+   quiet log (`~/.cache/kinaiya/install.log`, `#384`), default handoff to
+   `kinaiya setup`, `--no-setup`, existing `config.json` preservation, and
+   staging rollback on failure.
+5. **05 · Cancelled (`[n]`), `--no-setup`, or Existing Config Preserved**:
+   non-destructive exit branches where zero files are mutated or existing
+   configuration is preserved.
+6. **06 · Setup Wizard Mode Choice**: width-aware ASCII mascot (`#386`), Quick
+   Setup (`--quick` / `:quick`, `#387`), Advanced Setup (`--advanced`), targeted
+   section reconfiguration (`--section`, `#388`), and `:back` / `:cancel`.
+7. **07 · Provider Adapter & Model Choice**: local loopback (`lmstudio`,
+   `compatible`), remote cloud (`meta`, OpenRouter), searchable model picker
+   (`#390`), manual model ID fallback, and adapter validation (`#335`).
+8. **08 · Converse Toggle & Independent Per-Role Profiles**: Agent-only default
+   (`Converse = n`) vs enabled Converse (`Converse = y`) with independent
+   Converse and Decisions adapters, cloud disclosure consent, and credentials
+   (`#335`).
+9. **09 · Cloud Disclosure (`y/n`) & Credential Branches**: masked API-key paste
+   saved to `0600 ~/.config/kinaiya/providers.env` (`#389`), environment variable
+   name reference, keeping an existing key, or clearing a saved key.
+10. **10 · First-Run Named Custom `.env` API Profile (`#402`)**: creating a new
+    named profile (`p01..p07+`) with custom endpoints and optional blank max
+    tokens, choosing an existing profile, or skipping without disturbing setup.
+11. **11 · Bounded Connection Verification Probe (`#391`) & Final Write `[y/N]`**:
+    probe outcomes (`[CONFIGURED · UNTESTED]`, `[VERIFIED · MODEL LISTED]`,
+    `[AUTH FAILED · 401]`, `[UNREACHABLE · OFFLINE]`) and final `[y/N]` write
+    confirmation.
+12. **12 · Setup Completion Summary & Truthful Readiness Badges (`#397`)**:
+    written `0600` file summary, truthful `ready: false` badge until host starts,
+    and immediate next action branches.
+13. **13 · First Session Launch (`kinaiya start`), Auto Local Sign-In (`#393`) &
+    `kinaiya doctor` (`#392`)**: one-command local launch (`#395`), single-use
+    local owner sign-in exchange (`#393`), trusted local UI auto-connect (`#396`),
+    and owner credential rotation (`#394`).
+14. **14 · Lifecycle & Recovery CLI Branches**: `kinaiya update --plan` vs
+    `kinaiya update`, `kinaiya recover`, `kinaiya rollback --generation <id>`,
+    and `kinaiya uninstall` (default data retention vs `--delete-data
+    --confirm-data-deletion DELETE`, never deleting `workspace`).
 
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
 the updated bubbles, transitions and speech behavior follow
@@ -79,7 +139,7 @@ sprite animation or a demonstration of live TTS synchronization.
 
 | Page | Purpose and key boards | Design status |
 | --- | --- | --- |
-| **00 · Home & Converse · Updated** | Moonlit Home, optional Converse, Decisions trace screens, and the redesigned Options sections with per-harness model choices and provider setup. | Current owner direction; selected navigation paths are linked and values are examples. |
+| **00 · Home & Converse · Updated** | Moonlit Home, optional Converse, Decisions trace screens, redesigned Options sections with per-harness model choices and Custom `.env` APIs, and the 14-step CLI Installer & Setup Wizard decision tree. | Current owner direction; selected navigation paths and all CLI installer choice branches are linked and values are examples. |
 | **00 · Foundations** | Colors, typography and example controls used as a starting point for the design system. | Draft foundation; not a complete component library. |
 | **01 · Converse** | Earlier moonlit home, listening state, and an Options copy for the Home flow. | Historical draft; use the first page for the current Options design. |
 | **02 · Agent** | Agent workspace while a task runs and a review/approval state, based on the Agent concept. | Concept-based draft; task details and outcomes are examples. |
@@ -101,7 +161,8 @@ Prototype links demonstrate selected paths rather than every control. On
 Selecting a paired category opens its first section; the submenu switches
 sections or returns to the overview. Harness Customization opens an individual
 editor for each example harness, with linked inherited and custom states and a
-model selection example. The prototype also links provider setup choices, audio
+model selection example. The prototype also links provider setup choices, Custom
+`.env` API boards, the 14-step CLI Installer & Setup Wizard decision tree, audio
 modes and motion preferences. The
 earlier Options copies on **01 · Converse** and **07 · Options & menus** remain
 historical drafts and do not update automatically.
@@ -119,26 +180,29 @@ status indicators distinguishable from the behavior of the running product.
 ## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-54, modified `2026-11-02T20:00:00.000000Z`. It contains fourteen pages and 329
-real top-level boards (251 on the current page), excluding root sentinels.
-Archive size: **227,769,664 bytes**; SHA-256:
-`892a4867e0c613b5d9f4e3d97274e13e6f0581a7a7da7977c7592154a15542c5`.
+57, modified `2026-11-03T22:10:00.000000Z`. It contains fourteen pages and 369
+real top-level boards (291 on the current page), excluding root sentinels.
+Archive size: **232,685,398 bytes**; SHA-256:
+`48b3bb4448b9d4bd5155dba59ae34a19efd6cdfaccde8df7c541105ea39b35b2`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
-motion detail/state boards were added in revision 53, and revision 54 synchronizes
+motion detail/state boards were added in revision 53, revision 54 synchronized
 twenty editable text layers across the Home, Converse, Agent and Options
-Overview/Models boards (both motion-on and motion-off variants) with the November 2
-usability review improvements (`#286–#310`): Home Connect/Setup recovery and
-prerequisite copy, Converse listening/muted/thinking/speaking state chips and
-compact provider/privacy model summary, causal Converse→Agent handoff status and
-verified task progress, Agent objective/state/evidence-first header hierarchy, and
-Options search, setup shortcuts and plain-language model role copy. All 329 real
-board identities, names and geometry remain; the other thirteen pages and all 100
-uploaded artwork metadata/blob paths remain byte-exact.
+Overview/Models boards (`#286–#310`), revisions 55–56 updated the Provider,
+Models, and Home/Character boards (`#352–#353`) and added twelve paired Custom API
+prototype boards (`#352`), and revision 57 adds twenty-eight paired CLI Installer
+& Setup Wizard prototype boards (`#261`, `#335`, `#336`, `#381–#402`: 14 motion-on
+and 14 motion-off screens linking every choice and branch in `install.sh`,
+`kinaiya setup`, `kinaiya start`, `kinaiya doctor`, `kinaiya auth rotate-owner`,
+`kinaiya update`, `kinaiya recover`, `kinaiya rollback`, and `kinaiya uninstall`).
+All prior real board identities, names and geometry remain; the other thirteen
+pages and all 100 uploaded artwork metadata/blob paths remain byte-exact.
 
-Selected Models, Providers, profile editing, Permissions, Task edit and unknown
-receipt paths were visually reviewed. Offline archive analysis resolves 1,126
-native Options and 230 scoped permission links. This does not claim every
-prototype control was exercised or runtime acceptance completed. See the
+Selected Models, Providers, Custom API `.env` prototype flows, CLI Installer &
+Setup Wizard branch flows, profile editing, Permissions, Task edit and unknown
+receipt paths were reviewed. Offline archive analysis resolves 1,126 native
+Options, 230 scoped permission, 286 Custom API prototype, and 702 CLI Installer
+prototype links. This does not claim every prototype control was exercised or
+runtime acceptance completed. See the
 [review record](options-sync-review.json) and
 [synchronization notes](../../docs/penpot-options-sync-plan.md).
