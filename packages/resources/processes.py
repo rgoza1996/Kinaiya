@@ -675,6 +675,47 @@ class WorkerManager:
 
     actual_ownership_supported = True
 
+    def _media_original(self, launch):
+        """Select an exact separately registered media original, never a PID."""
+        from packages.resources.media_processes import (
+            MediaLaunch,
+            MediaProcessError,
+            MediaWorkerPool,
+        )
+
+        if (
+            type(launch) is not MediaLaunch
+            or type(getattr(launch, "_pool", None)) is not MediaWorkerPool
+            or launch._pool._manager is not self
+        ):
+            raise MediaProcessError("conflict")
+        launch._owned()
+        return launch
+
+    async def _start_media_owned(self, launch):
+        """Private fixed-FD path; never enters generic start/restart/reuse."""
+        return await self._media_original(launch)._spawn_owned(self)
+
+    async def _stop_media_owned(self, launch):
+        """Observe/reap the same media original without generic FD retirement."""
+        return await self._media_original(launch)._stop_owned(self)
+
+    def _media_signal(self, launch, sig):
+        """Only this manager signals the original media pidfds."""
+        from packages.resources.media_processes import MediaProcessError
+
+        launch = self._media_original(launch)
+        if sig not in (signal.SIGTERM, signal.SIGKILL):
+            raise MediaProcessError("bad_packet")
+        if not launch._verified or launch._managed is None:
+            return False
+        sent = False
+        owners = [launch._leader, *launch._members.values()]
+        for owner in owners:
+            if owner is not None and owner.fd is not None:
+                sent = _pidfd_send(owner.fd, sig) or sent
+        return sent
+
     def __init__(self, specs: list[WorkerSpec], *, readiness: ReadinessProbe | None = None) -> None:
         if not isinstance(specs, list) or not specs or len(specs) > MAX_WORKERS:
             raise ValueError(f"specs must be a non-empty list of at most {MAX_WORKERS}")
