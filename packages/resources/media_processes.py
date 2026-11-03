@@ -838,11 +838,9 @@ class MediaWorkerPool:
             await launch._start_assigned.wait()
         if launch._start_task is None:
             _error()
-        try:
-            return await asyncio.shield(launch._start_task)
-        except asyncio.CancelledError:
-            self.fence(launch)
-            raise
+        # This caller observes the retained original; cancelling only its wait
+        # is not an explicit fence and cannot change later exact replay.
+        return await asyncio.shield(launch._start_task)
 
     def fence(self, launch):
         self._owned(launch)
