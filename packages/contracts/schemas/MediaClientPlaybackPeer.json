@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "client_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Client Instance",
+      "type": "string"
+    },
+    "generation_epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Generation Epoch",
+      "type": "integer"
+    },
+    "kind": {
+      "const": "client_playback",
+      "title": "Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "client_instance",
+    "generation_epoch"
+  ],
+  "title": "MediaClientPlaybackPeer",
+  "type": "object"
+}
