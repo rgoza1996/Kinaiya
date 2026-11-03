@@ -12,9 +12,9 @@ import subprocess
 import sys
 
 import pytest
-from services.session.media_spool import MediaSpool, MediaSpoolError
 
 from packages.contracts import media
+from services.session.media_spool import MediaSpool, MediaSpoolError
 
 _ERROR_CODES = {"bad_packet", "bound", "capacity", "conflict", "unavailable", "expired"}
 _SOURCE_A = "a" * 32
