@@ -36,12 +36,8 @@ from packages.resources.processes import (
     DEFAULT_PATH,
     WorkerManager,
     WorkerSpec,
-    _adopt_member,
     _Managed,
-    _pidfd_pid,
     _pidfd_supported,
-    _scan_group,
-    _verify_bootstrap,
 )
 
 __all__ = [
@@ -64,6 +60,8 @@ _REGISTRATION_BYTES = 65_536
 _MEMBER_BYTES = 65_536
 _BLOCK = 65_536
 _WAIT = 5.0
+_PROC_BYTES = 4096
+_ZOMBIES = {"Z", "X", "x"}
 
 
 class MediaProcessError(ValueError):
@@ -220,6 +218,41 @@ class _Socket(_Descriptor):
         return super().close()
 
 
+class _Directory:
+    """One reusable, positively closed streaming observation owner."""
+
+    def __init__(self):
+        self.iterator = None
+        self.closed = True
+        self.unknown = False
+
+    def open(self):
+        if not self.closed or self.unknown:
+            return None
+        self.closed = False
+        try:
+            self.iterator = os.scandir("/proc")
+        except OSError:
+            self.closed = True  # No iterator/descriptor was returned.
+            return None
+        except BaseException:
+            self.unknown = True
+            raise
+        return self.iterator
+
+    def close(self):
+        if self.iterator is None:
+            return self.closed and not self.unknown
+        iterator, self.iterator = self.iterator, None
+        try:
+            iterator.close()
+        except BaseException:
+            self.unknown = True
+            raise
+        self.closed = True
+        return True
+
+
 async def _ready(owner, direction):
     loop = asyncio.get_running_loop()
     fd = owner.fd
@@ -348,6 +381,12 @@ class MediaLaunch:
         self._members = {}
         self._leader = None
         self._verified = False
+        # Scratch owners are retained before observation acquisition, reused
+        # only after positive close; no /proc roster or per-read history grows.
+        self._observation = self._owner(None)
+        self._observation.closed = True
+        self._directory = _Directory()
+        self._all_owners.append(self._directory)
 
     def _owned(self):
         pool = getattr(self, "_pool", None)
@@ -585,11 +624,11 @@ class MediaLaunch:
                 self._close(owner)
             if not self._close_parent_source():
                 _error()
-            fd, start = _verify_bootstrap(proc.pid, nonce, bootstrap)
-            if fd is None:
+            leader, start = self._verify_bootstrap(proc.pid, nonce, bootstrap)
+            if leader is None:
                 _error()
-            self._leader = self._owner(fd)
-            self._managed.leader_fd, self._managed.leader_starttime = fd, start
+            self._leader = leader
+            self._managed.leader_fd, self._managed.leader_starttime = leader.fd, start
             self._verified = True
             if not self._pool._current(self):
                 _error("expired")
@@ -625,23 +664,218 @@ class MediaLaunch:
             if self._fenced:
                 self._pool._ensure_cleanup(self)
 
-    def _capture_members(self):
+    def _read_observation(self, path, limit):
+        owner = self._observation
+        if not owner.closed or owner.unknown:
+            return None
+        owner.closed = False
+        try:
+            owner.fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        except OSError:
+            owner.closed = True  # The syscall returned no acquired descriptor.
+            return None
+        except BaseException:
+            owner.unknown = self._close_unknown = True
+            raise
+        raw = bytearray()
+        valid = True
+        try:
+            while len(raw) <= limit:
+                chunk = os.read(owner.fd, limit + 1 - len(raw))
+                if not chunk:
+                    break
+                raw.extend(chunk)
+            valid = len(raw) <= limit
+        except OSError:
+            valid = False
+        finally:
+            closed = self._close(owner)
+        return bytes(raw) if valid and closed else None
+
+    def _stat(self, pid):
+        raw = self._read_observation(f"/proc/{pid}/stat", _PROC_BYTES)
+        if raw is None:
+            return None
+        cut = raw.rfind(b")")
+        if cut < 0:
+            return None
+        fields = raw[cut + 2 :].split()
+        if len(fields) < 20:
+            return None
+        try:
+            return (
+                fields[0].decode("ascii"),
+                int(fields[1]),
+                int(fields[2]),
+                int(fields[3]),
+                int(fields[19]),
+            )
+        except (ValueError, UnicodeError):
+            return None
+
+    def _pidfd_pid(self, owner):
+        if owner is None or owner.fd is None:
+            return None
+        raw = self._read_observation(f"/proc/self/fdinfo/{owner.fd}", _PROC_BYTES)
+        if raw is not None:
+            for line in raw.split(b"\n"):
+                if line.startswith(b"Pid:"):
+                    try:
+                        return int(line.split()[1])
+                    except (ValueError, IndexError):
+                        return None
+        return None
+
+    def _command(self, pid, nonce, bootstrap):
+        raw = self._read_observation(f"/proc/{pid}/cmdline", _BLOCK)
+        if raw is None:
+            return False
+        nonce, bootstrap = nonce.encode("utf-8"), bootstrap.encode("utf-8")
+        found_nonce = found_bootstrap = False
+        offset = 0
+        while offset <= len(raw):
+            end = raw.find(b"\0", offset)
+            if end < 0:
+                end = len(raw)
+            size = end - offset
+            found_nonce |= size == len(nonce) and raw.startswith(nonce, offset, end)
+            found_bootstrap |= size == len(bootstrap) and raw.startswith(bootstrap, offset, end)
+            offset = end + 1
+        return found_nonce and found_bootstrap
+
+    def _pidfd(self, pid):
+        # Enroll the close owner BEFORE acquisition or any post-open observer.
+        owner = self._owner(None)
+        try:
+            fd = os.pidfd_open(pid, 0)
+            if type(fd) is not int or fd < 0:
+                owner.unknown = self._close_unknown = True
+                return None
+            owner.fd = fd
+        except BaseException as error:
+            owner.unknown = self._close_unknown = True
+            if not isinstance(error, Exception):
+                raise
+            return None
+        return owner
+
+    def _verify_bootstrap(self, pid, nonce, bootstrap):
+        before = self._stat(pid)
+        if (
+            before is None
+            or before[0] in _ZOMBIES
+            or before[1] != os.getpid()
+            or before[2] != pid
+            or before[3] != pid
+            or not self._command(pid, nonce, bootstrap)
+        ):
+            return None, None
+        owner = self._pidfd(pid)
+        if owner is None:
+            return None, None
+        accepted = False
+        try:
+            after = self._stat(pid)
+            accepted = (
+                after is not None
+                and self._pidfd_pid(owner) == pid
+                and self._command(pid, nonce, bootstrap)
+                and after[0] not in _ZOMBIES
+                and after[1] == os.getpid()
+                and after[2] == pid
+                and after[3] == pid
+                and after[4] == before[4]
+            )
+            if accepted:
+                return owner, before[4]
+            return None, None
+        finally:
+            if not accepted:
+                self._close(owner)  # Rejected originals never enter signal lists.
+
+    def _leader_current(self):
         managed = self._managed
-        if managed is None or not WorkerManager._identity_ok(managed):
-            return
-        members, ok = _scan_group(managed.pgid)
-        if not ok:
-            return
-        for pid in members:
-            if pid == managed.process.pid or pid in self._members:
-                continue
-            if not self._pool._reserve_member(self):
-                return
-            fd = _adopt_member(managed.pgid, pid)
-            if fd is not None:
-                owner = self._owner(fd)
-                self._members[pid] = owner
-                managed.member_fds[pid] = fd
+        if managed is None or not managed.granted or self._leader is None:
+            return False
+        stat = self._stat(managed.process.pid)
+        return (
+            stat is not None
+            and self._pidfd_pid(self._leader) == managed.process.pid
+            and stat[0] not in _ZOMBIES
+            and stat[1] == os.getpid()
+            and stat[2] == managed.pgid
+            and stat[3] == managed.pgid
+            and stat[4] == managed.leader_starttime
+        )
+
+    def _adopt_member(self, pid):
+        pgid = self._managed.pgid
+        before = self._stat(pid)
+        if (
+            before is None
+            or before[0] in _ZOMBIES
+            or before[2] != pgid
+            or before[3] != pgid
+            or not self._leader_current()
+        ):
+            return None
+        owner = self._pidfd(pid)
+        if owner is None:
+            return None
+        accepted = False
+        try:
+            after = self._stat(pid)
+            accepted = (
+                after is not None
+                and self._pidfd_pid(owner) == pid
+                and after[0] not in _ZOMBIES
+                and after[2] == pgid
+                and after[3] == pgid
+                and after[4] == before[4]
+                and self._leader_current()
+            )
+            return owner if accepted else None
+        finally:
+            if not accepted:
+                self._close(owner)
+
+    def _scan_members(self, *, capture):
+        # One bounded observation at a time; never allocate an uncharged roster.
+        live, complete = False, True
+        iterator = self._directory.open()
+        if iterator is None:
+            return False, False
+        try:
+            for entry in iterator:
+                name = entry.name
+                if len(name) > 10 or not name.isascii() or not name.isdecimal():
+                    continue
+                pid = int(name)
+                stat = self._stat(pid)
+                if stat is None:
+                    complete = False
+                    continue
+                if stat[2] != self._managed.pgid:
+                    continue
+                live |= stat[0] not in _ZOMBIES
+                if not capture or pid == self._managed.process.pid or pid in self._members:
+                    continue
+                if not self._pool._reserve_member(self):
+                    complete = False
+                    break
+                owner = self._adopt_member(pid)
+                if owner is not None:
+                    self._members[pid] = owner
+                    self._managed.member_fds[pid] = owner.fd
+        except OSError:
+            complete = False
+        finally:
+            closed = self._close(self._directory)
+        return live, complete and closed
+
+    def _capture_members(self):
+        if self._leader_current():
+            self._scan_members(capture=True)
 
     async def _stop_owned(self, manager):
         if self._managed is None:
@@ -649,7 +883,7 @@ class MediaLaunch:
                 await self._process.wait()
                 return self._process.returncode is not None
             return not self._future_spawn and not self._spawn_dispatched
-        managed, proc = self._managed, self._managed.process
+        proc = self._managed.process
         if not self._verified:
             # Trusted ungranted bootstrap can only exit on original grant EOF.
             await proc.wait()
@@ -659,13 +893,14 @@ class MediaLaunch:
         loop = asyncio.get_running_loop()
         deadline, escalated = loop.time() + float(self._pool._spec.stop_timeout_s), False
         while True:
-            all_owners = [self._leader, *self._members.values()]
-            dead = proc.returncode is not None and all(
-                _pidfd_pid(owner.fd) == -1 for owner in all_owners
+            dead = (
+                proc.returncode is not None
+                and self._pidfd_pid(self._leader) == -1
+                and all(self._pidfd_pid(owner) == -1 for owner in self._members.values())
             )
             if dead:
-                members, ok = _scan_group(managed.pgid)
-                if ok and not any(state not in {"Z", "X", "x"} for state, _, _ in members.values()):
+                live, complete = self._scan_members(capture=False)
+                if complete and not live:
                     await proc.wait()
                     return not self._metadata_unknown
             if loop.time() >= deadline:
