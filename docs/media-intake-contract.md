@@ -92,6 +92,21 @@ cleanup. Native owners must compose every promised original dependency and
 recheck permission, session, source, lease, scope and reservation before effects
 and acknowledgment.
 
+## Ordinary event channel disconnects
+
+The ordinary journal channel keeps its original application Task as the sole
+journal sender, with one persistent receiver after authentication and media-mode
+selection. A `WebSocketDisconnect` from receiving or sending ends this channel
+normally, including Starlette's conversion of a transport `OSError` to code
+1006. Other read, send and receiver errors retain their original failure. A
+failed send never advances the journal cursor or establishes delivery.
+
+Retirement requests receiver cancellation once and joins that original Task.
+The original five-second cleanup observation does not establish completion:
+an unresolved receiver stays in the same application's custody until it joins.
+A blocked synchronous Store read or cancellation-resistant send can still delay
+retirement. These channel observations grant no media cleanup authority.
+
 ## Session reset and deletion composition
 
 An enabled native media owner enrolls the original Session change and fences
