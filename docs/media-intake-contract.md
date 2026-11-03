@@ -275,3 +275,10 @@ This is not a total Python heap bound. Unsupported or oversized keys and evicted
 entries take the original fresh-parse path. These limits neither evict native
 history nor change admission limits, cleanup authority or the five-second
 shutdown deadline. Qualification and diagnostic observations remain separate.
+
+The [single-audit preservation record](../evaluation/evidence/media-single-audit-memo-2026-11-03.json)
+retains two new cases passing on the original source, 198 passing media cases
+on the optimized source, and 35 selected guards after normal composition with
+main `1a5a4b7`. The prior 196 cases and all original assertions remain; the
+focused 18 overlap the broader run. Changed-head CI is still required. The
+earlier shutdown failure remains recorded, without a causal timing claim.
