@@ -72,8 +72,10 @@ rule designs remain a later increment. Motion-on routes dissolve over 220ms;
 motion-off routes are instant. Examples never save runtime settings.
 
 The master design also includes a 14-step interactive **CLI Installer & Setup
-Wizard decision tree** (28 paired boards in motion-on and motion-off variants)
-covering every choice and branch in `install.sh` and `kinaiya` CLI onboarding
+Wizard decision tree** (28 paired standalone OS terminal boards in motion-on and
+motion-off variants, rendered outside the Harness GUI with a deterministic 68×14
+ASCII filter adaptation of Kinaiya's moon from the Moonlit Home screen) covering
+every choice and branch in `install.sh` and `kinaiya` CLI onboarding
 (`#261`, `#335`, `#336`, `#381–#402`):
 1. **01 · Bootstrap Entry**: release channel (`stable` vs `nightly`), install root
    location (`~/.local/share/kinaiya` default XDG vs invoking directory `./kinaiya`
@@ -180,28 +182,30 @@ status indicators distinguishable from the behavior of the running product.
 ## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-57, modified `2026-11-03T22:10:00.000000Z`. It contains fourteen pages and 369
+58, modified `2026-11-03T23:10:00.000000Z`. It contains fourteen pages and 369
 real top-level boards (291 on the current page), excluding root sentinels.
-Archive size: **232,685,398 bytes**; SHA-256:
-`48b3bb4448b9d4bd5155dba59ae34a19efd6cdfaccde8df7c541105ea39b35b2`.
+Archive size: **232,727,891 bytes**; SHA-256:
+`ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
 motion detail/state boards were added in revision 53, revision 54 synchronized
 twenty editable text layers across the Home, Converse, Agent and Options
 Overview/Models boards (`#286–#310`), revisions 55–56 updated the Provider,
 Models, and Home/Character boards (`#352–#353`) and added twelve paired Custom API
-prototype boards (`#352`), and revision 57 adds twenty-eight paired CLI Installer
-& Setup Wizard prototype boards (`#261`, `#335`, `#336`, `#381–#402`: 14 motion-on
-and 14 motion-off screens linking every choice and branch in `install.sh`,
-`kinaiya setup`, `kinaiya start`, `kinaiya doctor`, `kinaiya auth rotate-owner`,
-`kinaiya update`, `kinaiya recover`, `kinaiya rollback`, and `kinaiya uninstall`).
+prototype boards (`#352`), and revisions 57–58 add twenty-eight paired standalone
+OS terminal CLI Installer & Setup Wizard prototype boards (`#261`, `#335`, `#336`,
+`#381–#402`: 14 motion-on and 14 motion-off standalone terminal screens with the
+deterministic 68×14 ASCII Moon from the Moonlit Home screen, linking every choice
+and branch in `install.sh`, `kinaiya setup`, `kinaiya start`, `kinaiya doctor`,
+`kinaiya auth rotate-owner`, `kinaiya update`, `kinaiya recover`, `kinaiya rollback`,
+and `kinaiya uninstall`).
 All prior real board identities, names and geometry remain; the other thirteen
 pages and all 100 uploaded artwork metadata/blob paths remain byte-exact.
 
 Selected Models, Providers, Custom API `.env` prototype flows, CLI Installer &
 Setup Wizard branch flows, profile editing, Permissions, Task edit and unknown
 receipt paths were reviewed. Offline archive analysis resolves 1,126 native
-Options, 230 scoped permission, 286 Custom API prototype, and 702 CLI Installer
+Options, 230 scoped permission, 286 Custom API prototype, and 668 CLI Installer
 prototype links. This does not claim every prototype control was exercised or
 runtime acceptance completed. See the
 [review record](options-sync-review.json) and
