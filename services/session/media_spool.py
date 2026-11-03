@@ -1026,6 +1026,41 @@ class SpoolUpload:
                     raise
                 raise MediaSpoolError() from None
 
+    @_public
+    def _open_child_grant(self, launch) -> _SpoolChildGrant:
+        from packages.resources.media_processes import MediaLaunch, MediaProcessError
+
+        if type(launch) is not MediaLaunch:
+            _error("bad_packet")
+        with self._spool._mutex:
+            self._current()
+            if not self.sealed:
+                _error("conflict")
+            if len(self._readers) >= _MAX_READERS:
+                _error("capacity")
+            grant = _SpoolChildGrant(self, launch)
+            # The native bind is atomic validate-then-store, without reentrant
+            # spool effects. A refused bind has acquired no reader or descriptor.
+            try:
+                bound = MediaLaunch._bind_spool_grant(launch, grant, self.source_id)
+            except MediaProcessError as error:
+                _error(error.code)
+            self._readers.add(grant)
+            if bound is not None:
+                _error()
+            self._current()
+            try:
+                grant._fd = self._spool._open(self.source_id + ".data", os.O_RDONLY)
+            except BaseException:
+                # Acquisition may already have attempted an original close.
+                # No returned integer is not positive proof of no descriptor.
+                grant._uncertain = True
+                raise
+            if _stamp(os.fstat(grant._fd)) != self._seal_stamp:
+                _error()
+            self._current()
+            return grant
+
     def _close_locked(self):
         self._owned()
         if self._deleted:
@@ -1168,3 +1203,112 @@ class SpoolReader:
                 upload._close_locked()
             if upload._spool._closing:
                 upload._spool._finish_close()
+
+
+class _SpoolChildGrant:
+    """One registered native child promise, beyond its parent descriptor copy."""
+
+    __slots__ = (
+        "_upload",
+        "_launch",
+        "_fd",
+        "_borrowed",
+        "_parent_closed",
+        "_retired",
+        "_uncertain",
+    )
+
+    def __init__(self, upload, launch):
+        self._upload, self._launch = upload, launch
+        self._fd = None
+        self._borrowed = self._parent_closed = self._retired = self._uncertain = False
+
+    def _original(self, launch):
+        from packages.resources.media_processes import MediaLaunch
+
+        if type(launch) is not MediaLaunch or launch is not self._launch:
+            _error("conflict")
+        self._upload._owned()
+        if not self._retired and self not in self._upload._readers:
+            _error("expired")
+        return MediaLaunch
+
+    @_public
+    def _fd_for_spawn(self, launch) -> int:
+        from packages.resources.media_processes import MediaProcessError
+
+        upload = self._upload
+        with upload._spool._mutex:
+            launch_type = self._original(launch)
+            if self._borrowed:
+                _error("conflict")
+            if self._uncertain:
+                _error()
+            if self._retired or self._parent_closed or self._fd is None:
+                _error("expired")
+            try:
+                allowed = launch_type._spool_grant_can_spawn(launch, self)
+            except MediaProcessError as error:
+                _error(error.code)
+            if type(allowed) is not bool:
+                _error()
+            if not allowed:
+                _error("expired")
+            upload._current()
+            if _stamp(os.fstat(self._fd)) != upload._seal_stamp:
+                _error()
+            upload._current()
+            # A cancelled caller cannot obtain another descriptor transfer: the
+            # pool must observe its retained original spawn, not borrow again.
+            self._borrowed = True
+            return self._fd
+
+    @_public
+    def _close_parent_copy(self, launch) -> bool:
+        from packages.resources.media_processes import MediaProcessError
+
+        upload = self._upload
+        with upload._spool._mutex:
+            launch_type = self._original(launch)
+            try:
+                allowed = launch_type._spool_grant_can_close_parent(launch, self)
+            except MediaProcessError as error:
+                _error(error.code)
+            if type(allowed) is not bool:
+                _error()
+            if not allowed or self._uncertain:
+                return False
+            if self._parent_closed:
+                return True
+            if not upload._spool._retire(self, "_fd"):
+                upload._mark_unknown()
+                return False
+            self._parent_closed = True
+            # The child or a late original spawn may still own a copy. Keep
+            # membership until the pool's separate positive retirement gate.
+            return True
+
+    @_public
+    def _retire_child_use(self, launch) -> bool:
+        from packages.resources.media_processes import MediaProcessError
+
+        upload = self._upload
+        with upload._spool._mutex:
+            launch_type = self._original(launch)
+            try:
+                allowed = launch_type._spool_grant_can_retire(launch, self)
+            except MediaProcessError as error:
+                _error(error.code)
+            if type(allowed) is not bool:
+                _error()
+            if not allowed or self._uncertain or not self._parent_closed:
+                return False
+            if self._retired:
+                return True
+            self._retired = True
+            upload._readers.discard(self)
+            if upload._closed and not upload._uncertain:
+                upload._close_locked()
+            if upload._spool._closing:
+                upload._spool._finish_close()
+            return True
