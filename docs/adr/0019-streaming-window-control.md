@@ -364,3 +364,19 @@ client's queued audio. Baseline and repaired native/production-JS probes both
 demonstrate this limit. The completed-provider WAIT regression is repaired;
 arbitrary-history restart safety requires durable native generation discovery
 and is not established by this change.
+
+### #337 request identity qualification
+
+The [November 3 qualification record](../../evaluation/evidence/window-request-identity-2026-11-03.json)
+pins the shared request builder, final bound-refusal correction, regression
+inputs and completed local runs. The original projection swallowed a final
+context-bound refusal and could rebuild without its task references. The
+correction preserves that refusal before classification. The same eight cases
+produce six passes/two failures before correction and eight passes afterward.
+
+After integrating main's reviewed TTS repair, the composed source passes 953
+related cases and a separate 21-case group; their overlap is 12, so these counts
+are not additive. The earlier broader failure and existing Starlette warning
+remain recorded. This is synthetic offline evidence, not live model, audio,
+latency or demo qualification. Capture remains observational; authoritative
+Decisions attempt admission and recovery in #371 are separate requirements.
