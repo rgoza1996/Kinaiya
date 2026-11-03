@@ -1,6 +1,8 @@
 """Opt-in managed CPU STT: parent HTTP/policy broker, credential-free native child."""
 
 import asyncio
+import hashlib
+import math
 import os
 import secrets
 import stat
@@ -8,6 +10,7 @@ import tempfile
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from anyio import CancelScope
 from fastapi import HTTPException
@@ -28,6 +31,12 @@ from packages.providers.whistle_ipc import (
     send_frame,
     socket_path,
     token,
+)
+from packages.providers.whistle_stream import (
+    MAX_CHUNK_SAMPLES,
+    MAX_PASS_MS,
+    MAX_TOTAL_SAMPLES,
+    SUPPORTED_LANGUAGES,
 )
 from packages.resources.processes import WorkerSpec
 from services.resources.coordinator import WhistleAdmissionError
@@ -100,21 +109,29 @@ class WhistleEndpoint:
             request = {"version": VERSION, "kind": kind, "incarnation": incarnation, "nonce": nonce}
             await send_frame(writer, encode_json(request), MAX_CONTROL_BYTES)
             if data is not None:
-                await send_frame(writer, data, MAX_AUDIO_BYTES)
+                frame_limit = MAX_CHUNK_SAMPLES * 2 if kind == "stream_pcm" else MAX_AUDIO_BYTES
+                await send_frame(writer, data, frame_limit)
             result = decode_json(
                 await receive_frame(reader, MAX_RESPONSE_BYTES), MAX_RESPONSE_BYTES
             )
             required = {"version", "kind", "pid", "incarnation", "nonce"}
-            expected_keys = (
-                required
-                if kind == "probe"
-                else required | ({"error"} if "error" in result else {"text"})
-            )
+            if kind == "probe":
+                expected_kind = "ready"
+                expected_keys = required
+            elif kind == "stream_begin":
+                expected_kind = "stream_ready"
+                expected_keys = required | ({"error"} if "error" in result else set())
+            elif kind in {"stream_pcm", "stream_finish"}:
+                expected_kind = "stream_result"
+                expected_keys = required | ({"error"} if "error" in result else {"update"})
+            else:
+                expected_kind = "result"
+                expected_keys = required | ({"error"} if "error" in result else {"text"})
             if (
                 set(result) != expected_keys
                 or type(result["version"]) is not int
                 or result["version"] != VERSION
-                or result["kind"] != ("ready" if kind == "probe" else "result")
+                or result["kind"] != expected_kind
                 or type(result["pid"]) is not int
                 or result["pid"] != pid
                 or result["incarnation"] != incarnation
@@ -170,6 +187,82 @@ class WhistleEndpoint:
             raise ValueError("Invalid bounded Whistle transcript")
         text.encode("utf-8")
         return text
+
+    @staticmethod
+    def _validate_stream_update(update, *, expected_samples=None, expect_final=False):
+        required_keys = {
+            "delta_text",
+            "committed_text",
+            "pending_text",
+            "received_samples",
+            "final",
+            "native_pass_ms",
+            "language",
+        }
+        if not isinstance(update, dict) or set(update) != required_keys:
+            raise ValueError("Invalid bounded Whistle stream update")
+        for field_name in ("delta_text", "committed_text", "pending_text"):
+            val = update[field_name]
+            if not isinstance(val, str) or len(val) > MAX_TEXT_CHARS:
+                raise ValueError("Invalid bounded Whistle stream text")
+            val.encode("utf-8")
+        received_samples = update["received_samples"]
+        if (
+            type(received_samples) is not int
+            or not 0 <= received_samples <= MAX_TOTAL_SAMPLES
+            or (expected_samples is not None and received_samples != expected_samples)
+        ):
+            raise ValueError("Invalid Whistle stream sample count")
+        if type(update["final"]) is not bool or update["final"] is not expect_final:
+            raise ValueError("Invalid Whistle stream final flag")
+        if expect_final and update["pending_text"] != "":
+            raise ValueError("Final Whistle stream update cannot retain pending_text")
+        pass_ms = update["native_pass_ms"]
+        if (
+            type(pass_ms) is bool
+            or not isinstance(pass_ms, (int, float))
+            or not math.isfinite(pass_ms)
+            or not 0 <= float(pass_ms) <= MAX_PASS_MS
+        ):
+            raise ValueError("Invalid Whistle stream native_pass_ms")
+        language = update["language"]
+        if not (
+            language is None
+            or (isinstance(language, str) and (language == "" or language in SUPPORTED_LANGUAGES))
+        ):
+            raise ValueError("Invalid Whistle stream language")
+        return update
+
+    async def begin_stream(self, identity):
+        current = self.ready
+        if current is None or current[0] != identity.pid:
+            raise RuntimeError("Whistle worker readiness is unavailable")
+        incarnation, _ = await self.exchange(identity.pid, current[1], "stream_begin")
+        if self.ready is None or self.ready[:2] != (identity.pid, incarnation):
+            raise RuntimeError("Whistle worker incarnation changed")
+        return incarnation
+
+    async def stream_pcm(self, pcm16, identity, *, expected_samples):
+        current = self.ready
+        if current is None or current[0] != identity.pid:
+            raise RuntimeError("Whistle worker readiness is unavailable")
+        incarnation, result = await self.exchange(identity.pid, current[1], "stream_pcm", pcm16)
+        if self.ready is None or self.ready[:2] != (identity.pid, incarnation):
+            raise RuntimeError("Whistle worker incarnation changed")
+        return self._validate_stream_update(
+            result.get("update"), expected_samples=expected_samples, expect_final=False
+        )
+
+    async def finish_stream(self, identity, *, expected_samples):
+        current = self.ready
+        if current is None or current[0] != identity.pid:
+            raise RuntimeError("Whistle worker readiness is unavailable")
+        incarnation, result = await self.exchange(identity.pid, current[1], "stream_finish")
+        if self.ready is None or self.ready[:2] != (identity.pid, incarnation):
+            raise RuntimeError("Whistle worker incarnation changed")
+        return self._validate_stream_update(
+            result.get("update"), expected_samples=expected_samples, expect_final=True
+        )
 
     def close(self):
         # Only called after manager.close confirmed all process/group releases.
@@ -227,6 +320,39 @@ class Transcription:
     cleanup: asyncio.Task | None = None
     cleanup_confirmed: bool = False
     cleanup_failed: bool = False
+    stream: dict | None = None
+
+
+class WhistleStreamStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    session_id: str = Field(min_length=1, max_length=128)
+    thread_id: str = Field(min_length=1, max_length=128)
+    epoch: int = Field(ge=1, le=(1 << 53) - 1)
+    utterance_id: str = Field(min_length=1, max_length=128)
+    content_scope: Literal["local_only", "public_synthetic", "private_cloud_authorized"] = (
+        "local_only"
+    )
+
+
+class WhistleStreamFinishRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    stream_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    worker_incarnation: str = Field(pattern=r"^[0-9a-f]{64}$")
+    session_id: str = Field(min_length=1, max_length=128)
+    thread_id: str = Field(min_length=1, max_length=128)
+    epoch: int = Field(ge=1, le=(1 << 53) - 1)
+    utterance_id: str = Field(min_length=1, max_length=128)
+    content_scope: Literal["local_only", "public_synthetic", "private_cloud_authorized"] = (
+        "local_only"
+    )
+    sequence: int = Field(ge=1, le=100000)
+    sample_offset: int = Field(ge=0, le=MAX_TOTAL_SAMPLES)
+
+
+class WhistleStreamCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    stream_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    worker_incarnation: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class WhistleBroker:
@@ -439,6 +565,364 @@ class WhistleBroker:
             if watcher is not None:
                 with CancelScope(shield=True):
                     await asyncio.wait((watcher,), timeout=0.2)
+
+    async def _read_control_json(self, request, model):
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > MAX_CONTROL_BYTES:
+                raise HTTPException(413, "Whistle stream control body exceeds bound")
+            raw.extend(chunk)
+        try:
+            parsed = decode_json(bytes(raw), MAX_CONTROL_BYTES)
+            return model.model_validate(parsed)
+        except Exception as exc:
+            raise HTTPException(400, "Invalid Whistle stream control payload") from exc
+
+    async def begin_stream(self, request):
+        policy = self.policy()
+        if self.operation is not None:
+            old = self.operation
+            if old.cleanup_failed and old.cleanup is not None and old.cleanup.done():
+                self.abort(old)
+            raise HTTPException(409, "Whistle inference or retained cleanup is busy")
+        operation = Transcription(None, None, policy)
+        self.operation = operation
+        watcher, success, started = None, False, False
+        try:
+            async with asyncio.timeout(self.timeout):
+                body = await self._read_control_json(request, WhistleStreamStartRequest)
+                if await request.is_disconnected():
+                    raise HTTPException(499, "Whistle request disconnected")
+                started = True
+                watcher = asyncio.create_task(self.disconnected(request))
+                operation.admission = asyncio.create_task(self.coordinator.admit_whistle(policy))
+                await asyncio.wait(
+                    (operation.admission, watcher), return_when=asyncio.FIRST_COMPLETED
+                )
+                await asyncio.sleep(0)
+                if watcher.done():
+                    raise HTTPException(499, "Whistle request disconnected")
+                operation.identity = operation.admission.result()
+                identity = operation.identity
+                ready = self.endpoint.ready
+                if ready is None or ready[0] != identity.pid:
+                    raise RuntimeError("Whistle readiness is unavailable")
+                operation.incarnation = ready[1]
+                self.current(operation)
+                operation.work = asyncio.create_task(self.endpoint.begin_stream(identity))
+                await asyncio.wait((operation.work, watcher), return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.sleep(0)
+                if watcher.done():
+                    raise HTTPException(499, "Whistle request disconnected")
+                incarnation = operation.work.result()
+                if incarnation != operation.incarnation:
+                    raise RuntimeError("Whistle worker incarnation changed")
+                self.current(operation)
+                stream_id = secrets.token_hex(32)
+                operation.stream = {
+                    "stream_id": stream_id,
+                    "session_id": body.session_id,
+                    "thread_id": body.thread_id,
+                    "epoch": body.epoch,
+                    "utterance_id": body.utterance_id,
+                    "content_scope": body.content_scope,
+                    "sequence": 0,
+                    "sample_offset": 0,
+                    "committed_text": "",
+                    "pending_text": "",
+                    "last_pcm_sha256": None,
+                    "last_ack": None,
+                }
+                operation.work = None
+                result = {
+                    "stream_id": stream_id,
+                    "worker_incarnation": operation.incarnation,
+                    "session_id": body.session_id,
+                    "thread_id": body.thread_id,
+                    "epoch": body.epoch,
+                    "utterance_id": body.utterance_id,
+                    "content_scope": body.content_scope,
+                    "sequence": 0,
+                    "sample_offset": 0,
+                    "provider": "whistle",
+                    "profile": PROFILE,
+                }
+                encode_json(result, MAX_RESPONSE_BYTES)
+                success = True
+                return result
+        except TimeoutError as exc:
+            raise HTTPException(504, "Whistle bounded request deadline exceeded") from exc
+        except HTTPException:
+            raise
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise HTTPException(503, "Whistle stream startup is unavailable") from exc
+        finally:
+            if watcher is not None:
+                watcher.cancel()
+            if not success:
+                if started:
+                    self.abort(operation)
+                    with CancelScope(shield=True):
+                        await asyncio.wait((operation.cleanup,), timeout=1)
+                elif self.operation is operation:
+                    self.operation = None
+            if watcher is not None:
+                with CancelScope(shield=True):
+                    await asyncio.wait((watcher,), timeout=0.2)
+
+    async def append_stream(self, request):
+        operation = self.operation
+        if (
+            operation is None
+            or operation.stream is None
+            or operation.cleanup is not None
+            or operation.work is not None
+        ):
+            raise HTTPException(409, "No active Whistle incremental stream")
+        try:
+            self.current(operation)
+        except HTTPException:
+            self.abort(operation)
+            with CancelScope(shield=True):
+                await asyncio.wait((operation.cleanup,), timeout=1)
+            raise
+        stream = operation.stream
+        headers = request.headers
+        stream_id = headers.get("x-kinaiya-stream-id")
+        incarnation = headers.get("x-kinaiya-worker-incarnation")
+        session_id = headers.get("x-kinaiya-session-id")
+        thread_id = headers.get("x-kinaiya-thread-id")
+        epoch_raw = headers.get("x-kinaiya-epoch")
+        utterance_id = headers.get("x-kinaiya-utterance-id")
+        content_scope = headers.get("x-kinaiya-content-scope")
+        seq_raw = headers.get("x-kinaiya-sequence")
+        offset_raw = headers.get("x-kinaiya-sample-offset")
+        pcm_sha256 = headers.get("x-kinaiya-pcm-sha256")
+        if (
+            stream_id != stream["stream_id"]
+            or incarnation != operation.incarnation
+            or session_id != stream["session_id"]
+            or thread_id != stream["thread_id"]
+            or utterance_id != stream["utterance_id"]
+            or content_scope != stream["content_scope"]
+            or epoch_raw is None
+            or not epoch_raw.isdigit()
+            or int(epoch_raw) != stream["epoch"]
+            or seq_raw is None
+            or not seq_raw.isdigit()
+            or offset_raw is None
+            or not offset_raw.isdigit()
+            or not token(pcm_sha256)
+        ):
+            raise HTTPException(409, "Whistle stream identity or scope mismatch")
+        sequence = int(seq_raw)
+        sample_offset = int(offset_raw)
+        watcher, success, dispatched = None, False, False
+        try:
+            async with asyncio.timeout(self.timeout):
+                if request.headers.get("content-type", "").split(";", 1)[0].lower() not in {
+                    "application/octet-stream",
+                    "audio/pcm",
+                }:
+                    raise HTTPException(415, "Whistle stream accepts raw PCM16 bytes")
+                raw = bytearray()
+                max_bytes = MAX_CHUNK_SAMPLES * 2
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > max_bytes:
+                        raise HTTPException(413, "Whistle PCM chunk exceeds 16000 samples")
+                    raw.extend(chunk)
+                pcm16 = bytes(raw)
+                if len(pcm16) == 0 or len(pcm16) % 2 != 0:
+                    raise HTTPException(400, "Whistle stream requires non-empty 16-bit PCM")
+                if hashlib.sha256(pcm16).hexdigest() != pcm_sha256:
+                    raise HTTPException(400, "Whistle PCM SHA-256 digest mismatch")
+                samples = len(pcm16) // 2
+                # Idempotent acknowledgment recovery for exact last committed append
+                if (
+                    sequence == stream["sequence"]
+                    and sample_offset + samples == stream["sample_offset"]
+                    and pcm_sha256 == stream["last_pcm_sha256"]
+                    and stream["last_ack"] is not None
+                ):
+                    success = True
+                    return {**stream["last_ack"], "replay": True}
+                if sequence != stream["sequence"] + 1 or sample_offset != stream["sample_offset"]:
+                    raise HTTPException(
+                        409, "Whistle stream sequence or sample offset is non-contiguous"
+                    )
+                if sample_offset + samples > MAX_TOTAL_SAMPLES:
+                    raise HTTPException(413, "Whistle stream exceeds 960000 total samples")
+                if await request.is_disconnected():
+                    raise HTTPException(499, "Whistle request disconnected")
+                dispatched = True
+                watcher = asyncio.create_task(self.disconnected(request))
+                operation.work = asyncio.create_task(
+                    self.endpoint.stream_pcm(
+                        pcm16,
+                        operation.identity,
+                        expected_samples=sample_offset + samples,
+                    )
+                )
+                await asyncio.wait((operation.work, watcher), return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.sleep(0)
+                if watcher.done():
+                    raise HTTPException(499, "Whistle request disconnected")
+                update = operation.work.result()
+                operation.work = None
+                self.current(operation)
+                next_offset = update["received_samples"]
+                result = {
+                    "stream_id": stream["stream_id"],
+                    "worker_incarnation": operation.incarnation,
+                    "sequence": sequence,
+                    "sample_offset": sample_offset,
+                    "received_samples": next_offset,
+                    "pcm_sha256": pcm_sha256,
+                    "delta_text": update["delta_text"],
+                    "committed_text": update["committed_text"],
+                    "pending_text": update["pending_text"],
+                    "final": False,
+                    "native_pass_ms": update["native_pass_ms"],
+                    "language": update["language"],
+                    "provider": "whistle",
+                    "profile": PROFILE,
+                }
+                encode_json(result, MAX_RESPONSE_BYTES)
+                stream["sequence"] = sequence
+                stream["sample_offset"] = next_offset
+                stream["committed_text"] = update["committed_text"]
+                stream["pending_text"] = update["pending_text"]
+                stream["last_pcm_sha256"] = pcm_sha256
+                stream["last_ack"] = result
+                success = True
+                return result
+        except TimeoutError as exc:
+            raise HTTPException(504, "Whistle bounded request deadline exceeded") from exc
+        except HTTPException:
+            raise
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise HTTPException(503, "Whistle stream transcription failed") from exc
+        finally:
+            if watcher is not None:
+                watcher.cancel()
+            if not success and dispatched:
+                self.abort(operation)
+                with CancelScope(shield=True):
+                    await asyncio.wait((operation.cleanup,), timeout=1)
+            if watcher is not None:
+                with CancelScope(shield=True):
+                    await asyncio.wait((watcher,), timeout=0.2)
+
+    async def finish_stream(self, request):
+        operation = self.operation
+        if (
+            operation is None
+            or operation.stream is None
+            or operation.cleanup is not None
+            or operation.work is not None
+        ):
+            raise HTTPException(409, "No active Whistle incremental stream")
+        try:
+            self.current(operation)
+        except HTTPException:
+            self.abort(operation)
+            with CancelScope(shield=True):
+                await asyncio.wait((operation.cleanup,), timeout=1)
+            raise
+        stream = operation.stream
+        watcher, success, dispatched = None, False, False
+        try:
+            async with asyncio.timeout(self.timeout):
+                body = await self._read_control_json(request, WhistleStreamFinishRequest)
+                if (
+                    body.stream_id != stream["stream_id"]
+                    or body.worker_incarnation != operation.incarnation
+                    or body.session_id != stream["session_id"]
+                    or body.thread_id != stream["thread_id"]
+                    or body.epoch != stream["epoch"]
+                    or body.utterance_id != stream["utterance_id"]
+                    or body.content_scope != stream["content_scope"]
+                    or body.sequence != stream["sequence"] + 1
+                    or body.sample_offset != stream["sample_offset"]
+                ):
+                    raise HTTPException(409, "Whistle stream finish identity or offset mismatch")
+                if await request.is_disconnected():
+                    raise HTTPException(499, "Whistle request disconnected")
+                dispatched = True
+                watcher = asyncio.create_task(self.disconnected(request))
+                operation.work = asyncio.create_task(
+                    self.endpoint.finish_stream(
+                        operation.identity,
+                        expected_samples=stream["sample_offset"],
+                    )
+                )
+                await asyncio.wait((operation.work, watcher), return_when=asyncio.FIRST_COMPLETED)
+                await asyncio.sleep(0)
+                if watcher.done():
+                    raise HTTPException(499, "Whistle request disconnected")
+                update = operation.work.result()
+                operation.work = None
+                self.current(operation)
+                result = {
+                    "stream_id": stream["stream_id"],
+                    "worker_incarnation": operation.incarnation,
+                    "sequence": body.sequence,
+                    "sample_offset": stream["sample_offset"],
+                    "received_samples": update["received_samples"],
+                    "delta_text": update["delta_text"],
+                    "committed_text": update["committed_text"],
+                    "pending_text": update["pending_text"],
+                    "final": True,
+                    "native_pass_ms": update["native_pass_ms"],
+                    "language": update["language"],
+                    "provider": "whistle",
+                    "profile": PROFILE,
+                }
+                encode_json(result, MAX_RESPONSE_BYTES)
+                success = True
+                return result
+        except TimeoutError as exc:
+            raise HTTPException(504, "Whistle bounded request deadline exceeded") from exc
+        except HTTPException:
+            raise
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise HTTPException(503, "Whistle stream finalization failed") from exc
+        finally:
+            if watcher is not None:
+                watcher.cancel()
+            if success:
+                if self.operation is operation:
+                    self.operation = None
+            elif dispatched:
+                self.abort(operation)
+                with CancelScope(shield=True):
+                    await asyncio.wait((operation.cleanup,), timeout=1)
+            if watcher is not None:
+                with CancelScope(shield=True):
+                    await asyncio.wait((watcher,), timeout=0.2)
+
+    async def cancel_stream(self, request):
+        body = await self._read_control_json(request, WhistleStreamCancelRequest)
+        operation = self.operation
+        if operation is None or operation.stream is None:
+            return {"cancelled": False, "cleanup_confirmed": True}
+        if body.stream_id != operation.stream["stream_id"] or (
+            body.worker_incarnation is not None and body.worker_incarnation != operation.incarnation
+        ):
+            raise HTTPException(409, "Whistle stream cancel identity mismatch")
+        self.abort(operation)
+        with CancelScope(shield=True):
+            await asyncio.wait((operation.cleanup,), timeout=1)
+        return {
+            "cancelled": True,
+            "cleanup_confirmed": operation.cleanup_confirmed and not operation.cleanup_failed,
+        }
 
     async def close(self):
         self.closed = True
