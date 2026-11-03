@@ -1187,6 +1187,8 @@ def _graph(value) -> None:
             for key, child in item.items():
                 if type(key) is not str:
                     _bad()
+                if len(key) > MAX_MEDIA_CONTROL_BYTES:
+                    _bound()
                 key.encode("utf-8")
                 pending.append((child, depth + 1))
         elif type(item) is list:
@@ -1194,6 +1196,8 @@ def _graph(value) -> None:
                 _bound()
             pending.extend((child, depth + 1) for child in item)
         elif type(item) is str:
+            if len(item) > MAX_MEDIA_CONTROL_BYTES:
+                _bound()
             item.encode("utf-8")
         elif type(item) is int:
             if abs(item) > MAX_MEDIA_INTEGER:
