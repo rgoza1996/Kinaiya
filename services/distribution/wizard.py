@@ -81,24 +81,44 @@ def run_wizard(layout, *, tty=None):
         converse_adapter = ask("Converse provider adapter (lmstudio/compatible/meta)", "compatible")
         converse_endpoint = ask("Converse provider endpoint", endpoint)
         converse_model = ask("Exact Converse model name", model)
+        converse_allow_cloud = (
+            ask(
+                "Allow disclosure of authorized content to this Converse provider? yes/no",
+                "no",
+            )
+            == "yes"
+        )
+        converse_credential_env = (
+            ask("Converse credential environment variable NAME only; never paste a key") or None
+        )
         converse_profile = {
             "kind": converse_adapter,
             "endpoint": converse_endpoint,
             "model": converse_model,
-            "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "allow_cloud": converse_allow_cloud,
+            "credential_env": converse_credential_env,
         }
         decisions_adapter = ask(
             "Decisions provider adapter (compatible/laya/native_d1/meta)", "compatible"
         )
         decisions_endpoint = ask("Decisions provider endpoint", converse_endpoint)
         decisions_model = ask("Exact Decisions model name", converse_model)
+        decisions_allow_cloud = (
+            ask(
+                "Allow disclosure of authorized content to this Decisions provider? yes/no",
+                "no",
+            )
+            == "yes"
+        )
+        decisions_credential_env = (
+            ask("Decisions credential environment variable NAME only; never paste a key") or None
+        )
         decisions_profile = {
             "kind": decisions_adapter,
             "endpoint": decisions_endpoint,
             "model": decisions_model,
-            "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "allow_cloud": decisions_allow_cloud,
+            "credential_env": decisions_credential_env,
         }
     chosen = replace(layout, workspace=Path(workspace).expanduser(), data=Path(data).expanduser())
     tty.write(
