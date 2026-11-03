@@ -184,8 +184,9 @@ class SpeechClient:
                     if len(raw) + len(part) > 128 * 1024:
                         raise ValueError("Native STT response exceeds its bound")
                     raw.extend(part)
-                if response.status_code == 404 and path.endswith("/capability"):
+                if response.status_code in {404, 405} and path.endswith("/capability"):
                     return None
+
                 if not response.is_success:
                     raise SpeechProviderError(response.status_code)
                 from packages.providers.whistle_ipc import decode_json
@@ -326,6 +327,134 @@ class SpeechClient:
             binding.operation,
         )
 
+    @staticmethod
+    def _tts_request_sha256(text_sha256: str, profile: str) -> str:
+        canonical = json.dumps(
+            {"input_sha256": text_sha256, "profile": profile},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    async def prepare_native_tts(
+        self,
+        text: str,
+        *,
+        current,
+        tts_operation_id: str,
+        synthesis_event_id: str,
+        synthesis_sequence: int,
+        source_event_id: str,
+        session_id: str,
+        thread_id: str,
+        epoch: int,
+        generation_epoch: int,
+    ):
+        """Reserve metadata only. No text or synthesis inference is dispatched here."""
+        if not isinstance(text, str) or not 1 <= len(text) <= 16000:
+            raise ValueError("Invalid TTS input text")
+        if self._native_stt_origin is None:
+            return None
+        from packages.contracts.tts_models import (
+            TTS_SETTLEMENT_PROTOCOL,
+            TTSWorkerBinding,
+            TTSWorkerOperation,
+            TTSWorkerReservation,
+        )
+
+        capability = await self._native_exchange(
+            "/v1/audio/tts-operations/capability", current=current
+        )
+        if not await current():
+            raise SpeechProviderError(409)
+        if capability is None:
+            return None
+        if (
+            type(capability) is not dict
+            or set(capability) != {"protocol", "worker_instance"}
+            or capability["protocol"] != TTS_SETTLEMENT_PROTOCOL
+            or type(capability["worker_instance"]) is not str
+        ):
+            raise ValueError("Unsupported native TTS settlement capability")
+        text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        request_sha256 = self._tts_request_sha256(text_sha256, self.profile)
+        original = TTSWorkerReservation(
+            text_sha256=text_sha256,
+            profile=self.profile,
+            request_sha256=request_sha256,
+        )
+        reserved = await self._native_exchange(
+            "/v1/audio/tts-operations/reserve",
+            body=original.model_dump(mode="json"),
+            current=current,
+        )
+        if not await current():
+            raise SpeechProviderError(409)
+        operation = TTSWorkerOperation.model_validate(reserved)
+        if (
+            operation.worker_instance != capability["worker_instance"]
+            or operation.text_sha256 != text_sha256
+            or operation.profile != self.profile
+            or operation.request_sha256 != request_sha256
+        ):
+            raise ValueError("Native TTS reservation changed its original request")
+        return TTSWorkerBinding(
+            origin=self._native_stt_origin,
+            worker_instance=operation.worker_instance,
+            operation_id=operation.operation_id,
+            tts_operation_id=tts_operation_id,
+            synthesis_event_id=synthesis_event_id,
+            synthesis_sequence=synthesis_sequence,
+            source_event_id=source_event_id,
+            session_id=session_id,
+            thread_id=thread_id,
+            epoch=epoch,
+            generation_epoch=generation_epoch,
+            text_sha256=operation.text_sha256,
+            profile=operation.profile,
+            request_sha256=operation.request_sha256,
+        )
+
+    async def lookup_native_tts(self, binding):
+        from packages.contracts.tts_models import (
+            TTSWorkerBinding,
+            TTSWorkerOperation,
+            TTSWorkerProof,
+        )
+
+        binding = TTSWorkerBinding.model_validate(binding)
+        if (
+            self._native_stt_origin is None
+            or binding.origin != self._native_stt_origin
+            or binding.profile != self.profile
+        ):
+            raise ValueError("The original native TTS endpoint is not configured")
+        operation = TTSWorkerOperation(
+            worker_instance=binding.worker_instance,
+            operation_id=binding.operation_id,
+            text_sha256=binding.text_sha256,
+            profile=binding.profile,
+            request_sha256=binding.request_sha256,
+        )
+        raw = await self._native_exchange(
+            "/v1/audio/tts-operations/lookup",
+            body=operation.model_dump(mode="json"),
+        )
+        if type(raw) is not dict or set(raw) != set(TTSWorkerProof.model_fields):
+            raise ValueError("Native TTS proof does not bind its original operation")
+        proof = TTSWorkerProof.model_validate(raw, strict=True)
+        if (
+            proof.protocol != operation.protocol
+            or proof.worker_instance != operation.worker_instance
+            or proof.operation_id != operation.operation_id
+            or proof.text_sha256 != operation.text_sha256
+            or proof.profile != operation.profile
+            or proof.request_sha256 != operation.request_sha256
+        ):
+            raise ValueError("Native TTS proof does not bind its original operation")
+        return proof
+
     async def transcribe(self, data, filename="recording.wav"):
         if len(data) > 10_000_000:
             raise ValueError("Audio exceeds 10 MB temporary processing limit")
@@ -359,9 +488,33 @@ class SpeechClient:
         response.raise_for_status()
         return response.json()
 
-    async def synthesize(self, text):
+    async def synthesize(self, text, *, native_binding=None):
+        headers = None
+        if native_binding is not None:
+            from packages.contracts.tts_models import TTSWorkerBinding
+
+            binding = TTSWorkerBinding.model_validate(native_binding)
+            text_sha256 = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            if (
+                not self._native_bound()
+                or binding.origin != self._native_stt_origin
+                or binding.profile != self.profile
+                or binding.text_sha256 != text_sha256
+                or binding.request_sha256 != self._tts_request_sha256(text_sha256, self.profile)
+            ):
+                raise SpeechProviderError(409)
+            headers = {
+                "x-kinaiya-worker-instance": binding.worker_instance,
+                "x-kinaiya-operation-id": binding.operation_id,
+                "x-kinaiya-text-sha256": binding.text_sha256,
+                "x-kinaiya-profile": binding.profile,
+                "x-kinaiya-request-sha256": binding.request_sha256,
+            }
         async with self.http.stream(
-            "POST", "/v1/audio/speech", json={"input": text, "profile": self.profile}
+            "POST",
+            "/v1/audio/speech",
+            json={"input": text, "profile": self.profile},
+            **({"headers": headers} if headers is not None else {}),
         ) as response:
             response.raise_for_status()
             async with aclosing(response.aiter_lines()) as lines:

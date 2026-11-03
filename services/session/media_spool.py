@@ -661,6 +661,20 @@ class MediaSpool:
         with self._mutex:
             return self._active
 
+    @property
+    @_public
+    def metadata_bytes(self) -> int:
+        """Accounted spool metadata, including retained and unknown history.
+
+        Native Session composition adds its own durable charges against the
+        same selected ceiling. This observation alone reserves no capacity.
+        """
+        with self._mutex:
+            self._storage()
+            if type(self._metadata) is not int or not 0 <= self._metadata <= _METADATA_LIMIT:
+                _error()
+            return self._metadata
+
     @_public
     def reserve(self, source_id: str, reserved_bytes: int) -> SpoolUpload:
         source_id = _identifier(source_id)

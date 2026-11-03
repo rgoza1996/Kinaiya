@@ -368,6 +368,43 @@ def schema_pin():
             "Format",
         )
     }
+    # Session ownership/auth schemas are an exact additive 87-schema family.
+    # Preserve the original184 aggregate; the reviewed manifest is 29 x 3 names.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "AnalyzeTaskAnchor",
+            "AnchorAdmission",
+            "Child",
+            "ChildOwner",
+            "ChildOwnerAppend",
+            "CleanupReceipt",
+            "ClientPlaybackPeer",
+            "Control",
+            "DeleteReceipt",
+            "DeleteRequest",
+            "ExternalTransportPeer",
+            "KeyLookup",
+            "LegacyTaskBody",
+            "LocalExchangeCleanup",
+            "LocalProcessPeer",
+            "Lookup",
+            "NativeTaskPeer",
+            "OwnedWorkerPeer",
+            "OwnerMediaObjective",
+            "OwnerObjective",
+            "OwnerTextObjective",
+            "Peer",
+            "ProcessIdentity",
+            "Status",
+            "StatusAppend",
+            "TaskProof",
+            "TaskProofRequest",
+            "WorkerCleanup",
+            "WorkerCleanupAppend",
+        )
+    }
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:

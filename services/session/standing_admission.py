@@ -28,6 +28,7 @@ from packages.contracts.standing_work import (
     StandingConflict,
     StandingUnavailable,
     _checked,
+    _encode,
     _utc,
     canonical_bytes,
     standing_json,
@@ -189,8 +190,8 @@ class StandingTaskOwner:
         proof = StandingInitialProof.from_json(row["proof"].encode("utf-8"))
         if (
             claim is None
-            or canonical_bytes(proof.claim) != canonical_bytes(claim)
-            or canonical_bytes(proof).decode("utf-8") != row["proof"]
+            or _encode(proof.claim) != _encode(claim)
+            or _encode(proof).decode("utf-8") != row["proof"]
             or row["claim_id"] != claim.claim_id
             or row["event_id"] != proof.event_id
             or row["sequence"] != proof.sequence
@@ -218,7 +219,7 @@ class StandingTaskOwner:
             or native["epoch"] != entry.epoch
             or native["kind"] != entry.kind
             or native["idem"] != entry.idempotency_key
-            or canonical_bytes(standing_initial_proof(claim, entry)) != canonical_bytes(proof)
+            or _encode(standing_initial_proof(claim, entry)) != _encode(proof)
         ):
             raise StandingUnavailable
         return proof

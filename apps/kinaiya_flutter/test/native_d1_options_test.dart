@@ -62,6 +62,35 @@ Future<void> enter(WidgetTester tester, String label, String value) async {
 
 void main() {
   testWidgets(
+    'custom model shortcut opens a new provider profile after catalog inspection',
+    (tester) async {
+      var writes = 0, opened = 0;
+      final api = ProviderApi(
+        baseUrl: 'http://127.0.0.1:8761',
+        ownerToken: 'synthetic-custom-profile',
+        clientFactory: () => MockClient((request) async {
+          if (request.method != 'GET') writes++;
+          return reply(catalog([]));
+        }),
+      );
+      addTearDown(api.close);
+      await showOptions(
+        tester,
+        OptionsProviderEditor(
+          api: api,
+          active: () => true,
+          startNewProfile: true,
+          onNewProfileStarted: () => opened++,
+        ),
+      );
+      expect(find.text('Add provider profile'), findsOneWidget);
+      expect(field('Profile ID'), findsOneWidget);
+      expect(opened, 1);
+      expect(writes, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets(
     'native declaration needs an explicit confidence and saves no inference knobs',
     (tester) async {
       final requests = <http.Request>[];
