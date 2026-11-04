@@ -34,6 +34,12 @@ class VoiceOptionsSheet extends StatelessWidget {
     this.onChooseAudioOutput,
     this.onDefaultAudioOutput,
     this.onRefreshAudioOutputs,
+    this.audioInputs,
+    this.audioInputBusy = false,
+    this.audioInputNotice,
+    this.onAudioInputSelected,
+    this.onDefaultAudioInput,
+    this.onRefreshAudioInputs,
   });
 
   final int endSilenceMs;
@@ -52,6 +58,90 @@ class VoiceOptionsSheet extends StatelessWidget {
   final VoidCallback? onChooseAudioOutput;
   final VoidCallback? onDefaultAudioOutput;
   final VoidCallback? onRefreshAudioOutputs;
+  final List<AudioInputDevice>? audioInputs;
+  final bool audioInputBusy;
+  final String? audioInputNotice;
+  final ValueChanged<String>? onAudioInputSelected;
+  final VoidCallback? onDefaultAudioInput, onRefreshAudioInputs;
+
+  Widget _inputOptions(BuildContext context) {
+    final devices = audioInputs ?? const <AudioInputDevice>[];
+    final selected = devices.where((device) => device.selected).toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KinaiyaDesign.spaceMd),
+      child: DesignPanel(
+        key: const ValueKey('voice-group-input'),
+        padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Audio input', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose an input for the next Call or recording in this session. Refreshing devices does not activate a microphone. Permission and device labels are controlled by your browser.',
+            ),
+            if (devices.isNotEmpty) ...[
+              const SizedBox(height: KinaiyaDesign.spaceSm),
+              InputDecorator(
+                key: const ValueKey('audio-input-device'),
+                decoration: const InputDecoration(labelText: 'Available input'),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selected.length == 1
+                        ? selected.single.opaqueId
+                        : null,
+                    hint: const Text('Choose an input'),
+                    isExpanded: true,
+                    items: [
+                      for (final device in devices)
+                        DropdownMenuItem(
+                          value: device.opaqueId,
+                          child: Text(
+                            device.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: audioInputBusy || onAudioInputSelected == null
+                        ? null
+                        : (id) {
+                            if (id != null) onAudioInputSelected!(id);
+                          },
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  key: const ValueKey('audio-input-default'),
+                  onPressed: audioInputBusy ? null : onDefaultAudioInput,
+                  child: const Text('Use browser default input'),
+                ),
+                TextButton(
+                  key: const ValueKey('audio-input-refresh'),
+                  onPressed: audioInputBusy ? null : onRefreshAudioInputs,
+                  child: const Text('Refresh inputs'),
+                ),
+              ],
+            ),
+            if (audioInputBusy) const LinearProgressIndicator(),
+            if (audioInputNotice != null)
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  audioInputNotice!,
+                  key: const ValueKey('audio-input-notice'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _outputOptions(BuildContext context) {
     final devices = audioOutputs ?? const <AudioOutputDevice>[];
@@ -372,6 +462,11 @@ class VoiceOptionsSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (audioInputs != null ||
+                          audioInputNotice != null ||
+                          onDefaultAudioInput != null ||
+                          onRefreshAudioInputs != null)
+                        _inputOptions(context),
                       if (audioOutputs != null ||
                           audioOutputNotice != null ||
                           onChooseAudioOutput != null ||
