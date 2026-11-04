@@ -19,8 +19,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from test_media_cgroup_custody import _bootstrap_refuses
-from test_media_processes import _binding, _Harness, _limits, _line
+from media_process_helpers import _binding, _bootstrap_refuses, _Harness, _limits, _line
 
 from packages.resources.media_cgroup import MediaCgroupError, MediaCgroupPool
 from packages.resources.media_processes import MediaProcessError, MediaWorkerPool

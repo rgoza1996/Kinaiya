@@ -5,17 +5,12 @@ qualified-runtime claim follows from this module. Root executes it separately.
 """
 
 import asyncio
-import fcntl
-import json
-import os
-import socket
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from test_media_processes import _PROGRAM, _binding, _limits
-from test_media_processes import harness as harness
+from media_process_helpers import _PROGRAM, _binding, _bootstrap_refuses, _limits
+from media_process_helpers import harness as harness
 
 from packages.resources.media_cgroup import MediaCgroupError, MediaCgroupPool
 from packages.resources.media_processes import MediaWorkerPool
@@ -124,97 +119,3 @@ async def test_default_none_preparation_does_not_acquire_new_scoped_startup_time
 @pytest.mark.parametrize("kind", ["ordinary", "pipe", "duplicate", "wrong_tag", "extra_arg"])
 def test_bootstrap_rejects_untrusted_enrollment_before_waiting_for_grant(tmp_path, kind):
     _bootstrap_refuses(tmp_path, kind)
-
-
-def _bootstrap_refuses(tmp_path, kind, *, actual_control=None):
-    # This helper starts the real bootstrap directly, keeping the grant writer
-    # OPEN. Actual exit therefore proves refusal preceded grant/target execution.
-    # Its extra FD is not an actual cgroup, even when named cgroup.procs.
-    script = Path(__file__).resolve().parents[2] / "packages/resources/_media_bootstrap.py"
-    source = tmp_path / "source"
-    source.write_bytes(b"synthetic source")
-    marker = tmp_path / "target"
-    fds = []
-    sockets = []
-    process = None
-    try:
-        grant_r, grant_w = os.pipe2(os.O_CLOEXEC)
-        fds.extend([grant_r, grant_w])
-        control, child_control = socket.socketpair()
-        sockets.extend([control, child_control])
-        source_fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC)
-        config_fd = os.memfd_create("cgroup-oracle-config", os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
-        fds.extend([source_fd, config_fd])
-        raw = json.dumps(
-            {
-                "nonce": "a" * 32,
-                "parent_pid": os.getpid(),
-                "argv": [
-                    sys.executable,
-                    "-I",
-                    "-B",
-                    "-c",
-                    "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes(b'exec')",
-                    str(marker),
-                ],
-                "cwd": str(tmp_path),
-                "env": {},
-            },
-            separators=(",", ":"),
-        ).encode()
-        assert os.write(config_fd, raw) == len(raw)
-        fcntl.fcntl(
-            config_fd,
-            fcntl.F_ADD_SEALS,
-            fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE,
-        )
-        ordinary = tmp_path / "cgroup.procs"
-        ordinary.write_bytes(b"do not overwrite")
-        enrollment = os.open(
-            actual_control if actual_control is not None else ordinary, os.O_WRONLY | os.O_CLOEXEC
-        )
-        fds.append(enrollment)
-        if kind == "pipe":
-            read, enrollment = os.pipe2(os.O_CLOEXEC)
-            fds.extend([read, enrollment])
-        if kind == "duplicate":
-            enrollment = source_fd
-        tag = "--untrusted-detail" if kind == "wrong_tag" else "--kinaiya-cgroup-v1"
-        args = [
-            str(grant_r),
-            str(config_fd),
-            "a" * 32,
-            str(child_control.fileno()),
-            str(source_fd),
-            tag,
-            str(enrollment),
-        ]
-        if kind == "extra_arg":
-            args.append("extra")
-        process = subprocess.Popen(
-            [sys.executable, "-B", str(script), *args],
-            pass_fds=tuple(
-                set([grant_r, config_fd, child_control.fileno(), source_fd, enrollment])
-            ),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        assert process.wait(timeout=5) == 2
-        stdout, stderr = process.communicate(timeout=5)
-        assert stdout == stderr == b""
-        assert not marker.exists()
-        assert ordinary.read_bytes() == b"do not overwrite"
-    finally:
-        if process is not None:
-            if process.poll() is None:
-                process.kill()
-            process.wait(timeout=5)
-            if process.stdout is not None:
-                process.stdout.close()
-            if process.stderr is not None:
-                process.stderr.close()
-        for endpoint in sockets:
-            endpoint.close()
-        for fd in set(fds):
-            os.close(fd)

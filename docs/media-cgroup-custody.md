@@ -178,3 +178,11 @@ its empty original and recreates the same name with a different inode. All
 original refusal, retained-FD/source-charge and replacement checks remain.
 The passing selection establishes only this component's exercised physical
 custody behavior; it does not establish the pending native or demo requirements.
+
+Initial hosted CI then exposed imports between test directories that the local
+runner's extra test paths had masked. Shared helpers now live in one common
+test module, preserving the original test bodies and assertions. With only the
+repository root on `PYTHONPATH`, collection selected all 12,889 non-live tests;
+the 79 affected process tests and all 46 kernel cases passed with no skips.
+Collection is not execution of the full suite. The kernel rerun used another
+new disposable service and slice, both inactive afterward.

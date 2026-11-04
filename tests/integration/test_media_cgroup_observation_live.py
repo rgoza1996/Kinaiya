@@ -12,6 +12,7 @@ import re
 import stat
 
 import pytest
+from media_process_helpers import _binding
 from test_media_cgroup_custody_live import (
     _WAIT,
     _async_refuses,
@@ -19,7 +20,6 @@ from test_media_cgroup_custody_live import (
     _refuses,
 )
 from test_media_cgroup_custody_live import native as native
-from test_media_processes import _binding
 
 from packages.resources.media_cgroup import MediaCgroupPool
 from packages.resources.media_processes import MediaProcessError
