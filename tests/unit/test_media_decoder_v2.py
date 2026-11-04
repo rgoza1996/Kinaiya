@@ -239,13 +239,13 @@ def _response(case, result="probe", *, payload="audio", body=b"abc"):
     return value
 
 
-def _native_args(case):
+def _native_args(case, *, profile_kind="MediaDecoderProfileV2"):
     return {
         "source_ref": _typed("MediaNativeRef", fixtures._SOURCE),
         "seal_ref": _typed("MediaNativeRef", fixtures._OWNER),
         "admission": _typed("MediaSourceAdmission", case["admission"]),
         "seal": _typed("MediaSeal", case["seal"]),
-        "profile": _typed("MediaDecoderProfileV2", case["profile"]),
+        "profile": _typed(profile_kind, case["profile"]),
         "open_plan": _typed("MediaDecodeOpenPlan", case["plan"]),
     }
 
@@ -256,8 +256,8 @@ def _put(value, path, replacement):
     value[path[-1]] = copy.deepcopy(replacement)
 
 
-def _rehash_profile(case):
-    profile = fixtures._self_hash("DecoderProfileV2", case["profile"], "profile_sha256")
+def _rehash_profile(case, *, short="DecoderProfileV2"):
+    profile = fixtures._self_hash(short, case["profile"], "profile_sha256")
     case["profile"] = profile
     pin = profile["profile_sha256"]
     case["admission"]["decoder_profile_sha256"] = pin
@@ -584,6 +584,7 @@ def test_native_planner_rejects_foreign_resolved_reference(target):
 )
 def test_native_planner_keeps_existing_origin_geometry_format_and_runtime_guards(fault):
     case = _case()
+    profile_kind = "MediaDecoderProfileV2"
     raw = case["plan"]
     if fault == "origin":
         for track in raw["ready"]["tracks"]:
@@ -605,11 +606,13 @@ def test_native_planner_keeps_existing_origin_geometry_format_and_runtime_guards
     elif fault == "v1_profile":
         case["profile"]["driver"] = "pyav17_timed_fd_v1"
         case["profile"]["protocol"]["kind"] = "decoder_fd_v1"
-        _rehash_profile(case)
+        # A valid V1 DTO must reach the planner's V2-only boundary.
+        profile_kind = "MediaDecoderProfile"
+        _rehash_profile(case, short="DecoderProfile")
     else:
         case["profile"]["runtime" if fault == "runtime" else "implementation"] = None
         _rehash_profile(case)
-    args = _native_args(case)
+    args = _native_args(case, profile_kind=profile_kind)
     with pytest.raises(planner.MediaDecodePlanError):
         planner.build_decode_plan_from_open(**args)
 
