@@ -83,6 +83,20 @@ def configure(commands):
     )
     updater.add_argument("--yes", action="store_true")
     commands.add_parser("version", help="Verify and show installed immutable provenance")
+    doctor = commands.add_parser(
+        "doctor",
+        help="Read-only local installation, configuration, and connection diagnostics",
+    )
+    doctor.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic JSON diagnostics without ANSI escape codes",
+    )
+    doctor.add_argument(
+        "--no-service-probe",
+        action="store_true",
+        help="Skip local loopback TCP listener probes",
+    )
     commands.add_parser("web", help="Serve matching prebuilt owner UI on loopback port 8780")
     recovery = commands.add_parser("recover", help="Reconcile an interrupted managed transaction")
     recovery.add_argument("--yes", action="store_true")
@@ -185,7 +199,57 @@ def confirm(yes, message):
     raise InstallError("Cancelled; use --yes only after reviewing the plan")
 
 
+def _doctor_layout(args):
+    from dataclasses import replace
+
+    try:
+        layout = chosen_layout()
+    except InstallError:
+        root = os.environ.get("KINAIYA_INSTALL_ROOT")
+        layout = Layout.for_home(Path.home())
+        if root:
+            layout = replace(layout, install=Path(root))
+    data_arg = getattr(args, "data_dir", None)
+    config_arg = getattr(args, "config", None)
+    workspace_arg = getattr(args, "workspace", None)
+    if config_arg is not None:
+        layout = replace(layout, config=Path(config_arg).resolve())
+    if data_arg is not None and Path(data_arg) != Path("data"):
+        layout = replace(layout, data=Path(data_arg).resolve())
+    if workspace_arg is not None and Path(workspace_arg) != Path("workspace"):
+        layout = replace(layout, workspace=Path(workspace_arg).resolve())
+    return layout
+
+
+def print_command_result(args, result):
+    import shutil
+    import sys
+
+    if getattr(args, "command", None) == "doctor":
+        from services.distribution.doctor import format_doctor_report
+
+        is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+        if getattr(args, "json", False) or not is_tty:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            no_color = bool(os.environ.get("NO_COLOR"))
+            width = shutil.get_terminal_size((80, 24)).columns
+            print(
+                format_doctor_report(result, no_color=no_color, is_tty=True, width=width),
+                end="",
+            )
+        return
+    print(json.dumps(result, indent=2))
+
+
 def dispatch(args):
+    if args.command == "doctor":
+        from services.distribution.doctor import run_doctor
+
+        return run_doctor(
+            _doctor_layout(args),
+            probe_services=not getattr(args, "no_service_probe", False),
+        )
     layout = chosen_layout()
     if args.command == "web":
         from services.distribution.web import serve_web
@@ -337,7 +401,7 @@ def main(argv=None):
     configure(commands)
     args = parser.parse_args(argv)
     try:
-        print(json.dumps(dispatch(args), indent=2))
+        print_command_result(args, dispatch(args))
     except (InstallError, ReleaseError) as exc:
         parser.exit(1, f"kinaiya: {exc}\n")
     except (OSError, ValueError):
