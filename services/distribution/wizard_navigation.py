@@ -433,9 +433,7 @@ class WizardNavigator:
                 allow_cloud=allow_cloud,
                 width=term_width,
             )
-        ep_recorded = (
-            f"{adapter}={endpoint}" if adapter not in {"lmstudio", "meta"} else endpoint
-        )
+        ep_recorded = f"{adapter}={endpoint}" if adapter not in {"lmstudio", "meta"} else endpoint
         self._record_answer("endpoint", ep_recorded)
         self._record_answer("model", sel.model_id)
         self._record_answer("allow_cloud", "yes" if allow_cloud else "no")
