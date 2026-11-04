@@ -35,7 +35,18 @@ MAX_SAFE_INTEGER = 9_007_199_254_740_991
 _ID_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
 _HEX64_RE = re.compile(r"[0-9a-fA-F]{64}")
 
-_VALID_TYPES = {"text", "status", "table", "chart", "diagram", "source", "number", "select", "ask"}
+_VALID_TYPES = {
+    "text",
+    "status",
+    "table",
+    "chart",
+    "diagram",
+    "source",
+    "number",
+    "select",
+    "ask",
+    "media",
+}
 _VALID_TONES = {"neutral", "success", "warning", "error"}
 _VALID_FRESH = {"static", "simulated", "delayed", "stale"}
 _VALID_STYLE = {"bar", "line"}
@@ -411,6 +422,16 @@ def _validate_data_for_type(ctype: str, data: Any, ctx: str) -> dict:
         return _validate_select_data(data, ctx)
     if ctype == "ask":
         return _validate_ask_data(data, ctx)
+    if ctype == "media":
+        from services.agent.media_assets import ASSET_PATTERN
+
+        if (
+            set(data) != {"asset_id"}
+            or type(data["asset_id"]) is not str
+            or re.fullmatch(ASSET_PATTERN, data["asset_id"]) is None
+        ):
+            raise ArtifactInvalid("media data requires one opaque native asset_id")
+        return {"asset_id": data["asset_id"]}
     raise ArtifactInvalid(f"{ctx} unknown type {ctype!r}")
 
 
@@ -448,6 +469,8 @@ def validate_components(components: Any) -> list:
             raise ArtifactInvalid(f"duplicate component id {norm['id']!r}")
         seen.add(norm["id"])
         out.append(norm)
+    if sum(component["type"] == "media" for component in out) > 1:
+        raise ArtifactInvalid("An artifact may contain at most one media component")
     return copy.deepcopy(out)
 
 
@@ -591,7 +614,10 @@ def _is_view_value_valid(comp: dict, value: Any) -> bool:
 
 
 class ArtifactStore:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, media_assets=None) -> None:
+        # Native shared instance only. Generated publication accepts no paths,
+        # providers, upload bytes, or registration authority.
+        self.media_assets = media_assets
         self._lock = threading.RLock()
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -727,6 +753,7 @@ class ArtifactStore:
         if type(layout) is not str or layout not in _VALID_LAYOUT:
             raise ArtifactInvalid("layout must be stack/grid")
         norm = validate_components(arguments["components"])
+        self._check_media(norm, sid, tid, ep, task_id, rev, scope)
         with self._lock:
             self._ensure_open()
             self._conn.execute("BEGIN IMMEDIATE")
@@ -905,6 +932,7 @@ class ArtifactStore:
                     if n["type"] != cmap[n["id"]]["type"] or n["title"] != cmap[n["id"]]["title"]:
                         raise ArtifactInvalid("type/title are immutable")
                     revalidated.append(n)
+                self._check_media(revalidated, sid, tid, ep, task_id, rev, scope)
                 old_view: dict = json.loads(row["view_state_json"])
                 pruned: dict = {}
                 by_new = {c["id"]: c for c in revalidated}
@@ -974,6 +1002,63 @@ class ArtifactStore:
                 except Exception:
                     pass
                 raise
+
+    def _check_media(self, components, sid, tid, ep, task_id, rev, scope):
+        from services.agent.media_assets import MediaAssetError
+
+        media = [component for component in components if component["type"] == "media"]
+        if len(media) > 1:
+            raise ArtifactInvalid("An artifact may contain at most one media component")
+        for component in media:
+            if self.media_assets is None:
+                raise ArtifactInvalid("Native media assets are not configured")
+            try:
+                self.media_assets.get(
+                    component["data"]["asset_id"],
+                    binding={
+                        "session_id": sid,
+                        "thread_id": tid,
+                        "epoch": ep,
+                        "task_id": task_id,
+                        "objective_revision": rev,
+                    },
+                    content_scope=scope,
+                )
+            except MediaAssetError:
+                raise ArtifactInvalid("Native media asset does not match this task scope") from None
+
+    def media(self, artifact_id, asset_id, *, session_id, thread_id, epoch, variant=None):
+        """Resolve an exact native artifact reference before exposing any bytes."""
+        from services.agent.media_assets import MediaAssetError
+
+        with self._lock:
+            artifact = self.get(
+                artifact_id, session_id=session_id, thread_id=thread_id, epoch=epoch
+            )
+            if self.media_assets is None:
+                raise ArtifactNotFound("Native media asset not configured")
+            if not any(
+                component["type"] == "media" and component["data"]["asset_id"] == asset_id
+                for component in artifact["components"]
+            ):
+                raise ArtifactNotFound("Artifact does not reference this native media asset")
+            binding = {
+                key: artifact[key]
+                for key in ("task_id", "objective_revision", "session_id", "thread_id", "epoch")
+            }
+            try:
+                if variant is None:
+                    return self.media_assets.get(
+                        asset_id, binding=binding, content_scope=artifact["content_scope"]
+                    )
+                return self.media_assets.content(
+                    asset_id,
+                    binding=binding,
+                    content_scope=artifact["content_scope"],
+                    variant=variant,
+                )
+            except MediaAssetError:
+                raise ArtifactNotFound("Native media asset unavailable in this scope") from None
 
     def get(self, artifact_id: str, *, session_id: str, thread_id: str, epoch: int) -> dict:
         _req_str(artifact_id, 1, 128, "artifact_id")

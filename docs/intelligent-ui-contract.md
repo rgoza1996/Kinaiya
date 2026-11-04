@@ -45,6 +45,7 @@ IDs are unique. Supported data objects:
 | `number` | `label` (1–160), `value`, `min`, `max` (finite numbers ≤1e12 in absolute value; min ≤ value ≤ max), optional `step` (positive finite number) |
 | `select` | `label` (1–160), `options` (1–30 unique nonempty strings ≤160), `value` (one option) |
 | `ask` | `label` (1–160), `message` (1–2000); click only prefills Converse's ordinary composer, never submits or grants tool permission |
+| `media` | only `asset_id` (`media_` plus 32 lowercase hexadecimal characters); at most one media component, backed by an exact native asset receipt described below |
 
 Text rejects unpaired Unicode surrogates and C0/C1 controls except tab and LF.
 JSON trees are bounded to 8192 visited keys/values/containers and depth 12,
@@ -146,3 +147,59 @@ stack the artifact and rail. Existing motion/reduced-motion settings apply.
 Disable rich rendering to retain summary/data fallback and ordinary controls.
 Simulated data is labeled explicitly; source timestamps and staleness labels
 must not be replaced with an invented live feed.
+
+## Native video and SAM presentation
+
+An optional `media` component has exactly `data: {"asset_id":"media_<32 lowercase hex>"}`.
+At most one media component is admitted per artifact. No model path, URL,
+HTML, upload bytes, provider, or overlay instructions are accepted. Ordinary
+`publish_ui` remains the only generated publication route; the native store
+checks the asset's exact task, objective revision, session, thread, epoch,
+and disclosure scope on both creation and patches. A private asset cannot be
+published using a public Task label. Native runtime publication projection
+must already include the private consultation floor; the voice task's source
+admission scope is not changed by this component.
+
+Only trusted native source/projector wiring calls
+`NativeMediaAssets(path).register(*, binding, content_scope, source_bytes,
+source_sha256, rendered_mp4, overlay_sha256, width, height, duration_seconds,
+fps_num, fps_den, frame_count)`. `binding` contains exactly `task_id`,
+`objective_revision`, `session_id`, `thread_id`, and `epoch`. The same instance
+is injected as `ArtifactStore(path, media_assets=instance)`. Artifact storage
+does not close this shared registry; its native owner closes it after runtime
+and adapter cleanup. No HTTP registration operation exists.
+
+The protected registry retains immutable original/highlighted MP4 byte pairs,
+each variant at most 32 MiB, at most 16 assets and 128 MiB combined bytes.
+Identical native registration returns the original receipt, including after
+restart; quota refusal does not evict existing receipts. It verifies original
+SHA256 and computes rendered SHA256. Actual video decoding, validated SAM
+masks, coordinate/timing interpretation, and rendered frame qualification are
+the trusted projector's responsibilities. MP4 signatures alone do not prove
+these properties.
+
+The receipt contains `schema_version: "artifact_media.v1"`, opaque `asset_id`,
+nested `binding`, `content_scope`, `source` and `highlighted` objects (each
+exactly `sha256`, `bytes`, `mime_type: "video/mp4"`), `overlay_sha256`, `width`,
+`height`, `duration_seconds`, `fps_num`, `fps_den`, `frame_count`, and
+`publication_only: true`. It contains no owner credential or filesystem path.
+The authenticated owner API adds:
+
+- `GET /v1/artifacts/{artifact_id}/media/{asset_id}?session_id=...&thread_id=...&epoch=...`
+  returns that metadata receipt.
+- `GET /v1/artifacts/{artifact_id}/media/{asset_id}/content?session_id=...&thread_id=...&epoch=...&variant=source|highlighted`
+  returns exact `video/mp4` bytes with `Cache-Control: no-store` and `nosniff`.
+
+Both require the owner credential and the actual scoped artifact to contain
+the asset reference. Knowing an asset ID never permits global lookup. Wrong
+scope/reference returns 404, malformed query 422, and unavailable native
+storage 503. No external redirect, remote source, capture, inference, task
+submission, or permission grant follows playback. The compiled web player
+fetches with its existing owner header, verifies byte count and SHA256, and
+uses a local blob URL; it is initially muted and does not autoplay. This
+presentation establishes neither transcription accuracy nor task success.
+
+`tests/unit/test_native_media_assets.py` covers synthetic storage, scope,
+publication, patch, quota, and in-process owner API behavior. These fixtures
+contain only synthetic MP4 signature bytes and do not run a video decoder,
+SAM, or any provider.
