@@ -401,18 +401,25 @@
     return !!(state.micAcquire || state.micStop || state.nativePcm.closing || state.stream || state.armed || state.recorder);
   }
 
+  var inputIdentifiersUnavailable = {};
+
   function inputRows(raw) {
     if (!Array.isArray(raw) || raw.length > 128) throw new Error('Input unavailable');
-    var rows = [], ids = new Set();
+    var rows = [], ids = new Set(), identifiersUnavailable = false;
     raw.forEach(function (device) {
       if (!device || device.kind !== 'audioinput') return;
-      if (typeof device.deviceId !== 'string' || !device.deviceId.length || device.deviceId.length > 4096 ||
-          typeof device.label !== 'string' || device.label.length > 4096 || ids.has(device.deviceId)) {
+      if (typeof device.deviceId !== 'string' || device.deviceId.length > 4096 ||
+          typeof device.label !== 'string' || device.label.length > 4096) {
         throw new Error('Input unavailable');
       }
+      if (!device.deviceId.length) { identifiersUnavailable = true; return; }
+      if (ids.has(device.deviceId)) throw new Error('Input unavailable');
       ids.add(device.deviceId);
       rows.push({ id: device.deviceId, label: device.label || 'Audio input' });
     });
+    // Refuse the complete inventory, including otherwise selectable rows.
+    // A private sentinel prevents arbitrary browser errors claiming this reason.
+    if (identifiersUnavailable) throw inputIdentifiersUnavailable;
     return rows;
   }
 
@@ -440,7 +447,12 @@
       return Promise.resolve(JSON.stringify({ supported: !!media, pending: true,
         explicit: input.selected !== null, failed: input.failed, devices: [], status: 'unavailable' }));
     }
-    var op = { promise: null, kind: 'listing' }, revision = input.revision;
+    var op = { promise: null, kind: 'listing' }, revision = input.revision, reason = null;
+    function unavailable(error) {
+      if (input.selected !== null) inputLost();
+      if (error === inputIdentifiersUnavailable) reason = 'identifiers-unavailable';
+      return false;
+    }
     input.pending = op;
     op.promise = Promise.resolve().then(function () {
       if (!media) throw new Error('Input unavailable');
@@ -451,13 +463,15 @@
       input.devices = inputRows(raw);
       if (input.selected !== null && !input.devices.some(function (d) { return d.id === input.selected; })) inputLost();
       return !input.failed;
-    }, function () { if (input.selected !== null) inputLost(); return false; })
-      .catch(function () { if (input.selected !== null) inputLost(); return false; })
+    }, unavailable)
+      .catch(unavailable)
       .then(function (ready) {
         if (input.pending === op) input.pending = null;
-        return JSON.stringify({ supported: !!media, pending: false, explicit: input.selected !== null,
+        var result = { supported: !!media, pending: false, explicit: input.selected !== null,
           failed: input.failed, status: ready ? 'ready' : 'unavailable',
-          devices: ready ? input.devices.map(function (d) { return { id: d.id, label: d.label, selected: d.id === input.selected }; }) : [] });
+          devices: ready ? input.devices.map(function (d) { return { id: d.id, label: d.label, selected: d.id === input.selected }; }) : [] };
+        if (reason !== null) result.reason = reason;
+        return JSON.stringify(result);
       });
     return op.promise;
   }

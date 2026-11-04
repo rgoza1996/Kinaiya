@@ -568,6 +568,14 @@ class _CharacterViewState extends State<CharacterView> {
         _audioInputs = devices;
         _audioInputNotice ??=
             'Available audio inputs refreshed. No microphone was activated.';
+      } on AudioInputDiscoveryUnavailable catch (error) {
+        if (mounted) {
+          _audioInputs = null;
+          _audioInputNotice = switch (error.reason) {
+            AudioInputDiscoveryReason.identifiersUnavailable =>
+              'Browser has not provided selectable microphone identifiers. Check this site’s microphone permission, then refresh inputs. No microphone was activated by this refresh.',
+          };
+        }
       } catch (_) {
         if (mounted) {
           _audioInputs = null;
@@ -756,6 +764,7 @@ class _CharacterViewState extends State<CharacterView> {
         endSilenceMs: _endSilenceMs,
         silenceChoices: endSilenceOptionsMs,
         windowMode: _windowMode,
+        nativeAudio: _s.nativeAudio.configured,
         vadSettings: _adaptiveAudio == null ? null : _vadSettings,
         busy: _vadBusy,
         notice: _vadNotice,

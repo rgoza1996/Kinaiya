@@ -121,7 +121,33 @@ class _WebSpeechAudio
     }
     try {
       final raw = jsonDecode(await _str0('inputDevices'));
+      if (raw is Map &&
+          raw.length == 7 &&
+          raw.keys.every(
+            const {
+              'supported',
+              'pending',
+              'explicit',
+              'failed',
+              'devices',
+              'status',
+              'reason',
+            }.contains,
+          ) &&
+          raw['supported'] == true &&
+          raw['pending'] == false &&
+          raw['explicit'] is bool &&
+          raw['failed'] is bool &&
+          raw['devices'] is List &&
+          (raw['devices'] as List).isEmpty &&
+          raw['status'] == 'unavailable' &&
+          raw['reason'] == 'identifiers-unavailable') {
+        throw const AudioInputDiscoveryUnavailable(
+          AudioInputDiscoveryReason.identifiersUnavailable,
+        );
+      }
       if (raw is! Map ||
+          raw.containsKey('reason') ||
           raw['supported'] != true ||
           raw['status'] != 'ready' ||
           raw['pending'] != false ||
@@ -154,6 +180,8 @@ class _WebSpeechAudio
         );
       }
       return List<AudioInputDevice>.unmodifiable(result);
+    } on AudioInputDiscoveryUnavailable {
+      rethrow;
     } catch (_) {
       throw StateError('Audio input selection unavailable');
     }

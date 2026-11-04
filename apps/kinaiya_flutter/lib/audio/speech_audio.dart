@@ -118,6 +118,14 @@ class AudioInputDevice {
   final bool selected;
 }
 
+enum AudioInputDiscoveryReason { identifiersUnavailable }
+
+class AudioInputDiscoveryUnavailable implements Exception {
+  const AudioInputDiscoveryUnavailable(this.reason);
+
+  final AudioInputDiscoveryReason reason;
+}
+
 /// Discovery and selection do not acquire microphone permission or persist IDs.
 /// A chosen input must be acquired exactly; disappearance never selects default.
 abstract interface class AudioInputSelection {
