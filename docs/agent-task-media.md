@@ -85,6 +85,33 @@ completed results at the owner's exact primary target and rechecks current
 native authority, including after broker close. This does not expand global
 Contributor disclosure policy or authorize unrelated private history.
 
+## Native completion obligation (#469)
+
+Successful enrollment installs a trusted completion check on the native Task
+record. Removing or replacing the advertised factory cannot remove that check.
+Before ordinary Task success, the owner requires a settled current-revision
+`task_orchestrator.v1` execution with matching native source-write and extension
+evidence. The host retains immutable canonical observations separately from the
+candidate's returned summary. Required operations come from the enrolled grant;
+each must match its actual original broker result, source, target and scope.
+
+The final persisted Intelligent UI must include the required operation outputs
+in one same-task, same-revision artifact at the full native disclosure scope.
+For ASL this means the actual returned SAM asset and complete observed transcript
+in text components. Whitespace normalization permits headings and split text
+components, but a replacement summary is insufficient. Native storage verifies
+the asset receipt and both retained video variants; this does not prove playback
+or transcription accuracy. Earlier public placeholders remain independently
+verifiable and cannot substitute for the private result.
+
+The synchronous completion check makes no provider calls or new awaits. It runs
+after the final awaited verification and before success reservation, rechecking
+source bytes, native owner authority and exact disclosure. Cancellation/steering
+retain precedence. Missing, failed, stale or unsettled work cannot report success
+through a generic read or text-only publication. Other owner plans follow their
+declared required subset; non-enrolled Tasks retain their existing completion
+behavior. An admitted live runtime is not retroactively changed by a source fix.
+
 Synthetic broker tests are in `tests/unit/test_agent_media_tools.py`; native
 SQLite enrollment, protected-file, revocation, refusal, and cancellation
 regressions are in `tests/integration/test_agent_task_media_factory.py`.

@@ -371,6 +371,7 @@ class _Record:
     task_harness_export_check: Any | None = None
     task_harness_publication_scope: str = "public_synthetic"
     task_harness_description: dict | None = None
+    task_media_completion_check: Any | None = None
     cancel_requested: bool = False
     closing: bool = False
     proc_slot: dict[str, Any] = field(default_factory=dict)
@@ -4326,6 +4327,25 @@ class AgentRuntime:
             await self._fail(rec, unverified)
             return True
         self._validate_catalog_history(rec)
+        completion_check = rec.task_media_completion_check
+        if completion_check is not None:
+            try:
+                established = callable(completion_check) and completion_check() is True
+            except ProviderCleanupError:
+                raise
+            except Exception:
+                established = False
+            if rec.cancel_requested or rec.closing:
+                await self._cancel(rec)
+                return True
+            if rec.pending_steer is not None:
+                await self._apply_steer(rec)
+                return False
+            if not established:
+                await self._fail(
+                    rec, "finish without the enrolled native media workflow and publication"
+                )
+                return True
         summary = str(args.get("summary", "") or "").strip()
         await self._succeed(rec, summary or "done")
         return True

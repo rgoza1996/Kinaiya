@@ -3,23 +3,32 @@
 import asyncio
 import hashlib
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
 
-from core.policy import ToolPolicy
+from core.policy import PolicyDenied, ToolPolicy
+from core.task_harness import json_bytes
+from packages.contracts.agent_media import MediaProviderResult
+from packages.contracts.interfaces import AgentControlConflict
 from packages.contracts.models import (
     AppendRequest,
+    InterruptRequest,
     ProviderInfo,
     SessionRequest,
     SpeechWindow,
+    SteerRequest,
     TaskRequest,
     TaskState,
     WindowDecision,
 )
 from packages.providers.text import ScriptedProvider
+from services.agent.artifacts import ArtifactStore
+from services.agent.media_assets import NativeMediaAssets
 from services.agent.model_settings import AgentModelSettings
 from services.agent.runtime import AgentRuntime
+from services.agent.task_media_completion import MediaCompletionError
 from services.agent.task_media_factory import TaskMediaFactory
 from services.session.store import LocalJournal, Store
 
@@ -158,6 +167,8 @@ async def env(tmp_path):
     finally:
         release.set()
         await runtime.close()
+        if getattr(result, "media_assets", None) is not None:
+            result.media_assets.close()
         store.close()
 
 
@@ -342,3 +353,517 @@ async def test_unsettled_enrollment_cannot_launch_after_caller_cancellation(env)
     assert rec.submit_confirmed and rec.native_task_identity is not None
     again = await env.runtime.submit(request(env), actor="decisions")
     assert again.task_id == rec.task.task_id and env.calls == []
+
+
+PROGRAM = """def run(payload):
+    state = payload["state"] or {"next": 0}
+    observed = payload["observation"]
+    if observed is not None:
+        if observed["operation"] == "transcribe_video":
+            state["transcript"] = observed["text"]
+        else:
+            state["asset_id"] = observed["data"]["media_asset"]["asset_id"]
+    operations = payload["input"]["operations"]
+    if state["next"] < len(operations):
+        operation = operations[state["next"]]
+        state["next"] += 1
+        return {"op": "consult_media", "request": {
+            "operation": operation, "source_path": "clip.mp4",
+            "source_sha256": payload["input"]["media_sha256"]}, "state": state}
+    return {"op": "finish", "result": state}
+"""
+PROGRAM_SHA = hashlib.sha256(PROGRAM.encode()).hexdigest()
+TRANSCRIPT = "First synthetic sentence.\nSecond synthetic sentence."
+
+
+async def _prepare_completion(env, required_operations=None):
+    if required_operations is not None:
+        write_plan(env, required_operations=required_operations)
+    env.runtime.policy.allow_write = True
+    env.media_assets = NativeMediaAssets(env.plan_path.parent / "media.sqlite")
+    env.runtime.artifact_store = ArtifactStore(
+        env.plan_path.parent / "artifacts.sqlite", media_assets=env.media_assets
+    )
+    env.media_calls = []
+
+    async def provider(prepared, current):
+        current()
+        operation = prepared.request.operation
+        env.media_calls.append(operation)
+        data = {}
+        if operation == "sam_hands":
+            env.asset = env.media_assets.register(
+                binding=prepared.grant.binding.model_dump(mode="json"),
+                content_scope=prepared.grant.content_scope,
+                source_bytes=VIDEO,
+                source_sha256=SHA,
+                rendered_mp4=VIDEO + b"synthetic-highlight",
+                overlay_sha256="b" * 64,
+                width=16,
+                height=16,
+                duration_seconds=1.0,
+                fps_num=1,
+                fps_den=1,
+                frame_count=1,
+            )
+            data = {"media_asset": env.asset}
+        return MediaProviderResult(
+            model=prepared.target.model,
+            provider_request_sha256=hashlib.sha256(operation.encode()).hexdigest(),
+            provider_response_sha256=hashlib.sha256((operation + "response").encode()).hexdigest(),
+            text=TRANSCRIPT if operation == "transcribe_video" else "Synthetic hands observation",
+            data=data,
+        )
+
+    env.factory.provider = provider
+    task = await env.runtime.submit(request(env), actor="decisions")
+    await asyncio.wait_for(env.started.wait(), 1)
+    env.rec = env.runtime._tasks[task.task_id]
+    return env
+
+
+@pytest.fixture
+async def completion_env(env):
+    return await _prepare_completion(env)
+
+
+async def _effect(env, tool, arguments):
+    await env.runtime._execute(env.rec, tool, arguments, "")
+
+
+async def _program(env, operations=None):
+    await _effect(
+        env,
+        "write_file",
+        {
+            "path": "new-asl-task.py",
+            "content": PROGRAM,
+            "objective_revision": 1,
+        },
+    )
+    await _effect(
+        env,
+        "run_task_harness",
+        {
+            "source_path": "new-asl-task.py",
+            "source_sha256": PROGRAM_SHA,
+            "input": {
+                "media_sha256": SHA,
+                "operations": operations or ["transcribe_video", "sam_hands"],
+            },
+        },
+    )
+
+
+async def _publish(env, *, text=TRANSCRIPT, asset=True, asset_id=None):
+    components = []
+    if asset:
+        components.append(
+            {
+                "id": "hands",
+                "type": "media",
+                "data": {
+                    "asset_id": asset_id or env.asset["asset_id"],
+                },
+            }
+        )
+    if text is not None:
+        components.append({"id": "transcript", "type": "text", "data": {"text": text}})
+    await _effect(
+        env,
+        "publish_ui",
+        {
+            "title": "Synthetic native media result",
+            "summary": "Fixture only",
+            "components": components,
+        },
+    )
+
+
+async def _finish_media(env):
+    return await env.runtime._finish(
+        env.rec,
+        {
+            "objective_revision": 1,
+            "summary": "Synthetic workflow complete",
+        },
+        "",
+    )
+
+
+async def test_enrolled_completion_requires_actual_both_operations_and_same_artifact(
+    completion_env,
+):
+    env = completion_env
+    # An earlier public placeholder remains valid alongside the private result.
+    await _publish(env, text="Preparing the synthetic task", asset=False)
+    await _program(env)
+    assert env.media_calls == ["transcribe_video", "sam_hands"]
+    await _publish(env, text="Transcript:\n" + TRANSCRIPT + "\nEnd of transcript")
+    assert env.factory.check_completion(env.runtime, env.rec) is True
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.SUCCEEDED
+    assert env.rec.task.content_scope == "private_cloud_authorized"
+    assert env.rec.task_media_completion_check is not None
+
+
+@pytest.mark.parametrize("required", ["sam_hands", "transcribe_video"])
+async def test_other_owner_plans_keep_their_declared_required_subset(env, required):
+    env = await _prepare_completion(env, [required])
+    await _program(env, [required])
+    await _publish(
+        env,
+        text=TRANSCRIPT if required == "transcribe_video" else None,
+        asset=required == "sam_hands",
+    )
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.SUCCEEDED
+    assert env.media_calls == [required]
+
+
+@pytest.mark.parametrize("bypass", ["old_selector_read", "new_source_only", "text_only_ui"])
+async def test_enrolled_finish_cannot_skip_the_native_workflow(completion_env, bypass):
+    env = completion_env
+    if bypass == "old_selector_read":
+        (env.workspace / "old-selector.py").write_text("def select(payload): return []\n")
+        await _effect(env, "read_file", {"path": "old-selector.py"})
+    elif bypass == "new_source_only":
+        await _effect(
+            env,
+            "write_file",
+            {
+                "path": "new-asl-task.py",
+                "content": PROGRAM,
+                "objective_revision": 1,
+            },
+        )
+    else:
+        await _publish(env, text="A claimed result without media operations", asset=False)
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.FAILED
+    assert "enrolled native media workflow" in env.rec.task.error
+    assert env.media_calls == []
+
+
+@pytest.mark.parametrize("missing", ["sam_hands", "transcribe_video"])
+async def test_one_required_operation_cannot_establish_completion(completion_env, missing):
+    env = completion_env
+    await _program(
+        env, [operation for operation in ("sam_hands", "transcribe_video") if operation != missing]
+    )
+    assert env.rec.failed_task_harness
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.FAILED
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "missing_execution",
+        "missing_proof",
+        "unsettled",
+        "wrong_revision",
+        "boolean_revision",
+        "missing_result",
+        "wrong_broker",
+        "source_changed",
+        "video_changed",
+        "missing_source_write",
+        "missing_extension",
+        "old_selector_contract",
+        "owner_plan_changed",
+        "factory_removed",
+        "cleanup_uncertain",
+    ],
+)
+async def test_native_completion_refuses_missing_stale_or_substituted_execution(
+    completion_env, damage
+):
+    env = completion_env
+    await _program(env)
+    await _publish(env)
+    execution = env.rec.task_harness_execution
+    proof = execution["completion_proof"]
+    if damage == "missing_execution":
+        env.rec.task_harness_execution = None
+    elif damage == "missing_proof":
+        execution.pop("completion_proof")
+    elif damage == "unsettled":
+        execution["settled"] = False
+    elif damage == "wrong_revision":
+        execution["revision"] = 2
+    elif damage == "boolean_revision":
+        execution["revision"] = True
+    elif damage == "missing_result":
+        execution["result"] = None
+    elif damage == "wrong_broker":
+        execution["broker"] = object()
+    elif damage == "source_changed":
+        (env.workspace / "new-asl-task.py").write_text(PROGRAM + "\n")
+    elif damage == "video_changed":
+        (env.workspace / "clip.mp4").write_bytes(VIDEO + b"changed")
+    elif damage == "missing_source_write":
+        env.rec.task.evidence = [e for e in env.rec.task.evidence if e.kind != "file"]
+    elif damage == "missing_extension":
+        env.rec.task.evidence = [e for e in env.rec.task.evidence if e.kind != "extension"]
+    elif damage == "old_selector_contract":
+        value = json.loads(execution["result"][0])
+        value["contract"] = "context_selector.v1"
+        output = json_bytes(value).decode()
+        execution["result"] = (output, execution["result"][1])
+        execution["completion_proof"] = replace(
+            proof, result_sha256=hashlib.sha256(output.encode()).hexdigest()
+        )
+    elif damage == "owner_plan_changed":
+        write_plan(env, plan_id="changed-owner-plan")
+    elif damage == "factory_removed":
+        env.runtime.task_harness_broker_factory = None
+    elif damage == "cleanup_uncertain":
+        env.rec._cleanup_uncertain = True
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+    assert len(env.media_calls) == 2
+    # A replacement advertisement cannot remove the captured native obligation.
+    assert env.rec.task_media_completion_check is not None
+    if damage in {"owner_plan_changed", "factory_removed"}:
+        # Direct _finish preserves the existing disclosure refusal. The outer
+        # real _run catches this exception and records terminal failure.
+        with pytest.raises(PolicyDenied, match="^Tool catalog disclosure changed; task stopped$"):
+            await _finish_media(env)
+        assert env.rec.task.state != TaskState.SUCCEEDED
+    else:
+        await _finish_media(env)
+        assert env.rec.task.state == TaskState.FAILED
+    if damage == "unsettled":
+        assert execution["settled"] is False
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "model",
+        "source_sha256",
+        "content_scope",
+        "provider_response_sha256",
+        "task_id",
+        "objective_revision",
+        "status",
+        "text",
+        "omit_operation",
+    ],
+)
+async def test_completion_uses_immutable_original_broker_observations(completion_env, damage):
+    env = completion_env
+    await _program(env)
+    await _publish(env)
+    execution = env.rec.task_harness_execution
+    proof = execution["completion_proof"]
+    observations = list(proof.observations)
+    value = json.loads(observations[0])
+    if damage == "omit_operation":
+        observations.pop(0)
+    else:
+        if damage in {"task_id", "objective_revision"}:
+            value["binding"][damage] = "other-task" if damage == "task_id" else 2
+        else:
+            value[damage] = {
+                "model": "other-model",
+                "source_sha256": "f" * 64,
+                "content_scope": "public_synthetic",
+                "provider_response_sha256": "f" * 64,
+                "status": "unknown",
+                "text": "Fabricated replacement transcript",
+            }[damage]
+        value["result_sha256"] = hashlib.sha256(
+            json_bytes({key: item for key, item in value.items() if key != "result_sha256"})
+        ).hexdigest()
+        observations[0] = json_bytes(value)
+    execution["completion_proof"] = replace(proof, observations=tuple(observations))
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+    assert len(env.media_calls) == 2
+
+
+@pytest.mark.parametrize(
+    "publication",
+    [
+        "text_only",
+        "media_only",
+        "wrong_text",
+        "separate",
+        "wrong_asset",
+        "corrupt_bytes",
+        "wrong_scope",
+        "wrong_task",
+        "wrong_revision",
+    ],
+)
+async def test_completion_requires_actual_media_and_full_transcript_together(
+    completion_env, publication
+):
+    env = completion_env
+    await _program(env)
+    if publication == "text_only":
+        await _publish(env, asset=False)
+    elif publication == "media_only":
+        await _publish(env, text=None)
+    elif publication == "wrong_text":
+        await _publish(env, text="A replacement summary")
+    elif publication == "separate":
+        await _publish(env, text=None)
+        await _publish(env, asset=False)
+    elif publication == "wrong_asset":
+        other = env.media_assets.register(
+            binding=env.asset["binding"],
+            content_scope=env.asset["content_scope"],
+            source_bytes=VIDEO,
+            source_sha256=SHA,
+            rendered_mp4=VIDEO + b"other-highlight",
+            overlay_sha256="c" * 64,
+            width=16,
+            height=16,
+            duration_seconds=1.0,
+            fps_num=1,
+            fps_den=1,
+            frame_count=1,
+        )
+        await _publish(env, asset_id=other["asset_id"])
+    elif publication == "corrupt_bytes":
+        await _publish(env)
+        env.media_assets._db.execute("UPDATE media_assets SET highlighted=?", (VIDEO + b"corrupt",))
+    else:
+        await _publish(env)
+        column, value = {
+            "wrong_scope": ("content_scope", "public_synthetic"),
+            "wrong_task": ("task_id", "other-task"),
+            "wrong_revision": ("objective_revision", 2),
+        }[publication]
+        env.runtime.artifact_store._conn.execute("UPDATE artifacts SET " + column + "=?", (value,))
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.FAILED
+
+
+async def test_cancel_during_native_completion_validation_wins(completion_env):
+    env = completion_env
+    await _program(env)
+    await _publish(env)
+    original = env.rec.task_media_completion_check
+
+    def cancelled():
+        env.rec.cancel_requested = True
+        return original()
+
+    env.rec.task_media_completion_check = cancelled
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.CANCELLED
+
+
+async def test_removing_factory_cannot_bypass_enrolled_finish(completion_env):
+    env = completion_env
+    # A generic public read can otherwise satisfy ordinary finish. No private
+    # result/catalog guard exists yet; the captured owner obligation must act.
+    (env.workspace / "public-fixture.txt").write_text("Synthetic native read fixture")
+    await _effect(env, "read_file", {"path": "public-fixture.txt"})
+    env.runtime.task_harness_broker_factory = None
+    assert env.rec.task_media_completion_check is not None
+    with pytest.raises(MediaCompletionError):
+        env.rec.task_media_completion_check()
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.FAILED
+    assert "enrolled native media workflow" in env.rec.task.error
+
+
+@pytest.mark.parametrize("action", ["cancel", "steer"])
+async def test_native_owner_change_during_final_await_wins(completion_env, action):
+    env = completion_env
+    if action == "cancel":
+        await _program(env)
+        await _publish(env)
+    else:
+        # Public owner steering remains admissible before private observations.
+        # It must win over the enrolled workflow still being incomplete.
+        await _effect(
+            env,
+            "write_file",
+            {"path": "new-asl-task.py", "content": PROGRAM, "objective_revision": 1},
+        )
+        await _publish(env, text="Preparing the synthetic task", asset=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+    verify = env.runtime._verify_finish_files
+
+    async def held(rec):
+        entered.set()
+        await release.wait()
+        return await verify(rec)
+
+    env.runtime._verify_finish_files = held
+    finishing = asyncio.create_task(_finish_media(env))
+    await asyncio.wait_for(entered.wait(), 1)
+    if action == "cancel":
+        await env.runtime.interrupt(
+            env.rec.task.task_id,
+            InterruptRequest(
+                expected_objective_revision=1,
+                idempotency_key="synthetic-cancel-at-finish",
+            ),
+            actor="owner",
+        )
+    else:
+        await env.runtime.steer(
+            env.rec.task.task_id,
+            SteerRequest(
+                instruction="Revised synthetic task",
+                content_scope="public_synthetic",
+                expected_objective_revision=1,
+                idempotency_key="synthetic-steer-at-finish",
+            ),
+            actor="owner",
+        )
+    release.set()
+    await asyncio.wait_for(finishing, 2)
+    assert env.rec.task.state != TaskState.SUCCEEDED
+    if action == "cancel":
+        assert env.rec.task.state == TaskState.CANCELLED
+    else:
+        assert env.rec.task.objective_revision == 2
+    assert len(env.media_calls) == (2 if action == "cancel" else 0)
+
+
+async def test_post_private_owner_steer_refusal_cannot_report_success(completion_env):
+    env = completion_env
+    await _program(env)
+    await _publish(env)
+    # The media result grant does not authorize a generic private primary
+    # steering request or permit narrowing protected private journal history.
+    with pytest.raises(AgentControlConflict):
+        await env.runtime.steer(
+            env.rec.task.task_id,
+            SteerRequest(
+                instruction="Revised synthetic task",
+                content_scope="public_synthetic",
+                expected_objective_revision=1,
+                idempotency_key="synthetic-steer-after-private-observation",
+            ),
+            actor="owner",
+        )
+    assert env.rec.pending_steer is None
+    assert env.rec.task.objective_revision == 1
+    assert env.rec.task.state != TaskState.SUCCEEDED
+    assert len(env.media_calls) == 2
+
+
+async def test_non_enrolled_legacy_finish_retains_existing_behavior(env):
+    env.runtime.task_harness_broker_factory = None
+    env.runtime.task_preworker_hook = None
+    task = await env.runtime.submit(request(env), actor="decisions")
+    await asyncio.wait_for(env.started.wait(), 1)
+    env.rec = env.runtime._tasks[task.task_id]
+    (env.workspace / "public-fixture.txt").write_text("Synthetic native read fixture")
+    await _effect(env, "read_file", {"path": "public-fixture.txt"})
+    assert env.rec.task_media_completion_check is None
+    await _finish_media(env)
+    assert env.rec.task.state == TaskState.SUCCEEDED

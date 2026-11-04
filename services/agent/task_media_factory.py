@@ -192,6 +192,7 @@ class TaskMediaFactory:
         self.plan_path = Path(plan_path)
         self.provider = provider
         self._enrollment = None
+        self._broker = None
         self._lock = asyncio.Lock()
 
     @staticmethod
@@ -438,14 +439,25 @@ class TaskMediaFactory:
             window.revision,
             hashlib.sha256(window.text.encode("utf-8")).hexdigest(),
         )
+        # Capture this owner on the native record. Removing/replacing the
+        # advertised factory cannot remove the enrolled completion obligation.
+        rec.task_media_completion_check = lambda: self.check_completion(runtime, rec)
+
+    def check_completion(self, runtime, rec):
+        from services.agent.task_media_completion import check_completion
+
+        return check_completion(self, runtime, rec)
 
     def __call__(self, runtime, rec, current):
         enrolled = self._current(runtime, rec)
+        if self._broker is not None:
+            raise MediaEnrollmentError()
 
         def check():
             self._current(runtime, rec)
             current()
 
-        return WorkspaceMediaBroker(
+        self._broker = WorkspaceMediaBroker(
             policy=enrolled.policy, grant=enrolled.grant, provider=self.provider, current=check
         )
+        return self._broker

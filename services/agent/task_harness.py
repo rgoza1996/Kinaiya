@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from dataclasses import dataclass
 
 from core.plugins.errors import PluginError
 from core.plugins.sourcecheck import decode_source
@@ -16,6 +17,20 @@ from packages.providers.disclosure import combine_scopes
 from packages.providers.text import ProviderCleanupError
 from services.agent.model_settings import AgentModelSettings
 from services.agent.tools import ToolFailure
+
+
+@dataclass(frozen=True)
+class TaskHarnessCompletionProof:
+    """Native-only immutable observations; candidate output cannot supply this."""
+
+    binding: bytes
+    source_path: str
+    source_sha256: str
+    source_evidence_id: str
+    request_sha256: str
+    result_sha256: str
+    observations: tuple[bytes, ...]
+    evidence: bytes
 
 
 def task_harness_available(runtime, task=None):
@@ -186,13 +201,18 @@ async def run_task_harness(runtime, rec, arguments):
         decode_source(raw)
     except PluginError as exc:
         raise ToolFailure("Task harness source violates the isolated computation contract") from exc
-    if not any(
-        evidence.kind == "file"
-        and evidence.objective_revision == revision
-        and evidence.path == str(path)
-        and evidence.sha256 == request.source_sha256
-        for evidence in task.evidence
-    ):
+    source_evidence = next(
+        (
+            evidence
+            for evidence in task.evidence
+            if evidence.kind == "file"
+            and evidence.objective_revision == revision
+            and evidence.path == str(path)
+            and evidence.sha256 == request.source_sha256
+        ),
+        None,
+    )
+    if source_evidence is None:
         raise ToolFailure("Task harness requires current-revision native source-write evidence")
     stamp = hashlib.sha256(json_bytes(request.model_dump(mode="json"))).hexdigest()
     previous = rec.task_harness_execution
@@ -332,4 +352,14 @@ async def run_task_harness(runtime, rec, arguments):
         objective_revision=revision,
     )
     execution["result"] = (output, evidence)
+    execution["completion_proof"] = TaskHarnessCompletionProof(
+        binding=json_bytes(binding),
+        source_path=str(path),
+        source_sha256=request.source_sha256,
+        source_evidence_id=source_evidence.evidence_id,
+        request_sha256=stamp,
+        result_sha256=hashlib.sha256(output.encode("utf-8")).hexdigest(),
+        observations=tuple(json_bytes(item, MAX_RESULT_BYTES) for item in observed_results),
+        evidence=json_bytes(evidence.model_dump(mode="json")),
+    )
     return output, evidence

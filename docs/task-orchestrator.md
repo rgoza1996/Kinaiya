@@ -161,6 +161,13 @@ The Agent can publish the derived result with ordinary `publish_ui` and propose
 terminal-outcome confirmation remain authoritative. This interface does not
 replace the independent selector evaluator or permit generated code to modify it.
 
+The concrete native media owner additionally installs its completion obligation
+at enrollment (#469), so skipping `run_task_harness` cannot bypass the declared
+workflow. Its immutable execution/broker proof and actual same-scope publication
+must satisfy the owner before generic success. Default hosts and generic
+non-enrolled harness factories retain their existing behavior. This verifies the
+required workflow and publication, not semantic ASL recognition accuracy.
+
 ## Verification boundary
 
 The new regression modules are
