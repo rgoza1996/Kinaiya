@@ -330,7 +330,7 @@ None of them requires editing JSON or `.env` files by hand.
 
 | Symptom | What to do |
 | --- | --- |
-| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04, install the narrow AppArmor profile described there; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
+| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04/26.04, install the narrow AppArmor profile described there if the probe is denied; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
 | **Install destination inaccessible or protected** | Choose an absolute, user-owned, symlink-free path outside the Agent workspace and outside system directories, then rerun with `--workspace` / `--data-dir`. Nothing is written when preflight refuses. |
 | **Model endpoint unavailable** | Start or fix the provider (for local LM Studio, load the model and confirm the loopback endpoint), then restart `kinaiya serve host`. Setup's saved configuration stays valid; to change the endpoint or model, rerun `kinaiya setup`. |
 | **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |

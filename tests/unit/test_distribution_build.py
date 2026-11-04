@@ -361,10 +361,10 @@ def test_local_validation_rejects_unsafe_or_partial_archives(source_repo, tmp_pa
     data["artifacts"][0]["size"] = path.stat().st_size
     data["artifacts"][0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     (output / "release-manifest.json").write_text(json.dumps(data))
-    with pytest.raises(
-        ReleaseError, match="Unsafe archive member.*size" if attack == "oversized" else None
-    ):
+    with pytest.raises(ReleaseError) as refusal:
         validate_bundle(output)
+    if attack == "oversized":
+        assert str(refusal.value.__cause__) == "Unsafe archive member type, duplicate or size"
 
 
 @pytest.mark.parametrize(
