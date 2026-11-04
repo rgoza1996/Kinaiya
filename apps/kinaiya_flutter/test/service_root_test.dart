@@ -397,6 +397,8 @@ void main() {
         expect(find.textContaining('invalid service path'), findsOneWidget);
         expect(factories, 0);
         expect(state.connection, isNull);
+        await t.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+        await t.pump();
       }
       await t.pumpWidget(const SizedBox.shrink());
     },
@@ -542,6 +544,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('invalid service path'), findsOneWidget);
+      await t.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+      await t.pump();
 
       // Re-expanding preserves the unsaved text in the controller.
       await t.ensureVisible(
