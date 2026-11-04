@@ -162,9 +162,13 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
             "compatible",
             "http://127.0.0.1:8081/v1",
             "converse-local-model",
+            "no",
+            "",
             "native_d1",
             "http://127.0.0.1:8082",
             "decisions-d1-model",
+            "no",
+            "",
             "yes",
         ]
     )
