@@ -11,9 +11,9 @@ import 'design_tokens.dart';
 /// Opening or closing this surface never starts, stops, rearms, or
 /// otherwise touches capture; it only forwards explicit setting changes.
 ///
-/// In streaming-window mode the sheet shows live Decisions timing and hides
-/// the fallback silence control. Otherwise it shows the fallback clip
-/// silence control.
+/// Native audio takes display priority and shows buffered whole-utterance
+/// end-of-speech controls. Modular streaming-window mode shows Decisions timing
+/// and hides the fallback silence control; modular clip mode shows that control.
 class VoiceOptionsSheet extends StatelessWidget {
   const VoiceOptionsSheet({
     super.key,
@@ -21,6 +21,7 @@ class VoiceOptionsSheet extends StatelessWidget {
     required this.silenceChoices,
     required this.onSilenceChanged,
     required this.windowMode,
+    this.nativeAudio = false,
     this.embedded = false,
     this.vadSettings,
     this.onVadChanged,
@@ -45,7 +46,7 @@ class VoiceOptionsSheet extends StatelessWidget {
   final int endSilenceMs;
   final List<int> silenceChoices;
   final ValueChanged<int> onSilenceChanged;
-  final bool windowMode, embedded;
+  final bool windowMode, nativeAudio, embedded;
   final VadSettings? vadSettings;
   final ValueChanged<VadSettings>? onVadChanged;
   final VoidCallback? onRecalibrate;
@@ -393,7 +394,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                   label: const Text('Recalibrate room noise'),
                 ),
               ),
-              if (!windowMode) ...[
+              if (nativeAudio || !windowMode) ...[
                 const SizedBox(height: KinaiyaDesign.spaceMd),
                 _duration(
                   label: 'Speech confirmation',
@@ -495,18 +496,24 @@ class VoiceOptionsSheet extends StatelessWidget {
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Text(
-                                  windowMode ? 'Live' : 'Clip capture fallback',
+                                  nativeAudio
+                                      ? 'Buffered native audio'
+                                      : windowMode
+                                      ? 'Live'
+                                      : 'Clip capture fallback',
                                 ),
-                                if (windowMode) ...[
+                                if (windowMode && !nativeAudio) ...[
                                   const Text('Conversation timing'),
                                   const Text(
                                     'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.',
                                     style: TextStyle(fontSize: 12),
                                   ),
                                 ] else ...[
-                                  const Tooltip(
-                                    message: 'Silence that ends a voice clip',
-                                    child: Text('Silence'),
+                                  Tooltip(
+                                    message: nativeAudio
+                                        ? 'End-of-speech detection for a buffered native utterance'
+                                        : 'Silence that ends a voice clip',
+                                    child: const Text('Silence'),
                                   ),
                                   DropdownButton<int>(
                                     value: endSilenceMs,
@@ -527,14 +534,18 @@ class VoiceOptionsSheet extends StatelessWidget {
                                             onSilenceChanged(v);
                                           },
                                   ),
-                                  const Text(
-                                    'Fallback clip capture: silence ends the clip. Not live model timing.',
-                                    style: TextStyle(fontSize: 12),
+                                  Text(
+                                    nativeAudio
+                                        ? 'Buffered native whole-utterance capture: end-of-speech detection finalizes each utterance, up to 30 seconds.'
+                                        : 'Fallback clip capture: silence ends the clip. Not live model timing.',
+                                    style: const TextStyle(fontSize: 12),
                                   ),
                                 ],
-                                const Text(
-                                  'Call for live listening · Tell for one message',
-                                  style: TextStyle(fontSize: 12),
+                                Text(
+                                  nativeAudio
+                                      ? 'Call captures whole utterances · Tell sends one message'
+                                      : 'Call for live listening · Tell for one message',
+                                  style: const TextStyle(fontSize: 12),
                                 ),
                               ],
                             ),
