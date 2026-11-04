@@ -159,18 +159,22 @@ class OwnerCompanionApi {
   Future<List<OwnerCompanionCall>> listCalls(
     OwnerCompanionBinding binding, {
     String? deviceId,
-    int maxPages = 5,
+    int? maxPages,
   }) async {
-    if (maxPages < 1 || maxPages > 32) {
+    final validDevice = deviceId == null ? null : _id(deviceId);
+    final maxAllowedPages = validDevice == null ? 160 : 5;
+    final effectiveMaxPages = maxPages ?? maxAllowedPages;
+    if (effectiveMaxPages < 1 || effectiveMaxPages > maxAllowedPages) {
       throw const OwnerCompanionFailure('Invalid companion call page bound.');
     }
     final calls = <OwnerCompanionCall>[];
     final seen = <String>{};
+    final perDeviceCounts = <String, int>{};
     var after = 0;
-    for (var pageIndex = 0; pageIndex < maxPages; pageIndex++) {
+    for (var pageIndex = 0; pageIndex < effectiveMaxPages; pageIndex++) {
       final page = await listCallsPage(
         binding,
-        deviceId: deviceId,
+        deviceId: validDevice,
         after: after,
       );
       for (final call in page.calls) {
@@ -179,6 +183,16 @@ class OwnerCompanionApi {
             'The host returned an invalid companion call cursor.',
           );
         }
+        final count = (perDeviceCounts[call.deviceId] ?? 0) + 1;
+        if (count > ownerCompanionMaxCallsPerDevice ||
+            perDeviceCounts.length > ownerCompanionMaxDevices ||
+            calls.length >=
+                ownerCompanionMaxDevices * ownerCompanionMaxCallsPerDevice) {
+          throw const OwnerCompanionFailure(
+            'The host exceeded the retained companion call limit.',
+          );
+        }
+        perDeviceCounts[call.deviceId] = count;
         calls.add(call);
         after = call.sequence;
       }

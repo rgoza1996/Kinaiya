@@ -285,6 +285,69 @@ void main() {
       expect(allCalls.first.sequence, 1);
       expect(allCalls.last.sequence, 100);
       await pagedApi.close();
+
+      // Unfiltered listCalls pages across >5 pages (101 calls across 2 devices,
+      // and 3,200 calls across 32 devices with 100 calls per device) while
+      // enforcing the 100-per-device and 3,200-total bounds.
+      OwnerCompanionApi makeMultiDeviceApi(
+        int totalCalls, {
+        int callsPerDevice = 100,
+      }) => OwnerCompanionApi(
+        sessionBase: 'https://host.invalid',
+        ownerToken: 'o' * 32,
+        clientFactory: () => MockClient((req) async {
+          final after = int.parse(req.url.queryParameters['after'] ?? '0');
+          final remaining = totalCalls - after;
+          final count = remaining > 20 ? 20 : (remaining > 0 ? remaining : 0);
+          final rows = List<Map<String, Object?>>.generate(count, (i) {
+            final seq = after + i + 1;
+            final deviceIndex = ((seq - 1) ~/ callsPerDevice) + 1;
+            return _callJson(
+              id: 'call-$seq',
+              sequence: seq,
+              deviceId: 'device-$deviceIndex',
+              state: seq == totalCalls ? 'ringing' : 'ended',
+              endReason: seq == totalCalls ? null : 'owner_ended',
+            );
+          });
+          final nextAfter = after + count < totalCalls ? after + count : null;
+          return _jsonRes(<String, Object?>{
+            'schema_version': '1.0',
+            'calls': rows,
+            'next_after': nextAfter,
+          });
+        }),
+      );
+
+      final api101 = makeMultiDeviceApi(101);
+      final calls101 = await api101.listCalls(binding);
+      expect(calls101.length, 101);
+      expect(calls101.last.callId, 'call-101');
+      expect(calls101.last.deviceId, 'device-2');
+      expect(calls101.last.state, OwnerCompanionCallState.ringing);
+      await api101.close();
+
+      final api3200 = makeMultiDeviceApi(3200);
+      final calls3200 = await api3200.listCalls(binding);
+      expect(calls3200.length, 3200);
+      expect(calls3200.last.sequence, 3200);
+      expect(calls3200.last.deviceId, 'device-32');
+      expect(calls3200.last.state, OwnerCompanionCallState.ringing);
+      await api3200.close();
+
+      final apiSingleDevice101 = makeMultiDeviceApi(101, callsPerDevice: 101);
+      await expectLater(
+        apiSingleDevice101.listCalls(binding),
+        throwsA(isA<OwnerCompanionFailure>()),
+      );
+      await apiSingleDevice101.close();
+
+      final api3201 = makeMultiDeviceApi(3201);
+      await expectLater(
+        api3201.listCalls(binding),
+        throwsA(isA<OwnerCompanionFailure>()),
+      );
+      await api3201.close();
     },
   );
 
@@ -723,6 +786,220 @@ void main() {
       );
 
       failEnd = false;
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-retry-end-call-1')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('companion-retry-end-call-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(endKeys.length, 2);
+      expect(endKeys[1], equals(endKeys[0]));
+      expect(find.text('Ended by host owner'), findsOneWidget);
+      state.dispose();
+    },
+  );
+
+  testWidgets(
+    'retains in-flight invite, note, and end uncertainty when dialog closes or refreshes before unconfirmed response arrives',
+    (tester) async {
+      final inviteKeys = <String>[];
+      final endKeys = <String>[];
+      Completer<http.Response>? pendingInvite;
+      Completer<http.Response>? pendingNote;
+      Completer<http.Response>? pendingEnd;
+      final calls = <Map<String, Object?>>[];
+
+      final state = _connectedState((req) {
+        if (req.method == 'GET' && req.url.path == '/v1/companion/devices') {
+          return _jsonRes(<String, Object?>{
+            'schema_version': '1.0',
+            'devices': <Object?>[_deviceJson()],
+          });
+        }
+        if (req.method == 'GET' && req.url.path == '/v1/companion/calls') {
+          return _jsonRes(<String, Object?>{
+            'schema_version': '1.0',
+            'calls': calls,
+            'next_after': null,
+          });
+        }
+        if (req.method == 'POST' && req.url.path == '/v1/companion/calls') {
+          final body = jsonDecode(req.body) as Map<String, Object?>;
+          inviteKeys.add(body['idempotency_key'] as String);
+          final gate = pendingInvite;
+          if (gate != null) {
+            return gate.future;
+          }
+          final created = _callJson(id: 'call-1', sequence: 1, revision: 1);
+          calls
+            ..clear()
+            ..add(created);
+          return _jsonRes(created);
+        }
+        if (req.method == 'POST' &&
+            req.url.path == '/v1/companion/calls/call-1/note') {
+          final body = jsonDecode(req.body) as Map<String, Object?>;
+          final gate = pendingNote;
+          if (gate != null) {
+            return gate.future;
+          }
+          final updated = _callJson(
+            id: 'call-1',
+            sequence: 1,
+            revision: (body['expected_revision'] as int) + 1,
+            note: body['note'] as String,
+          );
+          calls
+            ..clear()
+            ..add(updated);
+          return _jsonRes(updated);
+        }
+        if (req.method == 'GET' &&
+            req.url.path == '/v1/companion/calls/call-1') {
+          return _jsonRes(calls.single);
+        }
+        if (req.method == 'POST' &&
+            req.url.path == '/v1/companion/calls/call-1/end') {
+          final body = jsonDecode(req.body) as Map<String, Object?>;
+          endKeys.add(body['idempotency_key'] as String);
+          final gate = pendingEnd;
+          if (gate != null) {
+            return gate.future;
+          }
+          final ended = _callJson(
+            id: 'call-1',
+            sequence: 1,
+            state: 'ended',
+            revision: (body['expected_revision'] as int) + 1,
+            endReason: 'owner_ended',
+            note: calls.single['note'] as String,
+          );
+          calls
+            ..clear()
+            ..add(ended);
+          return _jsonRes(ended);
+        }
+        return _jsonRes(<String, Object?>{'detail': 'not found'}, status: 404);
+      });
+
+      Widget buildDialog(String keyName) => MaterialApp(
+        home: Scaffold(
+          body: ConverseCompanionsDialog(
+            key: ValueKey(keyName),
+            state: state,
+            pollInterval: Duration.zero,
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildDialog('inflight-1'));
+      await tester.pumpAndSettle();
+
+      // 1. Start invite, close dialog while POST is still in flight, then complete 503.
+      pendingInvite = Completer<http.Response>();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-invite-device-1')),
+      );
+      await tester.tap(find.byKey(const ValueKey('companion-invite-device-1')));
+      await tester.pump();
+      expect(inviteKeys.length, 1);
+
+      // Unmount before response completes.
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      pendingInvite.complete(
+        _jsonRes(<String, Object?>{'detail': 'error'}, status: 503),
+      );
+      pendingInvite = null;
+      await tester.pump();
+
+      // Reopen dialog: retained invite uncertainty surfaces and retries with original key.
+      await tester.pumpWidget(buildDialog('inflight-2'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('companion-retry-invite')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-retry-invite')),
+      );
+      await tester.tap(find.byKey(const ValueKey('companion-retry-invite')));
+      await tester.pumpAndSettle();
+      expect(inviteKeys.length, 2);
+      expect(inviteKeys[1], equals(inviteKeys[0]));
+
+      // 2. Start note CAS update, close dialog while POST is in flight, then complete 503.
+      pendingNote = Completer<http.Response>();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-note-input-call-1')),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('companion-note-input-call-1')),
+        'In-flight note draft',
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-save-note-call-1')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('companion-save-note-call-1')),
+      );
+      await tester.pump();
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      pendingNote.complete(
+        _jsonRes(<String, Object?>{'detail': 'error'}, status: 503),
+      );
+      pendingNote = null;
+      await tester.pump();
+
+      await tester.pumpWidget(buildDialog('inflight-3'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('companion-save-note-call-1')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(find.text('Reconcile call'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-inspect-call-1')),
+      );
+      await tester.tap(find.byKey(const ValueKey('companion-inspect-call-1')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const ValueKey('companion-save-note-call-1')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+
+      // 3. Start end call, close dialog while POST is in flight, then complete 503.
+      pendingEnd = Completer<http.Response>();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('companion-end-call-1')),
+      );
+      await tester.tap(find.byKey(const ValueKey('companion-end-call-1')));
+      await tester.pump();
+      expect(endKeys.length, 1);
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      pendingEnd.complete(
+        _jsonRes(<String, Object?>{'detail': 'error'}, status: 503),
+      );
+      pendingEnd = null;
+      await tester.pump();
+
+      await tester.pumpWidget(buildDialog('inflight-4'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('companion-retry-end-call-1')),
+        findsOneWidget,
+      );
       await tester.ensureVisible(
         find.byKey(const ValueKey('companion-retry-end-call-1')),
       );
