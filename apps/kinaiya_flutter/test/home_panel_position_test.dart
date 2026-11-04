@@ -290,6 +290,13 @@ void main() {
       await tester.pump();
       expect(tester.getSize(card).height, closeTo(120, 1));
 
+      // Vertical touch drag on the grip still moves the panel when shortened to scroll.
+      final handle = find.byTooltip('Drag to move panel');
+      final beforeGripDrag = tester.getRect(card);
+      await tester.drag(handle, const Offset(0, -90));
+      await tester.pump();
+      expect(tester.getRect(card).top, lessThan(beforeGripDrag.top - 70));
+
       await tester.ensureVisible(find.byKey(const ValueKey('home-setup')));
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('home-setup')));
