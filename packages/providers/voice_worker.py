@@ -509,6 +509,9 @@ def create_app(
             self.producer_seconds = None
             self.producer_cancelled = None
             self.policy_revision = allow_inference()
+            self.completed_eof = False
+            self.closing_eof = False
+            self.response_completed = False
             self.closed = False
             self.close_lock = asyncio.Lock()
             if operation_record is not None:
@@ -535,6 +538,8 @@ def create_app(
                     except TimeoutError:
                         message = None
                     if message is not None and message["type"] == "http.disconnect":
+                        if self.closing_eof or self.response_completed:
+                            await asyncio.Future()
                         raise HTTPException(499, "Voice request disconnected")
                     self.check()
             except HTTPException as exc:
@@ -663,6 +668,8 @@ def create_app(
                     except queue.Empty:
                         if self.failure is not None:
                             raise self.failure from None
+                        self.check()
+                        self.completed_eof = True
                         return None
                 self.check()
                 frame = {
@@ -692,6 +699,11 @@ def create_app(
         async def _close(self):
             if self.closed:
                 return
+            was_cancelled = (
+                self.cancelled.is_set()
+                or self.monitor_failure is not None
+                or not self.completed_eof
+            )
             self.cancelled.set()
             if self.monitor is not None:
                 self.monitor.cancel()
@@ -737,7 +749,9 @@ def create_app(
                         )
                         else (
                             "cancelled"
-                            if self.cancelled.is_set() or self.monitor_failure is not None
+                            if was_cancelled
+                            or self.producer_cancelled
+                            or self.monitor_failure is not None
                             else "completed"
                         )
                     )
@@ -754,10 +768,24 @@ def create_app(
             # Do not run StreamingResponse's second disconnect listener. The
             # request monitor owns receive before and after the first headers.
             async def bounded_send(message):
+                final_eof_chunk = (
+                    message.get("type") == "http.response.body"
+                    and not message.get("more_body", False)
+                    and not message.get("body", b"")
+                    and self.stream.completed_eof
+                )
+                if final_eof_chunk:
+                    self.stream.closing_eof = True
                 try:
                     await asyncio.wait_for(send(message), idle_frame_timeout)
                 except TimeoutError:
+                    self.stream.closing_eof = False
                     raise TTSBackendError("Voice output deadline exceeded") from None
+                except BaseException:
+                    self.stream.closing_eof = False
+                    raise
+                if final_eof_chunk:
+                    self.stream.response_completed = True
 
             sender = asyncio.create_task(self.stream_response(bounded_send))
             try:
@@ -771,12 +799,22 @@ def create_app(
                         # Both tasks can finish before wait resumes. Only the
                         # monitor's own disconnect is an expected stream exit.
                         if exc is not self.stream.monitor_failure or exc.status_code != 499:
+                            if self.stream.failure is None:
+                                self.stream.failure = exc
                             raise
+                    except BaseException as exc:
+                        if (
+                            not isinstance(exc, asyncio.CancelledError)
+                            and self.stream.failure is None
+                        ):
+                            self.stream.failure = exc
+                        raise
                 elif self.stream.monitor_failure is not None:
                     if self.stream.monitor_failure.status_code != 499:
                         raise self.stream.monitor_failure
             finally:
-                self.stream.cancelled.set()
+                if not (self.stream.completed_eof and self.stream.response_completed):
+                    self.stream.cancelled.set()
                 sender.cancel()
                 await asyncio.gather(sender, return_exceptions=True)
                 await asyncio.shield(self.stream.close())

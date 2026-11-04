@@ -441,9 +441,12 @@ class SpeechClient:
             "/v1/audio/tts-operations/lookup",
             body=operation.model_dump(mode="json"),
         )
-        proof = TTSWorkerProof.model_validate(raw)
+        if type(raw) is not dict or set(raw) != set(TTSWorkerProof.model_fields):
+            raise ValueError("Native TTS proof does not bind its original operation")
+        proof = TTSWorkerProof.model_validate(raw, strict=True)
         if (
-            proof.worker_instance != operation.worker_instance
+            proof.protocol != operation.protocol
+            or proof.worker_instance != operation.worker_instance
             or proof.operation_id != operation.operation_id
             or proof.text_sha256 != operation.text_sha256
             or proof.profile != operation.profile

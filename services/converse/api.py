@@ -9,9 +9,11 @@ from contextlib import aclosing
 from typing import Annotated
 
 from anyio import CancelScope
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field
 
 from packages.contracts.converse_setup import ConverseSetup
@@ -24,6 +26,7 @@ from services.converse.embedding import (
     runtime_model_settings,
     runtime_provider_info,
 )
+from services.converse.native_audio import MAX_BASE64, NativeClipRequest
 from services.converse.stt_operations import stt_operation
 
 _STT_CLOSE_OWNERS = set()
@@ -283,6 +286,10 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
 
     def model_operation_extras():
         return {
+            "native_audio": int(
+                getattr(runtime, "native_audio", None) is not None
+                and runtime.native_audio.status().get("pending", False)
+            ),
             "windows": (
                 sum(
                     not window_controller._reclaimable(p)
@@ -349,6 +356,17 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             "speech_operations": runtime.speech_status(),
             "text_operations": runtime.text_status(),
             "streaming_windows": window_controller is not None,
+            "native_audio": (
+                runtime.native_audio.status()
+                if getattr(runtime, "native_audio", None) is not None
+                else {
+                    "configured": False,
+                    "available": False,
+                    "mode": "buffered_native_audio",
+                    "input_sample_rate": 16000,
+                    "max_seconds": 30,
+                }
+            ),
             "context_history": (
                 "measured" if getattr(runtime, "context_budgeted", False) else "legacy_embedded"
             ),
@@ -1031,40 +1049,159 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             )
         return {"cancelled": False, "cleanup_confirmed": True}
 
+    class NativeClipRoute(APIRoute):
+        """Authenticate and bound this PCM envelope before FastAPI parses it."""
+
+        def get_route_handler(self):
+            original = super().get_route_handler()
+            authorize = auth.require("owner")
+
+            async def handle(request: Request):
+                try:
+                    if any(
+                        len(request.headers.getlist(name)) > 1
+                        for name in ("authorization", "origin")
+                    ):
+                        raise HTTPException(401)
+                    await authorize(request, request.headers.get("authorization", ""))
+                    if any(
+                        len(request.headers.getlist(name)) > 1
+                        for name in ("content-type", "content-length", "content-encoding")
+                    ):
+                        raise HTTPException(400)
+                    if request.headers.get("content-encoding", "identity").strip().lower() not in {
+                        "",
+                        "identity",
+                    }:
+                        raise HTTPException(415)
+                    if request.query_params:
+                        raise HTTPException(400)
+                    if (
+                        request.headers.get("content-type", "").split(";")[0].strip().lower()
+                        != "application/json"
+                    ):
+                        raise HTTPException(415)
+                    raw = bytearray()
+                    async for chunk in request.stream():
+                        if len(raw) + len(chunk) > MAX_BASE64 + 4096:
+                            raise HTTPException(413)
+                        raw.extend(chunk)
+
+                    def pairs(items):
+                        value = {}
+                        for key, item in items:
+                            if key in value:
+                                raise ValueError("Duplicate native audio field")
+                            value[key] = item
+                        return value
+
+                    def constant(_):
+                        raise ValueError("Invalid native audio number")
+
+                    try:
+                        request._json = json.loads(
+                            raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant
+                        )
+                        # The JSON parser accepts escaped lone surrogates.
+                        json.dumps(request._json, ensure_ascii=False).encode("utf-8")
+                    except (ValueError, RecursionError):
+                        raise HTTPException(400) from None
+                    request._body = bytes(raw)
+                    response = await original(request)
+                    response.headers["Cache-Control"] = "no-store"
+                    return response
+                except HTTPException as exc:
+                    status = exc.status_code
+                except RequestValidationError:
+                    status = 400
+                except Exception:
+                    status = 503
+                detail = {
+                    400: "Invalid native audio request",
+                    401: "Native audio authentication was refused",
+                    403: "Native audio authorization was refused",
+                    409: "Native audio scope or request changed",
+                    413: "Native audio request exceeds its bound",
+                    415: "Native audio requires uncompressed JSON",
+                    499: "Native audio request disconnected",
+                    503: "Native audio is unavailable",
+                }.get(status)
+                if detail is None:
+                    status, detail = 503, "Native audio is unavailable"
+                return JSONResponse(
+                    {"detail": detail}, status_code=status, headers={"Cache-Control": "no-store"}
+                )
+
+            return handle
+
+    native_clip_router = APIRouter(route_class=NativeClipRoute)
+
+    @native_clip_router.post("/v1/converse/native-audio/clips", dependencies=owner)
+    async def native_clip(request: NativeClipRequest, http_request: Request):
+        _reserve_api_model(runtime, http_request)
+        native = getattr(runtime, "native_audio", None)
+        if native is None or window_controller is None:
+            raise HTTPException(503, "Native buffered audio is not configured")
+        return await _transcribe_connected(
+            http_request, lambda: native.admit(request, window_controller)
+        )
+
+    app.include_router(native_clip_router)
+
     @app.post("/v1/converse/speech", dependencies=owner)
     async def audio(request: SpeechRequest, http_request: Request):
         _reserve_api_model(runtime, http_request)
-        if speech is None and not getattr(runtime, "_tts_options_configured", False):
+        native = getattr(runtime, "native_audio", None)
+        if (
+            native is None
+            and speech is None
+            and not getattr(runtime, "_tts_options_configured", False)
+        ):
             raise HTTPException(503, "Configure a TTS provider in settings")
         try:
             runtime.check_speech_ready()
             event = await runtime.validate_speech(request.event_id, request.generation_epoch)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
-        from services.converse.tts_operations import capture_tts_turn
+        if "native_audio" in event.payload:
+            if native is None or event.payload["native_audio"] is not True:
+                raise HTTPException(409, "Native audio is unavailable for this reply")
+            try:
+                synthesize, current = native.speech_source(event, request.generation_epoch)
+            except SpeechProviderError as exc:
+                raise HTTPException(exc.status_code, str(exc)) from None
+            # This is retrieval of the exact generated native PCM, not a new
+            # synthesis or TTS role/model admission. SpeechOperation still owns
+            # cancellation, stale generation checks and delivery acknowledgments.
+            scoped = tts_turn = None
+        else:
+            if speech is None and not getattr(runtime, "_tts_options_configured", False):
+                raise HTTPException(503, "Configure a TTS provider in settings")
+            from services.converse.tts_operations import capture_tts_turn
 
-        try:
-            tts_turn = capture_tts_turn(runtime, event, request.generation_epoch, http_request)
-        except ValueError:
-            raise HTTPException(
-                409, "TTS selection, prior attempt or disclosure was refused"
-            ) from None
-        except RuntimeError:
-            raise HTTPException(503, "TTS model ownership is unavailable") from None
-        target = speech if tts_turn is None else tts_turn.lease.provider
-        scoped = getattr(target, "synthesize_scoped", None)
-        if tts_turn is not None and tts_turn.exact_openrouter:
-            scoped = tts_turn.scoped_synthesis
-        current = (
-            _cloud_tts_current(target, event, scoped) if tts_turn is None else tts_turn.current
-        )
+            try:
+                tts_turn = capture_tts_turn(runtime, event, request.generation_epoch, http_request)
+            except ValueError:
+                raise HTTPException(
+                    409, "TTS selection, prior attempt or disclosure was refused"
+                ) from None
+            except RuntimeError:
+                raise HTTPException(503, "TTS model ownership is unavailable") from None
+            target = speech if tts_turn is None else tts_turn.lease.provider
+            synthesize = target.synthesize
+            scoped = getattr(target, "synthesize_scoped", None)
+            if tts_turn is not None and tts_turn.exact_openrouter:
+                scoped = tts_turn.scoped_synthesis
+            current = (
+                _cloud_tts_current(target, event, scoped) if tts_turn is None else tts_turn.current
+            )
 
         async def generate():
             async with aclosing(
                 runtime.speech_frames(
                     event,
                     request.generation_epoch,
-                    target.synthesize,
+                    synthesize,
                     synthesize_scoped=scoped,
                     current=current,
                     **({"tts_turn": tts_turn} if tts_turn is not None else {}),

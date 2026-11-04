@@ -127,3 +127,52 @@ def decoder_response_json(frame: bytes) -> tuple[media.MediaDecodeResponse, byte
     if len(frame) != body_offset:
         raise MediaDecoderWireError("bad_packet")
     return response, b""
+
+
+def decoder_request_v2_bytes(value: media.MediaDecodeRequestV2) -> bytes:
+    """Encode a revalidated ``MediaDecodeRequestV2`` as a closed FD3 frame."""
+    raw_header, _ = _encode_header(value, media.MediaDecodeRequestV2)
+    return struct.pack(">I", len(raw_header)) + raw_header
+
+
+def decoder_request_v2_json(frame: bytes) -> media.MediaDecodeRequestV2:
+    """Decode a complete closed FD3 v2 request frame with no body or trailing bytes."""
+    request, body_offset = _decode_header(frame, media.MediaDecodeRequestV2)
+    if len(frame) != body_offset:
+        raise MediaDecoderWireError("bad_packet")
+    return request
+
+
+def decoder_response_v2_bytes(value: media.MediaDecodeResponseV2, body: bytes) -> bytes:
+    """Encode a revalidated ``MediaDecodeResponseV2`` and its exact declared body."""
+    if type(body) is not bytes:
+        raise MediaDecoderWireError("bad_packet")
+    raw_header, response = _encode_header(value, media.MediaDecodeResponseV2)
+    if response.result == "packet":
+        packet = response.packet
+        if not 0 < packet.body_bytes <= _BODY_BYTES:
+            raise MediaDecoderWireError("bound")
+        if len(body) != packet.body_bytes or hashlib.sha256(body).hexdigest() != packet.body_sha256:
+            raise MediaDecoderWireError("bad_packet")
+    elif body != b"":
+        raise MediaDecoderWireError("bad_packet")
+    return struct.pack(">I", len(raw_header)) + raw_header + body
+
+
+def decoder_response_v2_json(frame: bytes) -> tuple[media.MediaDecodeResponseV2, bytes]:
+    """Decode a complete closed FD3 v2 response frame and return ``(response, body)``."""
+    response, body_offset = _decode_header(frame, media.MediaDecodeResponseV2)
+    if response.result == "packet":
+        packet = response.packet
+        if not 0 < packet.body_bytes <= _BODY_BYTES:
+            raise MediaDecoderWireError("bound")
+        expected_end = body_offset + packet.body_bytes
+        if len(frame) != expected_end:
+            raise MediaDecoderWireError("bad_packet")
+        body = frame[body_offset:expected_end]
+        if hashlib.sha256(body).hexdigest() != packet.body_sha256:
+            raise MediaDecoderWireError("bad_packet")
+        return response, body
+    if len(frame) != body_offset:
+        raise MediaDecoderWireError("bad_packet")
+    return response, b""

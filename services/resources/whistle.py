@@ -8,7 +8,7 @@ import secrets
 import stat
 import tempfile
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -317,6 +317,8 @@ class Transcription:
     policy: tuple
     admission: asyncio.Task | None = None
     work: asyncio.Task | None = None
+    work_tasks: list[asyncio.Task] = field(default_factory=list)
+    active_request: object | None = None
     cleanup: asyncio.Task | None = None
     cleanup_confirmed: bool = False
     cleanup_failed: bool = False
@@ -375,7 +377,19 @@ class WhistleBroker:
             raise HTTPException(409, "Whistle is paused by resource or owner policy") from exc
 
     def current(self, operation):
-        if self.policy() != operation.policy or not self.manager.is_current(operation.identity):
+        ready = self.endpoint.ready
+        if (
+            self.policy() != operation.policy
+            or not self.manager.is_current(operation.identity)
+            or (
+                operation.incarnation is not None
+                and (
+                    ready is None
+                    or operation.identity is None
+                    or ready[:2] != (operation.identity.pid, operation.incarnation)
+                )
+            )
+        ):
             raise HTTPException(409, "Whistle resource revision or worker changed")
 
     def status(self):
@@ -395,6 +409,7 @@ class WhistleBroker:
             self.operation is operation
             and operation.cleanup_confirmed
             and (operation.work is None or operation.work.done())
+            and all(task.done() for task in operation.work_tasks)
         ):
             self.operation = None
 
@@ -422,15 +437,21 @@ class WhistleBroker:
                 raise RuntimeError("Whistle process/group cleanup is unconfirmed")
             operation.cleanup_confirmed = True
             self.endpoint.forget(operation.identity.pid, operation.incarnation)
-            if operation.work is not None and not operation.work.done():
-                await asyncio.wait((operation.work,), timeout=1)
+            pending_tasks = [
+                task
+                for task in (operation.work, *operation.work_tasks)
+                if task is not None and not task.done()
+            ]
+            if pending_tasks:
+                await asyncio.wait(pending_tasks, timeout=1)
             self.release(operation)
         except Exception:
             operation.cleanup_failed = True
 
     def abort(self, operation):
-        if operation.work is not None and not operation.work.done():
-            operation.work.cancel()
+        for task in (operation.work, *operation.work_tasks):
+            if task is not None and not task.done():
+                task.cancel()
         if operation.cleanup is None or operation.cleanup.done():
             operation.cleanup = asyncio.create_task(self.cleanup(operation))
         from packages.contracts.operation_ownership import current_owner
@@ -442,7 +463,12 @@ class WhistleBroker:
                 owner.fail()
             else:
                 closes.retain(owner)
-            for task in (operation.admission, operation.work, operation.cleanup):
+            for task in (
+                operation.admission,
+                operation.work,
+                *operation.work_tasks,
+                operation.cleanup,
+            ):
                 if task is not None:
                     owner.retain_task(task)
             operation.cleanup.add_done_callback(
@@ -471,8 +497,9 @@ class WhistleBroker:
         if operation is not None:
             self.abort(operation)
             await asyncio.shield(operation.cleanup)
-            if operation.work is not None:
-                await asyncio.gather(operation.work, return_exceptions=True)
+            tasks = [task for task in (operation.work, *operation.work_tasks) if task is not None]
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
             if not operation.cleanup_confirmed or operation.cleanup_failed:
                 raise RuntimeError("Whistle cleanup remains retained")
 
@@ -679,6 +706,7 @@ class WhistleBroker:
             or operation.stream is None
             or operation.cleanup is not None
             or operation.work is not None
+            or operation.active_request is not None
         ):
             raise HTTPException(409, "No active Whistle incremental stream")
         try:
@@ -719,7 +747,9 @@ class WhistleBroker:
             raise HTTPException(409, "Whistle stream identity or scope mismatch")
         sequence = int(seq_raw)
         sample_offset = int(offset_raw)
-        watcher, success, dispatched = None, False, False
+        request_token = object()
+        operation.active_request = request_token
+        watcher, work_task, success, dispatched, abort_on_exit = None, None, False, False, False
         try:
             async with asyncio.timeout(self.timeout):
                 if request.headers.get("content-type", "").split(";", 1)[0].lower() not in {
@@ -739,6 +769,21 @@ class WhistleBroker:
                 if hashlib.sha256(pcm16).hexdigest() != pcm_sha256:
                     raise HTTPException(400, "Whistle PCM SHA-256 digest mismatch")
                 samples = len(pcm16) // 2
+                if await request.is_disconnected():
+                    raise HTTPException(499, "Whistle request disconnected")
+                if (
+                    self.operation is not operation
+                    or operation.stream is not stream
+                    or operation.cleanup is not None
+                    or operation.work is not None
+                    or operation.active_request is not request_token
+                ):
+                    raise HTTPException(409, "No active Whistle incremental stream")
+                try:
+                    self.current(operation)
+                except HTTPException:
+                    abort_on_exit = True
+                    raise
                 # Idempotent acknowledgment recovery for exact last committed append
                 if (
                     sequence == stream["sequence"]
@@ -754,22 +799,29 @@ class WhistleBroker:
                     )
                 if sample_offset + samples > MAX_TOTAL_SAMPLES:
                     raise HTTPException(413, "Whistle stream exceeds 960000 total samples")
-                if await request.is_disconnected():
-                    raise HTTPException(499, "Whistle request disconnected")
                 dispatched = True
                 watcher = asyncio.create_task(self.disconnected(request))
-                operation.work = asyncio.create_task(
+                work_task = asyncio.create_task(
                     self.endpoint.stream_pcm(
                         pcm16,
                         operation.identity,
                         expected_samples=sample_offset + samples,
                     )
                 )
-                await asyncio.wait((operation.work, watcher), return_when=asyncio.FIRST_COMPLETED)
+                operation.work = work_task
+                operation.work_tasks.append(work_task)
+                await asyncio.wait((work_task, watcher), return_when=asyncio.FIRST_COMPLETED)
                 await asyncio.sleep(0)
                 if watcher.done():
                     raise HTTPException(499, "Whistle request disconnected")
-                update = operation.work.result()
+                if (
+                    self.operation is not operation
+                    or operation.cleanup is not None
+                    or operation.active_request is not request_token
+                    or operation.work is not work_task
+                ):
+                    raise HTTPException(409, "No active Whistle incremental stream")
+                update = work_task.result()
                 operation.work = None
                 self.current(operation)
                 next_offset = update["received_samples"]
@@ -807,9 +859,11 @@ class WhistleBroker:
         except Exception as exc:
             raise HTTPException(503, "Whistle stream transcription failed") from exc
         finally:
+            if operation.active_request is request_token:
+                operation.active_request = None
             if watcher is not None:
                 watcher.cancel()
-            if not success and dispatched:
+            if not success and (dispatched or abort_on_exit):
                 self.abort(operation)
                 with CancelScope(shield=True):
                     await asyncio.wait((operation.cleanup,), timeout=1)
@@ -824,6 +878,7 @@ class WhistleBroker:
             or operation.stream is None
             or operation.cleanup is not None
             or operation.work is not None
+            or operation.active_request is not None
         ):
             raise HTTPException(409, "No active Whistle incremental stream")
         try:
@@ -834,7 +889,9 @@ class WhistleBroker:
                 await asyncio.wait((operation.cleanup,), timeout=1)
             raise
         stream = operation.stream
-        watcher, success, dispatched = None, False, False
+        request_token = object()
+        operation.active_request = request_token
+        watcher, work_task, success, dispatched, abort_on_exit = None, None, False, False, False
         try:
             async with asyncio.timeout(self.timeout):
                 body = await self._read_control_json(request, WhistleStreamFinishRequest)
@@ -852,19 +909,46 @@ class WhistleBroker:
                     raise HTTPException(409, "Whistle stream finish identity or offset mismatch")
                 if await request.is_disconnected():
                     raise HTTPException(499, "Whistle request disconnected")
+                if (
+                    self.operation is not operation
+                    or operation.stream is not stream
+                    or operation.cleanup is not None
+                    or operation.work is not None
+                    or operation.active_request is not request_token
+                ):
+                    raise HTTPException(409, "No active Whistle incremental stream")
+                try:
+                    self.current(operation)
+                except HTTPException:
+                    abort_on_exit = True
+                    raise
+                if (
+                    body.sequence != stream["sequence"] + 1
+                    or body.sample_offset != stream["sample_offset"]
+                ):
+                    raise HTTPException(409, "Whistle stream finish identity or offset mismatch")
                 dispatched = True
                 watcher = asyncio.create_task(self.disconnected(request))
-                operation.work = asyncio.create_task(
+                work_task = asyncio.create_task(
                     self.endpoint.finish_stream(
                         operation.identity,
                         expected_samples=stream["sample_offset"],
                     )
                 )
-                await asyncio.wait((operation.work, watcher), return_when=asyncio.FIRST_COMPLETED)
+                operation.work = work_task
+                operation.work_tasks.append(work_task)
+                await asyncio.wait((work_task, watcher), return_when=asyncio.FIRST_COMPLETED)
                 await asyncio.sleep(0)
                 if watcher.done():
                     raise HTTPException(499, "Whistle request disconnected")
-                update = operation.work.result()
+                if (
+                    self.operation is not operation
+                    or operation.cleanup is not None
+                    or operation.active_request is not request_token
+                    or operation.work is not work_task
+                ):
+                    raise HTTPException(409, "No active Whistle incremental stream")
+                update = work_task.result()
                 operation.work = None
                 self.current(operation)
                 result = {
@@ -894,12 +978,14 @@ class WhistleBroker:
         except Exception as exc:
             raise HTTPException(503, "Whistle stream finalization failed") from exc
         finally:
+            if operation.active_request is request_token:
+                operation.active_request = None
             if watcher is not None:
                 watcher.cancel()
             if success:
                 if self.operation is operation:
                     self.operation = None
-            elif dispatched:
+            elif dispatched or abort_on_exit:
                 self.abort(operation)
                 with CancelScope(shield=True):
                     await asyncio.wait((operation.cleanup,), timeout=1)

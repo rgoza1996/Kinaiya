@@ -305,3 +305,260 @@ async def test_whistle_broker_non_contiguous_offset_aborts_and_reaps_worker(brok
         "/v1/audio/transcriptions/stream/pcm", content=pcm, headers=bad_headers
     )
     assert resp.status_code == 409
+
+
+async def test_whistle_broker_gated_intake_interleavings_cancellation_and_owner_off(
+    broker_fixture,
+):
+    import asyncio
+
+    from fastapi import HTTPException
+
+    env = broker_fixture
+    start_resp = await env.client.post(
+        "/v1/audio/transcriptions/stream/begin",
+        json={
+            "session_id": "sess_1",
+            "thread_id": "thr_1",
+            "epoch": 1,
+            "utterance_id": "utt_interleave",
+            "content_scope": "local_only",
+        },
+    )
+    assert start_resp.status_code == 200
+    started = start_resp.json()
+    stream_id = started["stream_id"]
+    incarnation = started["worker_incarnation"]
+
+    pcm1 = b"\x01\x00" * 160
+    sha1 = hashlib.sha256(pcm1).hexdigest()
+    headers1 = {
+        "content-type": "application/octet-stream",
+        "x-kinaiya-stream-id": stream_id,
+        "x-kinaiya-worker-incarnation": incarnation,
+        "x-kinaiya-session-id": "sess_1",
+        "x-kinaiya-thread-id": "thr_1",
+        "x-kinaiya-epoch": "1",
+        "x-kinaiya-utterance-id": "utt_interleave",
+        "x-kinaiya-content-scope": "local_only",
+        "x-kinaiya-sequence": "1",
+        "x-kinaiya-sample-offset": "0",
+        "x-kinaiya-pcm-sha256": sha1,
+    }
+
+    class _GatedRequest:
+        def __init__(self, headers: dict, body: bytes, entered: asyncio.Event, gate: asyncio.Event):
+            self.headers = headers
+            self._body = body
+            self._entered = entered
+            self._gate = gate
+
+        async def stream(self):
+            self._entered.set()
+            await self._gate.wait()
+            yield self._body
+
+        async def is_disconnected(self):
+            return False
+
+        async def receive(self):
+            await asyncio.Future()
+
+    # 1. Gated append/append and append/finish interleaving during body intake:
+    entered1 = asyncio.Event()
+    gate1 = asyncio.Event()
+    req1 = _GatedRequest(headers1, pcm1, entered1, gate1)
+    task1 = asyncio.create_task(env.broker.append_stream(req1))
+    await entered1.wait()
+
+    # Concurrent duplicate append and concurrent finish must be rejected before intake/dispatch.
+    dup_resp = await env.client.post(
+        "/v1/audio/transcriptions/stream/pcm", content=pcm1, headers=headers1
+    )
+    assert dup_resp.status_code == 409
+    fin_conflict = await env.client.post(
+        "/v1/audio/transcriptions/stream/finish",
+        json={
+            "stream_id": stream_id,
+            "worker_incarnation": incarnation,
+            "session_id": "sess_1",
+            "thread_id": "thr_1",
+            "epoch": 1,
+            "utterance_id": "utt_interleave",
+            "content_scope": "local_only",
+            "sequence": 1,
+            "sample_offset": 0,
+        },
+    )
+    assert fin_conflict.status_code == 409
+    assert env.engine.pcm_calls == 0
+    assert env.engine.finish_calls == 0
+
+    gate1.set()
+    ack1 = await task1
+    assert ack1["sequence"] == 1
+    assert ack1["received_samples"] == 160
+    assert env.engine.pcm_calls == 1
+
+    # Exact acknowledged replay remains preserved after completion.
+    replay1 = await env.client.post(
+        "/v1/audio/transcriptions/stream/pcm", content=pcm1, headers=headers1
+    )
+    assert replay1.status_code == 200
+    assert replay1.json()["replay"] is True
+    assert env.engine.pcm_calls == 1
+
+    # 2. Cancellation while append intake is held prevents native dispatch:
+    pcm2 = b"\x02\x00" * 160
+    sha2 = hashlib.sha256(pcm2).hexdigest()
+    headers2 = {
+        **headers1,
+        "x-kinaiya-sequence": "2",
+        "x-kinaiya-sample-offset": "160",
+        "x-kinaiya-pcm-sha256": sha2,
+    }
+    entered2 = asyncio.Event()
+    gate2 = asyncio.Event()
+    req2 = _GatedRequest(headers2, pcm2, entered2, gate2)
+    task2 = asyncio.create_task(env.broker.append_stream(req2))
+    await entered2.wait()
+
+    cancel_resp = await env.client.post(
+        "/v1/audio/transcriptions/stream/cancel",
+        json={"stream_id": stream_id, "worker_incarnation": incarnation},
+    )
+    assert cancel_resp.status_code == 200
+    assert cancel_resp.json()["cancelled"] is True
+
+    gate2.set()
+    with pytest.raises(HTTPException) as exc_info:
+        await task2
+    assert exc_info.value.status_code == 409
+    assert env.engine.pcm_calls == 1
+
+
+async def test_whistle_broker_owner_off_during_append_intake_refuses_before_dispatch(
+    broker_fixture,
+):
+    import asyncio
+
+    from fastapi import HTTPException
+
+    env = broker_fixture
+    start = (
+        await env.client.post(
+            "/v1/audio/transcriptions/stream/begin",
+            json={
+                "session_id": "sess_1",
+                "thread_id": "thr_1",
+                "epoch": 1,
+                "utterance_id": "utt_owner_off",
+                "content_scope": "local_only",
+            },
+        )
+    ).json()
+    pcm1 = b"\x01\x00" * 160
+    sha1 = hashlib.sha256(pcm1).hexdigest()
+    headers_off = {
+        "content-type": "application/octet-stream",
+        "x-kinaiya-stream-id": start["stream_id"],
+        "x-kinaiya-worker-incarnation": start["worker_incarnation"],
+        "x-kinaiya-session-id": "sess_1",
+        "x-kinaiya-thread-id": "thr_1",
+        "x-kinaiya-epoch": "1",
+        "x-kinaiya-utterance-id": "utt_owner_off",
+        "x-kinaiya-content-scope": "local_only",
+        "x-kinaiya-sequence": "1",
+        "x-kinaiya-sample-offset": "0",
+        "x-kinaiya-pcm-sha256": sha1,
+    }
+    entered = asyncio.Event()
+    gate = asyncio.Event()
+
+    class _GatedRequest:
+        headers = headers_off
+
+        async def stream(self):
+            entered.set()
+            await gate.wait()
+            yield pcm1
+
+        async def is_disconnected(self):
+            return False
+
+        async def receive(self):
+            await asyncio.Future()
+
+    task = asyncio.create_task(env.broker.append_stream(_GatedRequest()))
+    await entered.wait()
+
+    # Owner disables Converse / policy changes while intake is held.
+    env.coordinator.policy_rev = (2, "sleep", False)
+    gate.set()
+    with pytest.raises(HTTPException) as exc_off:
+        await task
+    assert exc_off.value.status_code == 409
+    assert env.engine.pcm_calls == 0
+    assert env.broker.operation is None
+
+
+async def test_whistle_broker_owner_off_during_finish_intake_refuses_before_dispatch(
+    broker_fixture,
+):
+    import asyncio
+    import json
+
+    from fastapi import HTTPException
+
+    env = broker_fixture
+    start = (
+        await env.client.post(
+            "/v1/audio/transcriptions/stream/begin",
+            json={
+                "session_id": "sess_1",
+                "thread_id": "thr_1",
+                "epoch": 1,
+                "utterance_id": "utt_finish_off",
+                "content_scope": "local_only",
+            },
+        )
+    ).json()
+    entered = asyncio.Event()
+    gate = asyncio.Event()
+    finish_body = json.dumps(
+        {
+            "stream_id": start["stream_id"],
+            "worker_incarnation": start["worker_incarnation"],
+            "session_id": "sess_1",
+            "thread_id": "thr_1",
+            "epoch": 1,
+            "utterance_id": "utt_finish_off",
+            "content_scope": "local_only",
+            "sequence": 1,
+            "sample_offset": 0,
+        }
+    ).encode("utf-8")
+
+    class _GatedFinishRequest:
+        headers = {"content-type": "application/json"}
+
+        async def stream(self):
+            entered.set()
+            await gate.wait()
+            yield finish_body
+
+        async def is_disconnected(self):
+            return False
+
+        async def receive(self):
+            await asyncio.Future()
+
+    task = asyncio.create_task(env.broker.finish_stream(_GatedFinishRequest()))
+    await entered.wait()
+    env.coordinator.policy_rev = (2, "sleep", False)
+    gate.set()
+    with pytest.raises(HTTPException) as exc_fin_off:
+        await task
+    assert exc_fin_off.value.status_code == 409
+    assert env.engine.finish_calls == 0
+    assert env.broker.operation is None
