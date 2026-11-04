@@ -155,10 +155,13 @@ structural records do not resolve native budget references or qualify the
 sealed runtime. A profile hash or an unstated array order cannot supply a
 missing child input or establish launch authority.
 
-Decoder execution remains unavailable until those interfaces, per-segment
-resource enforcement and original peer/control/body/publication settlement are
-implemented and verified. Parsing, storage checks and descriptor tests do not
-pass AT64–AT66 or establish a sign-language demonstration.
+The standalone v2 PyAV child now has bounded actual FD/media qualification,
+documented with its [execution evidence](media-decoder-v2.md#bounded-executable-qualification).
+Native Session decoder start/resume remains unavailable until the original
+controller, charged per-segment resources, protected packet/history storage and
+peer/control/body/publication settlement are composed and verified. Child,
+parsing, storage and descriptor checks do not pass complete AT64–AT66 or
+establish a sign-language demonstration.
 
 ## Native Session regression evidence
 

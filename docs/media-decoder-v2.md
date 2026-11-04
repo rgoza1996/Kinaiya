@@ -76,3 +76,84 @@ admission and accounting must precede actual probing. Cancel acknowledgement,
 segment boundary, true source EOF, publication completion and physical process
 cleanup remain different observations. The v2 records do not enable start or
 resume on their own or qualify AT64–AT66 or the sign-language demonstration.
+
+## Selected finite decoder timing and payload semantics
+
+These are the selected rules for the executable v2 child. The bounded child
+qualification below does not establish native owner or deployment authority.
+
+A positive Segment selects whole PCM samples by their actual presentation
+start in the logical half-open interval `[start, end)`. Arbitrary rational
+boundaries do not need to lie on the selected PCM sample grid. Splitting uses
+the ceiling sample index and retains the exact unselected suffix for the next
+contiguous segment. Packet start/end report the actual sample-grid interval;
+the last whole sample can extend past the logical segment end by less than
+one selected sample. Metadata is never rounded to the requested boundary, and
+no fractional sample, silence, dropped sample or duplicate sample is created.
+All existing packet duration, byte and source limits still apply. A zero-width
+logical interval contains no PCM sample starts.
+
+The first physical open honors the supplied native publication cursors and
+logical interval, including when the segment index is zero. That index does
+not establish empty durable source history or a zero seek position. A genuinely
+fresh native source starts its publication sequences at one; the native owner
+must resolve and authorize actual history, generation, position and budget.
+The child decodes any required prefix under the existing charge and preserves
+original sample/frame positions. Retained continuation still requires exact
+prior cursors and adjacency; a fresh nonzero-index open still requires the
+explicit `one_segment_child` profile. None of these child inputs grants seek,
+reset, history or continuation authority.
+
+Elementary still images and video frames are point observations at their
+actual original presentation instant: packet start equals packet end. Positive
+segments select those points half-open; a zero-width point segment includes
+the point exactly equal to that position. An untimed still image can therefore
+be decoded at `[0, 0]` without inventing a positive duration. Only actual
+all-track decoder exhaustion establishes source EOF. A segment descriptor or
+a point packet alone cannot establish it.
+
+PCM sample_start/sample_count count the selected output PCM track. SourcePTS
+retains an actually observed original input-frame anchor and original timebase.
+Resampler output timing can locate the output samples within the retained
+bounded original-anchor intervals; it cannot replace original SourcePTS.
+Known forward timestamp gaps already present in a finite recording are
+preserved without inserting silence. Resampling state may be flushed and
+restarted at such a gap while global output sample indices remain continuous.
+This recorded timing is distinct from a lost native capture interval, owner
+seek or reset, whose native generation/fence rules remain required. Backward
+or overlapping timing that cannot be represented by this initial decoder
+remains explicitly unsupported until its discontinuity handling is qualified.
+
+The child must reserve aggregate pending wire-payload capacity before
+materializing another candidate. Retained replay and carry payloads count,
+including actual copied bytes; immutable shared backing is not confused with
+pointer size. Decoder/codec/PCM processing scratch is a separate address-space
+obligation, not a claim that a Python payload counter measures total heap or
+RSS. Native queue/reservation and positive original settlement remain external
+owner responsibilities.
+
+## Bounded executable qualification
+
+The [November 3 evidence record](../evaluation/evidence/media-decoder-v2-child-2026-11-03.json)
+records **30 passing real-media cases** at `abeb079`, using the actual PyAV17.1.0
+child through MediaWorkerPool, its private bootstrap and original FD3/FD4. They
+check raw/WAV PCM16/24/32 bytes, original input-frame anchors, timed MP4 frames,
+PNG/JPEG output, zero-width still images, rational sample cuts, a recorded AAC
+timestamp gap, two independently mapped audio tracks, supplied publication
+cursors, retained continuation, prefix reconstruction and actual original
+process waits. The replacement pair reuses the same original sealed spool
+upload and profile only after positive retirement of the prior process.
+
+The original cursor restriction produced 11 passes and 16 failures with the
+same 27-case oracle; those failures remain recorded. Correcting the restriction
+produced 27 passes, then the expanded 30-case run passed. These overlapping
+runs are not additive. A separate 638-case contract/provider interaction run
+passed at `962ac16`; it uses controlled HTTPX/protocol bridge fixtures.
+
+Native references, currentness and dependency callbacks in the child fixtures
+are controlled test metadata. They do not resolve actual Session admission,
+native charged budgets, sealed runtime/sandbox qualification, publication or
+public cleanup receipts. The full codec/rate/channel/transform/clock/resource
+matrix, native Session controller/history/provider composition, live capture,
+Omni speech/duplex and end-to-end demonstration remain separate requirements.
+Ordinary Session start/resume remains unavailable at this boundary.
