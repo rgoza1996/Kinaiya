@@ -14,12 +14,18 @@ import httpx
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
+    DecisionCapture,
     capture_sources,
     decision_attempt,
 )
 from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
-from services.decisions.window_routing import admissible_window_projection
+from services.decisions.window_routing import (
+    _project_tasks_with_sources,
+    admissible_window_projection,
+    is_ambiguous_multi_task_target,
+    resolve_scoped_tasks,
+)
 
 MAX_PENDING = 32
 MAX_ATTEMPTS = 2
@@ -251,6 +257,9 @@ class WindowDecisionsWorker:
         provider = getattr(self.classifier, "provider", None)
         return getattr(provider, "info", None)
 
+    async def _scoped_tasks(self, tasks):
+        return await resolve_scoped_tasks(self.journal, tasks)
+
     async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
             return
@@ -274,6 +283,7 @@ class WindowDecisionsWorker:
                 ]
             except Exception:
                 tasks, available = [], False
+        tasks = await self._scoped_tasks(tasks)
         self.agent_available = available if self.agent_enabled else None
         if self.agent_enabled and not available:
             await self.status(source, "agent_unavailable", "agent_status_unavailable")
@@ -298,6 +308,9 @@ class WindowDecisionsWorker:
         # fresh provider call would see.
         input_digest = projection.digest
         admissible_context, admissible_tasks = projection.context, projection.tasks
+        _, disclosed_task_sources = _project_tasks_with_sources(
+            admissible_tasks, provider_info=provider_info, limit=len(admissible_tasks)
+        )
         cached = self.outputs.get(key)
         reused = (
             projection.source_admissible
@@ -309,22 +322,45 @@ class WindowDecisionsWorker:
         if reused:
             labels = dict(cached[2])
             original_call = cached[3]
-            if original_call is not None:
-                async with decision_attempt(
-                    self.journal,
-                    source,
-                    getattr(self.classifier, "provider", None),
-                    attempt=attempt,
-                    reused_from=original_call,
-                ) as capture:
-                    capture_sources(source, admissible_context)
-                    if hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
-                        await capture.check_current(
-                            SimpleNamespace(info=provider_info)
-                            if provider_info is not None
-                            else getattr(self.classifier, "provider", None)
-                        )
-                    capture.validated_output = labels
+            provider_ref = (
+                SimpleNamespace(info=provider_info)
+                if provider_info is not None
+                else getattr(self.classifier, "provider", None)
+            )
+            try:
+                if original_call is not None:
+                    async with decision_attempt(
+                        self.journal,
+                        source,
+                        getattr(self.classifier, "provider", None),
+                        attempt=attempt,
+                        reused_from=original_call,
+                    ) as capture:
+                        capture_sources(source, [*admissible_context, *disclosed_task_sources])
+                        if hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                            await capture.start(
+                                getattr(self.classifier, "provider", None) or provider_ref,
+                                None,
+                                "reused",
+                            )
+                            await capture.check_current(provider_ref)
+                        capture.validated_output = labels
+                elif hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                    capture = DecisionCapture(
+                        self.journal,
+                        source,
+                        getattr(self.classifier, "provider", None) or provider_ref,
+                        attempt,
+                    )
+                    capture.disclosure_sources = [
+                        entry.model_copy(deep=True)
+                        for entry in [source, *admissible_context, *disclosed_task_sources]
+                    ]
+                    await capture.check_current(provider_ref)
+            except ProviderRefusal:
+                self.outputs.pop(key, None)
+                self.output_models.pop(key, None)
+                raise
         elif window.text.strip():
             if self.model_settings is None:
                 async with decision_attempt(
@@ -333,6 +369,7 @@ class WindowDecisionsWorker:
                     getattr(self.classifier, "provider", None),
                     attempt=attempt,
                 ) as capture:
+                    capture_sources(source, [*admissible_context, *disclosed_task_sources])
                     labels = await asyncio.wait_for(
                         self.classifier.classify(source, admissible_context, admissible_tasks),
                         self.timeout,
@@ -353,6 +390,7 @@ class WindowDecisionsWorker:
                         model_pin=lease.pin,
                         current=lease.current,
                     ) as capture:
+                        capture_sources(source, [*admissible_context, *disclosed_task_sources])
                         labels = await asyncio.wait_for(
                             classifier.classify(source, admissible_context, admissible_tasks),
                             self.timeout,
@@ -366,6 +404,16 @@ class WindowDecisionsWorker:
                 "reason_code": "no_transcript_text",
             }
             original_call = None
+        if labels.get("agent_route") in {"STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"}:
+            target = next((t for t in tasks if t.task_id == labels.get("target_task_id")), None)
+            if is_ambiguous_multi_task_target(target, tasks, provider_info=provider_info):
+                labels = {
+                    **labels,
+                    "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+                    "target_task_id": None,
+                    "expected_objective_revision": None,
+                    "reason_code": "ambiguous_target",
+                }
         self.outputs[key] = (input_digest, hypothesis(source), dict(labels), original_call)
         self.output_models[key] = model_stamp
         self.outputs.move_to_end(key)
