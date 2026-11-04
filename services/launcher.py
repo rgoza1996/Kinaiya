@@ -1189,15 +1189,21 @@ def owner_login(args):
     """Export only the owner credential to a new private file, never stdout."""
     tokens = load_or_create_tokens(args.data_dir)
     destination = args.output or args.data_dir / "owner-login.txt"
+    if os.path.islink(destination) or os.path.islink(destination.parent):
+        raise PermissionError("Owner login export path cannot be a symlink")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "w") as stream:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(destination, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         stream.write(tokens["owner"])
+        stream.flush()
+        os.fsync(stream.fileno())
     print(
         json.dumps(
             {
                 "path": str(destination.resolve()),
                 "mode": "0600",
+                "owner_epoch": getattr(tokens, "owner_epoch", 1),
                 "scope": "owner-only browser sign-in",
             }
         )
@@ -1302,6 +1308,7 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command in {
+        "auth",
         "install",
         "setup",
         "start",

@@ -110,7 +110,7 @@ async def _retire(original):
     return interrupted, None
 
 
-async def serve_legacy_events(ws, store, *, after: int, session_id: str | None):
+async def serve_legacy_events(ws, store, *, after: int, session_id: str | None, before_poll=None):
     """Keep the app Task as sender; a disconnect is a normal channel end.
 
     Authentication and the media-mode branch belong to the calling API route.
@@ -147,6 +147,8 @@ async def serve_legacy_events(ws, store, *, after: int, session_id: str | None):
             await asyncio.sleep(0)
             if await _finished(original):
                 return
+            if before_poll is not None:
+                before_poll()
             entries = store.read(after=after, limit=100, session_id=session_id)
             for event in entries:
                 if await _finished(original):

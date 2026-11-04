@@ -45,6 +45,23 @@ MAX_BYTES = 512 * 1024**2
 VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 MIN_BUBBLEWRAP_VERSION = (0, 6, 1)
 MIN_LIBSECCOMP_VERSION = (2, 5)
+STAGES = (
+    ("preflight", "Checking host & sandbox prerequisites"),
+    ("dependencies", "Verifying system dependencies"),
+    ("download", "Downloading & verifying release artifact"),
+    ("staging", "Staging runtime & isolated virtual environment"),
+    ("setup_handoff", "Handing off to Kinaiya setup"),
+)
+STAGE_LABELS = dict(STAGES)
+STAGE_INDEX = {key: idx + 1 for idx, (key, _) in enumerate(STAGES)}
+STAGE_REMEDIATION = {
+    "preflight": "Verify Ubuntu 22.04/24.04 host prerequisites, Python 3.11-3.13, >=1 GiB free disk, and bubblewrap user namespaces.",
+    "dependencies": "Install missing packages manually with `sudo apt-get install --no-upgrade -y <pkgs>` or refresh your local apt index.",
+    "download": "Check HTTPS connectivity to github.com / release-assets.githubusercontent.com and retry the installation.",
+    "staging": "Check Python venv/ensurepip availability, network access to pypi.org, and writable space in the install root.",
+    "setup_handoff": "Run `kinaiya setup` explicitly to complete provider configuration.",
+}
+_ACTIVE_BOOTSTRAP_REPORTER = None
 PROTECTED_INSTALL_ROOTS = frozenset(
     {
         "/",
@@ -138,6 +155,120 @@ class BootstrapError(RuntimeError):
 def require(value, message):
     if not value:
         raise BootstrapError(message)
+
+
+def redact_install_log(text):
+    if not text:
+        return ""
+    redacted = re.sub(r"(?i)(\bAuthorization\s*:\s*)(?:Bearer\s+|Basic\s+|Token\s+)?[^\s\"'\\,;]+", r"\1[REDACTED]", str(text))
+    redacted = re.sub(r"(?i)\b(Bearer)\s+[A-Za-z0-9._~+/=-]{4,}", r"\1 [REDACTED]", redacted)
+    redacted = re.sub(r"\b((?:https?|wss?)://)[^\s/@\"']+@(?=[^\s/\"']+)", r"\1[REDACTED]@", redacted)
+    redacted = re.sub(r'(?i)("(?:[a-z0-9_]*?(?:api_key|secret|token|password|credential)(?!_env)[a-z0-9_]*)"\s*:\s*)"[^"]*"', r'\1"[REDACTED]"', redacted)
+    redacted = re.sub(r"(?i)(--(?:[a-z0-9-]*?(?:key|token|secret|password|credential))(?!-env)\s+)([^\s\"']+|\"[^\"]*\"|'[^']*')", r"\1[REDACTED]", redacted)
+    redacted = re.sub(r"(?i)\b([A-Za-z0-9_]*?(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)(?!_ENV)[A-Za-z0-9_]*\s*[=:]\s*)([^\s,;\"']+|\"[^\"]*\"|'[^']*')", r"\1[REDACTED]", redacted)
+    redacted = re.sub(r"\b(?:sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9]{8,}|github_pat_[A-Za-z0-9_]{8,})\b", "[REDACTED]", redacted)
+    return redacted
+
+
+def append_private_log(log_path, message):
+    require(not log_path.is_symlink() and not log_path.parent.is_symlink(), "Diagnostic log path cannot be a symlink alias")
+    log_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    require(log_path.parent.resolve() == Path(os.path.abspath(log_path.parent)), "Diagnostic log directory cannot use symlink aliases")
+    safe = redact_install_log(message)
+    if not safe.endswith("\n"):
+        safe += "\n"
+    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(log_path, flags, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(safe)
+            handle.flush()
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+    return log_path
+
+
+class BootstrapStageReporter:
+    def __init__(self, *, log_path=None, json_output=False, stream=None, err_stream=None, defer_log=False):
+        self.stream = stream if stream is not None else sys.stdout
+        self.err_stream = err_stream if err_stream is not None else sys.stderr
+        self.log_path = log_path or (Path.home() / ".cache/kinaiya/install.log")
+        is_tty = bool(getattr(self.stream, "isatty", lambda: False)())
+        self.json_mode = bool(json_output or not is_tty)
+        self.no_color = bool(self.json_mode or not is_tty or os.environ.get("NO_COLOR") or os.environ.get("TERM") == "dumb")
+        self._defer_log = bool(defer_log)
+        self._buffered = []
+        self._sha256_verified = False
+
+    def enable_log_persistence(self):
+        self._defer_log = False
+        if self._buffered:
+            combined = "\n".join(self._buffered)
+            self._buffered.clear()
+            append_private_log(self.log_path, combined)
+
+    def log(self, message, *, stage=None):
+        entry = redact_install_log((f"[{stage}] " if stage else "") + str(message))
+        if self._defer_log:
+            self._buffered.append(entry)
+            return
+        append_private_log(self.log_path, entry)
+
+    def _emit(self, text, *, error=False):
+        if self.json_mode:
+            return
+        target = self.err_stream if error else self.stream
+        target.write(redact_install_log(text) + "\n")
+        if hasattr(target, "flush"):
+            target.flush()
+
+    def start_stage(self, stage):
+        idx = STAGE_INDEX[stage]
+        label = STAGE_LABELS[stage]
+        self.log(f"[STAGE {idx}/{len(STAGES)} START] {label}", stage=stage)
+        self._emit(f"[{idx}/{len(STAGES)}] {label} ...")
+
+    def update_download(self, downloaded_bytes, total_bytes=None):
+        self._sha256_verified = False
+        idx = STAGE_INDEX["download"]
+        if type(total_bytes) is int and total_bytes > 0:
+            pct = min(100, (int(downloaded_bytes) * 100) // total_bytes)
+            msg = f"[{idx}/{len(STAGES)}] Download progress: {downloaded_bytes}/{total_bytes} B ({pct}%) - awaiting SHA-256 verification"
+        else:
+            msg = f"[{idx}/{len(STAGES)}] Download progress: {downloaded_bytes} B (total size unknown) - awaiting SHA-256 verification"
+        self.log(msg, stage="download")
+        self._emit(msg)
+
+    def complete_stage(self, stage, *, sha256_verified=False):
+        if stage == "download":
+            if sha256_verified:
+                self._sha256_verified = True
+            require(self._sha256_verified, "Download stage cannot complete before SHA-256 verification")
+        idx = STAGE_INDEX[stage]
+        label = STAGE_LABELS[stage]
+        self.log(f"[STAGE {idx}/{len(STAGES)} PASS] {label}", stage=stage)
+        badge = "PASS" if self.no_color else "\x1b[32mPASS\x1b[0m"
+        self._emit(f"[{idx}/{len(STAGES)}] {label} ... {badge}")
+
+    def fail_stage(self, stage, reason):
+        idx = STAGE_INDEX[stage]
+        label = STAGE_LABELS[stage]
+        clean = redact_install_log(reason)
+        remediation = STAGE_REMEDIATION.get(stage, "Inspect the diagnostic log and retry.")
+        self.log(f"[STAGE {idx}/{len(STAGES)} FAIL] {label}: {clean} | Remediation: {remediation}", stage=stage)
+        badge = "FAIL" if self.no_color else "\x1b[31mFAIL\x1b[0m"
+        self._emit(
+            f"[{idx}/{len(STAGES)}] {label} ({stage}) ... {badge}\n"
+            f"  Reason:         {clean}\n"
+            f"  Diagnostic log: {self.log_path} (mode 0600)\n"
+            f"  Remediation:    {remediation}",
+            error=True,
+        )
 
 
 def _atomic_write_json(path, payload):
@@ -904,8 +1035,15 @@ def install_missing_dependencies(
         "LANG": "C",
     }
     result = active_runner(cmd, capture_output=True, text=True, timeout=300, env=exec_env)
+    if _ACTIVE_BOOTSTRAP_REPORTER is not None:
+        _ACTIVE_BOOTSTRAP_REPORTER.log(
+            f"command={' '.join(cmd)} exit_code={result.returncode}\n"
+            f"stdout={(getattr(result, 'stdout', '') or '').strip()}\n"
+            f"stderr={(getattr(result, 'stderr', '') or '').strip()}",
+            stage="dependencies",
+        )
     if result.returncode != 0:
-        detail = (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
+        detail = redact_install_log((getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip())
         suffix = f" ({detail.splitlines()[-1]})" if detail else ""
         raise BootstrapError(
             f"Out-of-date system blocker: could not install missing dependencies ({', '.join(missing)}) "
@@ -1079,17 +1217,23 @@ def resolve(channel):
 
 def download(artifact, target):
     digest, total, started = hashlib.sha256(), 0, time.monotonic()
+    size = artifact.get("size")
     with open_url(artifact["url"]) as response, target.open("xb") as output:
         while True:
             require(time.monotonic() - started <= 600, "Bootstrap download time bound exceeded")
-            chunk = response.read(min(1024**2, artifact["size"] - total + 1))
+            chunk = response.read(min(1024**2, size - total + 1 if type(size) is int and size > 0 else 1024**2))
             if not chunk:
                 break
             total += len(chunk)
-            require(total <= artifact["size"], "Bootstrap artifact exceeds size bound")
+            if type(size) is int and size > 0:
+                require(total <= size, "Bootstrap artifact exceeds size bound")
             digest.update(chunk)
             output.write(chunk)
-    require(total == artifact["size"] and digest.hexdigest() == artifact["sha256"], "Bootstrap artifact size/digest mismatch")
+            if _ACTIVE_BOOTSTRAP_REPORTER is not None:
+                _ACTIVE_BOOTSTRAP_REPORTER.update_download(total, size)
+    require(total == size and digest.hexdigest() == artifact["sha256"], "Bootstrap artifact size/digest mismatch")
+    if _ACTIVE_BOOTSTRAP_REPORTER is not None:
+        _ACTIVE_BOOTSTRAP_REPORTER._sha256_verified = True
 
 
 class _BootstrapTarInfo(tarfile.TarInfo):
@@ -1138,7 +1282,20 @@ def open_terminal():
             yield terminal
 
 
+def is_yes_response(value):
+    return isinstance(value, str) and value.strip().lower() in ("y", "yes")
+
+
+def confirm_yn(tty, prompt="Review the plan. Download and install? (y/n) [n]: ", *, pre_consented=False):
+    tty.write(prompt)
+    if hasattr(tty, "flush"):
+        tty.flush()
+    line = tty.readline()
+    return is_yes_response(line) or (pre_consented and line == "")
+
+
 def run(argv=None, *, invoking_dir=None):
+    global _ACTIVE_BOOTSTRAP_REPORTER
     if invoking_dir is None:
         env_pwd = os.environ.get("KINAIYA_INVOKING_PWD", "").strip()
         if env_pwd:
@@ -1149,6 +1306,7 @@ def run(argv=None, *, invoking_dir=None):
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--no-setup", action="store_true")
+    parser.add_argument("--json", action="store_true", help="Emit deterministic machine-readable JSON output")
     parser.add_argument("--install-dir", type=Path, help="Explicit target directory for managed Kinaiya install root")
     parser.add_argument("--install-location", help="Install root selection: 'default', 'current', or an absolute directory path")
     parser.add_argument("--workspace", type=Path)
@@ -1159,39 +1317,63 @@ def run(argv=None, *, invoking_dir=None):
     parser.add_argument("--allow-cloud", action="store_true")
     parser.add_argument("--converse", action="store_true")
     args = parser.parse_args(argv)
-    try:
-        preflight(allow_missing_dependencies=True)
-        missing = missing_dependencies()
-    except TypeError:
-        preflight()
-        missing = []
     home = Path.home()
-    selected_install = None
-    if args.yes or args.install_dir is not None or args.install_location is not None or existing_install_root(home) is not None:
-        selected_install, _ = select_install_root(
-            home,
-            install_dir=args.install_dir,
-            install_location=args.install_location,
-            invoking_dir=invoking_dir,
-            workspace=args.workspace,
-            data_dir=args.data_dir,
-            interactive=False,
-        )
-    manifest, artifact = resolve(args.channel)
-    if not args.yes:
-        with open_terminal() as tty:
-            pre_consented = False
-            if selected_install is None:
-                selected_install, pre_consented = select_install_root(
-                    home,
-                    install_dir=args.install_dir,
-                    install_location=args.install_location,
-                    invoking_dir=invoking_dir,
-                    workspace=args.workspace,
-                    data_dir=args.data_dir,
-                    interactive=True,
-                    tty=tty,
+    cache = home / ".cache/kinaiya"
+    reporter = BootstrapStageReporter(log_path=cache / "install.log", json_output=args.json, defer_log=True)
+    _ACTIVE_BOOTSTRAP_REPORTER = reporter
+    try:
+        reporter.start_stage("preflight")
+        try:
+            try:
+                preflight(allow_missing_dependencies=True)
+                missing = missing_dependencies()
+            except TypeError:
+                preflight()
+                missing = []
+        except BootstrapError as exc:
+            reporter.fail_stage("preflight", str(exc))
+            raise
+        reporter.complete_stage("preflight")
+        selected_install = None
+        if args.yes or args.install_dir is not None or args.install_location is not None or existing_install_root(home) is not None:
+            selected_install, _ = select_install_root(
+                home,
+                install_dir=args.install_dir,
+                install_location=args.install_location,
+                invoking_dir=invoking_dir,
+                workspace=args.workspace,
+                data_dir=args.data_dir,
+                interactive=False,
+            )
+        manifest, artifact = resolve(args.channel)
+        if not args.yes:
+            with open_terminal() as tty:
+                pre_consented = False
+                if selected_install is None:
+                    selected_install, pre_consented = select_install_root(
+                        home,
+                        install_dir=args.install_dir,
+                        install_location=args.install_location,
+                        invoking_dir=invoking_dir,
+                        workspace=args.workspace,
+                        data_dir=args.data_dir,
+                        interactive=True,
+                        tty=tty,
+                    )
+                plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(selected_install), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
+                if missing:
+                    plan_summary["missing_system_dependencies"] = missing
+                    plan_summary["system_dependency_check"] = " ".join(apt_simulation_command(missing))
+                    plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
+                    plan_summary["system_dependency_policy"] = (
+                        "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+                    )
+                print(json.dumps(plan_summary), flush=True)
+                require(
+                    confirm_yn(tty, pre_consented=pre_consented),
+                    "Installation cancelled; no files changed",
                 )
+        else:
             plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(selected_install), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
             if missing:
                 plan_summary["missing_system_dependencies"] = missing
@@ -1201,70 +1383,79 @@ def run(argv=None, *, invoking_dir=None):
                     "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
                 )
             print(json.dumps(plan_summary), flush=True)
-            tty.write("Review the plan. Type yes to download and install: ")
-            confirm_line = tty.readline()
-            require(
-                confirm_line.strip() == "yes" or (pre_consented and confirm_line == ""),
-                "Installation cancelled; no files changed",
-            )
-    else:
-        plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(selected_install), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
-        if missing:
-            plan_summary["missing_system_dependencies"] = missing
-            plan_summary["system_dependency_check"] = " ".join(apt_simulation_command(missing))
-            plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
-            plan_summary["system_dependency_policy"] = (
-                "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
-            )
-        print(json.dumps(plan_summary), flush=True)
-    if missing:
-        install_missing_dependencies(missing)
-        preflight()
-    cache = home / ".cache/kinaiya"
-    require(cache.resolve() == cache.absolute(), "Bootstrap cache cannot use symlink aliases")
-    cache.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with tempfile.TemporaryDirectory(prefix="bootstrap-", dir=cache) as temporary:
-        temporary = Path(temporary)
-        archive = temporary / "source.tar.gz"
-        download(artifact, archive)
-        source = unpack(archive, temporary / "source")
-        sys.path.insert(0, str(source))
-        # Only code from the official digest-verified immutable source is imported.
-        # The shared full #262 contract validates all remaining compatibility fields.
-        from dataclasses import replace
-        from packages.distribution.releases import validate_manifest
-        from services.distribution.installation import Layout, install_release, preflight as native_preflight
-        validate_manifest(manifest, channel=args.channel)
-        identity = json.loads((source / "release-identity.json").read_text())
-        require(all(identity.get(key) == manifest.get(key) for key in identity) and identity.get("source_sha") == manifest["source_sha"], "Bundled source identity mismatch")
+        require(cache.resolve() == cache.absolute(), "Bootstrap cache cannot use symlink aliases")
+        cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+        reporter.enable_log_persistence()
+        reporter.start_stage("dependencies")
         try:
-            layout = Layout.for_home(home, install_root=selected_install)
-        except TypeError:
-            layout = replace(Layout.for_home(home), install=selected_install)
-        layout = replace(layout, workspace=args.workspace or layout.workspace, data=args.data_dir or layout.data)
-        native_preflight(layout)
-        install_release(layout, manifest, archive)
-        _atomic_write_json(layout.config.parent / "install-root.json", {"install": str(layout.install)})
-        print(json.dumps({"installed": manifest["source_sha"], "install": str(layout.install), "launcher": str(layout.bin / "kinaiya"), "PATH": 'Add "$HOME/.local/bin" to PATH explicitly', "ready": False}), flush=True)
-    if not args.no_setup and not layout.config.exists():
-        # The bootstrap interpreter has no runtime dependencies. Setup must execute
-        # in the verified managed venv, not import the native launcher into system Python.
-        setup_cmd = [str(layout.bin / "kinaiya"), "setup"]
-        if args.endpoint or args.model:
-            if args.yes:
-                setup_cmd.append("--yes")
-            if args.endpoint:
-                setup_cmd.extend(["--endpoint", args.endpoint])
-            if args.model:
-                setup_cmd.extend(["--model", args.model])
-            if args.credential_env:
-                setup_cmd.extend(["--credential-env", args.credential_env])
-            if args.allow_cloud:
-                setup_cmd.append("--allow-cloud")
-            if args.converse:
-                setup_cmd.append("--converse")
-        result = subprocess.run(setup_cmd, check=False)
-        require(result.returncode == 0, "Code installed; setup incomplete. Run kinaiya setup explicitly")
+            if missing:
+                install_missing_dependencies(missing)
+                preflight()
+            reporter.complete_stage("dependencies")
+        except BootstrapError as exc:
+            reporter.fail_stage("dependencies", str(exc))
+            raise
+        with tempfile.TemporaryDirectory(prefix="bootstrap-", dir=cache) as temporary:
+            temporary = Path(temporary)
+            archive = temporary / "source.tar.gz"
+            reporter.start_stage("download")
+            try:
+                download(artifact, archive)
+                reporter.complete_stage("download", sha256_verified=True)
+            except BootstrapError as exc:
+                reporter.fail_stage("download", str(exc))
+                raise
+            reporter.start_stage("staging")
+            try:
+                source = unpack(archive, temporary / "source")
+                sys.path.insert(0, str(source))
+                # Only code from the official digest-verified immutable source is imported.
+                # The shared full #262 contract validates all remaining compatibility fields.
+                from dataclasses import replace
+                from packages.distribution.releases import validate_manifest
+                from services.distribution.installation import Layout, install_release, preflight as native_preflight
+                validate_manifest(manifest, channel=args.channel)
+                identity = json.loads((source / "release-identity.json").read_text())
+                require(all(identity.get(key) == manifest.get(key) for key in identity) and identity.get("source_sha") == manifest["source_sha"], "Bundled source identity mismatch")
+                try:
+                    layout = Layout.for_home(home, install_root=selected_install)
+                except TypeError:
+                    layout = replace(Layout.for_home(home), install=selected_install)
+                layout = replace(layout, workspace=args.workspace or layout.workspace, data=args.data_dir or layout.data)
+                native_preflight(layout)
+                install_release(layout, manifest, archive)
+                _atomic_write_json(layout.config.parent / "install-root.json", {"install": str(layout.install)})
+                reporter.complete_stage("staging")
+            except BaseException as exc:
+                if not isinstance(exc, SystemExit):
+                    reporter.fail_stage("staging", str(exc))
+                raise
+            print(json.dumps({"installed": manifest["source_sha"], "install": str(layout.install), "launcher": str(layout.bin / "kinaiya"), "log": str(reporter.log_path), "PATH": 'Add "$HOME/.local/bin" to PATH explicitly', "ready": False}), flush=True)
+        if not args.no_setup and not layout.config.exists():
+            reporter.start_stage("setup_handoff")
+            # The bootstrap interpreter has no runtime dependencies. Setup must execute
+            # in the verified managed venv, not import the native launcher into system Python.
+            setup_cmd = [str(layout.bin / "kinaiya"), "setup"]
+            if args.endpoint or args.model:
+                if args.yes:
+                    setup_cmd.append("--yes")
+                if args.endpoint:
+                    setup_cmd.extend(["--endpoint", args.endpoint])
+                if args.model:
+                    setup_cmd.extend(["--model", args.model])
+                if args.credential_env:
+                    setup_cmd.extend(["--credential-env", args.credential_env])
+                if args.allow_cloud:
+                    setup_cmd.append("--allow-cloud")
+                if args.converse:
+                    setup_cmd.append("--converse")
+            result = subprocess.run(setup_cmd, check=False)
+            if result.returncode != 0:
+                reporter.fail_stage("setup_handoff", "Code installed; setup incomplete. Run kinaiya setup explicitly")
+                raise BootstrapError("Code installed; setup incomplete. Run kinaiya setup explicitly")
+            reporter.complete_stage("setup_handoff")
+    finally:
+        _ACTIVE_BOOTSTRAP_REPORTER = None
 
 
 if __name__ == "__main__":

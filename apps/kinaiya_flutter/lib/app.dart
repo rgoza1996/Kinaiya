@@ -749,6 +749,16 @@ class _HomeShellState extends State<HomeShell> {
                                           OptionsPage.providers,
                                           true,
                                         ),
+                                        onOpenConverse: () {
+                                          if (widget
+                                              .presentation
+                                              .preferences
+                                              .showConverseView) {
+                                            _selectPage(_ShellPage.converse);
+                                          } else {
+                                            unawaited(_openConverseChat(state));
+                                          }
+                                        },
                                         setupOpen: _modelSetupOpen,
                                         animateTransitions:
                                             widget

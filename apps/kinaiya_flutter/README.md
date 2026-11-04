@@ -73,12 +73,14 @@ The [updated owner design](../../docs/adr/0059-home-and-optional-converse.md) op
 on moonlit **Home**, with the animated mascot seated on water. Drag the handle
 on the Home connection panel to move it around the scene, or drag its top,
 bottom, left, right, or corner edges like a window (or use arrow keys after
-selecting an edge) to expand or shrink its width and height; position and size
-remain while that Home view is mounted. **Talk with Kinaiya** arms the
+focusing a resize handle) to expand or shrink its width and height; position and
+size remain while that Home view is mounted. **Talk with Kinaiya** arms the
 existing live browser listener; **End conversation** stops that listener. Tapping
-the Home or Converse mascot opens the floating setup bubbles (`ModelSetupDialog`)
-directly, while **Connect / Setup** in the Home panel opens connection setup when
-disconnected or model/conversation settings when connected.
+the Home or Converse mascot opens conversation suggestions and a setup shortcut.
+Suggestions are added to the existing text draft for review; they are not sent
+automatically. **Open Kinaiya setup** opens the floating setup bubbles
+(`ModelSetupDialog`), while **Connect / Setup** in the Home panel opens
+connection setup when disconnected or model/conversation settings when connected.
 The optional **Converse** view uses the supplied close-up character art, complete
 scrollable transcript, text composer, microphone controls and model summary.
 The model summary opens a searchable, provider-grouped picker using the native

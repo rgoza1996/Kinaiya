@@ -38,15 +38,24 @@ def _is_local_endpoint(endpoint: str) -> bool:
     return url.hostname in {"localhost", "127.0.0.1", "::1"}
 
 
-def _parse_yes_no(value: str, *, default: bool = False) -> bool:
-    normalized = value.strip().lower()
-    if not normalized:
-        return default
-    if normalized in {"y", "yes"}:
-        return True
-    if normalized in {"n", "no"}:
-        return False
-    return False
+def ask_yn(tty, label: str, *, default: bool = False) -> bool:
+    """Read an explicit boolean choice; closed input never accepts the default."""
+    default_hint = "y" if default else "n"
+    while True:
+        tty.write(f"{label} (y/n) [{default_hint}]: ")
+        tty.flush()
+        answer = tty.readline()
+        if not answer:
+            raise InstallError("Setup cancelled: terminal input closed")
+        cleaned = answer.strip().lower()
+        if not cleaned:
+            return default
+        if cleaned in {"y", "yes"}:
+            return True
+        if cleaned in {"n", "no"}:
+            return False
+        tty.write("Please enter y or n.\n")
+        tty.flush()
 
 
 def _parse_endpoint_input(endpoint_input: str) -> tuple[str | None, str]:
@@ -107,6 +116,9 @@ class WizardFlowCoordinator:
             raise InstallError("Setup cancelled: terminal input closed")
         return answer.strip() or default
 
+    def ask_yn(self, label: str, *, default: bool = False) -> bool:
+        return ask_yn(self.tty, label, default=default)
+
     def _write_header(self) -> None:
         if self.mascot_fn is not None:
             cols = shutil.get_terminal_size().columns
@@ -142,12 +154,8 @@ class WizardFlowCoordinator:
         )
         converse_endpoint = self.ask("Converse provider endpoint", endpoint)
         converse_model = self.ask("Exact Converse model name", model)
-        converse_allow_cloud = _parse_yes_no(
-            self.ask(
-                "Allow disclosure of authorized content to this Converse provider? yes/no",
-                "no",
-            ),
-            default=False,
+        converse_allow_cloud = self.ask_yn(
+            "Allow disclosure of authorized content to this Converse provider?"
         )
         converse_credential_env = (
             self.ask("Converse credential environment variable NAME only; never paste a key")
@@ -165,12 +173,8 @@ class WizardFlowCoordinator:
         )
         decisions_endpoint = self.ask("Decisions provider endpoint", converse_endpoint)
         decisions_model = self.ask("Exact Decisions model name", converse_model)
-        decisions_allow_cloud = _parse_yes_no(
-            self.ask(
-                "Allow disclosure of authorized content to this Decisions provider? yes/no",
-                "no",
-            ),
-            default=False,
+        decisions_allow_cloud = self.ask_yn(
+            "Allow disclosure of authorized content to this Decisions provider?"
         )
         decisions_credential_env = (
             self.ask("Decisions credential environment variable NAME only; never paste a key")
@@ -206,10 +210,7 @@ class WizardFlowCoordinator:
         self.tty.write(
             "Provider connection is not checked; saved configuration does not mean ready.\n"
         )
-        if not _parse_yes_no(
-            self.ask("Write configuration and private service tokens? type yes", "no"),
-            default=False,
-        ):
+        if not self.ask_yn("Write configuration and private service tokens?"):
             raise InstallError("Setup cancelled; no configuration written")
 
     def _execute_setup(
@@ -258,12 +259,8 @@ class WizardFlowCoordinator:
         model = self.ask("Exact model name (required)")
         needs_cloud_prompts = not _is_local_endpoint(endpoint) or adapter == "meta"
         if needs_cloud_prompts:
-            allow_cloud = _parse_yes_no(
-                self.ask(
-                    "Allow disclosure of authorized content to this cloud provider? yes/no",
-                    "no",
-                ),
-                default=False,
+            allow_cloud = self.ask_yn(
+                "Allow disclosure of authorized content to this cloud provider?"
             )
             credential_env = (
                 self.ask("Credential environment variable NAME only; never paste a key") or None
@@ -272,26 +269,16 @@ class WizardFlowCoordinator:
             allow_cloud = False
             credential_env = None
 
-        converse = _parse_yes_no(
-            self.ask("Enable optional Converse text services? yes/no", "no"),
-            default=False,
-        )
-        open_advanced = _parse_yes_no(
-            self.ask("Configure advanced host paths & per-role adapters? (y/n)", "no"),
-            default=False,
-        )
+        converse = self.ask_yn("Enable optional Converse text services?")
+        open_advanced = self.ask_yn("Configure advanced host paths & per-role adapters?")
         converse_profile = None
         decisions_profile = None
         if open_advanced:
             workspace = self.ask("Authorized workspace", workspace)
             data = self.ask("Private data directory", data)
             if not needs_cloud_prompts:
-                allow_cloud = _parse_yes_no(
-                    self.ask(
-                        "Allow disclosure of authorized content to this cloud provider? yes/no",
-                        "no",
-                    ),
-                    default=False,
+                allow_cloud = self.ask_yn(
+                    "Allow disclosure of authorized content to this cloud provider?"
                 )
                 credential_env = (
                     self.ask("Credential environment variable NAME only; never paste a key") or None
@@ -341,13 +328,7 @@ class WizardFlowCoordinator:
         )
         adapter, endpoint = _parse_endpoint_input(endpoint_input)
         model = self.ask("Exact model name (required)")
-        allow_cloud = _parse_yes_no(
-            self.ask(
-                "Allow disclosure of authorized content to this cloud provider? yes/no",
-                "no",
-            ),
-            default=False,
-        )
+        allow_cloud = self.ask_yn("Allow disclosure of authorized content to this cloud provider?")
         chosen = self.replace_fn(
             self.layout,
             workspace=Path(workspace).expanduser(),
@@ -375,10 +356,7 @@ class WizardFlowCoordinator:
             if (effective_agent_adapter == "lmstudio" and key_action.action in {"set", "keep"})
             else credential_env
         )
-        converse = _parse_yes_no(
-            self.ask("Enable optional Converse text services? yes/no", "no"),
-            default=False,
-        )
+        converse = self.ask_yn("Enable optional Converse text services?")
         converse_profile = None
         decisions_profile = None
         if converse:

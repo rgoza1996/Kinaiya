@@ -437,3 +437,56 @@ async def test_token_budget_or_402_error_refuses_immediately_on_first_attempt(tm
     finally:
         await provider.close()
         store.close()
+
+
+async def test_revision_refusal_binds_canonical_source_event_id_and_revision_cause(tmp_path):
+    responses = [
+        json.dumps({"route": "queue", "reason_code": "initial_request"}),
+        "{not json}",
+    ]
+    calls = []
+
+    def respond(request):
+        calls.append(json.loads(request.content))
+        return _chat_response(responses[len(calls) - 1])
+
+    provider = CompatibleTextProvider(
+        "http://localhost/v1", "synthetic-model", transport=httpx.MockTransport(respond)
+    )
+    store = Store(tmp_path / "journal.sqlite")
+    agent = FakeAgent()
+    try:
+        session = store.create_session(SessionRequest(channel="converse"))
+        first = _append_user_entry(store, session, "Initial request", key="user-rev-1")
+        worker = DecisionsWorker(LocalJournal(store, "decisions"), agent, ModelClassifier(provider))
+        await worker.tick()
+        revision = store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.revision",
+                payload={
+                    "target_event_id": first.event_id,
+                    "revision": 2,
+                    "text": "Corrected request with malformed classification",
+                    "content_scope": "public_synthetic",
+                },
+                idempotency_key="user-rev-2",
+            ),
+            "owner",
+        )
+        await worker.tick()
+
+        refusals = store.read(kinds=["routing.classification_refused"])
+        assert len(refusals) == 1
+        assert refusals[0].causes == [revision.event_id]
+        assert refusals[0].payload == {
+            "source_event_id": first.event_id,
+            "source_revision": 2,
+            "reason": "malformed_json",
+            "error_type": InvalidClassificationError.__name__,
+        }
+    finally:
+        await provider.close()
+        store.close()

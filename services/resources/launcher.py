@@ -47,7 +47,19 @@ class LocalResourceConfig(BaseModel):
     tts_model_dir: str | None = Field(default=None, min_length=1, max_length=4096)
     tts_voice: (
         Literal[
-            "af_heart", "F1", "F2", "F3", "F4", "F5", "M1", "M2", "M3", "M4", "M5", "en-Carter_man"
+            "af_heart",
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5",
+            "M1",
+            "M2",
+            "M3",
+            "M4",
+            "M5",
+            "en-Carter_man",
+            "US_Emma",
         ]
         | None
     ) = None

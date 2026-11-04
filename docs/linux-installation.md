@@ -163,6 +163,12 @@ stale launcher. Keep the saved layout, or use a separately reviewed relocation.
 
 For a new configuration, choose one setup form:
 
+Installer, CLI and setup confirmations accept `y`/`n` and `yes`/`no`, without
+regard to case. Prompts show `(y/n) [n]`; Enter declines. Setup repeats an invalid
+boolean answer and cancels on closed terminal input before saving configuration
+or credentials. The installer and CLI retain the existing EOF exception only
+when installation-location selection already recorded explicit consent.
+
 ```sh
 kinaiya setup
 # Or noninteractive Agent-only setup; credentials are VARIABLE NAMES, not keys:

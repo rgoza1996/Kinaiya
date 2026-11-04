@@ -39,7 +39,11 @@ class LocalSignInResult {
   });
 
   factory LocalSignInResult.fromJson(Map<String, Object?> json) {
-    final rawToken = json['owner_token'] ?? json['ownerToken'];
+    final rawToken =
+        json['owner_token'] ??
+        json['ownerToken'] ??
+        json['session_token'] ??
+        json['sessionToken'];
     if (rawToken is! String || rawToken.trim().isEmpty) {
       throw const FormatException(
         'Local sign-in response is missing owner_token.',
@@ -221,7 +225,11 @@ class ConnectionProfile {
       final problem = validateServiceUrl(entry.value);
       if (problem != null) return '${entry.key}: $problem';
     }
-    if (ownerToken.isEmpty) return 'Owner Bearer [REDACTED] is required.';
+    if (ownerToken.isEmpty) {
+      return 'Owner access token is required. Export your owner token with '
+          'kinaiya --data-dir <dir> owner-login (writes owner-login.txt) '
+          'and enter it or use Load local access token before clicking Connect.';
+    }
     return null;
   }
 

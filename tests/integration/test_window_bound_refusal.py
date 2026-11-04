@@ -45,9 +45,19 @@ def _tasks(session, count):
     )
 
 
-def _task_refs(tasks):
+def _task_refs(tasks, *, include_descriptions=True):
     return [
-        {"task_id": task.task_id, "objective_revision": 1, "state": "running"} for task in tasks
+        {
+            "task_id": task.task_id,
+            "objective_revision": 1,
+            "state": "running",
+            **(
+                {"description": task.objective.strip()[:240]}
+                if include_descriptions and len(tasks) > 1
+                else {}
+            ),
+        }
+        for task in tasks
     ]
 
 
@@ -331,5 +341,7 @@ async def test_same_source_retry_binds_only_the_changed_eligible_input(
             elif change == "context-scope":
                 assert actual["context"] == []
             else:
-                assert actual["tasks"] == _task_refs(tuple(reversed(tasks)))
+                assert actual["tasks"] == _task_refs(
+                    tuple(reversed(tasks)), include_descriptions=False
+                )
             assert decision["reason_code"] == "observed_2"

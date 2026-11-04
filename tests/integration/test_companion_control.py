@@ -3,9 +3,17 @@
 import concurrent.futures
 import hashlib
 import json
+import os
+import shutil
+import socket
+import subprocess
+import threading
+import time
+from pathlib import Path
 
 import httpx
 import pytest
+import uvicorn
 from fastapi.testclient import TestClient
 
 from packages.contracts.companion import (
@@ -653,3 +661,75 @@ def test_additive_schema_preserves_journal_and_rejects_unknown_version(tmp_path)
         CompanionStore(store, clock=lambda: 1000)
     assert store.db.execute("SELECT version FROM companion_schema").fetchone()[0] == 2
     store.close()
+
+
+def _find_flutter_bin() -> str | None:
+    found = shutil.which("flutter")
+    if found:
+        return found
+    repo_root = Path(__file__).resolve().parents[2]
+    for candidate in (
+        repo_root / ".dev-run" / "flutter" / "bin" / "flutter",
+        Path("/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter"),
+    ):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def test_owner_and_companion_dart_transports_against_live_session_asgi(tmp_path):
+    store = Store(tmp_path / "live_e2e.sqlite")
+    auth = Auth({"owner": "o" * 32, "agent": "a" * 32}, ("https://ui.invalid",))
+    app = create_app(store, auth)
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(16)
+    port = sock.getsockname()[1]
+
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://127.0.0.1:{port}"
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            try:
+                r = httpx.get(f"{base_url}/v1/companion/devices", headers=OWNER, timeout=0.5)
+                if r.status_code == 200:
+                    break
+            except httpx.HTTPError:
+                time.sleep(0.05)
+        else:
+            pytest.fail("Live Session ASGI server did not become ready on loopback")
+
+        flutter_bin = _find_flutter_bin()
+        if flutter_bin is not None:
+            flutter_dir = Path(__file__).resolve().parents[2] / "apps" / "kinaiya_flutter"
+            env = {
+                **os.environ,
+                "KINAIYA_LIVE_SESSION_URL": base_url,
+                "KINAIYA_LIVE_OWNER_TOKEN": "o" * 32,
+            }
+            proc = subprocess.run(
+                [
+                    flutter_bin,
+                    "test",
+                    "--plain-name",
+                    "OwnerCompanionApi and CompanionClient e2e against live Session ASGI",
+                    "test/owner_companion_test.dart",
+                ],
+                cwd=flutter_dir,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+            assert proc.returncode == 0, f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5.0)
+        sock.close()
+        store.close()
