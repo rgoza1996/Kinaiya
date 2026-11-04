@@ -1,0 +1,133 @@
+{
+  "source_sha": "7f099458626fc81954ca2998b3938dedbfd03509",
+  "host": {
+    "distro": "ubuntu 26.04",
+    "kernel": "7.0.0-38-generic",
+    "architecture": "x86_64",
+    "python": "3.14.4",
+    "runner": "unknown",
+    "image": "unknown"
+  },
+  "fixtures": "local unqualified nightly bundles built from source_sha; not a published release",
+  "checks": [
+    {
+      "check": "preflight_missing_bubblewrap",
+      "outcome": "refused",
+      "message": "REFUSED Missing required system dependencies: bubblewrap. Run `kinaiya install` or verify with `apt-get -s --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y install -- bubblewrap` before `sudo apt-get install --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y -- bubblewrap` (pins exact package=version; refuses any upgrade, downgrade, or removal; never runs apt-get update/upgrade)"
+    },
+    {
+      "check": "preflight",
+      "outcome": "passed",
+      "platform": "linux",
+      "architecture": "x86_64",
+      "distro": "26.04",
+      "python": "3.14.4",
+      "sandbox_probe": "passed"
+    },
+    {
+      "check": "local_fixture_bundles",
+      "outcome": "built",
+      "builds": [
+        1,
+        2,
+        3
+      ],
+      "source_sha": "7f099458626fc81954ca2998b3938dedbfd03509"
+    },
+    {
+      "check": "invalid_digest",
+      "outcome": "refused",
+      "message": "InstallError: Source artifact integrity mismatch (size, SHA-256 or gzip stream)"
+    },
+    {
+      "check": "clean_install",
+      "outcome": "passed",
+      "generation": "604162abb1174afb8240b40cc4f1a162",
+      "build_number": 1
+    },
+    {
+      "check": "rerun_same_release",
+      "outcome": "current",
+      "generation": "604162abb1174afb8240b40cc4f1a162"
+    },
+    {
+      "check": "agent_only_setup",
+      "outcome": "configured",
+      "provider_contacted": false
+    },
+    {
+      "check": "interrupted_update",
+      "outcome": "recovered",
+      "blocked_retry": "An interrupted operation needs explicit recovery before update",
+      "recovery": "discarded_stage"
+    },
+    {
+      "check": "concurrent_update",
+      "outcome": "refused",
+      "message": "REFUSED Managed services or another update are busy; stop/retry explicitly"
+    },
+    {
+      "check": "update",
+      "outcome": "passed",
+      "generation": "f0420a038861412cb79f77bfaed04bc9",
+      "config_preserved": true
+    },
+    {
+      "check": "dirty_source_update",
+      "outcome": "refused",
+      "message": "Installed source/launcher was locally modified; refusing update"
+    },
+    {
+      "check": "downgrade",
+      "outcome": "refused",
+      "message": "Target is older; downgrade refused without proven schema-safe rollback"
+    },
+    {
+      "check": "sandbox_denials",
+      "outcome": "denied",
+      "probes": {
+        "write_outside_workspace": {
+          "exit": 1,
+          "stderr": "/bin/bash: line 1: <qualification-root>/outside-proof: No such file or directory"
+        },
+        "write_system_root": {
+          "exit": 1,
+          "stderr": "touch: cannot touch '/usr/kinaiya-qualification-proof': Read-only file system"
+        },
+        "network_without_grant": {
+          "exit": 1,
+          "stderr": "   ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/socket.py\", line 870, in create_connection\n    raise exceptions[0]\n  File \"/usr/lib/python3.14/socket.py\", line 855, in create_connection\n    sock.connect(sa)\n    ~~~~~~~~~~~~^^^^\nOSError: [Errno 101] Network is unreachable"
+        }
+      },
+      "workspace_write": "allowed"
+    },
+    {
+      "check": "services",
+      "outcome": "passed",
+      "session": "ready",
+      "agent": "ready",
+      "unauthenticated_owner_read": 401,
+      "update_lock": "blocked_while_serving",
+      "provider_contacted": false,
+      "tasks_started": 0
+    },
+    {
+      "check": "compatible_rollback",
+      "outcome": "passed",
+      "to": "604162abb1174afb8240b40cc4f1a162",
+      "back_to": "f0420a038861412cb79f77bfaed04bc9",
+      "action": "code_rollback",
+      "database_restored": false
+    },
+    {
+      "check": "uninstall",
+      "outcome": "passed",
+      "data_retained": true,
+      "action": "uninstalled",
+      "data_deleted": false,
+      "workspace_deleted": false
+    }
+  ],
+  "result": "passed",
+  "redaction": "Host-specific qualification directory replaced with <qualification-root>; check results are unchanged."
+}

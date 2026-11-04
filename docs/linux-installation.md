@@ -78,6 +78,12 @@ Do not edit a downloaded release or bypass its checks; publish a new qualified
 nightly through the existing release workflow. Accepting this candidate baseline
 does not qualify optional voice/model wheels for Python 3.14.
 
+[Retained native Ubuntu 26.04/Python 3.14 lifecycle evidence](../evaluation/evidence/linux-install-ubuntu2604-py314-2026-11-04.json)
+records the exact implementation commit, x86_64 host, locked runtime preparation,
+real sandbox denials, service readiness, update recovery, rollback, and uninstall.
+These were local unqualified release fixtures, not published releases or live
+provider tests. Ubuntu 26.04 ARM64 lifecycle remains unmeasured by this run.
+
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
 upgrades, downgrades, or removes existing system packages, never changes kernel
 policy, and never starts inference, captures a microphone, or submits an Agent
