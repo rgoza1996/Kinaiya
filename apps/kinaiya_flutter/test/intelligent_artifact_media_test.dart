@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/artifact_client.dart';
 import 'package:kinaiya_flutter/api/models.dart';
+import 'package:kinaiya_flutter/artifacts/media.dart';
 import 'package:kinaiya_flutter/artifacts/models.dart';
 import 'package:kinaiya_flutter/artifacts/renderer.dart';
 
@@ -57,6 +58,68 @@ Map<String, Object?> receipt() => {
 };
 
 void main() {
+  for (final scenario in [
+    (
+      view: const Size(1280, 720),
+      pane: const Size(1000, 356),
+      expected: const Size(358.4, 201.6),
+    ),
+    (
+      view: const Size(1920, 1080),
+      pane: const Size(1200, 356),
+      expected: const Size(426.6666667, 240),
+    ),
+    (
+      view: const Size(320, 568),
+      pane: const Size(200, 356),
+      expected: const Size(200, 112.5),
+    ),
+    (
+      view: const Size(1280, 720),
+      pane: const Size(1000, 100),
+      expected: const Size(177.7777778, 100),
+    ),
+  ]) {
+    testWidgets(
+      'native player fits ${scenario.view} view and ${scenario.pane} pane',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = scenario.view;
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+        const paneKey = ValueKey('synthetic-media-pane');
+        const surfaceKey = ValueKey('synthetic-native-player');
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  key: paneKey,
+                  width: scenario.pane.width,
+                  height: scenario.pane.height,
+                  child: const ArtifactMediaFrame(
+                    child: ColoredBox(key: surfaceKey, color: Colors.blue),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final frame = tester.getRect(find.byKey(surfaceKey));
+        final pane = tester.getRect(find.byKey(paneKey));
+        expect(frame.width, closeTo(scenario.expected.width, .00001));
+        expect(frame.height, closeTo(scenario.expected.height, .00001));
+        expect(frame.width / frame.height, closeTo(16 / 9, .00001));
+        expect(frame.left, pane.left);
+        expect(frame.right, lessThanOrEqualTo(pane.right));
+        expect(frame.top, greaterThanOrEqualTo(pane.top));
+        expect(frame.bottom, lessThanOrEqualTo(pane.bottom));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   test('media is only an opaque native asset, never a URL or inline HTML', () {
     expect(artifact().components.single.type, 'media');
     final invalid = component();

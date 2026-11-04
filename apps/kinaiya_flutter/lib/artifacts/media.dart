@@ -1,6 +1,7 @@
 /// Native-owned, authenticated media bytes. No model URL or executable content.
 library;
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -22,6 +23,33 @@ typedef ArtifactMediaLoader =
       String assetId,
       String variant,
     );
+
+/// Bound the entire native player, including its controls, within the result.
+class ArtifactMediaFrame extends StatelessWidget {
+  const ArtifactMediaFrame({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      var height = math.min(240.0, MediaQuery.sizeOf(context).height * .28);
+      if (constraints.hasBoundedHeight) {
+        height = math.min(height, constraints.maxHeight);
+      }
+      final width = math.min(constraints.maxWidth, height * 16 / 9);
+      return Align(
+        alignment: Alignment.centerLeft,
+        heightFactor: 1,
+        child: SizedBox(
+          key: const ValueKey('artifact-media-viewport'),
+          width: width,
+          height: width * 9 / 16,
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 class ArtifactMediaPlayer extends StatefulWidget {
   const ArtifactMediaPlayer({
@@ -130,10 +158,7 @@ class _ArtifactMediaPlayerState extends State<ArtifactMediaPlayer> {
               ? 'Original source'
               : 'SAM hand highlights',
         ),
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: surface.mediaSurface(_media!.bytes),
-        ),
+        ArtifactMediaFrame(child: surface.mediaSurface(_media!.bytes)),
       ],
     ],
   );

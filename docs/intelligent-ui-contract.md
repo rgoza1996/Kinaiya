@@ -198,6 +198,14 @@ submission, or permission grant follows playback. The compiled web player
 fetches with its existing owner header, verifies byte count and SHA256, and
 uses a local blob URL; it is initially muted and does not autoplay. This
 presentation establishes neither transcription accuracy nor task success.
+The complete 16:9 native player, including its browser controls, is left aligned
+and bounded by the available width, 240 logical pixels, and 28% of the viewport
+height (or a smaller incoming height constraint). Wide results do not stretch
+the player past a short result pane; narrow panes retain the same aspect ratio.
+This sizing does not change authentication, playback controls or blob cleanup.
+The focused media/renderer/desktop-height/stage selection passed 54 widget tests
+with 274 Dart input files unchanged; targeted analysis found no issues. These
+public synthetic checks establish geometry, not actual browser video playback.
 
 `tests/unit/test_native_media_assets.py` covers synthetic storage, scope,
 publication, patch, quota, and in-process owner API behavior. These fixtures
