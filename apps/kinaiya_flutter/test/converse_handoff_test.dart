@@ -624,6 +624,113 @@ void main() {
         acceptedTracker.noticeForSource('source', scope)!.status,
         HandoffStatus.accepted,
       );
+
+      // Reverse observation order: a valid refusal at seq 20 does not block
+      // later recovery of an authoritative accepted receipt at seq 3.
+      final reverseTracker = ConverseHandoffTracker()..observe(source(), scope);
+      final earlyRefusal = event(
+        'routing.classification_refused',
+        20,
+        {
+          'source_event_id': 'source',
+          'source_revision': 1,
+          'reason': 'provider_refused',
+          'error_type': 'ProviderRefusal',
+        },
+        id: 'refusal-early',
+        causes: ['source'],
+      );
+      expect(
+        reverseTracker.observe(earlyRefusal, scope)!.status,
+        HandoffStatus.unavailable,
+      );
+      reverseTracker.observe(decision(sequence: 2), scope);
+      final recoveredAccept = reverseTracker.observe(
+        receipt('accepted', sequence: 3),
+        scope,
+      );
+      expect(recoveredAccept, isNotNull);
+      expect(recoveredAccept!.status, HandoffStatus.accepted);
+      expect(
+        reverseTracker.noticeForSource('source', scope)!.status,
+        HandoffStatus.accepted,
+      );
+      expect(reverseTracker.observe(earlyRefusal, scope), isNull);
+
+      // Historical revision-A alias cannot be combined with current revision-B payload/cause.
+      final aliasTracker = ConverseHandoffTracker()
+        ..observe(source(), scope)
+        ..observe(
+          event('conversation.revision', 2, {
+            'target_event_id': 'source',
+            'revision': 2,
+            'text': 'Rev 2',
+          }, id: 'rev-2'),
+          scope,
+        )
+        ..observe(
+          event('conversation.revision', 3, {
+            'target_event_id': 'source',
+            'revision': 3,
+            'text': 'Rev 3',
+          }, id: 'rev-3'),
+          scope,
+        );
+      expect(
+        aliasTracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'rev-2',
+              'source_revision': 3,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'mismatch-alias-rev',
+            causes: ['rev-3'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        aliasTracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'rev-3',
+              'source_revision': 3,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'mismatch-alias-cause',
+            causes: ['rev-2'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(aliasTracker.pendingReceipts, isEmpty);
+      final validAliasRefusal = aliasTracker.observe(
+        event(
+          'routing.classification_refused',
+          5,
+          {
+            'source_event_id': 'rev-3',
+            'source_revision': 3,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          id: 'valid-alias-rev-3',
+          causes: ['rev-3'],
+        ),
+        scope,
+      );
+      expect(validAliasRefusal, isNotNull);
+      expect(validAliasRefusal!.sourceEventId, 'source');
+      expect(validAliasRefusal.sourceRevision, 3);
     },
   );
 
@@ -663,6 +770,50 @@ void main() {
       expect(api.causalReads, 2);
       expect(api.decisionCursors, isEmpty);
       state.dispose();
+
+      // Bounded alias eviction (>256 revisions on one retained source) recovers evicted alias via authenticated GETs.
+      final otherSource = source(id: 'other', sequence: 2, text: 'Other');
+      final apiEvicted = ReceiptApi()
+        ..entries = [
+          source(id: 'source', sequence: 1, text: 'Initial'),
+          otherSource,
+          correction,
+          for (var i = 0; i < 260; i++)
+            event('conversation.revision', 10 + i, {
+              'target_event_id': 'other',
+              'revision': 2 + i,
+              'text': 'Other rev ${2 + i}',
+            }, id: 'other-rev-$i'),
+          event(
+            'routing.classification_refused',
+            300,
+            {
+              'source_event_id': 'correction',
+              'source_revision': 2,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'refusal-evicted-alias',
+            causes: ['correction'],
+          ),
+        ]
+        ..references = {
+          'source': source(revision: 2, text: 'Corrected request'),
+          'correction': correction,
+        };
+      final stateEvicted = wired(apiEvicted);
+      await stateEvicted.refreshNotices();
+      await stateEvicted.refreshNotices();
+      await stateEvicted.refreshNotices();
+      expect(stateEvicted.converseHistory, hasLength(1));
+      expect(stateEvicted.converseHistory.single.eventId, 'handoff:source');
+      expect(
+        stateEvicted.converseHistory.single.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      expect(apiEvicted.causalReads, 2);
+      expect(apiEvicted.decisionCursors, isEmpty);
+      stateEvicted.dispose();
     },
   );
 

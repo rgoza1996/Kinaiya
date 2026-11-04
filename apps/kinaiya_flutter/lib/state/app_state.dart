@@ -1448,6 +1448,7 @@ class AppState extends ChangeNotifier {
             fetched.kind == 'conversation.revision') {
           final targetId = fetched.payload['target_event_id'];
           if (fetched.eventId != sourceId ||
+              receipt.causes.single != fetched.eventId ||
               fetched.sessionId != session.sessionId ||
               fetched.threadId != session.threadId ||
               fetched.epoch != session.epoch ||
