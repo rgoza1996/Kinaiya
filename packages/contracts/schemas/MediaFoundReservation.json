@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "MediaReceipt_MediaReservation_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaReservation"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaReservation]",
+      "type": "object"
+    },
+    "MediaReservation": {
+      "additionalProperties": false,
+      "properties": {
+        "child_slots": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Child Slots",
+          "type": "integer"
+        },
+        "global_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Global Spool Bytes",
+          "type": "integer"
+        },
+        "metadata_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Metadata Bytes",
+          "type": "integer"
+        },
+        "owner_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Owner Spool Bytes",
+          "type": "integer"
+        },
+        "policy_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "reservation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Reservation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reservation_id",
+        "owner_spool_bytes",
+        "global_spool_bytes",
+        "metadata_bytes",
+        "child_slots",
+        "policy_sha256"
+      ],
+      "title": "MediaReservation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaReservation_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaReservation]",
+  "type": "object"
+}

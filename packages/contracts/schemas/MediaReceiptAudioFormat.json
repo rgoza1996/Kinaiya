@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "MediaAudioFormat": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "enum": [
+            1,
+            2
+          ],
+          "title": "Channels",
+          "type": "integer"
+        },
+        "codec": {
+          "enum": [
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "title": "Codec",
+          "type": "string"
+        },
+        "container": {
+          "enum": [
+            "raw",
+            "wav"
+          ],
+          "title": "Container",
+          "type": "string"
+        },
+        "kind": {
+          "const": "audio",
+          "title": "Kind",
+          "type": "string"
+        },
+        "rate": {
+          "enum": [
+            16000,
+            24000,
+            48000
+          ],
+          "title": "Rate",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "container",
+        "codec",
+        "rate",
+        "channels"
+      ],
+      "title": "MediaAudioFormat",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaAudioFormat"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaAudioFormat]",
+  "type": "object"
+}

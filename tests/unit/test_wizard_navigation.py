@@ -232,6 +232,31 @@ def test_transactional_rollback_restores_config_when_validation_or_write_fails(
     assert layout.config.read_bytes() == before_bytes
     assert not list(layout.config.parent.glob("config.json.bak.*"))
 
+    # 3. Simulated layout.json write failure after config.json write restores both files
+    real_atomic_json = json.dumps
+    layout.install.mkdir(parents=True, exist_ok=True, mode=0o700)
+    layout_marker = layout.install / "layout.json"
+    layout_marker.write_text(
+        real_atomic_json({k: str(v) for k, v in layout.__dict__.items()}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    before_layout_bytes = layout_marker.read_bytes()
+
+    def fail_only_layout_json(path: Path, value: object) -> None:
+        if path.name == "layout.json":
+            path.write_text("{corrupted-layout", encoding="utf-8")
+            raise OSError("simulated layout.json write failure")
+        path.write_text(real_atomic_json(value, indent=2) + "\n", encoding="utf-8")
+
+    monkeypatch.setattr(installation, "atomic_json", fail_only_layout_json)
+    tty_ws_fail = FakeTerminal([str(tmp_path / "FailedWorkspace"), "", "yes"])
+    with pytest.raises(OSError, match="simulated layout.json write failure"):
+        wizard.run_wizard(layout, tty=tty_ws_fail, section="workspace")
+
+    assert layout.config.read_bytes() == before_bytes
+    assert layout_marker.read_bytes() == before_layout_bytes
+    assert not list(layout.install.glob("layout.json.bak.*"))
+
 
 def test_unsupported_section_and_no_tty_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

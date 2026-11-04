@@ -15,12 +15,14 @@ from pathlib import Path
 from packages.contracts.models import ProviderInfo
 from packages.contracts.tts_models import (
     MAX_TTS_REVISION,
+    TTS_SETTLEMENT_PROTOCOL,
     TTSAdmissionReconcile,
     TTSAdmissionResult,
     TTSModelChange,
     TTSModelPin,
     TTSModelSelection,
     TTSWorkerBinding,
+    TTSWorkerProof,
 )
 from packages.providers.disclosure import scope_allowed
 from packages.providers.text import ProviderCleanupError
@@ -623,11 +625,21 @@ class TTSModelSettings:
         try:
             records = self._admission_records()
             record = records.get(lease.admission_id)
-            if record is None or record[0] != lease.admission_identity or record[1] is None:
+            if (
+                record is None
+                or record[0] != lease.admission_identity
+                or record[1] is None
+                or _encode(record[1].model_dump(mode="json")) != lease.admission_binding
+            ):
                 raise RuntimeError("Owned TTS admission binding is unavailable")
             changed = self.db.execute(
-                "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=?",
-                (encoded_binding, lease.admission_id, lease.admission_identity),
+                "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=? AND binding=?",
+                (
+                    encoded_binding,
+                    lease.admission_id,
+                    lease.admission_identity,
+                    lease.admission_binding,
+                ),
             ).rowcount
             if changed != 1:
                 raise RuntimeError("Owned TTS admission binding changed")
@@ -652,12 +664,18 @@ class TTSModelSettings:
             raise RuntimeError("TTS settlement does not own its original admission")
         self.db.execute("BEGIN IMMEDIATE")
         try:
-            observed = self._admissions()
-            if observed.get(lease.admission_id) != lease.admission_identity:
+            records = self._admission_records()
+            record = records.get(lease.admission_id)
+            if (
+                record is None
+                or record[0] != lease.admission_identity
+                or (None if record[1] is None else _encode(record[1].model_dump(mode="json")))
+                != lease.admission_binding
+            ):
                 raise RuntimeError("Owned TTS admission settlement is unavailable")
             changed = self.db.execute(
-                "DELETE FROM tts_model_admissions WHERE id=? AND identity=?",
-                (lease.admission_id, lease.admission_identity),
+                "DELETE FROM tts_model_admissions WHERE id=? AND identity=? AND binding IS ?",
+                (lease.admission_id, lease.admission_identity, lease.admission_binding),
             ).rowcount
             if changed != 1:
                 raise RuntimeError("Owned TTS admission settlement changed")
@@ -817,10 +835,62 @@ class TTSModelSettings:
                 return True
         return False
 
+    @staticmethod
+    def _validate_worker_proof(proof, binding: TTSWorkerBinding) -> TTSWorkerProof:
+        from packages.providers.speech import SpeechClient
+
+        try:
+            if type(proof) is dict:
+                if set(proof) != set(TTSWorkerProof.model_fields):
+                    raise ValueError("TTS worker proof is missing required fields")
+                validated = TTSWorkerProof.model_validate(proof, strict=True)
+            elif type(proof) is TTSWorkerProof:
+                validated = TTSWorkerProof.model_validate(
+                    proof.model_dump(mode="json"), strict=True
+                )
+            else:
+                raise ValueError("TTS worker proof has an unsupported shape")
+        except Exception as exc:
+            raise TTSModelConflict(
+                "TTS worker proof does not confirm positive settlement for the admitted operation"
+            ) from exc
+        expected_request_sha256 = SpeechClient._tts_request_sha256(
+            binding.text_sha256, binding.profile
+        )
+        if (
+            validated.protocol != TTS_SETTLEMENT_PROTOCOL
+            or validated.protocol != binding.protocol
+            or validated.worker_instance != binding.worker_instance
+            or validated.operation_id != binding.operation_id
+            or validated.text_sha256 != binding.text_sha256
+            or validated.profile != binding.profile
+            or validated.request_sha256 != binding.request_sha256
+            or validated.request_sha256 != expected_request_sha256
+            or validated.settled is not True
+            or validated.state != "settled"
+            or validated.outcome not in {"not_dispatched", "completed", "cancelled", "failed"}
+        ):
+            raise TTSModelConflict(
+                "TTS worker proof does not confirm positive settlement for the admitted operation"
+            )
+        return validated
+
     async def _check_settlement_fences(self, admission_id: str, binding: TTSWorkerBinding, client):
         if getattr(client, "_cleanup_failed", False) or getattr(client, "_native_closes", set()):
             raise TTSModelConflict(
                 "Local TTS client transport cleanup is unconfirmed; admission cannot settle"
+            )
+        native_bound = getattr(client, "_native_bound", None)
+        if callable(native_bound) and not native_bound():
+            raise TTSModelConflict(
+                "Local TTS client transport binding changed; admission cannot settle"
+            )
+        if (
+            getattr(client, "_native_stt_origin", binding.origin) != binding.origin
+            or getattr(client, "profile", binding.profile) != binding.profile
+        ):
+            raise TTSModelConflict(
+                "Configured host TTS provider does not match the recorded admission binding"
             )
         speech_groups = getattr(self.runtime, "_speech", {})
         for group in speech_groups.values():
@@ -966,23 +1036,26 @@ class TTSModelSettings:
             )
         await self._check_settlement_fences(request.admission_id, stored_binding, client)
         try:
-            proof = await client.lookup_native_tts(stored_binding)
+            raw_proof = await client.lookup_native_tts(stored_binding)
         except Exception as exc:
             raise TTSModelConflict("Native TTS worker settlement lookup failed") from exc
-        if (
-            not proof.settled
-            or proof.state != "settled"
-            or proof.outcome not in {"not_dispatched", "completed", "cancelled", "failed"}
-        ):
-            raise TTSModelConflict(
-                "TTS worker proof does not confirm positive settlement for the admitted operation"
-            )
+        proof = self._validate_worker_proof(raw_proof, stored_binding)
+        post_record = self._admission_records().get(request.admission_id)
+        if post_record is None or post_record[0] != identity or post_record[1] is None:
+            raise TTSModelConflict("Owned TTS admission settlement changed")
+        current_binding = post_record[1]
+        if current_binding.model_copy(
+            update={"audio_exposed": stored_binding.audio_exposed}
+        ) != stored_binding or (stored_binding.audio_exposed and not current_binding.audio_exposed):
+            raise TTSModelConflict("Owned TTS admission binding changed")
+        proof = self._validate_worker_proof(proof, current_binding)
+        expected_binding_json = _encode(current_binding.model_dump(mode="json"))
         (
             matching_leases,
             matching_turns,
             effective_audio_exposed,
-        ) = await self._check_settlement_fences(request.admission_id, stored_binding, client)
-        normalized_binding = stored_binding.model_copy(
+        ) = await self._check_settlement_fences(request.admission_id, current_binding, client)
+        normalized_binding = current_binding.model_copy(
             update={"audio_exposed": effective_audio_exposed}
         )
         encoded_binding = _encode(normalized_binding.model_dump(mode="json"))
@@ -990,8 +1063,8 @@ class TTSModelSettings:
             backend_id=self.backend_id,
             admission_id=request.admission_id,
             pin_sha256=pin_sha256,
-            worker_instance=proof.worker_instance,
-            operation_id=proof.operation_id,
+            worker_instance=current_binding.worker_instance,
+            operation_id=current_binding.operation_id,
             worker_outcome=proof.outcome,
             state="retired",
             replayed=False,
@@ -1000,8 +1073,13 @@ class TTSModelSettings:
         try:
             self._read()
             current_record = self._admission_records().get(request.admission_id)
-            if current_record is None or current_record[0] != identity or current_record[1] is None:
-                raise RuntimeError("Owned TTS admission settlement changed")
+            if (
+                current_record is None
+                or current_record[0] != identity
+                or current_record[1] is None
+                or _encode(current_record[1].model_dump(mode="json")) != expected_binding_json
+            ):
+                raise TTSModelConflict("Owned TTS admission settlement changed")
             count = self.db.execute("SELECT COUNT(*) FROM tts_model_settlements").fetchone()[0]
             if count > RECEIPT_LIMIT:
                 raise ValueError("TTS settlement history exceeds its bound")
@@ -1010,11 +1088,11 @@ class TTSModelSettings:
                     "DELETE FROM tts_model_settlements WHERE rowid=(SELECT MIN(rowid) FROM tts_model_settlements)"
                 )
             changed = self.db.execute(
-                "DELETE FROM tts_model_admissions WHERE id=? AND identity=?",
-                (request.admission_id, identity),
+                "DELETE FROM tts_model_admissions WHERE id=? AND identity=? AND binding=?",
+                (request.admission_id, identity, expected_binding_json),
             ).rowcount
             if changed != 1:
-                raise RuntimeError("Owned TTS admission settlement changed")
+                raise TTSModelConflict("Owned TTS admission settlement changed")
             self.db.execute(
                 "INSERT INTO tts_model_settlements VALUES (?,?,?,?,?,?)",
                 (

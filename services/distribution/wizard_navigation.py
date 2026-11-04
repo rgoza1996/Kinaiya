@@ -9,7 +9,20 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from services.distribution.credentials import (
+    LocalCredentialsStore,
+    MaskedKeyAction,
+    apply_masked_key_action,
+    default_providers_env_path,
+    prompt_masked_api_key,
+)
 from services.distribution.installation import InstallError, Layout, read_json
+from services.distribution.terminal_ui import (
+    PALETTE,
+    RESET,
+    ColorMode,
+    detect_color_mode,
+)
 
 VALID_SETUP_SECTIONS: tuple[str, ...] = ("workspace", "model", "converse")
 BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back"})
@@ -152,7 +165,7 @@ _ALL_STEPS: tuple[_PromptStep, ...] = (
     _PromptStep("model", "Exact model name (required)", "model"),
     _PromptStep(
         "allow_cloud",
-        "Allow disclosure of authorized content to this cloud provider? yes/no",
+        "Allow disclosure of authorized content to this cloud provider?",
         "model",
     ),
     _PromptStep(
@@ -160,7 +173,7 @@ _ALL_STEPS: tuple[_PromptStep, ...] = (
         "Credential environment variable NAME only; never paste a key",
         "model",
     ),
-    _PromptStep("converse", "Enable optional Converse text services? yes/no", "converse"),
+    _PromptStep("converse", "Enable optional Converse text services?", "converse"),
     _PromptStep(
         "converse_adapter",
         "Converse provider adapter (lmstudio/compatible/meta)",
@@ -196,26 +209,72 @@ class WizardNavigator:
         *,
         tty: Any,
         section: str | None = None,
+        mode: str | None = None,
         mascot_fn: Callable[..., str] | None = None,
         setup_fn: Callable[..., dict[str, Any]],
         reconfigure_fn: Callable[..., dict[str, Any]],
+        profile_id: str = "p01",
+        getpass_fn: Callable[..., str] | None = None,
     ) -> None:
         self.layout = layout
         self.tty = tty
         self.section = validate_setup_section(section)
+        self.mode = mode
         self.mascot_fn = mascot_fn
         self.setup_fn = setup_fn
         self.reconfigure_fn = reconfigure_fn
+        self.profile_id = profile_id
+        self.getpass_fn = getpass_fn
+        self.color_mode = detect_color_mode(tty)
         self.defaults = load_existing_setup_defaults(layout)
         self.answers: dict[str, str] = {}
+        self.key_action: MaskedKeyAction | None = None
+
+    def _paint(self, text: str, token_fg: str) -> str:
+        if self.color_mode == ColorMode.NONE or not token_fg:
+            return text
+        return f"{token_fg}{text}{RESET}"
 
     def _raw_prompt(self, label: str, default: str = "") -> str:
-        self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+        if self.color_mode == ColorMode.NONE:
+            self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+        else:
+            c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+            c_def = PALETTE.amber.fg_sequence(self.color_mode)
+            prompt_str = f"{c_lbl}{label}{RESET}"
+            if default:
+                prompt_str += f" {c_def}[{default}]{RESET}"
+            prompt_str += f"{c_lbl}: {RESET}"
+            self.tty.write(prompt_str)
         self.tty.flush()
         line = self.tty.readline()
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         return line.strip()
+
+    def _raw_yn_prompt(self, label: str, default: str = "no") -> str:
+        default_bool = default.strip().lower() in {"y", "yes"}
+        default_hint = "y" if default_bool else "n"
+        while True:
+            self.tty.write(f"{label} (y/n) [{default_hint}]: ")
+            self.tty.flush()
+            line = self.tty.readline()
+            if not line:
+                raise InstallError("Setup cancelled: terminal input closed")
+            cleaned = line.strip()
+            if is_cancel_command(cleaned):
+                raise InstallError("Setup cancelled; no configuration written")
+            if is_back_command(cleaned, at_confirm=False):
+                return cleaned
+            if not cleaned:
+                return "yes" if default_bool else "no"
+            lowered = cleaned.lower()
+            if lowered in {"y", "yes"}:
+                return "yes"
+            if lowered in {"n", "no"}:
+                return "no"
+            self.tty.write("Please enter y or n.\n")
+            self.tty.flush()
 
     def _active_steps(self) -> list[_PromptStep]:
         steps: list[_PromptStep] = []
@@ -280,9 +339,27 @@ class WizardNavigator:
 
     def run(self) -> dict[str, Any]:
         if self.mascot_fn is not None:
-            self.tty.write(self.mascot_fn(width=shutil.get_terminal_size().columns) + "\n")
-        self.tty.write("Agent-only by default. No microphone capture or task execution.\n")
-        self.tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
+            cols = shutil.get_terminal_size().columns
+            try:
+                banner = self.mascot_fn(width=cols, color=self.color_mode)
+            except TypeError:
+                banner = self.mascot_fn(width=cols)
+            self.tty.write(banner + "\n")
+        c_slate = PALETTE.slate.fg_sequence(self.color_mode)
+        self.tty.write(
+            self._paint(
+                "Agent-only by default. No microphone capture or task execution.",
+                c_slate,
+            )
+            + "\n"
+        )
+        self.tty.write(
+            self._paint(
+                "No models, voice packs or optional UI tools will be downloaded.",
+                c_slate,
+            )
+            + "\n"
+        )
 
         index = 0
         while True:
@@ -290,6 +367,58 @@ class WizardNavigator:
             while index < len(steps):
                 step = steps[index]
                 default = self._default_for(step.key)
+                if step.key in {"allow_cloud", "converse"}:
+                    raw = self._raw_yn_prompt(step.label, default)
+                    if is_back_command(raw, at_confirm=False):
+                        if index > 0:
+                            index -= 1
+                        else:
+                            self.tty.write("Already at the first step.\n")
+                        steps = self._active_steps()
+                        continue
+                    self._record_answer(step.key, raw)
+                    steps = self._active_steps()
+                    index += 1
+                    continue
+
+                if step.key == "credential_env":
+                    workspace_val = self.answers.get("workspace", self.defaults["workspace"])
+                    data_val = self.answers.get("data", self.defaults["data"])
+                    chosen_tmp = replace(
+                        self.layout,
+                        workspace=Path(workspace_val).expanduser(),
+                        data=Path(data_val).expanduser(),
+                    )
+                    env_path = default_providers_env_path(chosen_tmp)
+                    existing_present = (
+                        LocalCredentialsStore(env_path).has_api_key(self.profile_id)
+                        if env_path.exists() and not env_path.is_symlink()
+                        else False
+                    )
+                    _, ep_val = parse_endpoint_input(
+                        self.answers.get("endpoint", self.defaults["endpoint"])
+                    )
+                    key_action = prompt_masked_api_key(
+                        self.tty,
+                        profile_id=self.profile_id,
+                        endpoint=ep_val,
+                        existing_present=existing_present,
+                        getpass_fn=self.getpass_fn,
+                        allow_bare_env_name=True,
+                    )
+                    if key_action.action == "back":
+                        if index > 0:
+                            index -= 1
+                        else:
+                            self.tty.write("Already at the first step.\n")
+                        steps = self._active_steps()
+                        continue
+                    self.key_action = key_action
+                    self._record_answer(step.key, key_action.credential_env or "")
+                    steps = self._active_steps()
+                    index += 1
+                    continue
+
                 raw = self._raw_prompt(step.label, default)
                 if is_cancel_command(raw):
                     raise InstallError("Setup cancelled; no configuration written")
@@ -300,6 +429,25 @@ class WizardNavigator:
                         self.tty.write("Already at the first step.\n")
                     steps = self._active_steps()
                     continue
+                if (
+                    step.key == "workspace"
+                    and index == 0
+                    and self.section is None
+                    and self.mode is None
+                    and raw.strip().lower() in {":quick", "quick"}
+                ):
+                    from services.distribution.wizard_flow import WizardFlowCoordinator
+
+                    return WizardFlowCoordinator(
+                        self.layout,
+                        tty=self.tty,
+                        mode="quick",
+                        mascot_fn=None,
+                        setup_fn=self.setup_fn,
+                        reconfigure_fn=self.reconfigure_fn,
+                        profile_id=self.profile_id,
+                        getpass_fn=self.getpass_fn,
+                    ).run_quick(skip_header=True)
                 resolved = raw if raw else default
                 self._record_answer(step.key, resolved)
                 steps = self._active_steps()
@@ -320,32 +468,44 @@ class WizardNavigator:
             self.tty.write(
                 "Provider connection is not checked; saved configuration does not mean ready.\n"
             )
-            confirm_raw = self._raw_prompt(
-                "Write configuration and private service tokens? type yes", "no"
-            )
-            if is_cancel_command(confirm_raw):
-                raise InstallError("Setup cancelled; no configuration written")
-            if is_back_command(confirm_raw, at_confirm=True):
-                token = confirm_raw.strip().lower()
-                steps = self._active_steps()
-                target_index = max(0, len(steps) - 1)
-                if " " in token:
-                    _, target_name = token.split(" ", 1)
-                    target_name = target_name.strip()
-                    key_matches = [idx for idx, st in enumerate(steps) if st.key == target_name]
-                    if key_matches:
-                        target_index = key_matches[0]
-                    else:
-                        sec_matches = [
-                            idx for idx, st in enumerate(steps) if st.section == target_name
-                        ]
-                        if sec_matches:
-                            target_index = sec_matches[0]
-                index = target_index
+            while True:
+                self.tty.write("Write configuration and private service tokens? (y/n) [n]: ")
+                self.tty.flush()
+                confirm_line = self.tty.readline()
+                if not confirm_line:
+                    raise InstallError("Setup cancelled: terminal input closed")
+                confirm_raw = confirm_line.strip()
+                if is_cancel_command(confirm_raw):
+                    raise InstallError("Setup cancelled; no configuration written")
+                if is_back_command(confirm_raw, at_confirm=True):
+                    token = confirm_raw.strip().lower()
+                    steps = self._active_steps()
+                    target_index = max(0, len(steps) - 1)
+                    if " " in token:
+                        _, target_name = token.split(" ", 1)
+                        target_name = target_name.strip()
+                        key_matches = [idx for idx, st in enumerate(steps) if st.key == target_name]
+                        if key_matches:
+                            target_index = key_matches[0]
+                        else:
+                            sec_matches = [
+                                idx for idx, st in enumerate(steps) if st.section == target_name
+                            ]
+                            if sec_matches:
+                                target_index = sec_matches[0]
+                    index = target_index
+                    rewound = True
+                    break
+                confirm_val = confirm_raw.lower() if confirm_raw else "no"
+                if confirm_val in {"n", "no"}:
+                    raise InstallError("Setup cancelled; no configuration written")
+                if confirm_val in {"y", "yes"}:
+                    rewound = False
+                    break
+                self.tty.write("Please enter y or n.\n")
+                self.tty.flush()
+            if rewound:
                 continue
-            confirm_val = confirm_raw if confirm_raw else "no"
-            if confirm_val.lower() not in {"yes", "y"}:
-                raise InstallError("Setup cancelled; no configuration written")
             break
 
         return self._commit(chosen)
@@ -423,11 +583,21 @@ class WizardNavigator:
                 decisions_profile=decisions_profile,
             )
 
+        effective_agent_adapter = adapter or ("meta" if allow_cloud else "lmstudio")
+        agent_credential_env = (
+            None
+            if (
+                effective_agent_adapter == "lmstudio"
+                and self.key_action is not None
+                and self.key_action.action in {"set", "keep"}
+            )
+            else credential_env
+        )
         setup_kwargs: dict[str, Any] = {
             "endpoint": endpoint,
             "model": model,
             "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "credential_env": agent_credential_env,
             "converse": converse,
         }
         if adapter is not None:
@@ -436,4 +606,19 @@ class WizardNavigator:
             setup_kwargs["converse_profile"] = converse_profile
         if decisions_profile is not None:
             setup_kwargs["decisions_profile"] = decisions_profile
-        return self.setup_fn(chosen, **setup_kwargs)
+        if chosen.config.exists():
+            setup_kwargs["allow_existing"] = True
+        result = self.setup_fn(chosen, **setup_kwargs)
+        env_path = default_providers_env_path(chosen)
+        if (
+            self.key_action is not None
+            and self.key_action.action in {"set", "remove", "keep"}
+            and (self.key_action.action == "set" or env_path.exists())
+        ):
+            apply_masked_key_action(
+                env_path,
+                self.key_action,
+                base_url=endpoint,
+                selected_model=model,
+            )
+        return result

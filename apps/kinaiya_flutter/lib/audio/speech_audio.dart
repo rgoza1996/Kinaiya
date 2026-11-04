@@ -73,4 +73,29 @@ abstract interface class AdaptiveVadAudio {
   Future<void> recalibrateVad();
 }
 
+/// A browser-local audio output. [opaqueId] must never be persisted, sent to a
+/// service, or included in a journal. A selection is not proof of audibility.
+class AudioOutputDevice {
+  const AudioOutputDevice({
+    required this.opaqueId,
+    required this.label,
+    this.selected = false,
+  });
+
+  final String opaqueId;
+  final String label;
+  final bool selected;
+}
+
+/// Optional output routing for this audio owner only. Discovery never opens a
+/// microphone. Picker calls must begin directly in an owner's button gesture.
+/// A pending change retains its original operation; observing it must not be
+/// timed out and replaced. Stop/dispose still fence queued playback.
+abstract interface class AudioOutputSelection {
+  Future<List<AudioOutputDevice>> audioOutputs();
+  Future<String> selectAudioOutput(String opaqueId);
+  Future<String> chooseAudioOutput();
+  Future<String> useDefaultAudioOutput();
+}
+
 SpeechAudio speechAudio() => impl.createSpeechAudio();

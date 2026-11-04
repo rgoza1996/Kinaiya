@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "MediaQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaQ",
+      "type": "object"
+    },
+    "MediaSignedQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaSignedQ",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "clock_provenance": {
+      "enum": [
+        "container",
+        "native_capture",
+        "native_audio_samples",
+        "client_reported",
+        "provider_reported",
+        "untimed_image"
+      ],
+      "title": "Clock Provenance",
+      "type": "string"
+    },
+    "command_lane": {
+      "title": "Command Lane",
+      "type": "boolean"
+    },
+    "common_origin": {
+      "$ref": "#/$defs/MediaSignedQ"
+    },
+    "format_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Format Sha256",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "audio",
+        "video",
+        "image"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "source_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "timebase": {
+      "$ref": "#/$defs/MediaQ"
+    },
+    "track_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Track Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "track_id",
+    "source_id",
+    "kind",
+    "format_sha256",
+    "timebase",
+    "common_origin",
+    "clock_provenance",
+    "command_lane"
+  ],
+  "title": "MediaTrack",
+  "type": "object"
+}

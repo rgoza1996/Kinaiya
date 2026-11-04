@@ -1,0 +1,113 @@
+{
+  "actual_run": {
+    "elapsed_wall_s": 88.54788235799788,
+    "exit_code": 0,
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "hostname": "roggoz",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "1100",
+        "time": "87.434",
+        "timestamp": "2026-11-03T18:41:50.879268-08:00"
+      }
+    ],
+    "manifest_sha256": "8cf0869c9179445abb68deaa6b1b41610dbe02d5923dbfb99546e7813421585f",
+    "payload_sha256": {
+      "junit.xml": "a44f71283c16d074da47b7df0bae511a9de15c5aa0c168b7101ff43d193bfd7d",
+      "post-pins.json": "7914c445259d0def64bad01c9708fea6ed477dba4b3cb326fd09da7e2a434982",
+      "pre-pins.json": "7914c445259d0def64bad01c9708fea6ed477dba4b3cb326fd09da7e2a434982",
+      "pytest.log": "1ec6ec20e777064d3363a060b7311bd98be2b15e18ff330c0f841fe4ba8df556",
+      "receipt.json": "677c7b9a3ae6997e4c2d871b1bb5c4d99297207500397501437c6c85d02e2c16",
+      "runner.py": "565731767e522398832ba966ffd3e88b5375ef02f2d45bfb0b38cadc55c0a2cb",
+      "start.json": "363b31489cfc24d19228eaa755c842e9be44379447f6cb9a617e2791ab0e3e37"
+    },
+    "per_module_cases": {
+      "tests/integration/test_media_decoder_child.py": 29,
+      "tests/integration/test_media_decoder_multitrack.py": 1,
+      "tests/unit/test_media_bootstrap.py": 108,
+      "tests/unit/test_media_contracts.py": 29,
+      "tests/unit/test_media_decode_plan.py": 23,
+      "tests/unit/test_media_decoder_contracts.py": 221,
+      "tests/unit/test_media_decoder_v2.py": 126,
+      "tests/unit/test_media_decoder_v2_schema_exports.py": 4,
+      "tests/unit/test_media_decoder_wire.py": 59,
+      "tests/unit/test_media_history_contracts.py": 308,
+      "tests/unit/test_media_prepared_processes.py": 16,
+      "tests/unit/test_media_process_retirement_guards.py": 1,
+      "tests/unit/test_media_processes.py": 44,
+      "tests/unit/test_media_schema_exports.py": 6,
+      "tests/unit/test_media_spool.py": 53,
+      "tests/unit/test_media_spool_grants.py": 9,
+      "tests/unit/test_standing_resource_finalization_contracts.py": 63
+    },
+    "raw_directory": ".dev-run/204-parent-composed-runtime-v1-y5dwx2gz",
+    "stable_tracked_pins": 1886,
+    "targets": [
+      "tests/unit/test_media_schema_exports.py",
+      "tests/unit/test_standing_resource_finalization_contracts.py",
+      "tests/unit/test_media_decoder_v2_schema_exports.py",
+      "tests/unit/test_media_decoder_v2.py",
+      "tests/unit/test_media_decoder_contracts.py",
+      "tests/unit/test_media_contracts.py",
+      "tests/unit/test_media_decoder_wire.py",
+      "tests/unit/test_media_decode_plan.py",
+      "tests/integration/test_media_decoder_child.py",
+      "tests/integration/test_media_decoder_multitrack.py",
+      "tests/unit/test_media_history_contracts.py",
+      "tests/unit/test_media_prepared_processes.py",
+      "tests/unit/test_media_processes.py",
+      "tests/unit/test_media_process_retirement_guards.py",
+      "tests/unit/test_media_spool_grants.py",
+      "tests/unit/test_media_bootstrap.py",
+      "tests/unit/test_media_spool.py"
+    ]
+  },
+  "authorship": "Actual Muse CLI Contributor xhigh authored history additions before root lint-only zip default clarification; independent requirements-first history oracle. Held source and root oracle have previously documented source-aware authorship/independent source and test-quality gates. This raw review is not a claim that every test is blind.",
+  "historical_results": "Original CI602 two failures, repair560P1F and corrected126P, earlier decoder11P16F and corrections remain intact in media-decoder-v2-child-2026-11-03.json. New1100 is one actual composed selection; its30 child and16 held cases are included, not added. Prior overlapping runs are not summed.",
+  "implemented": [
+    "Eight exact history/disclosure/consumer/blob/unit/manifest/range contracts with canonical registries and complete self validation",
+    "Held original bootstrap prepare then exact registered original release; cancellation/replay/fence/cleanup retains original ownership",
+    "Compose with independent V2 profile/protocol types while preserving original closed V1 contracts and schema pins"
+  ],
+  "independent_reviews": {
+    "composition_results_manifest": "2e450a8c15a18dc83a1a9179ea4e211b5f1c9a99d2d29a0e3ab2bda31d5cfe3b",
+    "composition_results_seal": "aefada3ebbcda4baa864bbe5b08d1e16561e9554ecc0d4ee543b930bc1560c49",
+    "composition_source_manifest": "560eb20c8b7d0b574c08362425cf596e0eb5823faba183ff9285ea5da1b99c25"
+  },
+  "limits": [
+    "Native currentness and dependency callbacks remain controlled stand-ins",
+    "No actual Session V2 catalog/controller/start/resume or native admission/budget/history/publication integration",
+    "No native cumulative CPU/descendant enforcement, sealed runtime/sandbox qualification or public cleanup authority",
+    "No provider/model/device inference, AT64-AT66 or full news-video/sign-language demo rehearsal",
+    "Changed-head full CI remains required before merge"
+  ],
+  "quality": {
+    "conflict_resolution": "Both-parent complete AST projections exact; Consumer and ProfileV2 self maps/constructor paths retained",
+    "contract_export": "passed; preserved parent schemas",
+    "diff_check": "passed",
+    "whole_format_check": "passed",
+    "whole_ruff": "passed"
+  },
+  "schema_preservation": {
+    "history_schemas_byte_mode_exact": 24,
+    "maincf_schemas_byte_mode_exact": 423,
+    "original69_and184_expected_pins": "unchanged and passed",
+    "publication_schemas_byte_mode_exact": 450,
+    "total_exact": 474
+  },
+  "source_hashes": {
+    "packages/contracts/media.py": "732b7fe62904d8d667c13baca4357f8ae2a11929be23d6769bfc76d95fdf1db4",
+    "packages/resources/media_decode_plan.py": "073fa8b7be1b01ee93b0cc0403c9541464065e773644d5cbdd5824ff4d24acfc",
+    "packages/resources/media_decoder.py": "6d912ded8f08b569b2e646b96e409c6d6adbff15585539cdfd2875edda546649",
+    "packages/resources/media_processes.py": "64b7af7cf9558bf359e1e3fcc0cfbb108b8b085ad8ec5bc525e57eb1f25ea39a",
+    "tests/unit/test_media_history_contracts.py": "c5dcab085995cb95b974c742b4c472981832f455c70ca0f153dc36814aeb390f",
+    "tests/unit/test_media_prepared_processes.py": "ce25b360c87a2902d969df00a2bb145b3249ed53c7118650fc939f1373ef35db"
+  },
+  "status": "Bounded composed prerequisites verified; native Session decoder start/resume remains unavailable",
+  "tested_head": "48d58c1a7c28e7ca688210a523c8c66f5a480097",
+  "tested_tree": "d59c1bec6bbc19f08862c22547c1711b90d4b459",
+  "version": 1
+}

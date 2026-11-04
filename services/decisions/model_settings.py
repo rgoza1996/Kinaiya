@@ -384,6 +384,8 @@ class DecisionsModelSettings:
                         True,
                         "Typed Laya declaration; runtime not checked"
                         if recipe.info.provider == "laya"
+                        else "OpenRouter Decisions declaration; runtime not checked"
+                        if recipe.info.provider == "openrouter_decisions"
                         else "Native d1 declaration; runtime not checked",
                         recipe.info.model_dump(),
                     )
