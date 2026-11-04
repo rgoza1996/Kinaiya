@@ -22,6 +22,7 @@ import 'design_tokens.dart';
 
 const int companionUnresolvedScopeBound = 32;
 const _uuid = Uuid();
+int _companionObservationSerial = 0;
 
 class _UncertainInvite {
   _UncertainInvite({
@@ -68,6 +69,7 @@ class _UncertainNote {
   final int expectedRevision;
   final String draftNote;
   int? reconciledRevision;
+  int? reconcileAfterObservation;
   bool get needsGetReconciliation => reconciledRevision == null;
 }
 
@@ -75,8 +77,10 @@ class _ScopeUncertainty {
   _UncertainInvite? invite;
   final Map<String, _UncertainEnd> ends = <String, _UncertainEnd>{};
   final Map<String, _UncertainNote> notes = <String, _UncertainNote>{};
+  final Set<Object> inFlight = <Object>{};
 
-  bool get isEmpty => invite == null && ends.isEmpty && notes.isEmpty;
+  bool get isEmpty =>
+      invite == null && ends.isEmpty && notes.isEmpty && inFlight.isEmpty;
 }
 
 final Map<String, _ScopeUncertainty> _unresolvedScopes =
@@ -86,6 +90,7 @@ final Map<String, _ScopeUncertainty> _unresolvedScopes =
 @visibleForTesting
 void resetCompanionUncertaintyForTest() {
   _unresolvedScopes.clear();
+  _companionObservationSerial = 0;
 }
 
 String _canonicalEndpoint(String raw) {
@@ -343,7 +348,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       _dirtyNoteCallIds.clear();
       _notice =
           'The conversation or connection changed. '
-          'Choose Refresh to load the current scope. No change was sent.';
+          'Choose Refresh to load the current scope. Pending requests retain their original recovery state.';
     });
   }
 
@@ -420,6 +425,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     }
     _pollTimer?.cancel();
     final token = ++_readToken;
+    final observation = ++_companionObservationSerial;
     setState(() {
       _refreshing = true;
     });
@@ -455,7 +461,11 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         }
         if (binding != null) {
           if (loadedCalls != null) {
-            _mergeCalls(loadedCalls, reconcileNotes: true);
+            _mergeCalls(
+              loadedCalls,
+              reconcileNotes: true,
+              observation: observation,
+            );
             _callsLoaded = true;
             _callsError = null;
           } else {
@@ -480,11 +490,13 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
   void _mergeCalls(
     Iterable<OwnerCompanionCall> incoming, {
     bool reconcileNotes = false,
+    int? observation,
   }) {
+    final authoritative = incoming.toList();
     final byId = <String, OwnerCompanionCall>{
       for (final call in _calls) call.callId: call,
     };
-    for (final call in incoming) {
+    for (final call in authoritative) {
       final previous = byId[call.callId];
       if (previous == null || previous.revision <= call.revision) {
         byId[call.callId] = call;
@@ -509,8 +521,9 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     if (uncertainty == null) return;
 
     final pendingInvite = uncertainty.invite;
-    if (pendingInvite != null) {
-      final observed = sorted.any(
+    if (pendingInvite != null &&
+        !uncertainty.inFlight.contains(pendingInvite)) {
+      final observed = authoritative.any(
         (call) =>
             call.deviceId == pendingInvite.deviceId &&
             (!pendingInvite.baselineCallIds.contains(call.callId) ||
@@ -521,16 +534,22 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       }
     }
 
-    for (final call in sorted) {
+    for (final call in authoritative) {
       final pendingEnd = uncertainty.ends[call.callId];
       if (pendingEnd != null &&
+          !uncertainty.inFlight.contains(pendingEnd) &&
           (call.state.terminal ||
               call.revision > pendingEnd.expectedRevision)) {
         uncertainty.ends.remove(call.callId);
       }
       if (reconcileNotes) {
         final pendingNote = uncertainty.notes[call.callId];
-        if (pendingNote != null) {
+        if (pendingNote != null &&
+            !uncertainty.inFlight.contains(pendingNote) &&
+            call.revision >= byId[call.callId]!.revision &&
+            observation != null &&
+            pendingNote.reconcileAfterObservation != null &&
+            observation > pendingNote.reconcileAfterObservation!) {
           if (call.note == pendingNote.draftNote &&
               call.revision > pendingNote.expectedRevision) {
             uncertainty.notes.remove(call.callId);
@@ -627,7 +646,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       deviceId: device.deviceId,
       title: title,
       idempotencyKey: _uuid.v4(),
-      baselineCallIds: _calls.map((c) => c.callId).toSet(),
+      baselineCallIds: Set<String>.unmodifiable(_calls.map((c) => c.callId)),
     );
     await _dispatchInvite(attempt);
   }
@@ -642,6 +661,14 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final client = _client!;
     final binding = _binding!;
     final scopeKey = _currentScopeKey;
+    final scope = _unresolvedScopes[scopeKey]!;
+    if (scope.inFlight.contains(attempt)) return;
+    final wasRetained = identical(scope.invite, attempt);
+    if (scope.invite != null && !wasRetained) return;
+    // The scope, captured client and immutable payload outlive this widget.
+    // A pending write cannot be proved absent by a concurrent GET.
+    scope.invite = attempt;
+    scope.inFlight.add(attempt);
     final token = ++_actionToken;
     setState(() {
       _acting = true;
@@ -655,27 +682,27 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         title: attempt.title,
         idempotencyKey: attempt.idempotencyKey,
       );
+      if (identical(scope.invite, attempt)) scope.invite = null;
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
-      _unresolvedScopes[scopeKey]?.invite = null;
-      _pruneScopeUncertainty(scopeKey);
       setState(() {
         _mergeCalls(<OwnerCompanionCall>[created]);
         _callsLoaded = true;
         _notice = 'Invitation sent to companion.';
       });
     } on OwnerCompanionFailure catch (e) {
+      if (!e.unconfirmed &&
+          (!wasRetained || e.status == 409) &&
+          identical(scope.invite, attempt)) {
+        scope.invite = null;
+      }
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       if (e.unconfirmed) {
-        final scope = _ensureScopeUncertainty(scopeKey);
-        scope?.invite = attempt;
         setState(() {
           _notice =
               'Invitation request is unconfirmed. Retry sends the exact original request, or Refresh to inspect current calls.';
         });
       } else {
         if (e.status == 409) {
-          _unresolvedScopes[scopeKey]?.invite = null;
-          _pruneScopeUncertainty(scopeKey);
           reconcileAfter409 = true;
         }
         setState(() {
@@ -683,6 +710,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         });
       }
     } finally {
+      scope.inFlight.remove(attempt);
+      _pruneScopeUncertainty(scopeKey);
       if (mounted && token == _actionToken && _scopeMatches()) {
         setState(() {
           _acting = false;
@@ -732,6 +761,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final client = _client!;
     final binding = _binding!;
     final token = ++_actionToken;
+    final observation = ++_companionObservationSerial;
     setState(() {
       _acting = true;
       _notice = null;
@@ -744,7 +774,11 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       );
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       setState(() {
-        _mergeCalls(<OwnerCompanionCall>[inspected], reconcileNotes: true);
+        _mergeCalls(
+          <OwnerCompanionCall>[inspected],
+          reconcileNotes: true,
+          observation: observation,
+        );
         _notice =
             'Reconciled invitation ${inspected.title} (revision ${inspected.revision}).';
       });
@@ -798,6 +832,12 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final client = _client!;
     final binding = _binding!;
     final scopeKey = _currentScopeKey;
+    final scope = _unresolvedScopes[scopeKey]!;
+    if (scope.inFlight.contains(attempt)) return;
+    final wasRetained = identical(scope.ends[attempt.callId], attempt);
+    if (scope.ends.containsKey(attempt.callId) && !wasRetained) return;
+    scope.ends[attempt.callId] = attempt;
+    scope.inFlight.add(attempt);
     final token = ++_actionToken;
     setState(() {
       _acting = true;
@@ -813,26 +853,28 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         expectedRevision: attempt.expectedRevision,
         idempotencyKey: attempt.idempotencyKey,
       );
+      if (identical(scope.ends[attempt.callId], attempt)) {
+        scope.ends.remove(attempt.callId);
+      }
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
-      _unresolvedScopes[scopeKey]?.ends.remove(attempt.callId);
-      _pruneScopeUncertainty(scopeKey);
       setState(() {
         _mergeCalls(<OwnerCompanionCall>[ended]);
         _notice = 'Ended invitation ${ended.title}.';
       });
     } on OwnerCompanionFailure catch (e) {
+      if (!e.unconfirmed &&
+          (!wasRetained || e.status == 409) &&
+          identical(scope.ends[attempt.callId], attempt)) {
+        scope.ends.remove(attempt.callId);
+      }
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       if (e.unconfirmed) {
-        final scope = _ensureScopeUncertainty(scopeKey);
-        scope?.ends[attempt.callId] = attempt;
         setState(() {
           _notice =
               'End request is unconfirmed. Retry sends the exact original request, or Inspect to reconcile.';
         });
       } else {
         if (e.status == 409) {
-          _unresolvedScopes[scopeKey]?.ends.remove(attempt.callId);
-          _pruneScopeUncertainty(scopeKey);
           reconcileCall = true;
         }
         setState(() {
@@ -840,6 +882,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         });
       }
     } finally {
+      scope.inFlight.remove(attempt);
+      _pruneScopeUncertainty(scopeKey);
       if (mounted && token == _actionToken && _scopeMatches()) {
         setState(() {
           _acting = false;
@@ -885,6 +929,15 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final expectedRevision =
         existingUncertain?.reconciledRevision ?? call.revision;
     final draft = _noteControllers[call.callId]?.text ?? call.note;
+    final attempt = _UncertainNote(
+      callId: call.callId,
+      deviceId: call.deviceId,
+      sequence: call.sequence,
+      expectedRevision: expectedRevision,
+      draftNote: draft,
+    );
+    scope.notes[call.callId] = attempt;
+    scope.inFlight.add(attempt);
     final client = _client!;
     final binding = _binding!;
     final token = ++_actionToken;
@@ -901,25 +954,23 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         expectedRevision: expectedRevision,
         note: draft,
       );
+      if (identical(scope.notes[call.callId], attempt)) {
+        scope.notes.remove(call.callId);
+      }
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
-      _unresolvedScopes[scopeKey]?.notes.remove(call.callId);
-      _pruneScopeUncertainty(scopeKey);
       _dirtyNoteCallIds.remove(call.callId);
       setState(() {
         _mergeCalls(<OwnerCompanionCall>[updated]);
         _notice = 'Saved literal note for ${updated.title}.';
       });
     } on OwnerCompanionFailure catch (e) {
+      if (!e.unconfirmed &&
+          e.status != 409 &&
+          identical(scope.notes[call.callId], attempt)) {
+        scope.notes.remove(call.callId);
+      }
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       if (e.unconfirmed || e.status == 409) {
-        final uncertain = _UncertainNote(
-          callId: call.callId,
-          deviceId: call.deviceId,
-          sequence: call.sequence,
-          expectedRevision: expectedRevision,
-          draftNote: draft,
-        );
-        scope.notes[call.callId] = uncertain;
         _dirtyNoteCallIds.add(call.callId);
         setState(() {
           _notice = e.unconfirmed
@@ -932,6 +983,11 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         });
       }
     } finally {
+      // Reads already pending when this write settled cannot establish a new
+      // CAS baseline, even if their old snapshot arrives after the failure.
+      attempt.reconcileAfterObservation = ++_companionObservationSerial;
+      scope.inFlight.remove(attempt);
+      _pruneScopeUncertainty(scopeKey);
       if (mounted && token == _actionToken && _scopeMatches()) {
         setState(() {
           _acting = false;
@@ -1138,7 +1194,13 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
                     pendingInvite.deviceId == device.deviceId)
                   OutlinedButton(
                     key: const ValueKey('companion-retry-invite'),
-                    onPressed: !_acting && !_issuingPairing
+                    onPressed:
+                        !_acting &&
+                            !_issuingPairing &&
+                            _currentUncertainty?.inFlight.contains(
+                                  pendingInvite,
+                                ) !=
+                                true
                         ? () => unawaited(_retryUncertainInvite())
                         : null,
                     child: const Text('Retry unconfirmed invite'),
@@ -1280,7 +1342,10 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
                 if (pendingEnd != null)
                   OutlinedButton(
                     key: ValueKey('companion-retry-end-${call.callId}'),
-                    onPressed: !_acting && !_issuingPairing
+                    onPressed:
+                        !_acting &&
+                            !_issuingPairing &&
+                            uncertainty?.inFlight.contains(pendingEnd) != true
                         ? () => unawaited(_retryUncertainEnd(call.callId))
                         : null,
                     child: const Text('Retry unconfirmed end'),

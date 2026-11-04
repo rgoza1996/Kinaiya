@@ -13,6 +13,7 @@ import 'package:kinaiya_flutter/api/companion_models.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/companion/client.dart';
 import 'package:kinaiya_flutter/companion/models.dart';
+import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/converse_companions.dart';
 
@@ -285,6 +286,132 @@ void main() {
       expect(allCalls.first.sequence, 1);
       expect(allCalls.last.sequence, 100);
       await pagedApi.close();
+    },
+  );
+
+  for (final retainedCount in <int>[101, 3200]) {
+    test('owner inventory reads all $retainedCount retained calls', () async {
+      final cursors = <int>[];
+      final api = OwnerCompanionApi(
+        sessionBase: 'https://host.invalid',
+        ownerToken: 'o' * 32,
+        clientFactory: () => MockClient((req) async {
+          final after = int.parse(req.url.queryParameters['after']!);
+          cursors.add(after);
+          final end = after + 20 < retainedCount ? after + 20 : retainedCount;
+          return _jsonRes(<String, Object?>{
+            'schema_version': '1.0',
+            'calls': <Object?>[
+              for (var index = after; index < end; index++)
+                _callJson(
+                  id: 'call-${index + 1}',
+                  sequence: index + 1,
+                  deviceId: 'device-${index ~/ 100 + 1}',
+                  state: index == retainedCount - 1 ? 'ringing' : 'ended',
+                  endReason: index == retainedCount - 1 ? null : 'owner_ended',
+                ),
+            ],
+            'next_after': end < retainedCount ? end : null,
+          });
+        }),
+      );
+      addTearDown(api.close);
+      final calls = await api.listCalls(
+        OwnerCompanionBinding('session-1', 'thread-1', 1),
+      );
+      expect(calls.length, retainedCount);
+      expect(calls.last.callId, 'call-$retainedCount');
+      expect(calls.last.state, OwnerCompanionCallState.ringing);
+      expect(cursors.length, (retainedCount + 19) ~/ 20);
+    });
+  }
+
+  test(
+    'owner inventory validates history before projecting current epoch',
+    () async {
+      final binding = OwnerCompanionBinding('session-1', 'thread-1', 2);
+      final api = OwnerCompanionApi(
+        sessionBase: 'https://host.invalid',
+        ownerToken: 'o' * 32,
+        clientFactory: () => MockClient((req) async {
+          final after = int.parse(req.url.queryParameters['after']!);
+          final end = after + 20 < 101 ? after + 20 : 101;
+          return _jsonRes(<String, Object?>{
+            'schema_version': '1.0',
+            'calls': <Object?>[
+              for (var index = after; index < end; index++)
+                _callJson(
+                  id: 'call-${index + 1}',
+                  sequence: index + 1,
+                  deviceId: index < 100 ? 'old-device' : 'current-device',
+                  epoch: index < 100 ? 1 : 2,
+                  state: index < 100 ? 'ended' : 'ringing',
+                  endReason: index < 100 ? 'session_invalidated' : null,
+                ),
+            ],
+            'next_after': end < 101 ? end : null,
+          });
+        }),
+      );
+      addTearDown(api.close);
+      final calls = await api.listCalls(binding);
+      expect(calls.single.callId, 'call-101');
+      // The public page method continues to require the exact requested binding.
+      await expectLater(
+        api.listCallsPage(binding),
+        throwsA(isA<OwnerCompanionFailure>()),
+      );
+    },
+  );
+
+  test(
+    'owner inventory refuses foreign rows and native capacity violations',
+    () async {
+      final binding = OwnerCompanionBinding('session-1', 'thread-1', 2);
+      final invalidInventories = <List<Map<String, Object?>>>[
+        <Map<String, Object?>>[_callJson(sessionId: 'other-session')],
+        <Map<String, Object?>>[_callJson(threadId: 'other-thread')],
+        <Map<String, Object?>>[_callJson(epoch: 3)],
+        <Map<String, Object?>>[_callJson(deviceId: 'other-device', epoch: 2)],
+        List<Map<String, Object?>>.generate(
+          101,
+          (index) => _callJson(id: 'call-$index', sequence: index + 1),
+        ),
+        List<Map<String, Object?>>.generate(
+          33,
+          (index) => _callJson(
+            id: 'call-$index',
+            sequence: index + 1,
+            deviceId: 'device-$index',
+          ),
+        ),
+      ];
+      for (
+        var caseIndex = 0;
+        caseIndex < invalidInventories.length;
+        caseIndex++
+      ) {
+        final rows = invalidInventories[caseIndex];
+        final api = OwnerCompanionApi(
+          sessionBase: 'https://host.invalid',
+          ownerToken: 'o' * 32,
+          clientFactory: () => MockClient((req) async {
+            final after = int.parse(req.url.queryParameters['after']!);
+            final end = after + 20 < rows.length ? after + 20 : rows.length;
+            return _jsonRes(<String, Object?>{
+              'schema_version': '1.0',
+              'calls': rows.sublist(after, end),
+              'next_after': end < rows.length ? end : null,
+            });
+          }),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.listCalls(binding, deviceId: caseIndex == 3 ? 'device-1' : null),
+          throwsA(isA<OwnerCompanionFailure>()),
+          reason: 'invalid inventory case $caseIndex',
+        );
+      }
     },
   );
 
@@ -736,6 +863,350 @@ void main() {
       state.dispose();
     },
   );
+
+  for (final operation in <String>['invite', 'end', 'note']) {
+    for (final lifecycle in <String>['close', 'reconnect', 'close-success']) {
+      testWidgets('$operation retains pending custody across $lifecycle', (
+        tester,
+      ) async {
+        final pending = Completer<http.Response>();
+        final writes = <String>[];
+        final calls = <Map<String, Object?>>[
+          if (operation != 'invite') _callJson(),
+        ];
+        final writePath = operation == 'invite'
+            ? '/v1/companion/calls'
+            : '/v1/companion/calls/call-1/$operation';
+        Map<String, Object?> receiptFor(Map<String, Object?> body) => _callJson(
+          title: operation == 'invite'
+              ? body['title'] as String
+              : 'Companion call',
+          revision: operation == 'invite'
+              ? 1
+              : (body['expected_revision'] as int) + 1,
+          state: operation == 'end' ? 'ended' : 'ringing',
+          endReason: operation == 'end' ? 'owner_ended' : null,
+          note: operation == 'note' ? body['note'] as String : '',
+        );
+        Future<http.Response> handle(http.Request req) async {
+          if (req.method == 'GET') {
+            if (req.url.path == '/v1/companion/devices') {
+              return _jsonRes(<String, Object?>{
+                'schema_version': '1.0',
+                'devices': <Object?>[_deviceJson()],
+              });
+            }
+            if (req.url.path == '/v1/companion/calls/call-1') {
+              return _jsonRes(calls.single);
+            }
+            return _jsonRes(<String, Object?>{
+              'schema_version': '1.0',
+              'calls': calls,
+              'next_after': null,
+            });
+          }
+          expect(req.url.path, writePath);
+          writes.add(req.body);
+          if (writes.length == 1) return pending.future;
+          final body = jsonDecode(req.body) as Map<String, Object?>;
+          final receipt = receiptFor(body);
+          calls
+            ..clear()
+            ..add(receipt);
+          return _jsonRes(receipt);
+        }
+
+        final state = _connectedState(handle);
+        addTearDown(() {
+          if (!pending.isCompleted) {
+            pending.complete(_jsonRes(<String, Object?>{}, status: 503));
+          }
+          state.dispose();
+        });
+        Widget panel(String key) => MaterialApp(
+          home: Scaffold(
+            body: ConverseCompanionsDialog(
+              key: ValueKey(key),
+              state: state,
+              pollInterval: Duration.zero,
+            ),
+          ),
+        );
+        Future<void> tap(String key, {bool settle = true}) async {
+          final finder = find.byKey(ValueKey(key));
+          await tester.ensureVisible(finder);
+          await tester.tap(finder);
+          if (settle) {
+            await tester.pumpAndSettle();
+          } else {
+            await tester.pump();
+          }
+        }
+
+        await tester.pumpWidget(panel('original'));
+        await tester.pumpAndSettle();
+        if (operation == 'note') {
+          await tester.ensureVisible(
+            find.byKey(const ValueKey('companion-note-input-call-1')),
+          );
+          await tester.enterText(
+            find.byKey(const ValueKey('companion-note-input-call-1')),
+            'Exact pending note',
+          );
+        }
+        final action = switch (operation) {
+          'invite' => 'companion-invite-device-1',
+          'end' => 'companion-end-call-1',
+          _ => 'companion-save-note-call-1',
+        };
+        await tap(action, settle: false);
+        expect(writes.length, 1);
+
+        if (lifecycle != 'reconnect') {
+          await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+          await tester.pumpWidget(panel('reopened'));
+          await tester.pumpAndSettle();
+        } else {
+          final replacement = KinaiyaClient.mock(
+            sessionBase: 'https://host.invalid',
+            agentBase: 'https://host.invalid',
+            converseBase: 'https://host.invalid',
+            mockTransport: MockClient(
+              (_) async => _jsonRes(<String, Object?>{}),
+            ),
+            companionClientFactory: () => MockClient(handle),
+          );
+          state.connect(
+            ConnectionProfile(
+              sessionUrl: 'https://host.invalid',
+              agentUrl: 'https://host.invalid',
+              converseUrl: 'https://host.invalid',
+              ownerToken: 'synthetic-owner',
+            ),
+            injected: replacement,
+          );
+          await tester.pump();
+          await tap('companion-refresh');
+        }
+
+        // This completed GET observes the old state while the original write
+        // still owns its transport. It must neither prune nor reconcile it.
+        await tap('companion-refresh');
+        if (operation == 'note') {
+          expect(
+            tester.widget<FilledButton>(find.byKey(ValueKey(action))).onPressed,
+            isNull,
+          );
+        } else {
+          final retry = operation == 'invite'
+              ? 'companion-retry-invite'
+              : 'companion-retry-end-call-1';
+          expect(
+            tester
+                .widget<OutlinedButton>(find.byKey(ValueKey(retry)))
+                .onPressed,
+            isNull,
+          );
+        }
+        expect(writes.length, 1);
+
+        if (lifecycle == 'close-success') {
+          final receipt = receiptFor(
+            jsonDecode(writes.single) as Map<String, Object?>,
+          );
+          calls
+            ..clear()
+            ..add(receipt);
+          pending.complete(_jsonRes(receipt));
+          await tester.pumpAndSettle();
+          await tap('companion-refresh');
+          expect(
+            find.byKey(const ValueKey('companion-retry-invite')),
+            findsNothing,
+          );
+          expect(
+            find.byKey(const ValueKey('companion-retry-end-call-1')),
+            findsNothing,
+          );
+          if (operation == 'note') {
+            expect(
+              tester
+                  .widget<FilledButton>(find.byKey(ValueKey(action)))
+                  .onPressed,
+              isNotNull,
+            );
+            expect(find.text('Exact pending note'), findsWidgets);
+          }
+          expect(writes.length, 1);
+          return;
+        }
+        pending.complete(_jsonRes(<String, Object?>{}, status: 503));
+        await tester.pumpAndSettle();
+        if (operation == 'note') {
+          await tap('companion-inspect-call-1');
+          expect(
+            tester.widget<FilledButton>(find.byKey(ValueKey(action))).onPressed,
+            isNotNull,
+          );
+          await tap(action);
+        } else {
+          await tap('companion-refresh');
+          await tap(
+            operation == 'invite'
+                ? 'companion-retry-invite'
+                : 'companion-retry-end-call-1',
+          );
+        }
+        expect(writes.length, 2);
+        expect(writes[1], writes[0]);
+      });
+    }
+  }
+
+  testWidgets('inspecting another call cannot reconcile an uncertain note', (
+    tester,
+  ) async {
+    final calls = <Map<String, Object?>>[
+      _callJson(),
+      _callJson(
+        id: 'call-2',
+        sequence: 2,
+        state: 'ended',
+        endReason: 'owner_ended',
+      ),
+    ];
+    final inspected = <String>[];
+    final state = _connectedState((req) {
+      if (req.method == 'POST') {
+        return _jsonRes(<String, Object?>{}, status: 503);
+      }
+      if (req.url.path == '/v1/companion/devices') {
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'devices': <Object?>[_deviceJson()],
+        });
+      }
+      if (req.url.path == '/v1/companion/calls') {
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'calls': calls,
+          'next_after': null,
+        });
+      }
+      inspected.add(req.url.path);
+      return _jsonRes(
+        calls.firstWhere(
+          (call) => req.url.path.endsWith('/${call['call_id']}'),
+        ),
+      );
+    });
+    addTearDown(state.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConverseCompanionsDialog(
+            state: state,
+            pollInterval: Duration.zero,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> tap(String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+      'Uncertain A',
+    );
+    await tap('companion-save-note-call-1');
+    await tap('companion-inspect-call-2');
+    final saveA = find.byKey(const ValueKey('companion-save-note-call-1'));
+    expect(tester.widget<FilledButton>(saveA).onPressed, isNull);
+    expect(inspected, <String>['/v1/companion/calls/call-2']);
+    await tap('companion-inspect-call-1');
+    expect(tester.widget<FilledButton>(saveA).onPressed, isNotNull);
+  });
+
+  testWidgets('a GET started before note settlement cannot release its fence', (
+    tester,
+  ) async {
+    final write = Completer<http.Response>();
+    final oldRead = Completer<http.Response>();
+    var listReads = 0;
+    final oldCall = _callJson();
+    http.Response page() => _jsonRes(<String, Object?>{
+      'schema_version': '1.0',
+      'calls': <Object?>[oldCall],
+      'next_after': null,
+    });
+    final state = _connectedState((req) async {
+      if (req.method == 'POST') return write.future;
+      if (req.url.path == '/v1/companion/devices') {
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'devices': <Object?>[_deviceJson()],
+        });
+      }
+      if (req.url.path == '/v1/companion/calls') {
+        listReads++;
+        return listReads == 2 ? oldRead.future : page();
+      }
+      return _jsonRes(oldCall);
+    });
+    addTearDown(() {
+      if (!write.isCompleted) {
+        write.complete(_jsonRes(<String, Object?>{}, status: 503));
+      }
+      if (!oldRead.isCompleted) oldRead.complete(page());
+      state.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConverseCompanionsDialog(
+            state: state,
+            pollInterval: Duration.zero,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> tap(String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.tap(finder);
+      await tester.pump();
+    }
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+      'Pending note',
+    );
+    await tap('companion-save-note-call-1');
+    await tap('companion-refresh');
+    expect(listReads, 2);
+    write.complete(_jsonRes(<String, Object?>{}, status: 503));
+    await tester.pump();
+    await tester.pump();
+    oldRead.complete(page());
+    await tester.pumpAndSettle();
+    final save = find.byKey(const ValueKey('companion-save-note-call-1'));
+    expect(tester.widget<FilledButton>(save).onPressed, isNull);
+    await tap('companion-inspect-call-1');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+  });
 
   testWidgets(
     '320px short screen at 2x text keeps stop and revoke controls reachable without overflow',
