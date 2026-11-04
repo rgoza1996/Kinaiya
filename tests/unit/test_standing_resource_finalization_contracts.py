@@ -422,6 +422,22 @@ def schema_pin():
             "DecodeResponseV2",
         )
     }
+    # These seven history records and the explicitly named MediaRange family
+    # are additive; keep every original184 schema byte in its pinned aggregate.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "Disclosure",
+            "Consumer",
+            "Blob",
+            "TrackRange",
+            "Unit",
+            "ManifestPage",
+            "ManifestSeal",
+        )
+    }
+    additive |= {"MediaRange", "MediaReceiptMediaRange", "MediaFoundMediaRange"}
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:

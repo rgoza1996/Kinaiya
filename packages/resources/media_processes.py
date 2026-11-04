@@ -3,6 +3,9 @@
 Only fixed native owner configuration and its required current/dependency gates
 may use this pool. A granted outer process is not ready/qualified, and these
 internal observations are not public cleanup, admission or decode receipts.
+Prepared mode holds the same verified bootstrap before exec for native owner
+linking. Its identity capsule contains no CPU/descendant accounting, runtime
+qualification or proof that a Session has admitted the eventual decoder.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from packages.contracts.media import (
     MediaFence,
     MediaLimits,
     MediaNativeRef,
+    MediaProcessIdentity,
     media_bytes,
     media_json,
 )
@@ -45,6 +49,7 @@ __all__ = [
     "MediaWorkerPool",
     "MediaLaunch",
     "MediaChild",
+    "MediaPreparedChild",
     "MediaLocalSettlement",
     "MediaProcessError",
 ]
@@ -52,6 +57,7 @@ __all__ = [
 _ERROR = "Invalid media process operation"
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
+_BOOT_ID = re.compile(rb"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n?\Z")
 _METADATA_LIMIT = 1_073_741_824
 # Reserve one ordinary bounded metadata envelope per retained original. This is
 # a quota reservation, not an eviction threshold or a lifetime child limit.
@@ -355,6 +361,36 @@ class MediaChild:
         return self._channel
 
 
+class MediaPreparedChild:
+    """Opaque exact held original; snapshots grant no native authority.
+
+    Metadata remains readable for the retained historical original. A DTO,
+    copied capsule or matching numeric PID cannot select an exec release.
+    """
+
+    __slots__ = ("_launch",)
+
+    def __init__(self, launch):
+        self._launch = launch
+
+    def _original(self):
+        launch = getattr(self, "_launch", None)
+        if type(launch) is not MediaLaunch:
+            _error("conflict")
+        launch._owned()
+        if launch._prepared is not self or launch._start_mode != "prepared":
+            _error("conflict")
+        return launch
+
+    @property
+    def identity(self):
+        return _snapshot(self._original()._prepared_identity, MediaProcessIdentity)
+
+    @property
+    def binding(self):
+        return _binding(self._original()._binding)
+
+
 class MediaLaunch:
     """Only the exact object retained by its pool may select an original."""
 
@@ -364,9 +400,16 @@ class MediaLaunch:
         self._fenced = self._granted = self._settled = False
         self._future_spawn = self._spawn_phase = self._spawn_finished = False
         self._start_requested = False
+        self._start_mode = None
         self._spawn_dispatched = False
         self._start_assigned = asyncio.Event()
         self._start_task = self._spawn_task = self._cleanup_task = self._dependency_task = None
+        self._release_assigned = asyncio.Event()
+        self._release_requested = False
+        self._release_task = None
+        self._prepared = self._prepared_identity = None
+        self._prepared_leader = None
+        self._bootstrap_nonce = self._bootstrap_path = None
         self._tasks, self._io_tasks = set(), set()
         self._child = self._control = self._managed = None
         self._process = None
@@ -536,6 +579,13 @@ class MediaLaunch:
     async def _spawn_owned(self, manager):
         self._owned()
         try:
+            if self._start_mode == "prepared":
+                # Publication of the exact original Task precedes all spawn
+                # effects, including under an eager/custom task scheduler.
+                await self._start_assigned.wait()
+                if asyncio.current_task() is not self._start_task:
+                    self._metadata_unknown = True
+                    _error()
             if self._fenced or not self._pool._current(self):
                 _error("expired")
             if not _pidfd_supported():
@@ -548,6 +598,7 @@ class MediaLaunch:
             grant_read = self._owner(grant_r, passed=True)
             self._grant_writer = self._owner(grant_w)
             nonce = secrets.token_hex(16)
+            self._bootstrap_nonce = nonce
             spec = self._pool._spec
             raw = json.dumps(
                 {
@@ -587,6 +638,7 @@ class MediaLaunch:
             if type(source_fd) is not int or source_fd <= 2:
                 _error()
             bootstrap = str(Path(__file__).with_name("_media_bootstrap.py").resolve())
+            self._bootstrap_path = bootstrap
             with self._pool._lock:
                 if self._fenced or self._pool._closed:
                     _error("expired")
@@ -630,18 +682,25 @@ class MediaLaunch:
             self._leader = leader
             self._managed.leader_fd, self._managed.leader_starttime = leader.fd, start
             self._verified = True
-            if not self._pool._current(self):
-                _error("expired")
-            with self._pool._lock:
-                if self._close_unknown or self._fenced:
+            if self._start_mode == "prepared":
+                raw = self._read_observation("/proc/sys/kernel/random/boot_id", 37)
+                if raw is None or _BOOT_ID.fullmatch(raw) is None:
+                    _error()
+                leader.identity_id = secrets.token_hex(16)
+                identity = MediaProcessIdentity(
+                    pid=proc.pid,
+                    start_tick=start,
+                    boot_id=raw[:36].replace(b"-", b"").decode("ascii"),
+                    nonce=nonce,
+                    pidfd_owner=leader.identity_id,
+                )
+                self._prepared_identity = _snapshot(identity, MediaProcessIdentity)
+                self._prepared_leader = leader
+                self._prepared = MediaPreparedChild(self)
+                if self._fenced or not self._pool._current(self):
                     _error("expired")
-                if os.write(self._grant_writer.fd, b"\x01") != 1:
-                    _error()
-                if not self._close(self._grant_writer):
-                    _error()
-                self._granted = self._managed.granted = True
-            self._child = MediaChild(self, _Duplex(self, self._control))
-            return self._child
+                return self._prepared
+            return self._grant_exec()
         except MediaProcessError:
             self._pool.fence(self)
             raise
@@ -661,6 +720,72 @@ class MediaLaunch:
                 self._future_spawn = False
                 self._spawn_finished = True
             self._spawn_phase = False
+            if self._fenced:
+                self._pool._ensure_cleanup(self)
+
+    def _held_current(self):
+        managed, owner = self._managed, self._leader
+        if (
+            managed is None
+            or managed.process is not self._process
+            or managed.process.returncode is not None
+            or not self._verified
+            or owner is None
+            or owner.fd is None
+            or owner.closed
+            or owner.unknown
+            or self._granted
+            or self._prepared_identity is None
+            or owner is not self._prepared_leader
+            or owner.identity_id != self._prepared_identity.pidfd_owner
+        ):
+            return False
+        observed = self._stat(managed.process.pid)
+        return (
+            observed is not None
+            and observed[0] not in _ZOMBIES
+            and observed[1] == os.getpid()
+            and observed[2] == observed[3] == managed.process.pid
+            and observed[4] == managed.leader_starttime
+            and self._pidfd_pid(owner) == managed.process.pid
+            and self._command(managed.process.pid, self._bootstrap_nonce, self._bootstrap_path)
+        )
+
+    def _grant_exec(self):
+        if not self._pool._current(self):
+            _error("expired")
+        if self._start_mode == "prepared" and not self._held_current():
+            _error()
+        with self._pool._lock:
+            if self._close_unknown or self._fenced:
+                _error("expired")
+            if os.write(self._grant_writer.fd, b"\x01") != 1:
+                _error()
+            if not self._close(self._grant_writer):
+                _error()
+            self._granted = self._managed.granted = True
+        self._child = MediaChild(self, _Duplex(self, self._control))
+        return self._child
+
+    async def _release_prepared(self):
+        try:
+            await self._release_assigned.wait()
+            if asyncio.current_task() is not self._release_task:
+                self._metadata_unknown = True
+                _error()
+            self._owned()
+            if self._fenced or self._pool._closed:
+                _error("expired")
+            return self._grant_exec()
+        except MediaProcessError:
+            self._pool.fence(self)
+            raise
+        except BaseException as error:
+            self._pool.fence(self)
+            if not isinstance(error, Exception):
+                raise
+            raise MediaProcessError() from None
+        finally:
             if self._fenced:
                 self._pool._ensure_cleanup(self)
 
@@ -932,6 +1057,9 @@ class MediaLaunch:
                     await asyncio.gather(asyncio.shield(self._start_task), return_exceptions=True)
             if self._future_spawn:
                 return False
+            if self._release_task is not None:
+                await self._release_assigned.wait()
+                await asyncio.gather(asyncio.shield(self._release_task), return_exceptions=True)
             if self._grant_writer is not None:
                 self._close(self._grant_writer)
             for owner in self._pass_owners:
@@ -1074,10 +1202,13 @@ class MediaWorkerPool:
         if launch._grant is not grant or grant is None:
             _error("conflict")
         with self._lock:
+            if launch._start_mode not in (None, "legacy"):
+                _error("conflict")
             create = not launch._start_requested
             if create:
                 if launch._fenced or self._closed:
                     _error("expired")
+                launch._start_mode = "legacy"
                 launch._start_requested = launch._future_spawn = True
         if create:
             try:
@@ -1099,6 +1230,118 @@ class MediaWorkerPool:
         # This caller observes the retained original; cancelling only its wait
         # is not an explicit fence and cannot change later exact replay.
         return await asyncio.shield(launch._start_task)
+
+    def _prepared_current(self, launch):
+        with self._lock:
+            if launch._fenced or self._closed:
+                _error("expired")
+            if launch._metadata_unknown:
+                _error()
+        if not self._current(launch):
+            self.fence(launch)
+            self._ensure_cleanup(launch)
+            _error("expired")
+
+    def _actual_task(self, task, coroutine):
+        return (
+            type(task) is asyncio.Task
+            and task.get_loop() is self._loop
+            and task.get_coro() is coroutine
+        )
+
+    async def prepare(self, launch, grant):
+        """Retain one verified, ungranted bootstrap for native owner linking.
+
+        This reserves no new budget and grants no exec or Session authority.
+        Cancelling a caller only cancels its observation of the original Task.
+        """
+        self._loop_now()
+        self._owned(launch)
+        if launch._grant is not grant or grant is None:
+            _error("conflict")
+        with self._lock:
+            if launch._start_mode not in (None, "prepared"):
+                _error("conflict")
+        self._prepared_current(launch)
+        with self._lock:
+            create = not launch._start_requested
+            if create:
+                if launch._fenced or self._closed:
+                    _error("expired")
+                launch._start_mode = "prepared"
+                launch._start_requested = launch._future_spawn = True
+        if create:
+            coroutine = self._manager._start_media_owned(launch)
+            try:
+                launch._start_task = launch._task(coroutine)
+                if not self._actual_task(launch._start_task, coroutine):
+                    _error()
+            except BaseException as error:
+                launch._metadata_unknown = True
+                self.fence(launch)
+                self._ensure_cleanup(launch)
+                if not isinstance(error, Exception):
+                    raise
+                raise MediaProcessError() from None
+            else:
+                launch._start_assigned.set()
+        else:
+            await launch._start_assigned.wait()
+        if launch._start_task is None:
+            _error()
+        prepared = await asyncio.shield(launch._start_task)
+        self._prepared_current(launch)
+        if type(prepared) is not MediaPreparedChild or prepared is not launch._prepared:
+            _error()
+        if not launch._granted and not launch._held_current():
+            self.fence(launch)
+            self._ensure_cleanup(launch)
+            _error()
+        return prepared
+
+    async def start_prepared(self, prepared):
+        """Release one exact held original after the native parent admits it.
+
+        The parent must already have persisted/validated its linked ChildOwner
+        and charged budget. Neither a capsule snapshot nor callback True proves
+        that admission; this method only guards the owned process release.
+        """
+        self._loop_now()
+        if type(prepared) is not MediaPreparedChild:
+            _error("conflict")
+        launch = prepared._original()
+        self._owned(launch)
+        self._prepared_current(launch)
+        with self._lock:
+            create = not launch._release_requested
+            if create:
+                if launch._fenced or self._closed:
+                    _error("expired")
+                launch._release_requested = True
+        if create:
+            coroutine = launch._release_prepared()
+            try:
+                launch._release_task = launch._task(coroutine)
+                if not self._actual_task(launch._release_task, coroutine):
+                    _error()
+            except BaseException as error:
+                launch._metadata_unknown = True
+                self.fence(launch)
+                self._ensure_cleanup(launch)
+                if not isinstance(error, Exception):
+                    raise
+                raise MediaProcessError() from None
+            else:
+                launch._release_assigned.set()
+        else:
+            await launch._release_assigned.wait()
+        if launch._release_task is None:
+            _error()
+        child = await asyncio.shield(launch._release_task)
+        self._prepared_current(launch)
+        if type(child) is not MediaChild or child is not launch._child:
+            _error()
+        return child
 
     def fence(self, launch):
         self._owned(launch)

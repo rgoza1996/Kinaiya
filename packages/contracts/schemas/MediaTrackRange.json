@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "first_frame": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "First Frame"
+    },
+    "first_sample": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "First Sample"
+    },
+    "first_track_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "First Track Seq",
+      "type": "integer"
+    },
+    "frame_count": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Frame Count"
+    },
+    "sample_count": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Sample Count"
+    },
+    "through_track_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Through Track Seq",
+      "type": "integer"
+    },
+    "track_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Track Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "track_id",
+    "first_track_seq",
+    "through_track_seq",
+    "first_sample",
+    "sample_count",
+    "first_frame",
+    "frame_count"
+  ],
+  "title": "MediaTrackRange",
+  "type": "object"
+}
