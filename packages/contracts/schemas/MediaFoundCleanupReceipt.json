@@ -1,0 +1,359 @@
+{
+  "$defs": {
+    "MediaLocalExchangeCleanup": {
+      "additionalProperties": false,
+      "properties": {
+        "all_readers_settled": {
+          "title": "All Readers Settled",
+          "type": "boolean"
+        },
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "body_fd_closed": {
+          "title": "Body Fd Closed",
+          "type": "boolean"
+        },
+        "child_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Child Instance",
+          "type": "string"
+        },
+        "exchange_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "kind": {
+          "const": "local_exchange",
+          "title": "Kind",
+          "type": "string"
+        },
+        "local_task_joined": {
+          "title": "Local Task Joined",
+          "type": "boolean"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/MediaNativeRef"
+          },
+          "maxItems": 64,
+          "title": "Observations",
+          "type": "array"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "original_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "cancelled",
+                "failed",
+                "not_started"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "publications_settled": {
+          "title": "Publications Settled",
+          "type": "boolean"
+        },
+        "remote_liability": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "transport_sole_closed": {
+          "title": "Transport Sole Closed",
+          "type": "boolean"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "kind",
+        "operation_id",
+        "child_instance",
+        "binding_sha256",
+        "original_owner",
+        "exchange_owner",
+        "state",
+        "outcome",
+        "local_task_joined",
+        "transport_sole_closed",
+        "body_fd_closed",
+        "all_readers_settled",
+        "publications_settled",
+        "observations",
+        "remote_liability"
+      ],
+      "title": "MediaLocalExchangeCleanup",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_Annotated_Union_MediaWorkerCleanup__MediaLocalExchangeCleanup___FieldInfo_annotation_NoneType__required_True__discriminator__kind____": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "discriminator": {
+            "mapping": {
+              "local_exchange": "#/$defs/MediaLocalExchangeCleanup",
+              "native_owner": "#/$defs/MediaWorkerCleanup"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/MediaWorkerCleanup"
+            },
+            {
+              "$ref": "#/$defs/MediaLocalExchangeCleanup"
+            }
+          ],
+          "title": "Body"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[Annotated[Union[MediaWorkerCleanup, MediaLocalExchangeCleanup], FieldInfo(annotation=NoneType, required=True, discriminator='kind')]]",
+      "type": "object"
+    },
+    "MediaWorkerCleanup": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "child_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Child Instance",
+          "type": "string"
+        },
+        "kind": {
+          "const": "native_owner",
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "original_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "cancelled",
+                "failed",
+                "not_started"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "proof": {
+          "enum": [
+            "local_join",
+            "pidfd_reap",
+            "owned_worker_receipt",
+            "client_playback",
+            "transport_only",
+            "none"
+          ],
+          "title": "Proof",
+          "type": "string"
+        },
+        "publication": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "Publication",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "native_task",
+            "local_process",
+            "owned_worker",
+            "client_playback",
+            "external_unknown"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "kind",
+        "operation_id",
+        "child_instance",
+        "binding_sha256",
+        "original_owner",
+        "state",
+        "outcome",
+        "proof",
+        "publication",
+        "scope"
+      ],
+      "title": "MediaWorkerCleanup",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_Annotated_Union_MediaWorkerCleanup__MediaLocalExchangeCleanup___FieldInfo_annotation_NoneType__required_True__discriminator__kind____"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[Annotated[Union[MediaWorkerCleanup, MediaLocalExchangeCleanup], FieldInfo(annotation=NoneType, required=True, discriminator='kind')]]",
+  "type": "object"
+}

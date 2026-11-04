@@ -548,6 +548,7 @@ class LocalOwnerSignInBroker:
                 "status": "authenticated",
                 "role": "owner",
                 "credential_kind": "scoped_owner_session",
+                "owner_token": issued["session_token"],
                 "session_token": issued["session_token"],
                 "host_generation": issued["host_generation"],
                 "owner_epoch": issued["owner_epoch"],

@@ -416,12 +416,15 @@ def test_stale_host_generation_and_owner_token_rotation_invalidate_session_and_h
         # Issue a second session token under the new host_generation.
         cookie_2 = broker.seal_initial_launch_cookie(client_host="127.0.0.1", origin=origin)
         seal_2 = parse_handoff_cookie((cookie_2 or "").split(";", 1)[0])
-        session_token_2 = broker.consume_handoff(
+        exchanged_2 = broker.consume_handoff(
             cookie_seal=seal_2,
             origin=origin,
             csrf_header="1",
             client_host="127.0.0.1",
-        )["session_token"]
+        )
+        assert exchanged_2["owner_token"] == exchanged_2["session_token"]
+        assert exchanged_2["owner_token"].startswith("kny_sess_")
+        session_token_2 = exchanged_2["session_token"]
 
         created = client.post(
             "/v1/sessions",

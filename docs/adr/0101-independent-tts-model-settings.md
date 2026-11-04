@@ -54,14 +54,18 @@ Lookup requires the exact original body. A foreign backend refuses; same-backend
 absence is fenced only by retired instance or strictly newer native revision.
 HTTP errors alone never prove a dispatched save failed.
 
-`converse-tts-model.sqlite` has an exact three-table/version1 schema, bounded
-SQL/JSON and complete unique settings history. Only affirmative atomic creation
-initializes it. A bounded five-second directory lock spans publication through
-initialization; a separate lifetime file lock remains retained for actual
-leases or uncertain admissions. Existing empty/corrupt state never resets to
-host. There are at most64 live leases/admissions and10,000 settings receipts.
-Requests are bounded to4KiB with one five-second body deadline; responses are
-bounded to64KiB, owner authenticated and `no-store`.
+`converse-tts-model.sqlite` uses an exact four-table/version2 schema
+(`tts_model_state`, `tts_model_operations`, `tts_model_admissions` with nullable
+worker `binding` JSON, and `tts_model_settlements`), bounded SQL/JSON and
+complete unique settings history. Validated three-table/version1 stores migrate
+additively to version2 while preserving existing pin-only admissions with a
+`NULL` binding. Only affirmative atomic creation initializes a new store. A
+bounded five-second directory lock spans publication through initialization; a
+separate lifetime file lock remains retained for actual leases or uncertain
+admissions. Existing empty/corrupt state never resets to host. There are at
+most64 live leases/admissions, 10,000 settings receipts and 10,000 retired
+settlement receipts. Requests are bounded to4KiB with one five-second body
+deadline; responses are bounded to64KiB, owner authenticated and `no-store`.
 
 Saving requires settled native Converse preparation, text, windows, STT, TTS,
 memory, playback, publication and cleanup. The final CAS/commit has no await
@@ -106,13 +110,23 @@ uncertainty to resolve. The finalizer joins dynamic publication tasks and closes
 admission of new statuses synchronously before releasing a settled turn. The
 generic JournalClient parsing and cleanup limits are unchanged.
 
-Durable exact admissions precede unobservable local dispatch or the known cloud
-export boundary. They clear only after positive producer completion, actual
-cleanup and required playback/publication settlement. Cancelled/failed/unknown
-work or hard death retains its marker; restart never treats it as stopped.
-There is no reset button or fake worker reconciliation. A local barge-in whose
-actual worker settlement is unavailable can therefore leave this role blocked;
-native worker status/reconciliation remains an explicit next capability.
+Durable exact admissions precede local dispatch or the known cloud export
+boundary. For the supported local voice worker (`native_tts_settlement_v1`),
+Converse reserves an exact worker operation descriptor before synthesis and
+persists a `TTSWorkerBinding` alongside the admission pin; when audio frames are
+emitted, `audio_exposed` is durably recorded on that binding. Normal completion
+clears the admission only after positive producer completion, actual transport
+cleanup and required playback/publication settlement. Interrupted or unknown
+admissions with a verifiable `native_tts_settlement_v1` binding can be retired
+into `tts_model_settlements` only when the configured local worker returns an
+exact matching terminal `TTSWorkerProof` (`settled: true`, `state: "settled"`
+after producer thread exit/join and any required CUDA synchronization), local
+turn/transport cleanup has settled, any exposed audio has confirmed terminal
+delivery or generation-stop acknowledgement, and compare-and-delete matches the
+complete `(id, identity, binding)` row. Unsupported, legacy `NULL`-bound,
+quarantined, mismatched or unobservable native work remains explicitly
+`unknown`; restart never treats it as stopped, and there is no reset button or
+fake worker reconciliation.
 
 One event/generation cannot allocate a fresh TTS attempt while its captured
 attempt is retained. This avoids duplicate spending after a lost stream reply.
@@ -121,9 +135,18 @@ no active owner. Recovered old-runtime replies remain ineligible under existing
 playback barriers. Shared Session/speech clients stay retained under actual
 unfinished users and cleanup.
 
+## Interruption qualification
+
+The [November 3 qualification record](../../evaluation/evidence/tts-interruption-settlement-2026-11-03.json)
+binds the supported native-worker recovery path, independent source/fixture reviews,
+retained failed run and changed-fixture speech checks to their actual revisions.
+Its synthetic CPU/ASGI/SQLite scope does not establish real model, GPU, acoustic
+playback or universal provider settlement. Integrated-head CI remains required.
+
 ## Remaining work
 
 Unified budget administration, local worker/profile reconfiguration, additional
-voices/providers, native worker reconciliation, wider fallbacks and real model,
-audio-device or quality qualification are not completed by this editor. Source
-analysis and generated schemas do not replace CI or that qualification.
+voices/providers, settlement protocols for non-native/external TTS backends,
+wider fallbacks and real model, audio-device or quality qualification are not
+completed by this editor. Source analysis and generated schemas do not replace
+CI or that qualification.

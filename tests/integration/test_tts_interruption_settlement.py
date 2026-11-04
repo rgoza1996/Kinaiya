@@ -11,7 +11,7 @@ import httpx
 import pytest
 
 from packages.contracts.models import ConverseRequest, ProviderInfo, SessionRequest
-from packages.contracts.tts_models import TTSAdmissionReconcile
+from packages.contracts.tts_models import TTSAdmissionReconcile, TTSWorkerProof
 from packages.providers.speech import SpeechClient
 from packages.providers.text import ScriptedProvider
 from packages.providers.tts_backends import AudioWaveform
@@ -709,6 +709,367 @@ async def test_pre_frame_interruption_recovers_after_worker_settlement_without_d
 
     assert settings.unknown_admissions() == 0
     entry2 = await create_reply(tts_env, "pre-frame-2")
+    ok_resp = await tts_env.http.post(
+        "/v1/converse/speech",
+        json={
+            "event_id": entry2["event_id"],
+            "generation_epoch": entry2["payload"]["generation_epoch"],
+        },
+    )
+    assert ok_resp.status_code == 200
+    assert settings.unknown_admissions() == 0
+
+
+async def test_mismatched_or_malformed_worker_proof_rejected_without_retiring_admission(
+    tts_env, monkeypatch
+):
+    """Review Finding 1: Mismatched worker/operation/text/profile/request proof never retires."""
+    entry1 = await create_reply(tts_env, "proof-mismatch-1")
+    tts_env.backend.block_next = True
+    tts_env.backend.first_emitted.clear()
+    tts_env.backend.release_thread.clear()
+    tts_env.backend.thread_exited.clear()
+
+    req = tts_env.http.build_request(
+        "POST",
+        "/v1/converse/speech",
+        json={
+            "event_id": entry1["event_id"],
+            "generation_epoch": entry1["payload"]["generation_epoch"],
+        },
+    )
+    resp = await tts_env.http.send(req, stream=True)
+    assert resp.status_code == 200
+    await anext(resp.aiter_lines())
+    await wait_thread_event(tts_env.backend.first_emitted)
+
+    close_task = asyncio.create_task(resp.aclose())
+    await asyncio.sleep(0.03)
+    tts_env.backend.release_thread.set()
+    await wait_thread_event(tts_env.backend.thread_exited)
+    await close_task
+
+    async with asyncio.timeout(2):
+        while any(
+            turn.producer_cleanup is None or not turn.producer_cleanup.done()
+            for turn in tts_env.runtime._tts_turns
+        ):
+            await asyncio.sleep(0.01)
+
+    settings = tts_env.runtime.tts_model_settings
+    inv = settings.admission_inventory()["admissions"][0]
+    admission_id = inv["admission_id"]
+    pin_sha256 = inv["pin_sha256"]
+    reconcile_req = TTSAdmissionReconcile(
+        expected_backend_id=settings.backend_id,
+        admission_id=admission_id,
+        pin_sha256=pin_sha256,
+    )
+
+    real_lookup = tts_env.speech.lookup_native_tts
+    stored_binding = settings._admission_records()[admission_id][1]
+    genuine_proof = await real_lookup(stored_binding)
+    assert genuine_proof.settled is True
+    assert genuine_proof.outcome == "cancelled"
+
+    fake_proof = genuine_proof.model_copy(update={"operation_id": "tts_op_" + "f" * 32})
+
+    async def return_fake(_binding):
+        return fake_proof
+
+    monkeypatch.setattr(tts_env.speech, "lookup_native_tts", return_fake)
+
+    # Confirm terminal delivery while lookup returns a mismatched operation_id proof.
+    deliv_resp = await tts_env.http.post(
+        "/v1/converse/delivery",
+        json={
+            "event_id": entry1["event_id"],
+            "generation_epoch": entry1["payload"]["generation_epoch"],
+            "chunk_id": entry1["payload"]["chunk_id"],
+            "status": "interrupted",
+            "played_seconds": 0.01,
+        },
+    )
+    assert deliv_resp.status_code == 200
+    assert settings.unknown_admissions() == 1
+
+    for bad_proof in (
+        genuine_proof.model_copy(update={"operation_id": "tts_op_" + "f" * 32}),
+        genuine_proof.model_copy(update={"worker_instance": "e" * 32}),
+        genuine_proof.model_copy(update={"text_sha256": "a" * 64}),
+        genuine_proof.model_copy(update={"profile": "Supertonic 3"}),
+        genuine_proof.model_copy(update={"request_sha256": "b" * 64}),
+        {k: v for k, v in genuine_proof.model_dump(mode="json").items() if k != "protocol"},
+        SimpleNamespace(**genuine_proof.model_dump(mode="json")),
+    ):
+        fake_proof = bad_proof
+        with pytest.raises(TTSModelConflict):
+            await settings.reconcile_admission(reconcile_req)
+        assert settings.unknown_admissions() == 1
+        assert settings.db.execute("SELECT COUNT(*) FROM tts_model_settlements").fetchone()[0] == 0
+
+    monkeypatch.setattr(tts_env.speech, "lookup_native_tts", real_lookup)
+    retired = await settings.reconcile_admission(reconcile_req)
+    assert retired["state"] == "retired"
+    assert retired["operation_id"] == genuine_proof.operation_id
+    assert retired["worker_instance"] == genuine_proof.worker_instance
+    assert settings.unknown_admissions() == 0
+
+
+async def test_changed_binding_across_async_lookup_enforces_playback_ack_and_cas_delete(
+    tts_env, tmp_path, monkeypatch
+):
+    """Review Finding 2: Changed binding_json across lookup await enforces ACK and CAS delete."""
+    entry1 = await create_reply(tts_env, "cas-binding-1")
+    tts_env.backend.block_next = True
+    tts_env.backend.first_emitted.clear()
+    tts_env.backend.release_thread.clear()
+    tts_env.backend.thread_exited.clear()
+
+    req = tts_env.http.build_request(
+        "POST",
+        "/v1/converse/speech",
+        json={
+            "event_id": entry1["event_id"],
+            "generation_epoch": entry1["payload"]["generation_epoch"],
+        },
+    )
+    resp = await tts_env.http.send(req, stream=True)
+    assert resp.status_code == 200
+    await anext(resp.aiter_lines())
+    await wait_thread_event(tts_env.backend.first_emitted)
+
+    close_task = asyncio.create_task(resp.aclose())
+    await asyncio.sleep(0.03)
+    tts_env.backend.release_thread.set()
+    await wait_thread_event(tts_env.backend.thread_exited)
+    await close_task
+
+    async with asyncio.timeout(2):
+        while any(
+            turn.producer_cleanup is None or not turn.producer_cleanup.done()
+            for turn in tts_env.runtime._tts_turns
+        ):
+            await asyncio.sleep(0.01)
+
+    inv = tts_env.runtime.tts_model_settings.admission_inventory()["admissions"][0]
+    admission_id = inv["admission_id"]
+    pin_sha256 = inv["pin_sha256"]
+
+    # Copy DB to a reopened store and set initial binding to audio_exposed=False
+    # so we can simulate audio_exposed transitioning False -> True across the lookup await.
+    reopen_path = tmp_path / "data" / "cas-binding-v2.sqlite"
+    src_conn = sqlite3.connect(tts_env.db_path)
+    dst_conn = sqlite3.connect(reopen_path)
+    src_conn.backup(dst_conn)
+    dst_conn.close()
+    src_conn.close()
+    reopen_path.chmod(0o600)
+
+    reopened_runtime = ConverseRuntime(
+        LocalJournal(tts_env.store, "converse"),
+        ScriptedProvider(["CAS reply."]),
+    )
+    reopened = TTSModelSettings(
+        reopened_runtime,
+        None,
+        tts_env.speech,
+        reopen_path,
+        workspace=tts_env.workspace,
+        host_info=ProviderInfo(provider="local-voice", model=PROFILE, local=True, streaming=True),
+        host_profile=PROFILE,
+        host_voice="af_heart",
+    )
+    reopened_runtime.tts_model_settings = reopened
+    try:
+        identity, exposed_binding = reopened._admission_records()[admission_id]
+        unexposed_binding = exposed_binding.model_copy(update={"audio_exposed": False})
+        unexposed_json = _encode(unexposed_binding.model_dump(mode="json"))
+        exposed_json = _encode(exposed_binding.model_dump(mode="json"))
+        reopened.db.execute(
+            "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=?",
+            (unexposed_json, admission_id, identity),
+        )
+        reopened.db.commit()
+
+        real_lookup = tts_env.speech.lookup_native_tts
+
+        async def lookup_flips_exposed(binding):
+            proof = await real_lookup(binding)
+            # Simulate binding_json transitioning from unexposed to exposed during the await.
+            reopened.db.execute(
+                "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=?",
+                (exposed_json, admission_id, identity),
+            )
+            reopened.db.commit()
+            return proof
+
+        monkeypatch.setattr(tts_env.speech, "lookup_native_tts", lookup_flips_exposed)
+        reconcile_req = TTSAdmissionReconcile(
+            expected_backend_id=reopened.backend_id,
+            admission_id=admission_id,
+            pin_sha256=pin_sha256,
+        )
+
+        # Because binding transitioned to audio_exposed=True during lookup and no playback/delivery
+        # ACK exists yet in the journal, reconciliation must refuse and keep the admission!
+        with pytest.raises(TTSModelConflict, match="delivery"):
+            await reopened.reconcile_admission(reconcile_req)
+        assert reopened.unknown_admissions() == 1
+
+        # Now confirm terminal delivery in the journal, and test that if binding_json changes
+        # across the post-lookup delivery check before DELETE, the CAS binding predicate rejects it.
+        monkeypatch.setattr(tts_env.speech, "lookup_native_tts", real_lookup)
+        deliv_resp = await tts_env.http.post(
+            "/v1/converse/delivery",
+            json={
+                "event_id": entry1["event_id"],
+                "generation_epoch": entry1["payload"]["generation_epoch"],
+                "chunk_id": entry1["payload"]["chunk_id"],
+                "status": "interrupted",
+                "played_seconds": 0.01,
+            },
+        )
+        assert deliv_resp.status_code == 200
+
+        mutated_binding = exposed_binding.model_copy(update={"tts_operation_id": "c" * 32})
+        mutated_json = _encode(mutated_binding.model_dump(mode="json"))
+        real_confirms = reopened._journal_confirms_delivery
+        lookup_owner = None
+        post_lookup_delivery = asyncio.Event()
+        release_delivery = asyncio.Event()
+
+        async def observe_genuine_lookup(binding):
+            nonlocal lookup_owner
+            proof = await real_lookup(binding)
+            lookup_owner = asyncio.current_task()
+            return proof
+
+        async def hold_post_lookup_delivery(binding):
+            ok = await real_confirms(binding)
+            # The initial delivery check must leave the binding unchanged.
+            # Pause only this original reconciliation's check after real lookup.
+            if lookup_owner is not None and asyncio.current_task() is lookup_owner:
+                post_lookup_delivery.set()
+                await release_delivery.wait()
+            return ok
+
+        monkeypatch.setattr(tts_env.speech, "lookup_native_tts", observe_genuine_lookup)
+        monkeypatch.setattr(reopened, "_journal_confirms_delivery", hold_post_lookup_delivery)
+        reconciliation = asyncio.create_task(reopened.reconcile_admission(reconcile_req))
+        try:
+            async with asyncio.timeout(2):
+                await post_lookup_delivery.wait()
+            assert lookup_owner is not None
+            assert not reconciliation.done()
+            assert reopened._admission_records()[admission_id] == (identity, exposed_binding)
+            reopened.db.execute(
+                "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=?",
+                (mutated_json, admission_id, identity),
+            )
+            reopened.db.commit()
+        finally:
+            release_delivery.set()
+            # Always join the original observation; do not cancel it to end a failed test.
+            await asyncio.gather(reconciliation, return_exceptions=True)
+        with pytest.raises(TTSModelConflict, match="changed"):
+            reconciliation.result()
+        assert post_lookup_delivery.is_set()
+        assert reopened.unknown_admissions() == 1
+        assert reopened._admission_records()[admission_id] == (identity, mutated_binding)
+        assert reopened.db.execute("SELECT COUNT(*) FROM tts_model_settlements").fetchone()[0] == 0
+
+        # Restore the valid exposed_json binding and real _journal_confirms_delivery; now CAS succeeds.
+        reopened.db.execute(
+            "UPDATE tts_model_admissions SET binding=? WHERE id=? AND identity=?",
+            (exposed_json, admission_id, identity),
+        )
+        reopened.db.commit()
+        monkeypatch.setattr(tts_env.speech, "lookup_native_tts", real_lookup)
+        monkeypatch.setattr(reopened, "_journal_confirms_delivery", real_confirms)
+        retired = await reopened.reconcile_admission(reconcile_req)
+        assert retired["state"] == "retired"
+        assert reopened.unknown_admissions() == 0
+    finally:
+        await reopened.close()
+        await reopened_runtime.close()
+
+
+async def test_normal_eof_synthesis_stream_records_completed_worker_outcome(tts_env):
+    """Review Finding 3: Normal EOF synthesis stream records outcome=='completed', not 'cancelled'."""
+    entry1 = await create_reply(tts_env, "eof-completed-1")
+    resp = await tts_env.http.post(
+        "/v1/converse/speech",
+        json={
+            "event_id": entry1["event_id"],
+            "generation_epoch": entry1["payload"]["generation_epoch"],
+        },
+    )
+    assert resp.status_code == 200
+    frames = [json.loads(line) for line in resp.text.splitlines() if line.strip()]
+    assert len(frames) == 1
+
+    turn = tts_env.runtime._tts_history[(entry1["event_id"], entry1["payload"]["generation_epoch"])]
+    assert turn.native_binding is not None
+    proof: TTSWorkerProof = await tts_env.speech.lookup_native_tts(turn.native_binding)
+    assert proof.settled is True
+    assert proof.state == "settled"
+    assert proof.outcome == "completed"
+
+
+async def test_ordinary_single_write_confirmed_stop_reconciles_settled_admission(tts_env):
+    """Review Finding 4: Ordinary 1-write confirmed-stop path invokes post-stop reconciliation."""
+    entry1 = await create_reply(tts_env, "stop-reconcile-1")
+    tts_env.backend.block_next = True
+    tts_env.backend.first_emitted.clear()
+    tts_env.backend.release_thread.clear()
+    tts_env.backend.thread_exited.clear()
+
+    req = tts_env.http.build_request(
+        "POST",
+        "/v1/converse/speech",
+        json={
+            "event_id": entry1["event_id"],
+            "generation_epoch": entry1["payload"]["generation_epoch"],
+        },
+    )
+    resp = await tts_env.http.send(req, stream=True)
+    assert resp.status_code == 200
+    await anext(resp.aiter_lines())
+    await wait_thread_event(tts_env.backend.first_emitted)
+
+    # Disconnect and let the worker thread finish unwinding before stop reconciliation runs.
+    close_task = asyncio.create_task(resp.aclose())
+    await asyncio.sleep(0.03)
+    tts_env.backend.release_thread.set()
+    await wait_thread_event(tts_env.backend.thread_exited)
+    await close_task
+
+    async with asyncio.timeout(2):
+        while any(
+            turn.producer_cleanup is None or not turn.producer_cleanup.done()
+            for turn in tts_env.runtime._tts_turns
+        ):
+            await asyncio.sleep(0.01)
+
+    settings = tts_env.runtime.tts_model_settings
+    # Frame 0 was exposed and no delivery/stop ACK has been published yet, so admission is retained.
+    assert settings.unknown_admissions() == 1
+
+    # Run the ordinary 1-write confirmed-stop path via /v1/converse/interrupt.
+    int_resp = await tts_env.http.post(
+        "/v1/converse/interrupt",
+        json={
+            "session_id": tts_env.session.session_id,
+            "expected_generation": entry1["payload"]["generation_epoch"],
+        },
+    )
+    assert int_resp.status_code == 200
+
+    # Immediately after the 1-write confirmed stop returns, the unknown admission is retired!
+    assert settings.unknown_admissions() == 0
+
+    entry2 = await create_reply(tts_env, "stop-reconcile-2")
     ok_resp = await tts_env.http.post(
         "/v1/converse/speech",
         json={

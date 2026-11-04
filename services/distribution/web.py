@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
@@ -35,9 +36,22 @@ def web_root(source):
         or not (root / "main.dart.js").is_file()
     ):
         raise InstallError(
-            "No matching prebuilt web assets. Developer path: install Flutter SDK, then flutter build web in apps/kinaiya_flutter; see docs/linux-installation.md"
+            "No matching prebuilt web assets. Install a release bundle (kinaiya install) or developer path: install Flutter SDK, then flutter build web in apps/kinaiya_flutter; see docs/linux-installation.md"
         )
     return root
+
+
+def web_bundle_dir(layout, *, fallback_source: Path | None = None) -> Path:
+    """Resolve and verify the matching-release Flutter web bundle directory."""
+    if (layout.install / "layout.json").exists():
+        receipt = current_receipt(layout)
+        if receipt is None:
+            raise InstallError(
+                "No active managed release. Install a release bundle ('kinaiya install') or build apps/kinaiya_flutter/build/web with 'flutter build web'."
+            )
+        source = (layout.install / "current").resolve() / receipt["source"]
+        return web_root(source)
+    return web_root(fallback_source if fallback_source is not None else layout.install)
 
 
 def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
@@ -140,6 +154,13 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
                 self.send_error(405)
                 return None
             path = PurePosixPath(raw_path)
+            if path == PurePosixPath("/health"):
+                payload = b'{"service":"web","status":"ready"}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                return io.BytesIO(payload)
             if (
                 ".." in path.parts
                 or "\\" in str(path)
@@ -177,7 +198,9 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
     return Assets
 
 
-def serve_web(layout):
+def serve_web(layout, *, port: int = 8780):
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise InstallError("Web loopback port must be an integer between 1 and 65535")
     with operation_lock(layout.install / "runtime.lock", shared=True):
         receipt = current_receipt(layout)
         if receipt is None:
@@ -186,13 +209,13 @@ def serve_web(layout):
         root = web_root(source)
         broker = LocalOwnerSignInBroker(
             layout.data,
-            allowed_origins=("http://127.0.0.1:8780", "http://localhost:8780"),
+            allowed_origins=(f"http://127.0.0.1:{port}", f"http://localhost:{port}"),
         )
-        with ThreadingHTTPServer(("127.0.0.1", 8780), asset_handler(root, broker=broker)) as server:
+        with ThreadingHTTPServer(("127.0.0.1", port), asset_handler(root, broker=broker)) as server:
             print(
                 json.dumps(
                     {
-                        "web": "http://127.0.0.1:8780",
+                        "web": f"http://127.0.0.1:{port}",
                         "source_sha": receipt["release"]["source_sha"],
                         "host_generation": broker.host_generation,
                         "owner_epoch": broker.owner_epoch,
