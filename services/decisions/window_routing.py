@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 import time
+from typing import NamedTuple
 
 import httpx
 from pydantic import ValidationError
@@ -96,20 +97,20 @@ def acknowledged_task(
 
 
 _ALLOWED_SCOPES_LOCAL = {"local_only", "public_synthetic", "private_cloud_authorized"}
-_ALLOWED_SCOPES_META = {"public_synthetic"}
-_ALLOWED_SCOPES_REMOTE = {"public_synthetic", "private_cloud_authorized"}
+OVERFLOW_TASKS = 5
+# Bump when the provider-visible window request shape or instructions change so
+# RAM cache entries from an older request contract can never be reused.
+WINDOW_REQUEST_CONTRACT = "window-request-v2"
 
 
-def _provider_scopes(provider) -> set[str]:
-    info = getattr(provider, "info", None)
-    if info is not None and getattr(info, "local", False):
-        return _ALLOWED_SCOPES_LOCAL
-    if info is not None and (
-        getattr(info, "provider", "") == "meta"
-        or "contributor" in getattr(info, "model", "").lower()
-    ):
-        return _ALLOWED_SCOPES_META
-    return _ALLOWED_SCOPES_REMOTE
+class WindowDisclosureRefused(ValueError):
+    """The current window's disclosure scope does not permit the provider."""
+
+
+def _allowed_scopes(provider_info) -> set[str]:
+    if provider_info is None:
+        return set(_ALLOWED_SCOPES_LOCAL)
+    return {scope for scope in _ALLOWED_SCOPES_LOCAL if scope_allowed(provider_info, scope)}
 
 
 def _entry_scope(entry: JournalEntry) -> str:
@@ -129,6 +130,146 @@ def _entry_text(entry: JournalEntry) -> str:
     return text if isinstance(text, str) else ""
 
 
+def _task_refs(tasks: list) -> list[dict]:
+    return [
+        {
+            "task_id": t.task_id,
+            "objective_revision": t.objective_revision,
+            "state": str(t.state.value if hasattr(t.state, "value") else t.state),
+        }
+        for t in tasks
+    ]
+
+
+def _encode_request(window: SpeechWindow, entries: list[JournalEntry], tasks: list) -> str:
+    return json.dumps(
+        {
+            "latest": {
+                "text": window.text,
+                "user_speaking": window.user_speaking,
+                "capture_ended": window.capture_ended,
+                "utterance_id": window.utterance_id,
+                "window_index": window.window_index,
+                "revision": window.revision,
+            },
+            "context": [
+                {"kind": entry.kind, "text": _entry_text(entry)[:MAX_ENTRY_CHARS]}
+                for entry in entries
+            ],
+            "tasks": _task_refs(tasks),
+        }
+    )
+
+
+class WindowRequest(NamedTuple):
+    """Exact provider-visible window request and the native inputs it includes."""
+
+    body: str
+    context: list[JournalEntry]
+    tasks: list
+
+
+def build_window_request(
+    source: JournalEntry,
+    context: list[JournalEntry],
+    tasks: list,
+    *,
+    provider_info,
+    window_chars: int,
+) -> WindowRequest:
+    """Build the single authorization-first, bounded window classifier request.
+
+    The current source is admitted before any of its text is read into the
+    request; withheld context is filtered before projection. The result is
+    idempotent: rebuilding from its own ``context`` and ``tasks`` yields the
+    identical ``body``, so the worker's reuse identity and the provider call
+    are bound to the same bytes (including the overflow fold).
+    """
+    window = SpeechWindow.model_validate(source.payload)
+    if provider_info is not None and not scope_allowed(provider_info, window.content_scope):
+        raise WindowDisclosureRefused("Window disclosure does not permit this provider")
+    allowed = _allowed_scopes(provider_info)
+    entries = [e for e in context[-MAX_CONTEXT_ENTRIES:] if _entry_scope(e) in allowed]
+    included_tasks = list(tasks)[:MAX_TASKS]
+    body = _encode_request(window, entries, included_tasks)
+    if len(body) > window_chars:
+        # Overflow drops history and folds tasks; the returned inputs describe
+        # exactly what remains provider-visible.
+        entries, included_tasks = [], included_tasks[:OVERFLOW_TASKS]
+        body = _encode_request(window, entries, included_tasks)
+    if len(body) > window_chars:
+        raise ValueError("Current window exceeds classifier context bound")
+    return WindowRequest(body, entries, included_tasks)
+
+
+class WindowProjection(NamedTuple):
+    source_admissible: bool
+    context: list[JournalEntry]
+    tasks: list
+    body: str | None
+    digest: str | None
+
+
+def admissible_window_projection(
+    source: JournalEntry,
+    context: list[JournalEntry],
+    tasks: list,
+    *,
+    provider_info=None,
+    window_chars: int = 36000,
+    agent_enabled: bool = True,
+    agent_available: bool = True,
+    model_stamp: str | None = None,
+) -> WindowProjection:
+    """Project the exact classifier request and its canonical reuse digest.
+
+    A refused current source yields no digest and no text-bearing hash.
+    Invalid or over-bound requests raise before classification or reuse;
+    failed projection must never become a smaller request without its tasks.
+    """
+    try:
+        request = build_window_request(
+            source, context, tasks, provider_info=provider_info, window_chars=window_chars
+        )
+    except WindowDisclosureRefused:
+        return WindowProjection(False, [], [], None, None)
+    window = SpeechWindow.model_validate(source.payload)
+    canonical = {
+        "contract": WINDOW_REQUEST_CONTRACT,
+        "body": request.body,
+        "content_scope": window.content_scope,
+        "context_identity": [
+            {
+                "event_id": e.event_id,
+                "kind": e.kind,
+                "revision": e.payload.get("revision", 1) if isinstance(e.payload, dict) else 1,
+                "content_scope": _entry_scope(e),
+            }
+            for e in request.context
+        ],
+        "agent_enabled": bool(agent_enabled),
+        "agent_available": bool(agent_available),
+        "provider": (
+            {
+                "provider": provider_info.provider,
+                "model": provider_info.model,
+                "local": bool(provider_info.local),
+            }
+            if provider_info is not None
+            else None
+        ),
+        "allowed_scopes": sorted(_allowed_scopes(provider_info)),
+        "model_stamp": model_stamp,
+        "window_chars": window_chars,
+    }
+    digest = hashlib.sha256(
+        json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    return WindowProjection(True, request.context, request.tasks, request.body, digest)
+
+
 class WindowClassifier:
     """Classify one streaming window with the configured provider.
 
@@ -142,64 +283,17 @@ class WindowClassifier:
         self.provider = provider
         self.window_chars = window_chars
 
-    def _filter_context(self, context: list[JournalEntry]) -> tuple[list[dict], int]:
-        allowed = _provider_scopes(self.provider)
-        kept: list[dict] = []
-        withheld = 0
-        for entry in context[-MAX_CONTEXT_ENTRIES:]:
-            if _entry_scope(entry) not in allowed:
-                withheld += 1
-                continue
-            kept.append(
-                {
-                    "kind": entry.kind,
-                    "text": _entry_text(entry)[:MAX_ENTRY_CHARS],
-                }
-            )
-        return kept, withheld
+    def _build(self, source: JournalEntry, context: list[JournalEntry], tasks: list):
+        return build_window_request(
+            source,
+            context,
+            tasks,
+            provider_info=self.provider.info,
+            window_chars=self.window_chars,
+        )
 
     def _request_body(self, source: JournalEntry, context: list[JournalEntry], tasks: list) -> str:
-        window = SpeechWindow.model_validate(source.payload)
-        if not scope_allowed(self.provider.info, window.content_scope):
-            raise ValueError("Window disclosure does not permit this provider")
-        kept, _ = self._filter_context(context)
-        task_refs = [
-            {
-                "task_id": t.task_id,
-                "objective_revision": t.objective_revision,
-                "state": str(t.state.value if hasattr(t.state, "value") else t.state),
-            }
-            for t in list(tasks)[:MAX_TASKS]
-        ]
-        body = json.dumps(
-            {
-                "latest": {
-                    "text": window.text,
-                    "user_speaking": window.user_speaking,
-                    "capture_ended": window.capture_ended,
-                    "utterance_id": window.utterance_id,
-                    "window_index": window.window_index,
-                    "revision": window.revision,
-                },
-                "context": kept,
-                "tasks": task_refs,
-            }
-        )
-        if len(body) > self.window_chars:
-            body = json.dumps(
-                {
-                    "latest": {
-                        "text": window.text,
-                        "user_speaking": window.user_speaking,
-                        "capture_ended": window.capture_ended,
-                    },
-                    "context": [],
-                    "tasks": task_refs[:5],
-                }
-            )
-        if len(body) > self.window_chars:
-            raise ValueError("Current window exceeds classifier context bound")
-        return body
+        return self._build(source, context, tasks).body
 
     async def classify(
         self,
@@ -232,18 +326,10 @@ class WindowClassifier:
             " A request to stop only the companion's speech uses WAIT_FOR_NEXT_WINDOW and ignores Agent routing."
         )
         started = time.monotonic()
-        body = self._request_body(source, context, tasks)
+        request = self._build(source, context, tasks)
+        body = request.body
         context_used = json.loads(body)["context"]
-        capture_sources(
-            source,
-            [
-                entry
-                for entry in context[-MAX_CONTEXT_ENTRIES:]
-                if _entry_scope(entry) in _provider_scopes(self.provider)
-            ]
-            if context_used
-            else [],
-        )
+        capture_sources(source, request.context)
         raw = await self.provider.complete(
             [
                 {"role": "system", "content": instructions},

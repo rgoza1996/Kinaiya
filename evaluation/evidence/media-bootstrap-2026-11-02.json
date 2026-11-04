@@ -1,0 +1,70 @@
+{
+  "independent_static_reviews": {
+    "oracle_review_sha256": "f5e4467a195e3e104d57384cf3b93c70e8768de47c8e05ba2ce8db2435d729f6",
+    "review_scope": "Static helper and fixture/oracle reviews; reviewers did not execute these tests",
+    "source_review_sha256": "3596369373aa5aa41ffd6f99a6ba9d77d83ec483bbaf4d3ccead4572e8948f19"
+  },
+  "limits": [
+    "108 disposable synthetic CPU subprocess cases passed; no model/provider/device/private-video run",
+    "Passing bootstrap tests do not qualify the complete media lifecycle or sandbox",
+    "Full-project CI for this increment has not run; foundation PR355 CI has one separate finalization timeout tracked in issue356",
+    "No paid calls, installs, GPU lifecycle or live preview changes occurred",
+    "Local raw artifacts are named and hashed, not claimed uploaded"
+  ],
+  "oracle_sha256": "7c9ec1b978c53be0d69f06553087d206716a7aebfeda6cc241516cdd37bc013e",
+  "qualification": {
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-u",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/unit/test_media_bootstrap.py",
+      "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-bootstrap-first-gcq2euwv/pytest-tmp",
+      "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-bootstrap-first-gcq2euwv/junit.xml"
+    ],
+    "elapsed_wall_s": 3.888328486998944,
+    "exit_code": 0,
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "hostname": "roggoz",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "108",
+        "time": "3.486",
+        "timestamp": "2026-11-02T21:21:44.073161-08:00"
+      }
+    ],
+    "pins_preserved": true,
+    "qualified_inputs_stable": true,
+    "runner_preserved": true,
+    "started_at": "2026-11-03T05:21:43.717557+00:00",
+    "tracked_input_count": 1679
+  },
+  "raw_junit_sha256": "0563f483404c60847267ca17691ae35eec1925ddbe1105c51849ab2c90ae233c",
+  "raw_local_bundle": "204-media-bootstrap-first-gcq2euwv",
+  "raw_log_sha256": "b87419c2877f88a020c70eac753a3fa656356a5b7d653c94a20a1e8ee688e408",
+  "raw_receipt_sha256": "0af16df3669f54858f0fa1228a24eb2db20536a4e8e2a0330f414d9515cf0718",
+  "remaining": [
+    "Native admission and registered source grant",
+    "Original late-child, inner-process, control, reader and publication retirement",
+    "Sealed decoder runtime and per-segment budgets",
+    "Actual media decode and selected model transports",
+    "Complete transcript/evidence/Agent integration",
+    "AT64-AT66, private news-video and sign-language demo qualification"
+  ],
+  "scope": "Private trusted media bootstrap only; not a working decoder or full media lifecycle",
+  "source_head": "6ba1513eab43b24809e27fc8918b5b6e65d51e95",
+  "source_sha256": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05"
+}

@@ -183,9 +183,12 @@ def _fields(value, kind):
             if nested is not None and child is not None:
                 if typed and type(child) is not nested:
                     raise ValueError(_ERROR)
-                # Hand the native validator a complete dictionary, never an old
-                # instance that its own nested validator might trust unchanged.
-                result[name] = rebuild(child, nested)
+                if nested in _PACKETS:
+                    result[name] = child
+                else:
+                    # Hand the native validator a complete dictionary, never an old
+                    # instance that its own nested validator might trust unchanged.
+                    result[name] = rebuild(child, nested)
             else:
                 result[name] = _adapter(kind, name).validate_python(child, strict=True)
         return result

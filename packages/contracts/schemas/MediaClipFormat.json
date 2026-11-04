@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "audio_codec": {
+      "enum": [
+        "aac",
+        "opus",
+        "none"
+      ],
+      "title": "Audio Codec",
+      "type": "string"
+    },
+    "container": {
+      "enum": [
+        "mp4",
+        "webm"
+      ],
+      "title": "Container",
+      "type": "string"
+    },
+    "kind": {
+      "const": "video_clip",
+      "title": "Kind",
+      "type": "string"
+    },
+    "video_codec": {
+      "enum": [
+        "h264",
+        "hevc",
+        "vp9",
+        "av1"
+      ],
+      "title": "Video Codec",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "container",
+    "video_codec",
+    "audio_codec"
+  ],
+  "title": "MediaClipFormat",
+  "type": "object"
+}

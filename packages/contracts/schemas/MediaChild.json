@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "binding_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Binding Sha256",
+      "type": "string"
+    },
+    "cleanup": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "upload",
+        "decoder",
+        "converse_provider",
+        "decisions_provider",
+        "input_asr",
+        "assistant_asr",
+        "tts_provider",
+        "playback",
+        "agent_media",
+        "agent_delivery"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "operation_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "enum": [
+            "completed",
+            "cancelled",
+            "failed",
+            "not_started"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Outcome"
+    },
+    "owner": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "state": {
+      "enum": [
+        "reserved",
+        "running",
+        "fenced",
+        "closing",
+        "settled",
+        "unknown"
+      ],
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "instance",
+    "operation_id",
+    "owner",
+    "binding_sha256",
+    "state",
+    "outcome",
+    "cleanup"
+  ],
+  "title": "MediaChild",
+  "type": "object"
+}

@@ -14,7 +14,12 @@ from packages.contracts.standing_closure import (
     standing_closure_digest,
 )
 from packages.contracts.standing_execution import capability_digest, claim_id, intent_digest
-from packages.contracts.standing_work import StandingConflict, StandingUnavailable, canonical_bytes
+from packages.contracts.standing_work import (
+    StandingConflict,
+    StandingUnavailable,
+    _encode,
+    canonical_bytes,
+)
 
 _META = "standing_admission_closure_meta"
 _ROWS = "standing_admission_closures"
@@ -143,13 +148,14 @@ class StandingAdmissionClosures:
         if (
             row["claim_id"] != claim.claim_id
             or closure.claim_id != claim.claim_id
-            or canonical_bytes(closure).decode("utf-8") != row["closure"]
+            or closure.intent_digest != claim.intent_digest
+            or _encode(closure).decode("utf-8") != row["closure"]
             or (closure.initial is None) != (initial is None)
             or initial is not None
-            and canonical_bytes(closure.initial) != canonical_bytes(initial)
+            and _encode(closure.initial) != _encode(initial)
         ):
             raise StandingUnavailable
-        return closure.validate_request(claim.request)
+        return closure
 
     def close_admission(self, original, *, capability, deadline=None, cancelled=None):
         owner = self.owner

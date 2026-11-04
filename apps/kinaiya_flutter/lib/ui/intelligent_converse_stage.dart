@@ -509,7 +509,10 @@ class _IntelligentConverseStageState extends State<IntelligentConverseStage> {
         }
         final wide =
             bounds.maxWidth >= 980 &&
-            bounds.maxHeight >= 760 &&
+            // Reserve the rail on ordinary desktop windows too. The portrait
+            // already shrinks with the remaining stage height; the stacked
+            // fallback is for short/keyboard-constrained or enlarged layouts.
+            bounds.maxHeight >= 600 &&
             MediaQuery.textScalerOf(context).scale(16) <= 24;
         if (!wide) {
           _scheduleGeometry();

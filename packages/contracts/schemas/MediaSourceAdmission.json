@@ -1,0 +1,320 @@
+{
+  "$defs": {
+    "MediaFence": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "lease_generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "session": {
+          "$ref": "#/$defs/MediaSession"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session",
+        "source_revision",
+        "generation",
+        "lease_generation"
+      ],
+      "title": "MediaFence",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReservation": {
+      "additionalProperties": false,
+      "properties": {
+        "child_slots": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Child Slots",
+          "type": "integer"
+        },
+        "global_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Global Spool Bytes",
+          "type": "integer"
+        },
+        "metadata_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Metadata Bytes",
+          "type": "integer"
+        },
+        "owner_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Owner Spool Bytes",
+          "type": "integer"
+        },
+        "policy_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "reservation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Reservation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reservation_id",
+        "owner_spool_bytes",
+        "global_spool_bytes",
+        "metadata_bytes",
+        "child_slots",
+        "policy_sha256"
+      ],
+      "title": "MediaReservation",
+      "type": "object"
+    },
+    "MediaSession": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "MediaSession",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "admission_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Admission Id",
+      "type": "string"
+    },
+    "anchor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "capture_instance": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Capture Instance"
+    },
+    "client_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Client Instance",
+      "type": "string"
+    },
+    "decoder_profile_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Decoder Profile Sha256",
+      "type": "string"
+    },
+    "fence": {
+      "$ref": "#/$defs/MediaFence"
+    },
+    "kind": {
+      "enum": [
+        "recording",
+        "live"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "lease_expires_at_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Lease Expires At Ms",
+      "type": "integer"
+    },
+    "purpose": {
+      "enum": [
+        "owner_voice",
+        "observe",
+        "analyze"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "raw_retain_until_ms": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Raw Retain Until Ms"
+    },
+    "replaces_source": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "reservation": {
+      "$ref": "#/$defs/MediaReservation"
+    },
+    "scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "session": {
+      "$ref": "#/$defs/MediaSession"
+    },
+    "source_equivalence_id": {
+      "anyOf": [
+        {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Source Equivalence Id"
+    },
+    "source_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "admission_id",
+    "source_id",
+    "source_equivalence_id",
+    "source_revision",
+    "session",
+    "kind",
+    "purpose",
+    "anchor",
+    "replaces_source",
+    "capture_instance",
+    "client_instance",
+    "scope",
+    "reservation",
+    "decoder_profile_sha256",
+    "fence",
+    "lease_expires_at_ms",
+    "raw_retain_until_ms"
+  ],
+  "title": "MediaSourceAdmission",
+  "type": "object"
+}

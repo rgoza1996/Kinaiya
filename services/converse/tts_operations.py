@@ -32,11 +32,14 @@ class TTSTurn:
         self.publication_changed = asyncio.Event()
         self.publication_closed = False
         self.admission = runtime.admission()
+        self.native_binding = None
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_):
+        if self.started and not self.completion_check():
+            self.lease.mark_unknown()
         self.request_done.set()
         self.retire()
 
@@ -81,11 +84,32 @@ class TTSTurn:
         task = asyncio.create_task(publish())
         self.admission_publication = task
         self.publications.add(task)
-        await asyncio.shield(task)
+        entry = await asyncio.shield(task)
         if not self.current():
             raise ValueError("TTS source changed before synthesis")
         if not self.exact_openrouter:
-            self.begin_native()
+            binding = None
+            prepare = getattr(self.lease.target, "prepare_native_tts", None)
+            if callable(prepare):
+
+                async def check_current():
+                    return self.current()
+
+                binding = await prepare(
+                    text,
+                    current=check_current,
+                    tts_operation_id=self.operation_id,
+                    synthesis_event_id=entry.event_id,
+                    synthesis_sequence=entry.sequence,
+                    source_event_id=self.event.event_id,
+                    session_id=self.event.session_id,
+                    thread_id=self.event.thread_id,
+                    epoch=self.event.epoch,
+                    generation_epoch=self.generation,
+                )
+                if not self.current():
+                    raise ValueError("TTS source changed before synthesis")
+            self.begin_native(binding=binding)
 
     @property
     def exact_openrouter(self):
@@ -93,11 +117,17 @@ class TTSTurn:
 
         return isinstance(self.lease.target, OpenRouterTTSClient)
 
-    def begin_native(self):
+    def begin_native(self, *, binding=None):
         if self.started or not self.current():
             raise ValueError("TTS actual dispatch is stale or already admitted")
-        self.lease.owner.begin_native(self.lease)
+        self.lease.owner.begin_native(self.lease, binding=binding)
+        self.native_binding = binding
         self.started = True
+
+    def dispatch_native(self, text):
+        if self.native_binding is not None:
+            return self.lease.target.synthesize(text, native_binding=self.native_binding)
+        return self.lease.target.synthesize(text)
 
     def scoped_synthesis(self, text, *, content_scope, current):
         return self.lease.target.synthesize_scoped(
@@ -106,7 +136,13 @@ class TTSTurn:
 
     def frame(self, frame):
         if type(frame.get("audio")) is str and frame["audio"]:
-            self.lease.audio_exposed = True
+            if not self.lease.audio_exposed:
+                self.lease.audio_exposed = True
+                if self.native_binding is not None:
+                    self.native_binding = self.native_binding.model_copy(
+                        update={"audio_exposed": True}
+                    )
+                    self.lease.owner.mark_binding_audio_exposed(self.lease)
         return {
             **frame,
             "tts_model": self.lease.pin.model_dump(mode="json"),
@@ -254,6 +290,26 @@ class TTSTurn:
             )
         return self.cleanup
 
+    async def reconcile_native_settlement(self):
+        if (
+            self.lease.admission_id is None
+            or self.native_binding is None
+            or self.lease.cleanup_actual_failed
+            or self.lease.publication_unknown
+            or self.lease.playback_pending
+            or (self.lease.audio_exposed and not self.lease.delivery_confirmed)
+        ):
+            return None
+        from packages.contracts.tts_models import TTSAdmissionReconcile
+
+        return await self.lease.owner.reconcile_admission(
+            TTSAdmissionReconcile(
+                expected_backend_id=self.lease.owner.backend_id,
+                admission_id=self.lease.admission_id,
+                pin_sha256=self.lease.owner._pin_sha256(self.lease.admission_identity),
+            )
+        )
+
     async def _retire(self):
         try:
             await self.request_done.wait()
@@ -278,7 +334,9 @@ class TTSTurn:
                 if pending:
                     await asyncio.gather(*pending, return_exceptions=True)
                     continue
-                if self.lease.cleanup_failed or self.lease.native_cleanup_unknown:
+                if self.lease.cleanup_actual_failed or (
+                    self.lease.native_cleanup_unknown and self.native_binding is None
+                ):
                     break
                 if self.lease.playback_pending or self.lease.publication_unknown:
                     await self.publication_changed.wait()
@@ -289,9 +347,23 @@ class TTSTurn:
                 break
             if not self.lease.cleanup_failed and not self.lease.cleanup_unknown:
                 self.lease.owner.finish_native(self.lease)
+            elif (
+                self.lease.native_cleanup_unknown
+                and self.native_binding is not None
+                and not self.lease.cleanup_actual_failed
+                and not self.lease.publication_unknown
+                and not self.lease.playback_pending
+            ):
+                from services.converse.tts_model_settings import TTSModelConflict
+
+                try:
+                    await self.reconcile_native_settlement()
+                except (TTSModelConflict, ValueError, RuntimeError):
+                    pass
             await asyncio.shield(self.lease.start_close())
         except BaseException:
-            self.lease.mark_unknown()
+            if not self.lease.settled:
+                self.lease.mark_unknown()
             raise
         finally:
             self.active = False
