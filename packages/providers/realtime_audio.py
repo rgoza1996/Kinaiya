@@ -400,7 +400,17 @@ class _Operation:
             created = await self.receive()
             _require(created["type"] == "session.created")
             kind = "transcription" if self.instructions is None else "realtime"
-            original = _session(created, kind, self.audio.rate)
+            # Some realtime endpoints apply transcription intent only after the
+            # explicit session.update. Validate the initial realtime envelope;
+            # the strict transcription acknowledgement must precede all PCM.
+            created_kind = kind
+            if (
+                self.instructions is None
+                and type(created.get("session")) is dict
+                and created["session"].get("type") == "realtime"
+            ):
+                created_kind = "realtime"
+            original = _session(created, created_kind, self.audio.rate)
             selected = {
                 "type": kind,
                 "max_output_tokens": self.tokens,

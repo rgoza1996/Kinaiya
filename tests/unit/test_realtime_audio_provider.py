@@ -369,6 +369,98 @@ async def test_transcription_uses_same_original_audio_separate_intent_and_no_nat
         await target.close()
 
 
+class TranscriptionTransitionSocket(Socket):
+    """Documented initial realtime metadata, followed by a minimal ASR ack.
+
+    No audio/model result is copied from the real metadata-only observation.
+    Unbounded initial defaults are replaced before the first PCM export.
+    """
+
+    def __init__(self, *, changed_ack=None, hold_ack=False):
+        metadata = session("realtime")
+        metadata.update(output_modalities=None, max_output_tokens="inf", tool_choice="auto")
+        super().__init__(
+            created={"type": "session.created", "session": metadata},
+            held_type="session.updated" if hold_ack else None,
+        )
+        self.changed_ack = changed_ack
+
+    def push(self, event):
+        if type(event) is dict and event.get("type") == "session.updated":
+            acknowledged = {
+                "id": SID,
+                "object": "realtime.transcription_session",
+                "type": "transcription",
+                "audio": {
+                    "input": {
+                        "format": {"type": "audio/pcm", "rate": 16000},
+                        "turn_detection": None,
+                        "transcription": {"model": MODEL, "language": None},
+                    }
+                },
+            }
+            if self.changed_ack == "type":
+                acknowledged["type"] = "realtime"
+            elif self.changed_ack == "session-id":
+                acknowledged["id"] = "foreign-session"
+            elif self.changed_ack == "rate":
+                acknowledged["audio"]["input"]["format"]["rate"] = 8000
+            event = {"type": "session.updated", "session": acknowledged}
+        super().push(event)
+
+
+@pytest.mark.asyncio
+async def test_initial_realtime_session_explicitly_switches_to_transcription_before_pcm():
+    socket = TranscriptionTransitionSocket(hold_ack=True)
+    connector = Connector(socket)
+    target = provider(connector)
+    original = asyncio.create_task(target.transcribe(audio(), current=Current()))
+    try:
+        await wait(socket.receive_held)
+        assert not original.done()
+        assert wire_pcm(socket) == b""
+        assert [event["type"] for event in socket.sent] == ["session.update"]
+        assert socket.sent[0]["session"]["type"] == "transcription"
+        assert parse_qs(urlsplit(connector.calls[0][0]).query) == {
+            "model": [MODEL],
+            "intent": ["transcription"],
+        }
+        socket.receive_release.set()
+        result = await asyncio.wait_for(original, 2)
+        assert result == socket.transcript
+        assert wire_pcm(socket) == PCM
+        kinds = [event["type"] for event in socket.sent]
+        assert kinds.count("input_audio_buffer.commit") == 1
+        assert "response.create" not in kinds
+        assert len(connector.calls) == socket.close_calls == 1
+        assert socket.close_exited.is_set()
+    finally:
+        socket.receive_release.set()
+        if not original.done():
+            original.cancel()
+        await asyncio.gather(original, return_exceptions=True)
+        await target.close()
+
+
+@pytest.mark.parametrize("changed_ack", ["type", "session-id", "rate"])
+@pytest.mark.asyncio
+async def test_realtime_to_transcription_requires_exact_ack_before_any_pcm(changed_ack):
+    socket = TranscriptionTransitionSocket(changed_ack=changed_ack)
+    connector = Connector(socket)
+    target = provider(connector)
+    try:
+        with pytest.raises(ProviderRefusal) as exc:
+            await target.transcribe(audio(), current=Current())
+        assert_redacted(exc)
+        assert [event["type"] for event in socket.sent] == ["session.update"]
+        assert socket.sent[0]["session"]["type"] == "transcription"
+        assert wire_pcm(socket) == b""
+        assert len(connector.calls) == socket.close_calls == 1
+        assert socket.close_exited.is_set()
+    finally:
+        await target.close()
+
+
 @pytest.mark.asyncio
 async def test_history_over_eight_turns_is_complete_ordered_and_not_silently_truncated():
     history = [{"role": "system", "content": "Synthetic personality."}]
