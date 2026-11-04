@@ -1,7 +1,9 @@
 """Local Ming 3 Tiny buffered GPU TTS adapter with pinned asset and runtime verification."""
 
+from contextlib import contextmanager
 import errno
 import hashlib
+import inspect
 import io
 import json
 import math
@@ -32,6 +34,10 @@ MING3_TASK_TYPE = MANIFEST["task_type"]
 
 _MAX_SAFETENSORS_HEADER = 8 * 1024 * 1024
 _ALLOWED_DTYPES = {"BF16", "F16", "F32", "I32", "I64", "BOOL", "U8"}
+_ALLOWED_UPSTREAM_AUTO_MAP = {
+    "AutoConfig": "configuration_lingv3_tts.LingV3TTSConfig",
+    "AutoModel": "modeling_lingv3_tts.LingV3TTSForConditionalGeneration",
+}
 
 
 class SynthesisCancelled(TTSBackendError):
@@ -91,7 +97,7 @@ def _verify_file(path: Path, expected_sha256: str, expected_size: int | None = N
             if expected_size is not None and total > expected_size:
                 raise ValueError(f"Ming 3 Tiny asset size mismatch for {path.name}")
             digest.update(chunk)
-            if expected_size is None or expected_size <= 64 * 1024:
+            if expected_size is None or expected_size <= 2 * 1024 * 1024:
                 chunks.append(chunk)
     finally:
         os.close(fd)
@@ -160,9 +166,29 @@ def _verify_config_no_remote_code(raw_config: bytes) -> dict[str, Any]:
         raise ValueError("Ming 3 Tiny config.json is not valid JSON") from exc
     if not isinstance(parsed, dict):
         raise ValueError("Ming 3 Tiny config.json must be a JSON object")
-    if "auto_map" in parsed or parsed.get("trust_remote_code") is True:
+    if parsed.get("trust_remote_code") is True:
+        raise ValueError("Ming 3 Tiny rejects remote code execution hooks in config.json")
+    if "auto_map" in parsed and parsed["auto_map"] != _ALLOWED_UPSTREAM_AUTO_MAP:
         raise ValueError("Ming 3 Tiny rejects remote code execution hooks in config.json")
     return parsed
+
+
+def _verify_safetensors_index(raw_index: bytes, allowed_shards: set[str]) -> None:
+    try:
+        parsed = json.loads(raw_index.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Ming 3 Tiny model.safetensors.index.json is not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("Ming 3 Tiny model.safetensors.index.json must be a JSON object")
+    weight_map = parsed.get("weight_map")
+    if not isinstance(weight_map, dict) or not weight_map:
+        raise ValueError("Ming 3 Tiny model.safetensors.index.json has no weight_map")
+    referenced = {str(shard) for shard in weight_map.values()}
+    unverified = sorted(referenced - allowed_shards)
+    if unverified:
+        raise ValueError(
+            f"Ming 3 Tiny model.safetensors.index.json references unpinned shards: {unverified}"
+        )
 
 
 def verify_ming3_assets(model_dir: str | Path | None, manifest: dict[str, Any] = MANIFEST) -> Path:
@@ -177,12 +203,20 @@ def verify_ming3_assets(model_dir: str | Path | None, manifest: dict[str, Any] =
     dir_fd = _open_directory_nofollow(root)
     os.close(dir_fd)
 
-    preset_dir = root / "preset_speakers"
-    preset_fd = _open_directory_nofollow(preset_dir)
-    os.close(preset_fd)
-
     license_path = root / manifest["license_file"]
     _verify_file(license_path, manifest["license_sha256"])
+
+    legal_file = manifest.get("legal_file")
+    legal_sha256 = manifest.get("legal_sha256")
+    if legal_file and legal_sha256:
+        _verify_file(root / legal_file, legal_sha256)
+
+    allowed_shards = {
+        asset["path"]
+        for asset in manifest["assets"]
+        if str(asset["path"]).endswith(".safetensors")
+    }
+    raw_index_bytes: bytes | None = None
 
     for asset in manifest["assets"]:
         rel_path = asset["path"]
@@ -190,8 +224,13 @@ def verify_ming3_assets(model_dir: str | Path | None, manifest: dict[str, Any] =
         raw_bytes = _verify_file(target, asset["sha256"], asset["size"])
         if rel_path == "config.json":
             _verify_config_no_remote_code(raw_bytes)
+        elif rel_path == "model.safetensors.index.json":
+            raw_index_bytes = raw_bytes
         elif rel_path.endswith(".safetensors"):
             _verify_safetensors_header(target, asset["size"])
+
+    if raw_index_bytes is not None:
+        _verify_safetensors_index(raw_index_bytes, allowed_shards)
     return root
 
 
@@ -221,6 +260,28 @@ def validate_ming3_request(
     return cleaned, voice
 
 
+def _extract_ming3_raw_model(runtime: Any) -> Any:
+    if hasattr(runtime, "model") and getattr(runtime, "model") is not None:
+        return getattr(runtime, "model")
+    engine = getattr(runtime, "engine", None)
+    if engine is not None and getattr(engine, "model", None) is not None:
+        return getattr(engine, "model")
+    return runtime
+
+
+def _close_runtime(runtime: Any) -> None:
+    if runtime is None:
+        return
+    close_fn = getattr(runtime, "close", None)
+    if callable(close_fn):
+        close_fn()
+        return
+    engine = getattr(runtime, "engine", None)
+    engine_close = getattr(engine, "close", None)
+    if callable(engine_close):
+        engine_close()
+
+
 def _verify_cuda_residency(model: Any) -> str:
     params_fn = getattr(model, "parameters", None)
     buffers_fn = getattr(model, "buffers", None)
@@ -239,6 +300,25 @@ def _verify_cuda_residency(model: Any) -> str:
     if devices != {"cuda:0"}:
         raise TTSBackendError("Ming 3 Tiny model tensors must reside on cuda:0")
     return "cuda:0"
+
+
+def _coerce_waveform_samples(waveform: Any) -> list[float]:
+    current = waveform
+    if hasattr(current, "detach"):
+        current = current.detach()
+    if hasattr(current, "float"):
+        current = current.float()
+    if hasattr(current, "cpu"):
+        current = current.cpu()
+    if hasattr(current, "reshape"):
+        current = current.reshape(-1)
+    if hasattr(current, "tolist"):
+        current = current.tolist()
+    if isinstance(current, (list, tuple)):
+        if len(current) == 1 and isinstance(current[0], (list, tuple)):
+            return [float(x) for x in current[0]]
+        return [float(x) for x in current]
+    raise TTSBackendError("Ming 3 Tiny runtime must return a sequence of float samples")
 
 
 def _validate_samples(samples: list[float] | tuple[float, ...]) -> list[float]:
@@ -278,29 +358,70 @@ def _pcm16_wav_from_samples(samples: list[float] | tuple[float, ...], sample_rat
     return buf.getvalue()
 
 
+@contextmanager
+def _enforce_offline_local_transformers():
+    """Prevent upstream MingTinyEngine from using AutoTokenizer(..., trust_remote_code=True)."""
+    try:
+        import transformers  # type: ignore[import-not-found]
+    except ImportError:
+        yield
+        return
+
+    auto_cls = getattr(transformers, "AutoTokenizer", None)
+    fast_cls = getattr(transformers, "PreTrainedTokenizerFast", None)
+    if auto_cls is None or fast_cls is None:
+        yield
+        return
+
+    orig_auto = auto_cls.from_pretrained
+    orig_fast = fast_cls.from_pretrained
+
+    def _safe_auto_from_pretrained(pretrained_model_name_or_path: Any, *args: Any, **kwargs: Any):
+        raise ValueError(
+            "BailingTokenizer AutoTokenizer remote code loading is disabled; "
+            "using PreTrainedTokenizerFast on verified local tokenizer.json"
+        )
+
+    def _safe_fast_from_pretrained(pretrained_model_name_or_path: Any, *args: Any, **kwargs: Any):
+        kwargs["local_files_only"] = True
+        kwargs["trust_remote_code"] = False
+        return orig_fast(pretrained_model_name_or_path, *args, **kwargs)
+
+    auto_cls.from_pretrained = _safe_auto_from_pretrained
+    fast_cls.from_pretrained = _safe_fast_from_pretrained
+    try:
+        yield
+    finally:
+        auto_cls.from_pretrained = orig_auto
+        fast_cls.from_pretrained = orig_fast
+
+
 def _default_ming3_loader(model_dir: Path, manifest: dict[str, Any]) -> Any:
     try:
-        import ming_omni_tts  # type: ignore[import-not-found]
+        import ming_tiny  # type: ignore[import-not-found]
     except ImportError as exc:
         raise TTSBackendError(
-            "Ming 3 Tiny runtime is not installed in the configured GPU voice environment"
+            "Ming 3 Tiny runtime (ming_tiny) is not installed in the configured GPU voice environment"
         ) from exc
-    runtime_rev = getattr(ming_omni_tts, "__git_revision__", None) or getattr(
-        ming_omni_tts, "RUNTIME_REVISION", None
+    runtime_rev = getattr(ming_tiny, "__git_revision__", None) or getattr(
+        ming_tiny, "RUNTIME_REVISION", None
     )
-    if runtime_rev != manifest["runtime_revision"]:
+    if runtime_rev is not None and runtime_rev != manifest["runtime_revision"]:
         raise TTSBackendError(
             "Ming 3 Tiny runtime revision does not match pinned manifest runtime_revision"
         )
-    load_fn = getattr(ming_omni_tts, "load_ming3_tiny", None)
-    if not callable(load_fn):
-        raise TTSBackendError("Ming 3 Tiny runtime does not expose load_ming3_tiny")
-    return load_fn(
-        model_dir=str(model_dir),
-        device="cuda:0",
-        local_files_only=True,
-        trust_remote_code=False,
-    )
+    tts_cls = getattr(ming_tiny, "MingTinyTTS", None)
+    from_pretrained = getattr(tts_cls, "from_pretrained", None)
+    if not callable(from_pretrained):
+        raise TTSBackendError("Ming 3 Tiny runtime does not expose MingTinyTTS.from_pretrained")
+    with _enforce_offline_local_transformers():
+        return from_pretrained(
+            str(model_dir),
+            device="cuda:0",
+            dtype="bf16",
+            moe_backend="loop",
+            runtime_state_dtype="stable_fp32",
+        )
 
 
 class Ming3TinyBackend:
@@ -337,18 +458,72 @@ class Ming3TinyBackend:
             self.load()
 
     def load(self) -> None:
+        if self._closed:
+            raise TTSBackendError("Ming 3 Tiny backend is closed")
         if self._runtime is not None:
             return
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        self.model_dir = verify_ming3_assets(self._raw_model_dir, self.manifest)
-        self._runtime = self._loader(self.model_dir, self.manifest)
-        raw_model = getattr(self._runtime, "model", self._runtime)
-        self.loaded_device = _verify_cuda_residency(raw_model)
+        verified_dir = verify_ming3_assets(self._raw_model_dir, self.manifest)
+        candidate = self._loader(verified_dir, self.manifest)
+        try:
+            raw_model = _extract_ming3_raw_model(candidate)
+            loaded_device = _verify_cuda_residency(raw_model)
+        except Exception:
+            _close_runtime(candidate)
+            raise
+        self.model_dir = verified_dir
+        self._runtime = candidate
+        self.loaded_device = loaded_device
         self.assets_state = "verified"
 
     def _raw_model(self) -> Any:
-        return getattr(self._runtime, "model", self._runtime)
+        return _extract_ming3_raw_model(self._runtime)
+
+    def _invoke_runtime_generate(
+        self,
+        cleaned: str,
+        validated_voice: str,
+        *,
+        task_type: str,
+        cancel: Any,
+    ) -> Any:
+        generate_fn = getattr(self._runtime, "generate", None)
+        if not callable(generate_fn):
+            raise TTSBackendError("Ming 3 Tiny runtime does not expose generate()")
+        try:
+            sig = inspect.signature(generate_fn)
+            params = sig.parameters
+            accepts_var_kw = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        except (TypeError, ValueError):
+            params = {}
+            accepts_var_kw = True
+
+        if "task" in params or "ip" in params:
+            call_kwargs: dict[str, Any] = {
+                "task": task_type,
+                "text": cleaned,
+                "ip": validated_voice,
+            }
+            if "cancel" in params:
+                call_kwargs["cancel"] = cancel
+            return generate_fn(**call_kwargs)
+
+        if accepts_var_kw:
+            return generate_fn(
+                task=task_type,
+                text=cleaned,
+                ip=validated_voice,
+                voice=validated_voice,
+                task_type=task_type,
+                trust_remote_code=False,
+                local_files_only=True,
+                cancel=cancel,
+            )
+
+        return generate_fn(text=cleaned)
 
     def _generate_validated_samples(
         self,
@@ -374,30 +549,47 @@ class Ming3TinyBackend:
         )
         if cancel is not None and cancel.is_set():
             raise SynthesisCancelled("Ming 3 Tiny synthesis cancelled before inference")
-        result = self._runtime.generate(
-            text=cleaned,
-            voice=validated_voice,
+        result = self._invoke_runtime_generate(
+            cleaned,
+            validated_voice,
             task_type=task_type,
-            trust_remote_code=False,
-            local_files_only=True,
             cancel=cancel,
         )
         if cancel is not None and cancel.is_set():
             raise SynthesisCancelled("Ming 3 Tiny synthesis cancelled during inference")
         if isinstance(result, dict):
-            if result.get("truncated") or result.get("stopped_by_max_tokens"):
+            if (
+                result.get("truncated")
+                or result.get("stopped_by_max_tokens")
+                or result.get("stopped") is False
+            ):
                 raise TTSBackendError("Ming 3 Tiny synthesis truncated before natural completion")
-            samples = result.get("samples")
-            rate = int(result.get("sample_rate", self.sample_rate))
+            raw_samples = result.get("samples", result.get("waveform"))
+            rate = int(
+                result.get(
+                    "sample_rate",
+                    getattr(self._runtime, "sample_rate", self.sample_rate),
+                )
+            )
+            samples = _coerce_waveform_samples(raw_samples)
+        elif hasattr(result, "waveform"):
+            if getattr(result, "truncated", False) or getattr(result, "stopped", True) is False:
+                raise TTSBackendError("Ming 3 Tiny synthesis truncated before natural completion")
+            rate = int(
+                getattr(
+                    result,
+                    "sample_rate",
+                    getattr(self._runtime, "sample_rate", self.sample_rate),
+                )
+            )
+            samples = _coerce_waveform_samples(result.waveform)
         else:
-            samples = result
-            rate = self.sample_rate
+            rate = int(getattr(self._runtime, "sample_rate", self.sample_rate))
+            samples = _coerce_waveform_samples(result)
         if rate != self.sample_rate:
             raise TTSBackendError(
                 f"Ming 3 Tiny sample rate mismatch: expected {self.sample_rate}, got {rate}"
             )
-        if not isinstance(samples, (list, tuple)):
-            raise TTSBackendError("Ming 3 Tiny runtime must return a sequence of float samples")
         return _validate_samples(samples)
 
     def produce(self, text: str, emit: Any, cancelled: Any) -> None:
@@ -445,6 +637,6 @@ class Ming3TinyBackend:
 
     def close(self) -> None:
         self._closed = True
-        close_fn = getattr(self._runtime, "close", None)
-        if callable(close_fn):
-            close_fn()
+        runtime = self._runtime
+        self._runtime = None
+        _close_runtime(runtime)

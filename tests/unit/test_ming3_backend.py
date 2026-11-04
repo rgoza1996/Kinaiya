@@ -1,22 +1,27 @@
 """Deterministic unit and worker integration tests for Ming 3 Tiny TTS (#72)."""
 
 import copy
+from dataclasses import dataclass
 import hashlib
 import io
 import json
 import struct
+import sys
 import threading
+from types import SimpleNamespace
 import wave
 from pathlib import Path
 
 import httpx
 import pytest
 
+import packages.providers.ming3_backend as ming3_mod
 from packages.providers.ming3_backend import (
     MANIFEST,
     MING3_MAX_CHARS,
     MING3_MAX_SAMPLES,
     MING3_REVISION,
+    MING3_RUNTIME_REVISION,
     MING3_SAMPLE_RATE,
     MING3_VOICE,
     Ming3TinyBackend,
@@ -60,23 +65,43 @@ def _build_safetensors_bytes(total_size: int = 512) -> bytes:
 
 def _create_synthetic_ming3_dir(root: Path) -> tuple[Path, dict]:
     model_dir = root / "ming3-checkpoint"
-    (model_dir / "preset_speakers").mkdir(parents=True)
+    model_dir.mkdir(parents=True)
 
+    shard_1 = "model-00001-of-00002.safetensors"
+    shard_2 = "model-00002-of-00002.safetensors"
     files = {
-        "LICENSE": b"Apache License\nVersion 2.0, January 2004\n",
+        "LICENSE": b"MIT License\nCopyright (c) 2025 inclusionAI\n",
+        "LEGAL.md": b"Legal Disclaimer\n",
         "config.json": json.dumps(
             {
-                "model_type": "ming3_tts_tiny",
-                "sample_rate": MING3_SAMPLE_RATE,
-                "trust_remote_code": False,
+                "architectures": ["LingV3TTSForConditionalGeneration"],
+                "model_type": "lingv3_tts",
+                "auto_map": {
+                    "AutoConfig": "configuration_lingv3_tts.LingV3TTSConfig",
+                    "AutoModel": "modeling_lingv3_tts.LingV3TTSForConditionalGeneration",
+                },
+                "tts_config": {"sample_rate": MING3_SAMPLE_RATE},
+            }
+        ).encode("utf-8"),
+        "generation_config.json": json.dumps({"max_new_tokens": 250}).encode("utf-8"),
+        "model.safetensors.index.json": json.dumps(
+            {
+                "metadata": {"total_size": 1024},
+                "weight_map": {
+                    "llm.embed_tokens.weight": shard_1,
+                    "audio_vae.decoder.weight": shard_2,
+                },
             }
         ).encode("utf-8"),
         "tokenizer.json": json.dumps({"version": "1.0"}).encode("utf-8"),
-        "tokenizer_config.json": json.dumps({"tokenizer_class": "PreTrainedTokenizerFast"}).encode(
+        "tokenizer_config.json": json.dumps({"tokenizer_class": "BailingTokenizer"}).encode(
             "utf-8"
         ),
-        "model.safetensors": _build_safetensors_bytes(512),
-        "preset_speakers/US_Emma.pt": b"FAKE_PT_SPEAKER_EMBEDDING_US_EMMA",
+        "special_tokens_map.json": json.dumps({"eos_token": "<|endoftext|>"}).encode("utf-8"),
+        "chat_template.jinja": b"{{ messages }}",
+        "campplus.onnx": b"ONNX_SYNTHETIC_CAMPPLUS",
+        shard_1: _build_safetensors_bytes(512),
+        shard_2: _build_safetensors_bytes(512),
     }
 
     manifest = copy.deepcopy(MANIFEST)
@@ -85,19 +110,26 @@ def _create_synthetic_ming3_dir(root: Path) -> tuple[Path, dict]:
         target.write_bytes(content)
 
     manifest["license_sha256"] = hashlib.sha256(files["LICENSE"]).hexdigest()
+    manifest["legal_sha256"] = hashlib.sha256(files["LEGAL.md"]).hexdigest()
+    asset_names = (
+        "config.json",
+        "generation_config.json",
+        "model.safetensors.index.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "chat_template.jinja",
+        "campplus.onnx",
+        shard_1,
+        shard_2,
+    )
     manifest["assets"] = [
         {
             "path": rel_path,
             "sha256": hashlib.sha256(files[rel_path]).hexdigest(),
             "size": len(files[rel_path]),
         }
-        for rel_path in (
-            "config.json",
-            "tokenizer.json",
-            "tokenizer_config.json",
-            "model.safetensors",
-            "preset_speakers/US_Emma.pt",
-        )
+        for rel_path in asset_names
     ]
     return model_dir, manifest
 
@@ -117,6 +149,34 @@ class _FakeCudaModel:
 
     def buffers(self):
         return [self._tensor]
+
+
+class _FakeWaveformTensor:
+    def __init__(self, values: list[float]) -> None:
+        self._values = list(values)
+
+    def detach(self):
+        return self
+
+    def float(self):
+        return self
+
+    def cpu(self):
+        return self
+
+    def reshape(self, *_shape):
+        return self
+
+    def tolist(self):
+        return list(self._values)
+
+
+@dataclass
+class _FakeLingV3TTSGenerationOutput:
+    waveform: _FakeWaveformTensor
+    stop_probabilities: list[float]
+    stopped: bool
+    prompt_latent_steps: int = 0
 
 
 class _FakeMing3Runtime:
@@ -152,7 +212,7 @@ class _FakeMing3Runtime:
         self.closed = True
 
 
-def test_ming3_profile_registration_and_metadata():
+def test_ming3_profile_registration_and_pinned_manifest_metadata():
     assert default_voice("Ming 3 Tiny") == MING3_VOICE
     assert validate_voice("Ming 3 Tiny", None) == "US_Emma"
     assert validate_voice("Ming 3 Tiny", "US_Emma") == "US_Emma"
@@ -162,6 +222,21 @@ def test_ming3_profile_registration_and_metadata():
     assert validate_tts_device("Ming 3 Tiny", "cuda") == "cuda"
     with pytest.raises(ValueError, match="Ming 3 Tiny requires GPU"):
         validate_tts_device("Ming 3 Tiny", "cpu")
+
+    # Verify the pinned upstream 30-shard inventory in ming3_manifest.json
+    assert MANIFEST["repository"] == "https://huggingface.co/inclusionAI/Ming-3.0-tts-tiny"
+    assert MANIFEST["revision"] == "4715ef5a2f02901f75687d538b6920fd0dd11e6b"
+    assert MANIFEST["runtime_repository"] == "https://github.com/inclusionAI/Ming-3.0-tts"
+    assert MANIFEST["runtime_revision"] == "9332fb9443325d4726ce02cefd4ec1c211df4079"
+    assert MANIFEST["license"] == "MIT"
+    assert MANIFEST["shard_count"] == 30
+    assert MANIFEST["total_shard_bytes"] == 17963396008
+    shard_assets = [a for a in MANIFEST["assets"] if a["path"].endswith(".safetensors")]
+    assert len(shard_assets) == 30
+    assert sum(a["size"] for a in shard_assets) == 17963396008
+    asset_paths = {a["path"] for a in MANIFEST["assets"]}
+    assert "model.safetensors.index.json" in asset_paths
+    assert "campplus.onnx" in asset_paths
 
 
 def test_verify_ming3_assets_accepts_pinned_tree_and_rejects_tampering(tmp_path: Path):
@@ -181,6 +256,19 @@ def test_verify_ming3_assets_accepts_pinned_tree_and_rejects_tampering(tmp_path:
     with pytest.raises(ValueError, match="size mismatch"):
         verify_ming3_assets(model_dir, size_manifest)
 
+    # Tamper with model.safetensors.index.json to reference an unpinned shard
+    bad_index = json.dumps(
+        {"weight_map": {"llm.weight": "model-00099-of-00030.safetensors"}}
+    ).encode("utf-8")
+    (model_dir / "model.safetensors.index.json").write_bytes(bad_index)
+    idx_manifest = copy.deepcopy(manifest)
+    for entry in idx_manifest["assets"]:
+        if entry["path"] == "model.safetensors.index.json":
+            entry["sha256"] = hashlib.sha256(bad_index).hexdigest()
+            entry["size"] = len(bad_index)
+    with pytest.raises(ValueError, match="references unpinned shards"):
+        verify_ming3_assets(model_dir, idx_manifest)
+
 
 def test_verify_ming3_assets_rejects_symlinks_and_remote_code_hooks(tmp_path: Path):
     model_dir, manifest = _create_synthetic_ming3_dir(tmp_path)
@@ -199,7 +287,7 @@ def test_verify_ming3_assets_rejects_symlinks_and_remote_code_hooks(tmp_path: Pa
     with pytest.raises(ValueError, match="cannot be a symlink"):
         verify_ming3_assets(model_dir, manifest)
 
-    # Restore regular file with auto_map remote code hook
+    # Restore regular file with unapproved auto_map remote code hook
     (model_dir / "config.json").unlink()
     malicious_cfg = json.dumps(
         {"model_type": "ming3", "auto_map": {"AutoModel": "evil.py"}}
@@ -230,6 +318,133 @@ def test_validate_ming3_request_enforces_ip_task_and_refuses_emotion_conflicts()
 
     with pytest.raises(ValueError, match="exceeds 1200 characters"):
         validate_ming3_request("a" * (MING3_MAX_CHARS + 1))
+
+
+def test_ming3_default_loader_and_official_ming_tiny_tts_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    model_dir, manifest = _create_synthetic_ming3_dir(tmp_path)
+    from_pretrained_calls: list[dict] = []
+    generate_calls: list[dict] = []
+    stopped_flag = {"value": True}
+
+    class _FakeMingTinyTTS:
+        sample_rate = MING3_SAMPLE_RATE
+
+        def __init__(self) -> None:
+            self.engine = SimpleNamespace(model=_FakeCudaModel(device="cuda:0", is_cuda=True))
+
+        @classmethod
+        def from_pretrained(
+            cls,
+            model_path: str,
+            *,
+            device: str = "cuda:0",
+            dtype: str = "bf16",
+            moe_backend: str = "auto",
+            runtime_state_dtype: str = "auto",
+        ):
+            from_pretrained_calls.append(
+                {
+                    "model_path": model_path,
+                    "device": device,
+                    "dtype": dtype,
+                    "moe_backend": moe_backend,
+                    "runtime_state_dtype": runtime_state_dtype,
+                }
+            )
+            return cls()
+
+        def generate(self, *, task: str, text: str, ip: str | None = None, **_kwargs):
+            generate_calls.append({"task": task, "text": text, "ip": ip})
+            return _FakeLingV3TTSGenerationOutput(
+                waveform=_FakeWaveformTensor([0.12, -0.18, 0.22, -0.14]),
+                stop_probabilities=[0.05, 0.82],
+                stopped=stopped_flag["value"],
+                prompt_latent_steps=0,
+            )
+
+    fake_module = SimpleNamespace(
+        __git_revision__=MING3_RUNTIME_REVISION,
+        MingTinyTTS=_FakeMingTinyTTS,
+    )
+    monkeypatch.setitem(sys.modules, "ming_tiny", fake_module)
+
+    backend = Ming3TinyBackend(model_dir, MING3_VOICE, device="cuda", manifest=manifest)
+    assert backend._runtime is None
+    assert backend.assets_state == "not_checked"
+
+    wav_bytes = backend.synthesize("Official MingTinyTTS API contract check.")
+    assert len(from_pretrained_calls) == 1
+    assert from_pretrained_calls[0] == {
+        "model_path": str(model_dir),
+        "device": "cuda:0",
+        "dtype": "bf16",
+        "moe_backend": "loop",
+        "runtime_state_dtype": "stable_fp32",
+    }
+    assert generate_calls == [
+        {"task": "ip", "text": "Official MingTinyTTS API contract check.", "ip": "US_Emma"}
+    ]
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wav_file:
+        assert wav_file.getframerate() == MING3_SAMPLE_RATE
+        assert wav_file.getnframes() == 4
+
+    # When LingV3TTSGenerationOutput.stopped is False (max_decode_steps reached), fail closed
+    stopped_flag["value"] = False
+    with pytest.raises(TTSBackendError, match="truncated before natural completion"):
+        backend.synthesize("Unstopped generation must fail closed.")
+
+
+def test_ming3_lazy_load_rejection_cleans_up_and_never_reuses_rejected_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    model_dir, manifest = _create_synthetic_ming3_dir(tmp_path)
+    bad_runtime_1 = _FakeMing3Runtime(device="cpu", is_cuda=False)
+    bad_runtime_2 = _FakeMing3Runtime(device="cpu", is_cuda=False)
+    good_runtime = _FakeMing3Runtime(device="cuda:0", is_cuda=True)
+    candidates = [bad_runtime_1, bad_runtime_2, good_runtime]
+    loader_calls = 0
+
+    def staged_loader(_dir: Path, _man: dict):
+        nonlocal loader_calls
+        loader_calls += 1
+        return candidates.pop(0)
+
+    monkeypatch.setattr(ming3_mod, "_default_ming3_loader", staged_loader)
+
+    # Construct via lazy path (loader=None)
+    backend = Ming3TinyBackend(model_dir, MING3_VOICE, device="cuda", manifest=manifest)
+    assert backend._runtime is None
+    assert backend.loaded_device is None
+    assert backend.assets_state == "not_checked"
+
+    # First lazy synthesize() rejects bad_runtime_1, closes it, and leaves _runtime None
+    with pytest.raises(TTSBackendError, match="not resident on CUDA"):
+        backend.synthesize("First attempt")
+    assert loader_calls == 1
+    assert bad_runtime_1.closed is True
+    assert bad_runtime_1.calls == []
+    assert backend._runtime is None
+    assert backend.loaded_device is None
+    assert backend.assets_state == "not_checked"
+
+    # Second lazy synthesize() must NOT reuse bad_runtime_1; it calls loader again and rejects bad_runtime_2
+    with pytest.raises(TTSBackendError, match="not resident on CUDA"):
+        backend.synthesize("Second attempt")
+    assert loader_calls == 2
+    assert bad_runtime_2.closed is True
+    assert bad_runtime_2.calls == []
+    assert backend._runtime is None
+
+    # Third lazy synthesize() loads good_runtime on cuda:0 and succeeds
+    wav_bytes = backend.synthesize("Third attempt succeeds")
+    assert loader_calls == 3
+    assert backend._runtime is good_runtime
+    assert backend.loaded_device == "cuda:0"
+    assert backend.assets_state == "verified"
+    assert len(good_runtime.calls) == 1
+    assert len(wav_bytes) > 44
 
 
 def test_ming3_backend_synthesis_residency_truncation_and_cancellation(tmp_path: Path):
