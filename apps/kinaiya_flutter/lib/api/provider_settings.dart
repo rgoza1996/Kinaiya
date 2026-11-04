@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 
 const providerMaxRevision = 9007199254740990;
@@ -10,6 +11,7 @@ const providerKinds = [
   'meta',
   'lmstudio',
   'compatible',
+  'measured_chat',
   'laya',
   'native_d1',
   'meta_stt',
@@ -90,6 +92,7 @@ Map<String, Object?> providerConfig(Object? value) {
   final raw = _map(value);
   final kind = raw['kind'];
   if (!providerKinds.contains(kind)) _bad();
+  if (kind == 'measured_chat') return _measuredChatConfig(raw);
   if (kind == 'meta_stt') return _metaSttConfig(raw);
   if (kind == 'openrouter_tts') return _openRouterTtsConfig(raw);
   if (kind == 'native_d1') return _nativeD1Config(raw);
@@ -200,6 +203,36 @@ Map<String, Object?> providerConfig(Object? value) {
         : _digest(raw['expected_artifact_sha256']);
   }
   return Map.unmodifiable(result);
+}
+
+Map<String, Object?> _measuredChatConfig(Map<String, Object?> raw) {
+  if ((raw.containsKey('allow_cloud') && raw['allow_cloud'] != false) ||
+      raw['context_tokens'] == null ||
+      [
+        'reasoning_effort',
+        'max_tokens',
+        'timeout_s',
+      ].any((field) => raw.containsKey(field) && raw[field] == null)) {
+    _bad();
+  }
+  final normalized = providerConfig({
+    ...raw,
+    'kind': 'compatible',
+    'allow_cloud': false,
+    'reasoning_effort': raw['reasoning_effort'] ?? 'none',
+  });
+  final endpoint = Uri.parse(normalized['base_url'] as String);
+  final controls = RegExp(r'\p{C}', unicode: true);
+  if (!{'127.0.0.1', '::1'}.contains(endpoint.host) ||
+      RegExp(
+        r'^https?://[^/]*@',
+        caseSensitive: false,
+      ).hasMatch(normalized['base_url'] as String) ||
+      controls.hasMatch(raw['base_url'] as String) ||
+      controls.hasMatch(normalized['model'] as String)) {
+    _bad();
+  }
+  return Map.unmodifiable({...normalized, 'kind': 'measured_chat'});
 }
 
 Map<String, Object?> _nativeD1Config(Map<String, Object?> raw) {
@@ -795,6 +828,14 @@ class _JsonReader {
 }
 
 const kMaskedCustomApiKey = '••••••••••••';
+const customProviderActions = [
+  'add_custom_provider',
+  'update_custom_provider',
+  'remove_custom_provider',
+  'set_custom_provider_enabled',
+  'bind_custom_role_model',
+  'set_global_reasoning_effort',
+];
 
 class CustomProviderProfile {
   const CustomProviderProfile({
@@ -975,6 +1016,8 @@ class CustomProvidersSnapshot {
     this.revision = 0,
     this.stateSha256 = '',
     this.reconciled = false,
+    this.clientOperationId,
+    this.committedRevision,
     this.globalReasoningEffort = 'medium',
     required this.profiles,
     required this.roleBindings,
@@ -987,6 +1030,8 @@ class CustomProvidersSnapshot {
       revision = 0,
       stateSha256 = '',
       reconciled = false,
+      clientOperationId = null,
+      committedRevision = null,
       globalReasoningEffort = 'medium',
       profiles = const [],
       roleBindings = const {};
@@ -997,9 +1042,20 @@ class CustomProvidersSnapshot {
   final int revision;
   final String stateSha256;
   final bool reconciled;
+  final String? clientOperationId;
+  final int? committedRevision;
   final String globalReasoningEffort;
   final List<CustomProviderProfile> profiles;
   final Map<String, CustomProviderRoleBinding?> roleBindings;
+
+  bool matchesOperation(Map<String, Object?> request) {
+    final opId = request['client_operation_id'];
+    final expectedRev = request['expected_revision'];
+    if (opId is! String || expectedRev is! int) return false;
+    if (clientOperationId != null && clientOperationId != opId) return false;
+    final targetRev = committedRevision ?? revision;
+    return targetRev > expectedRev;
+  }
 
   factory CustomProvidersSnapshot.fromJson(Object? raw) {
     final m = _map(raw);
@@ -1021,6 +1077,7 @@ class CustomProvidersSnapshot {
     }
     final rawGlobalEffort =
         (m['global_reasoning_effort'] as String?)?.trim() ?? '';
+    final rawOpId = (m['client_operation_id'] as String?)?.trim();
     return CustomProvidersSnapshot(
       schemaVersion: m['schema_version'] is int
           ? m['schema_version'] as int
@@ -1031,11 +1088,101 @@ class CustomProvidersSnapshot {
       revision: m['revision'] is int ? m['revision'] as int : 0,
       stateSha256: (m['state_sha256'] as String?)?.trim() ?? '',
       reconciled: m['reconciled'] == true,
+      clientOperationId: (rawOpId != null && rawOpId.isNotEmpty)
+          ? rawOpId
+          : null,
+      committedRevision: m['committed_revision'] is int
+          ? m['committed_revision'] as int
+          : null,
       globalReasoningEffort: rawGlobalEffort.isEmpty
           ? 'medium'
           : rawGlobalEffort,
       profiles: List.unmodifiable(parsedProfiles),
       roleBindings: Map.unmodifiable(parsedRoles),
+    );
+  }
+}
+
+class CustomProviderReceiptResult {
+  const CustomProviderReceiptResult({
+    required this.status,
+    required this.found,
+    required this.reconciled,
+    required this.clientOperationId,
+    this.action,
+    this.targetProfileId,
+    this.committedRevision,
+    this.committedStateSha256,
+    required this.currentRevision,
+    required this.currentStateSha256,
+    required this.snapshot,
+  });
+
+  final String status;
+  final bool found;
+  final bool reconciled;
+  final String clientOperationId;
+  final String? action;
+  final String? targetProfileId;
+  final int? committedRevision;
+  final String? committedStateSha256;
+  final int currentRevision;
+  final String currentStateSha256;
+  final CustomProvidersSnapshot snapshot;
+
+  bool matches(Map<String, Object?> request) {
+    final opId = request['client_operation_id'];
+    final expectedRev = request['expected_revision'];
+    final reqAction = request['action'];
+    if (opId is! String || expectedRev is! int || reqAction is! String) {
+      return false;
+    }
+    if (!found || status != 'committed' || clientOperationId != opId) {
+      return false;
+    }
+    if (action != null && action != reqAction) return false;
+    final targetRev = committedRevision ?? snapshot.revision;
+    return targetRev > expectedRev;
+  }
+
+  factory CustomProviderReceiptResult.fromJson(Object? raw) {
+    final m = _map(raw);
+    final rawStatus = (m['status'] as String?)?.trim() ?? '';
+    final rawOpId =
+        (m['client_operation_id'] as String?)?.trim() ??
+        (m['operation_id'] as String?)?.trim() ??
+        (m['idempotency_key'] as String?)?.trim() ??
+        '';
+    final rawAction = (m['action'] as String?)?.trim();
+    final rawTarget = (m['target_profile_id'] as String?)?.trim();
+    final rawCommittedSha = (m['committed_state_sha256'] as String?)?.trim();
+    final snapObj = m['snapshot'] is Map<String, Object?> ? m['snapshot'] : raw;
+    final parsedSnap = CustomProvidersSnapshot.fromJson(snapObj);
+    return CustomProviderReceiptResult(
+      status: rawStatus.isEmpty
+          ? (m['found'] == true ? 'committed' : 'not_found')
+          : rawStatus,
+      found: m['found'] == true,
+      reconciled: m['reconciled'] == true,
+      clientOperationId: rawOpId,
+      action: (rawAction != null && rawAction.isNotEmpty) ? rawAction : null,
+      targetProfileId: (rawTarget != null && rawTarget.isNotEmpty)
+          ? rawTarget
+          : null,
+      committedRevision: m['committed_revision'] is int
+          ? m['committed_revision'] as int
+          : null,
+      committedStateSha256:
+          (rawCommittedSha != null && rawCommittedSha.isNotEmpty)
+          ? rawCommittedSha
+          : null,
+      currentRevision: m['current_revision'] is int
+          ? m['current_revision'] as int
+          : parsedSnap.revision,
+      currentStateSha256:
+          (m['current_state_sha256'] as String?)?.trim() ??
+          parsedSnap.stateSha256,
+      snapshot: parsedSnap,
     );
   }
 }

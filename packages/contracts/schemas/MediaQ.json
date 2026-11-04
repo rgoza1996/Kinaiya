@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "den": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Den",
+      "type": "integer"
+    },
+    "num": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Num",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "num",
+    "den"
+  ],
+  "title": "MediaQ",
+  "type": "object"
+}

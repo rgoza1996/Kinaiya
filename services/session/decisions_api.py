@@ -39,10 +39,29 @@ def install_decisions(app, store, auth):
                 ):
                     raise HTTPException(422, "Inspection counters require decimal integers")
                 result[name] = int(raw)
-        for name in ("session_id", "outcome"):
+        for name in ("session_id", "thread_id", "source_event_id", "outcome"):
             if name in result and not 1 <= len(result[name]) <= 128:
                 raise HTTPException(422, "Invalid inspection identifier")
         return result
+
+    @app.get(
+        "/v1/decisions/calls",
+        dependencies=[Depends(auth.require("owner", "decisions"))],
+    )
+    async def calls(request: Request):
+        values = query(
+            request,
+            {"source_event_id", "session_id", "thread_id", "epoch"},
+            {"epoch"},
+        )
+        if "source_event_id" not in values:
+            raise HTTPException(422, "source_event_id is required")
+        try:
+            return {"calls": store.decisions.calls(**values)}
+        except KeyError as exc:
+            raise HTTPException(404, "Event not found") from exc
+        except (ValueError, OverflowError) as exc:
+            raise HTTPException(422, "Invalid Decisions call query") from exc
 
     @app.get("/v1/decisions/inspections", dependencies=[Depends(auth.require("owner"))])
     async def inspections(request: Request):

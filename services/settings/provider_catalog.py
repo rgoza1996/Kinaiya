@@ -142,6 +142,32 @@ class CompatibleProfile(TextProfile):
         return self
 
 
+class MeasuredChatProfile(TextProfile):
+    kind: Literal["measured_chat"]
+    allow_cloud: Literal[False] = False
+    credential: CredentialBinding | None = None
+    max_tokens: int = Field(default=2048, ge=16, le=65536)
+    context_tokens: int = Field(ge=64, le=MAX_REVISION)
+    reasoning_effort: Effort = "none"
+    timeout_s: int = Field(default=90, ge=1, le=900)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def local_only(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError("Measured chat is local only")
+        return value
+
+    @model_validator(mode="after")
+    def bounds(self):
+        self.base_url = _origin(self.base_url, cloud=False)
+        if urlsplit(self.base_url).hostname not in {"127.0.0.1", "::1"} or "\\" in self.base_url:
+            raise ValueError("Measured chat requires a literal loopback endpoint")
+        if self.max_tokens >= self.context_tokens:
+            raise ValueError("Response reserve must fit the declared context")
+        return self
+
+
 class LMStudioProfile(TextProfile):
     kind: Literal["lmstudio"]
     allow_cloud: bool = False
@@ -214,6 +240,34 @@ class NativeD1Profile(TextProfile):
         return self
 
 
+class OpenRouterDecisionsProfile(TextProfile):
+    kind: Literal["openrouter_decisions"]
+    allow_cloud: Literal[True]
+    credential: CredentialBinding
+    timeout_s: int = Field(default=15, ge=1, le=120)
+    min_confidence_bps: int = Field(default=0, ge=0, le=10000)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def explicit_cloud(cls, value):
+        if type(value) is not bool or value is not True:
+            raise ValueError("OpenRouter decisions requires explicit cloud authorization")
+        return value
+
+    @model_validator(mode="after")
+    def decisions_origin(self):
+        self.base_url = _origin(self.base_url, cloud=True)
+        from packages.providers.openrouter_decisions import (
+            OPENROUTER_DECISIONS_MODELS,
+            _validate_origin,
+        )
+
+        _validate_origin(self.base_url, self.timeout_s)
+        if self.model not in OPENROUTER_DECISIONS_MODELS:
+            raise ValueError("OpenRouter decisions requires a registered catalog model")
+        return self
+
+
 class MetaSTTProfile(StrictSettings):
     kind: Literal["meta_stt"]
     base_url: str = Field(min_length=1, max_length=2048)
@@ -266,9 +320,11 @@ class OpenRouterTTSProfile(StrictSettings):
 ProfileConfig = Annotated[
     MetaProfile
     | CompatibleProfile
+    | MeasuredChatProfile
     | LMStudioProfile
     | LayaProfile
     | NativeD1Profile
+    | OpenRouterDecisionsProfile
     | MetaSTTProfile
     | OpenRouterTTSProfile,
     Field(discriminator="kind"),
@@ -634,14 +690,16 @@ class ProviderCatalog:
                     else ["stt"]
                     if kind == "meta_stt"
                     else ["decisions"]
-                    if kind in {"laya", "native_d1"}
+                    if kind in {"laya", "native_d1", "openrouter_decisions"}
+                    else ["converse"]
+                    if kind == "measured_chat"
                     else ["agent", "converse", "auxiliary"]
                     if kind == "lmstudio"
                     else ["agent", "converse", "decisions", "auxiliary"],
                     "supported_inputs": ["audio"] if kind == "meta_stt" else ["text"],
-                    "measured_complete_interface": kind == "lmstudio"
+                    "measured_complete_interface": kind in {"lmstudio", "measured_chat"}
                     or (kind == "meta" and profile["config"]["context_tokens"] is not None),
-                    "measured_stream_interface": kind == "lmstudio"
+                    "measured_stream_interface": kind in {"lmstudio", "measured_chat"}
                     or (kind == "meta" and profile["config"]["context_tokens"] is not None),
                     "qualification": "not_checked",
                     "readiness": "unknown",

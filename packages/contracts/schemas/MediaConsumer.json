@@ -1,0 +1,331 @@
+{
+  "$defs": {
+    "MediaConsumerRef": {
+      "additionalProperties": false,
+      "properties": {
+        "consumer_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Consumer Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "consumer_id",
+        "generation"
+      ],
+      "title": "MediaConsumerRef",
+      "type": "object"
+    },
+    "MediaDisclosure": {
+      "additionalProperties": false,
+      "properties": {
+        "owner_event": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Owner Event",
+          "type": "string"
+        },
+        "protocol_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Protocol Sha256",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "converse",
+            "decisions",
+            "input_asr",
+            "assistant_asr",
+            "tts",
+            "playback",
+            "agent_media",
+            "decoder"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "selection_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Selection Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "owner_event",
+        "role",
+        "selection_sha256",
+        "protocol_sha256",
+        "scope"
+      ],
+      "title": "MediaDisclosure",
+      "type": "object"
+    },
+    "MediaFence": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "lease_generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "session": {
+          "$ref": "#/$defs/MediaSession"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session",
+        "source_revision",
+        "generation",
+        "lease_generation"
+      ],
+      "title": "MediaFence",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaSession": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "MediaSession",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "anchor": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "capability_sha256": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Capability Sha256"
+    },
+    "consumer": {
+      "$ref": "#/$defs/MediaConsumerRef"
+    },
+    "decoder_profile_sha256": {
+      "anyOf": [
+        {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Decoder Profile Sha256"
+    },
+    "disclosure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaDisclosure"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fence": {
+      "$ref": "#/$defs/MediaFence"
+    },
+    "instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance",
+      "type": "string"
+    },
+    "owner_intent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "permit_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Permit Sha256",
+      "type": "string"
+    },
+    "ranges": {
+      "items": {
+        "$ref": "#/$defs/MediaNativeRef"
+      },
+      "maxItems": 64,
+      "title": "Ranges",
+      "type": "array"
+    },
+    "role": {
+      "enum": [
+        "converse",
+        "decisions",
+        "input_asr",
+        "assistant_asr",
+        "tts",
+        "playback",
+        "agent_media",
+        "decoder"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "task_admission": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "consumer",
+    "source",
+    "fence",
+    "role",
+    "instance",
+    "capability_sha256",
+    "decoder_profile_sha256",
+    "scope",
+    "disclosure",
+    "anchor",
+    "task_admission",
+    "owner_intent",
+    "ranges",
+    "permit_sha256"
+  ],
+  "title": "MediaConsumer",
+  "type": "object"
+}

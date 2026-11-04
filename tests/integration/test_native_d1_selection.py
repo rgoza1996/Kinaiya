@@ -451,6 +451,29 @@ async def test_selected_native_adapter_records_original_capture_and_routes_real_
         assert b"SECRET-OBJECTIVE" not in wire.requests[0].content
 
 
+def _fail_next_window_decision_append(worker):
+    """Fail the next routing.window_decided append once, after inference completed.
+
+    Distinct windows differ in provider-visible window_index/revision (#337), so RAM
+    reuse is exercised by retrying the SAME source after a native append outage.
+    """
+    from services.decisions.window_worker import JournalUnavailable
+
+    original = worker._native
+
+    async def native(operation, *args, **kwargs):
+        if (
+            operation == "append"
+            and args
+            and getattr(args[0], "kind", None) == "routing.window_decided"
+        ):
+            worker._native = original
+            raise JournalUnavailable("synthetic decision append outage")
+        return await original(operation, *args, **kwargs)
+
+    worker._native = native
+
+
 async def test_window_reuse_retains_original_native_model_pin_without_another_request(
     tmp_path, monkeypatch
 ):
@@ -466,10 +489,15 @@ async def test_window_reuse_retains_original_native_model_pin_without_another_re
         worker = WindowDecisionsWorker(
             env.journal, Agent(), WindowClassifier(env.host), model_settings=env.settings
         )
+        from services.decisions.window_worker import JournalUnavailable
+
         first = source(env, index=0)
-        await worker.classify(first)
-        second = source(env, index=1)
-        await worker.classify(second)
+        _fail_next_window_decision_append(worker)
+        with pytest.raises(JournalUnavailable):
+            await worker.classify(first, attempt=1)
+        # Retrying the same source with identical admissible input reuses the pinned call.
+        second = first
+        await worker.classify(second, attempt=2)
         assert len(wire.requests) == 1
         records = rows(env)
         assert len(records) == 2

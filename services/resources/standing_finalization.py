@@ -179,9 +179,9 @@ class StandingFinalization:
         if db.execute(f"SELECT 1 FROM {_TABLE} WHERE {' OR '.join(invalid)} LIMIT 1").fetchone():
             raise StandingUnavailable
         for row in db.execute(f"SELECT * FROM {_TABLE} LIMIT {_MAX_CLAIMS}"):
-            self._checked(row)
+            self._checked(row, barrier_checked=True)
 
-    def _checked(self, row):
+    def _checked(self, row, *, barrier_checked=False):
         from packages.contracts.standing_resource_finalization import _ERROR, _FAILURES, _encode
 
         def fresh_wire(value):
@@ -219,13 +219,11 @@ class StandingFinalization:
         ).fetchone()
         if native is None or native["binding"] != row["binding"]:
             raise StandingUnavailable
-        self.barrier._checked_row(native)
+        if not barrier_checked:
+            self.barrier._checked_row(native)
         reservation = report = None
         if row["reservation"] is not None:
-            reservation = checked_finalization(
-                StandingResourceReservation.from_json(row["reservation"].encode()),
-                StandingResourceReservation,
-            )
+            reservation = StandingResourceReservation.from_json(row["reservation"].encode())
             if (
                 fresh_wire(reservation) != row["reservation"]
                 or reservation.context.family != "standing"
@@ -242,7 +240,7 @@ class StandingFinalization:
             ).fetchone()
             if (
                 intent is None
-                or intent["request"] != reservation.canonical_bytes().decode()
+                or intent["request"] != row["reservation"]
                 or intent["action_digest"] != reservation.action_digest
                 or intent["receipt"] is None
             ):

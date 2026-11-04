@@ -98,65 +98,83 @@ flowchart TB
 
 ## Get started
 
-Kinaiya runs on a native Linux host (`Ubuntu 22.04` or `24.04`, `x86_64` or `aarch64`, `Python 3.11–3.13`) with a Flutter web interface. Read the [Linux installation and recovery guide](docs/linux-installation.md) for full lifecycle details; **never run the installer as root**.
+Kinaiya runs on a native Linux host (**Ubuntu 22.04 or 24.04**, `x86_64` or `aarch64`, `Python 3.11–3.13`) with a Flutter web interface. Other Linux distributions (such as Debian 12), WSL, macOS, and Windows are not qualified by the candidate installer. Read the [Linux installation and recovery guide](docs/linux-installation.md) for the complete first-use quickstart and recovery paths; **never run the installer as root**.
 
 ### Native Linux quick install (single command)
 
-Run the single-command installer to check host prerequisites, install any missing system dependencies (`bubblewrap`, `libseccomp2`, `python3.<minor>-venv`), verify and stage the release runtime in an isolated `.venv`, install the `~/.local/bin/kinaiya` launcher, and launch the interactive setup wizard:
+Run the single-command installer to check host prerequisites, print the installation plan before making changes, install any missing system dependencies (`bubblewrap`, `libseccomp2`, `python3.<minor>-venv`), verify and stage the release runtime in an isolated `.venv`, install the `~/.local/bin/kinaiya` launcher, and launch the interactive setup wizard:
 
 ```sh
+# Interactive bootstrap + setup wizard (experimental nightly release channel):
 curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+
+# Or review the printed JSON plan first without --yes (type 'no' at the prompt to exit with zero changes),
+# or customize initial disjoint workspace and data directories:
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- \
+  --channel nightly --workspace "$HOME/Kinaiya Workspace" --data-dir "$HOME/.local/share/kinaiya/data"
 ```
 
 ```mermaid
 flowchart LR
-    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04 · Python 3.11–3.13"] --> B["2. Missing Dependencies<br/>sudo apt-get install --no-upgrade"]
+    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04 · Python 3.11–3.13"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
     B --> C["3. Release Verification<br/>HTTPS + Immutable Tag + SHA-256"]
     C --> D["4. Isolated Runtime<br/>Per-Generation .venv + Locked Wheels"]
     D --> E["5. Interactive Setup Wizard<br/>~/.config/kinaiya/config.json"]
 ```
 
 > [!IMPORTANT]
-> **Dependency & System Update Policy (`--no-upgrade`):**
-> - **Installs missing dependencies only:** If `bubblewrap`, `libseccomp2`, or `python3.<minor>-venv` is missing, the CLI includes `sudo apt-get install --no-upgrade -y <missing>` in the confirmation plan and installs only those missing packages.
-> - **Never updates your system:** The CLI **never** runs `sudo apt-get update` or `sudo apt-get upgrade`, and `--no-upgrade` prevents `apt-get` from upgrading any already-installed package on your machine.
-> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`, or a stale local package index blocking `--no-upgrade`) is out of date, the CLI and setup wizard stop and warn you to update that specific component first.
+> **Dependency & System Update Policy (Solver-Verified No-Upgrade / No-Remove / No-Downgrade):**
+> - **Installs missing dependencies only:** If `bubblewrap`, `libseccomp2`, or `python3.<minor>-venv` is missing, the CLI includes the non-mutating `apt-get -s` solver check and `sudo apt-get install --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y -- <missing>` in the confirmation plan. Before invoking `sudo`, it simulates the complete transaction against the `dpkg` status snapshot, verifies that every `Inst` record is a newly installed package with zero upgrades, removals, or downgrades, and binds the approved `package=version` pairs to the install command.
+> - **Never updates or mutates existing system packages:** Because `apt-get --no-upgrade` alone only prevents upgrading packages explicitly named on the command line (and can still upgrade already-installed transitive dependencies), Kinaiya inspects the full solver transaction and **never** runs `sudo apt-get update` or `sudo apt-get upgrade`.
+> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`), a transitive dependency upgrade/removal/downgrade requirement, or a stale local package index blocks installation, the CLI and setup wizard stop before any mutating command and warn you to update that specific component first.
 
-**Release channel notes:**
-- **Nightly (`--channel nightly`):** Installs only a qualified, SHA-256-pinned GitHub release (never arbitrary commits from `main`). Nightly builds are scheduled for **midnight Las Vegas time (`America/Los_Angeles`)** and require passing gates.
-- **Stable (default):** Approval-gated channel. When no approved stable release is published yet, running without `--channel nightly` refuses rather than silently falling back to an alpha or nightly build. See [release policy and trust limits](docs/releases.md).
+**Install locations, release channels & setup boundaries:**
+- **Default XDG layout vs custom directories:** By default, managed code and per-generation `.venv` runtimes live in `~/.local/share/kinaiya/install`, private journals and tokens in `~/.local/share/kinaiya/data`, config in `~/.config/kinaiya/config.json`, cache in `~/.cache/kinaiya`, the launcher in `~/.local/bin/kinaiya`, and the Agent workspace in `~/Kinaiya Workspace`. You can pass custom absolute `--workspace` and `--data-dir` paths (including paths with spaces) to `install.sh`, provided all roots are disjoint and symlink-free; managed code and private data must stay outside the Agent workspace so Agent tools cannot modify trusted runtime code or credentials. *Planned (open PR, not on `main`):* an interactive choice between the default root and the invoking directory (#383).
+- **Nightly (`--channel nightly`, experimental) vs Stable (default):** Nightly installs only a qualified, SHA-256-pinned GitHub release (scheduled for **midnight Las Vegas time (`America/Los_Angeles`)**, never arbitrary `main` commits). Stable is approval-gated; when no approved stable release is published yet, running without `--channel nightly` refuses rather than falling back to nightly. See [release policy and trust limits](docs/releases.md).
+- **Saved configuration vs live inference:** `kinaiya setup` writes `~/.config/kinaiya/config.json` and generates private `0600` service tokens (`ready: false`, `provider_connection: "not_checked"`). It never downloads models, never accepts raw API keys on the command line (pass only an environment variable **name** via `--credential-env`), and does not test live inference until you start the host.
 
 ---
 
 ## Run the host
 
-Once installed and configured by the single-command installer above, use the `kinaiya` CLI to start services, open the web UI, or manage updates:
+Once installed and configured, add `~/.local/bin` to `PATH`, start the loopback host services, and export your local owner login credential for the web UI:
 
 ```sh
-# Ensure ~/.local/bin is on PATH in the current shell if needed:
+# 1. Ensure ~/.local/bin is on PATH in the current shell:
 export PATH="$HOME/.local/bin:$PATH"
 
-# Start Agent-only host services (Session :8760 + Agent :8761, plus Converse/Decisions if enabled in setup):
+# 2. If using a cloud provider, export the API key into the environment variable NAME you gave
+#    setup (--credential-env) from your protected secret mechanism; never put raw keys in CLI flags.
+
+# 3. Start Agent-only host services (Session :8760 + Agent :8761, plus Converse/Decisions if enabled in setup):
 kinaiya serve host
 
-# Or start all four services explicitly (Session :8760, Agent :8761, Converse :8762, Decisions :8763):
-kinaiya serve all
+# 4. In a second terminal, export the owner browser sign-in token to ~/.local/share/kinaiya/data/owner-login.txt (mode 0600):
+kinaiya owner-login
 
-# Serve the matching release's prebuilt Flutter owner web UI on http://127.0.0.1:8780:
+# 5. Serve the matching release's prebuilt Flutter owner web UI on http://127.0.0.1:8780:
 kinaiya web
 ```
 
-### Common CLI & lifecycle commands
+- **Owner authentication vs internal service tokens:** Kinaiya manages internal service-to-service credentials in `~/.local/share/kinaiya/data/service-tokens.json` (`0600`); never edit or share that file. `kinaiya owner-login` exports only the `owner` bearer token to `~/.local/share/kinaiya/data/owner-login.txt` (or `--output <path>`, `0600`, without printing the token to stdout) so you can sign into the local web UI or authenticate owner API requests.
+
+### Common CLI, setup & recovery commands
 
 | Task | Command | Notes |
 | --- | --- | --- |
+| **Interactive setup wizard** | `kinaiya setup` | Prompts on `/dev/tty` for workspace, data dir, measured Agent adapter (`lmstudio` or `meta`), model, and optional Converse. |
+| **Non-interactive local setup** | `kinaiya setup --yes --endpoint http://127.0.0.1:1234 --model <model-id>` | Configures local native LM Studio loopback (`allow_cloud: false`) without starting work. |
+| **Non-interactive cloud setup** | `kinaiya setup --yes --endpoint https://api.meta.ai/v1 --model <model-id> --allow-cloud --credential-env MY_PROVIDER_KEY` | Records the env var **name** (`MY_PROVIDER_KEY`) and cloud disclosure consent; never pass a raw key. |
+| **Start host services** | `kinaiya serve host` | Session (`:8760`) + Agent (`:8761`); adds Converse/Decisions only if enabled in setup. `serve all` remains a developer path. |
 | **Send a direct Agent task** | `kinaiya agent "Write a small file"` | Connects directly to Agent (`:8761`). Unapproved writes/shell calls wait for owner approval. |
-| **Export owner web login** | `kinaiya owner-login` | Writes a `0600` local credential file for signing into the loopback web UI. |
+| **Export owner web login** | `kinaiya owner-login` | Writes a `0600` local credential file (`owner-login.txt`) for signing into the loopback web UI. |
 | **Check installed version** | `kinaiya version` | Verifies and prints the active generation's immutable release receipt. |
-| **Check for updates** | `kinaiya update --check --channel nightly` | Read-only check; never creates directories, downloads archives, or restarts services. |
-| **Install verified update** | `kinaiya update --channel nightly` | Stages new generation alongside current, verifies imports, and switches atomically. |
-| **Rollback code generation** | `kinaiya rollback --generation <id>` | Restores retained code/runtime generation only; never modifies or rolls back databases. |
-| **Re-run setup wizard** | `kinaiya setup` | Interactive `/dev/tty` wizard (or `--yes --endpoint ... --model ...` for unattended setup). |
+| **Check / plan updates** | `kinaiya update --plan --channel nightly` | Read-only check (`--check` or `--plan`); never creates directories, downloads archives, or restarts services. |
+| **Install verified update** | `kinaiya update --yes --channel nightly` | Stages new generation alongside current, verifies imports, and switches atomically (stop services first). |
+| **Recover interrupted stage** | `kinaiya recover --yes` | Reconciles `pending.json` after an interrupted install/update while preserving `journal.sqlite` and workspace. |
+| **Rollback code generation** | `kinaiya rollback --generation <32-hex-id> --yes` | Restores retained code/runtime generation only; never modifies or rolls back databases. |
+
+Need to recover from a missing `bwrap` namespace policy, invalid API key, unreachable model endpoint, missing web bundle, or interrupted update? See [Troubleshooting and small recovery paths in `docs/linux-installation.md`](docs/linux-installation.md#troubleshooting-and-small-recovery-paths).
 
 <details>
 <summary><strong>Contributor / local source checkout verification commands</strong></summary>

@@ -1,0 +1,220 @@
+{
+  "$defs": {
+    "MediaClientPlaybackPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "client_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Client Instance",
+          "type": "string"
+        },
+        "generation_epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation Epoch",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "client_playback",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "client_instance",
+        "generation_epoch"
+      ],
+      "title": "MediaClientPlaybackPeer",
+      "type": "object"
+    },
+    "MediaExternalTransportPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "exchange_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Exchange Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "external_transport",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "exchange_id"
+      ],
+      "title": "MediaExternalTransportPeer",
+      "type": "object"
+    },
+    "MediaLocalProcessPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/MediaProcessIdentity"
+        },
+        "kind": {
+          "const": "local_process",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "identity"
+      ],
+      "title": "MediaLocalProcessPeer",
+      "type": "object"
+    },
+    "MediaNativeTaskPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Instance",
+          "type": "string"
+        },
+        "kind": {
+          "const": "native_task",
+          "title": "Kind",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "backend_instance",
+        "task_id",
+        "request_sha256"
+      ],
+      "title": "MediaNativeTaskPeer",
+      "type": "object"
+    },
+    "MediaOwnedWorkerPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Instance",
+          "type": "string"
+        },
+        "kind": {
+          "const": "owned_worker",
+          "title": "Kind",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "instance",
+        "request_sha256"
+      ],
+      "title": "MediaOwnedWorkerPeer",
+      "type": "object"
+    },
+    "MediaProcessIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "boot_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Boot Id",
+          "type": "string"
+        },
+        "nonce": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Nonce",
+          "type": "string"
+        },
+        "pid": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Pid",
+          "type": "integer"
+        },
+        "pidfd_owner": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Pidfd Owner",
+          "type": "string"
+        },
+        "start_tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Start Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pid",
+        "start_tick",
+        "boot_id",
+        "nonce",
+        "pidfd_owner"
+      ],
+      "title": "MediaProcessIdentity",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "client_playback": "#/$defs/MediaClientPlaybackPeer",
+      "external_transport": "#/$defs/MediaExternalTransportPeer",
+      "local_process": "#/$defs/MediaLocalProcessPeer",
+      "native_task": "#/$defs/MediaNativeTaskPeer",
+      "owned_worker": "#/$defs/MediaOwnedWorkerPeer"
+    },
+    "propertyName": "kind"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/MediaLocalProcessPeer"
+    },
+    {
+      "$ref": "#/$defs/MediaNativeTaskPeer"
+    },
+    {
+      "$ref": "#/$defs/MediaOwnedWorkerPeer"
+    },
+    {
+      "$ref": "#/$defs/MediaClientPlaybackPeer"
+    },
+    {
+      "$ref": "#/$defs/MediaExternalTransportPeer"
+    }
+  ]
+}

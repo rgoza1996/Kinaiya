@@ -59,7 +59,10 @@ def custom_providers_store(layout, *, workspace: Path | None = None) -> CustomPr
 def _readline(tty, label: str) -> str:
     tty.write(label)
     tty.flush()
-    answer = tty.readline()
+    try:
+        answer = tty.readline()
+    except StopIteration:
+        answer = ""
     if not answer:
         raise ProfileFormCancelled("Terminal input closed; no profile was saved.")
     return answer.rstrip("\r\n")

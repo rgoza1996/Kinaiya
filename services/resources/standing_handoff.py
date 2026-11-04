@@ -289,20 +289,22 @@ class StandingHandoff:
             ).fetchone()
         ):
             raise StandingUnavailable
+        from packages.contracts.standing_work import _encode
+
         for row in db.execute(f"SELECT * FROM {_INTENTS}"):
             request = StandingResourceReservation.from_json(row["request"].encode())
             if (
                 len(row["action_key"]) > 256
                 or request.resource_backend != meta[0]
                 or request.action_digest != row["action_digest"]
-                or request.canonical_bytes().decode() != row["request"]
+                or _encode(request).decode("utf-8") != row["request"]
             ):
                 raise StandingUnavailable
             if row["receipt"] is not None:
-                receipt = StandingResourceReservationReceipt.from_json(
-                    row["receipt"].encode()
-                ).validate_request(request)
-                if receipt.canonical_bytes().decode() != row["receipt"]:
+                receipt = StandingResourceReservationReceipt.from_json(row["receipt"].encode())
+                if _encode(receipt.request).decode("utf-8") != row["request"]:
+                    raise ValueError("Invalid standing Resources contract") from None
+                if _encode(receipt).decode("utf-8") != row["receipt"]:
                     raise StandingUnavailable
         return meta
 

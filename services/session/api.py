@@ -45,6 +45,7 @@ from packages.contracts.standing_work import StandingConflict, StandingUnavailab
 from packages.contracts.stt_settlement import STTPublication
 from services.common.auth import Auth
 from services.session.agent_control import AgentControl
+from services.session.legacy_events import serve_legacy_events
 from services.session.standing_admission import StandingTaskOwner
 from services.session.standing_dispatch import StandingDispatchOwner
 from services.session.standing_execution import StandingExecutionOwner
@@ -67,11 +68,16 @@ def create_app(
     agent_enabled: bool | None = None,
     standing_clock=None,
     standing_monotonic_ms=None,
+    media_owner=None,
 ) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError("Session control requires configured authentication")
     if agent_enabled is not None and type(agent_enabled) is not bool:
         raise ValueError("Legacy Agent bootstrap must be an explicit boolean")
+    if media_owner is not None:
+        # Original object custody is retained before registration can fail.
+        # Admission still requires binding to this app's actual controller.
+        store.register_media_owner(media_owner)
     # This app owns its registration; another app using the same Store never
     # upgrades this object's generation or acquires its write authority.
     control = AgentControl(store, new_store=store.agent_control.new_store)
@@ -80,6 +86,17 @@ def create_app(
         control_ready = True
     except AgentControlUnavailable:
         control_ready = False
+    media_initialized = False
+    if media_owner is not None and control_ready:
+        from services.session.media_clients import MediaSessionError
+
+        try:
+            media_owner.bind_app(control, auth)
+            media_initialized = True
+        except MediaSessionError:
+            # Preserve ordinary Session operations; media admission stays
+            # unavailable, with original cleanup/recovery custody retained.
+            pass
 
     standing_owner = StandingOwner(store, control, clock=standing_clock)
     standing_initialized = False
@@ -140,14 +157,17 @@ def create_app(
     standing_operations = None
     standing_resource_finalization_operations = None
     transcript_scan_operations = None
+    media_operations = None
 
     @asynccontextmanager
     async def lifespan(_app):
         try:
             yield
         finally:
+            media_shutdown_confirmed = store.media_close_confirmed()
 
             async def close_operations():
+                nonlocal media_shutdown_confirmed
                 # Fence every entry point before waiting for an actual
                 # operation owner; their shared registry stays globally bounded.
                 standing_operations._closed = True
@@ -155,13 +175,34 @@ def create_app(
                 transcript_scan_operations._closed = True
                 for event in standing_operations._operations.values():
                     event.set()
+                media_operations_positive = media_operations is None
+                media_owner_positive = media_owner is None
                 try:
-                    await transcript_scan_operations.close()
+                    try:
+                        if media_operations is not None:
+                            media_operations_positive = await media_operations.close() is True
+                    finally:
+                        try:
+                            await transcript_scan_operations.close()
+                        finally:
+                            try:
+                                await standing_resource_finalization_operations.close()
+                            finally:
+                                await standing_operations.close()
                 finally:
                     try:
-                        await standing_resource_finalization_operations.close()
+                        if media_owner is not None:
+                            media_owner_positive = await media_owner.close() is True
                     finally:
-                        await standing_operations.close()
+                        media_shutdown_confirmed = (
+                            media_operations_positive
+                            and media_owner_positive
+                            and store.media_close_confirmed() is True
+                        )
+                        if not media_shutdown_confirmed:
+                            app.state.media_owner_shutdown_unconfirmed = True
+                if not media_shutdown_confirmed:
+                    raise RuntimeError("Original media shutdown is unconfirmed")
 
             shutdown = asyncio.create_task(close_operations())
             interrupted = False
@@ -177,6 +218,8 @@ def create_app(
                 shutdown.result()
             except BaseException:
                 app.state.standing_owner_shutdown_unconfirmed = True
+                if not media_shutdown_confirmed:
+                    app.state.media_owner_shutdown_unconfirmed = True
                 raise
             finally:
                 try:
@@ -197,21 +240,39 @@ def create_app(
                             try:
                                 standing_dispatch_owner.close()
                             finally:
-                                try:
-                                    control.close()
-                                except AgentControlUnavailable:
-                                    # A poisoned connection has already failed closed.
-                                    # Retirement remains unconfirmed after shutdown.
+                                if not media_shutdown_confirmed:
                                     app.state.agent_control_shutdown_unconfirmed = True
-                                    logging.getLogger(__name__).warning(
-                                        "Agent control shutdown could not confirm native generation retirement"
-                                    )
+                                else:
+                                    try:
+                                        control.close()
+                                    except AgentControlUnavailable:
+                                        # A poisoned connection has already failed closed.
+                                        # Retirement remains unconfirmed after shutdown.
+                                        app.state.agent_control_shutdown_unconfirmed = True
+                                        logging.getLogger(__name__).warning(
+                                            "Agent control shutdown could not confirm native generation retirement"
+                                        )
             if interrupted:
                 raise asyncio.CancelledError
 
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
     app.state.agent_control = control
     app.state.agent_control_shutdown_unconfirmed = False
+    app.state.media_owner = media_owner
+    app.state.media_owner_initialized = media_initialized
+    app.state.media_owner_shutdown_unconfirmed = False
+    if media_owner is not None and (media_initialized or store._media_operations is None):
+        from services.session.media_api import install_media_routes
+
+        media_operations = install_media_routes(app, store, auth, media_owner)
+        store.register_media_operations(media_operations)
+    elif store._media_owner is not None:
+        # A disabled optional adapter cannot turn retained native errors into
+        # unhandled exceptions or renew the prior owner's authority.
+        from services.session.media_api import install_media_exception_handler
+
+        install_media_exception_handler(app)
+    app.state.media_operations = media_operations
     app.state.standing_owner = standing_owner
     app.state.standing_owner_initialized = standing_initialized
     app.state.standing_owner_shutdown_unconfirmed = False
@@ -252,7 +313,13 @@ def create_app(
         CORSMiddleware,
         allow_origins=list(auth.allowed_origins),
         allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type"]
+        + (
+            ["X-Kinaiya-Media-Bootstrap-Nonce", "X-Kinaiya-Media-Client-Capability"]
+            if media_owner is not None
+            else []
+        ),
+        expose_headers=["X-Kinaiya-Media-Client-Capability"] if media_owner is not None else [],
     )
 
     @app.middleware("http")
@@ -265,6 +332,7 @@ def create_app(
             )
             or path in {"/v1/standing", "/v1/transcript/scan"}
             or path.startswith("/v1/standing/")
+            or path.startswith("/v1/media/")
         ):
             # This outer layer also sees CORS preflights, which can finish
             # before the standing route middleware is entered.
@@ -399,11 +467,20 @@ def create_app(
 
     @app.post("/v1/sessions/{session_id}/reset", dependencies=[Depends(auth.require("owner"))])
     async def reset(session_id: str):
+        original_owner = store._media_owner
+        if original_owner is not None:
+            change = original_owner.begin_session_change(session_id, "reset")
+            return await original_owner.apply_session_change(change)
         return store.reset(session_id)
 
     @app.delete("/v1/sessions/{session_id}", dependencies=[Depends(auth.require("owner"))])
     async def delete(session_id: str):
-        store.delete(session_id)
+        original_owner = store._media_owner
+        if original_owner is not None:
+            change = original_owner.begin_session_change(session_id, "deleted")
+            await original_owner.apply_session_change(change)
+        else:
+            store.delete(session_id)
         return {"deleted": True}
 
     @app.post("/v1/transcript/entries")
@@ -791,16 +868,20 @@ def create_app(
         try:
             # A first frame supports web clients without putting credentials in URLs.
             hello = await asyncio.wait_for(ws.receive_json(), timeout=5)
+            if type(hello) is not dict:
+                raise ValueError("Invalid event handshake")
             auth.authenticate(hello.get("token", ""))
+            if "media" in hello:
+                if media_owner is None or not media_initialized:
+                    await ws.close(code=1008)
+                    return
+                # The media hub owns its original sender, sole receiver and
+                # disconnect fencing. The legacy polling loop stays separate.
+                await media_owner.event_hub.serve_authenticated(ws, hello)
+                return
             after = int(hello.get("after", 0))
             session_id = hello.get("session_id")
-            while True:
-                entries = store.read(after=after, limit=100, session_id=session_id)
-                for event in entries:
-                    await ws.send_json(event.model_dump(mode="json"))
-                    after = event.sequence
-                if not entries:
-                    await asyncio.sleep(0.1)
+            await serve_legacy_events(ws, store, after=after, session_id=session_id)
         except (WebSocketDisconnect, TimeoutError, HTTPException, ValueError):
             await ws.close(code=1008)
 

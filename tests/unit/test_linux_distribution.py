@@ -361,14 +361,34 @@ def test_tty_wizard_requires_confirmation_and_keeps_agent_only(tmp_path, monkeyp
     assert not layout.config.exists()
 
 
-def test_mascot_falls_back_for_narrow_and_noninteractive_output():
+def test_mascot_falls_back_for_narrow_and_noninteractive_output(monkeypatch):
     try:
         wizard = importlib.import_module("services.distribution.wizard")
     except ModuleNotFoundError:
         pytest.fail("terminal mascot is not implemented")
     full = wizard.mascot(width=80, interactive=True)
-    assert "(" in full and "~" in full and "*" in full
+    assert "(" in full and "~" in full and "*" in full and "@" in full
     assert "\x1b" not in full
+    assert len(full.splitlines()) == 15
+    assert max(map(len, full.splitlines())) == 68
+    assert wizard.render_moon_ascii_from_image() == wizard.MASCOT
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("KINAIYA_NO_COLOR", raising=False)
+    monkeypatch.delenv("CLICOLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    colored_tc = wizard.mascot(width=80, interactive=True, color="truecolor")
+    assert "\x1b[38;2;" in colored_tc
+    colored_16 = wizard.mascot(width=80, interactive=True, color="ansi16")
+    assert "\x1b[97m" in colored_16 and "\x1b[38;2;" not in colored_16
+    for non_color_term in ("dumb", "vt100", "vt52", "unknown", "xterm-mono"):
+        monkeypatch.setenv("TERM", non_color_term)
+        assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("CLICOLOR", "0")
+    assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
+    monkeypatch.delenv("CLICOLOR", raising=False)
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
     assert wizard.mascot(width=80, interactive=False) == "Kinaiya"
     assert max(map(len, wizard.mascot(width=12, interactive=True).splitlines())) <= 12
 
@@ -509,13 +529,58 @@ def test_install_missing_dependencies_uses_no_upgrade_and_never_runs_apt_update(
 
     def fake_run(argv, **kwargs):
         commands.append(argv)
+        if "-s" in argv:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.\n"
+                    "Inst bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Inst libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                ),
+                stderr="",
+            )
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     installed = module.install_missing_dependencies(["bubblewrap", "libseccomp2"])
     assert installed == ["bubblewrap", "libseccomp2"]
     assert commands == [
-        ["sudo", "apt-get", "install", "--no-upgrade", "-y", "bubblewrap", "libseccomp2"]
+        [
+            "apt-get",
+            "-s",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "install",
+            "--",
+            "bubblewrap",
+            "libseccomp2",
+        ],
+        [
+            "sudo",
+            "apt-get",
+            "install",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "--",
+            "bubblewrap=0.9.0-1ubuntu0.3",
+            "libseccomp2=2.5.5-1ubuntu3.1",
+        ],
     ]
     for cmd in commands:
         assert "update" not in cmd and "upgrade" not in cmd
@@ -538,3 +603,115 @@ def test_install_missing_dependencies_warns_when_no_upgrade_blocked_by_stale_sta
         match=r"Out-of-date system blocker.*never runs `sudo apt-get update` or `sudo apt-get upgrade`",
     ):
         module.install_missing_dependencies(["bubblewrap"])
+
+
+def test_install_root_selection_routes_through_layout_receipt_update_rollback_and_recovery(
+    tmp_path, monkeypatch
+):
+    from services import launcher
+    from services.distribution import cli
+
+    module = distribution()
+    home = tmp_path / "home"
+    home.mkdir()
+    custom_dir = tmp_path / "Custom Kinaiya Root"
+    custom_dir.mkdir()
+    monkeypatch.setattr(Path, "home", lambda: home)
+    monkeypatch.delenv("KINAIYA_INSTALL_ROOT", raising=False)
+
+    class FakeTTY:
+        def __init__(self, answers):
+            self.answers = iter(answers)
+            self.output = ""
+
+        def write(self, text):
+            self.output += text
+
+        def readline(self):
+            return next(self.answers, "")
+
+    # 1) Interactive choice 1 (Enter) selects default
+    tty_default = FakeTTY(["\n"])
+    layout_default, pre_consented = module.resolve_install_location(
+        home, invoking_dir=custom_dir, interactive=True, tty=tty_default
+    )
+    assert layout_default.install == home / ".local/share/kinaiya/install"
+    assert not pre_consented
+    assert "1) Default (recommended):" in tty_default.output
+    assert "2) Current directory:" in tty_default.output
+
+    # 2) Interactive choice 2 selects current directory (with spaces in path)
+    tty_current = FakeTTY(["2\n"])
+    layout_custom, _ = module.resolve_install_location(
+        home, invoking_dir=custom_dir, interactive=True, tty=tty_current
+    )
+    assert layout_custom.install == custom_dir
+    assert layout_custom.workspace == home / "Kinaiya Workspace"
+    assert layout_custom.data == home / ".local/share/kinaiya/data"
+    assert layout_custom.config == home / ".config/kinaiya/config.json"
+
+    # 3) Equal canonical paths skip prompt
+    tty_unused = FakeTTY([])
+    layout_eq, _ = module.resolve_install_location(
+        home,
+        invoking_dir=home / ".local/share/kinaiya/install",
+        interactive=True,
+        tty=tty_unused,
+    )
+    assert layout_eq.install == home / ".local/share/kinaiya/install"
+    assert tty_unused.output == ""
+
+    # 4) Install release into custom_dir (with spaces) and verify discovery across commands
+    archive1, release1 = archive_release(tmp_path, build=1)
+    module.install_release(
+        layout_custom, release1, archive1, prepare=lambda *a: None, busy=lambda: False
+    )
+    assert (home / ".config/kinaiya/install-root.json").is_file()
+    assert json.loads((home / ".config/kinaiya/install-root.json").read_text()) == {
+        "install": str(custom_dir)
+    }
+    wrapper_content = (layout_custom.bin / "kinaiya").read_text()
+    assert f"'{custom_dir}/current/launch'" in wrapper_content or str(custom_dir) in wrapper_content
+
+    # Without KINAIYA_INSTALL_ROOT in env, chosen_layout() discovers recorded custom_dir
+    discovered = cli.chosen_layout(home)
+    assert discovered.install == custom_dir
+    ver_info = cli.dispatch(importlib.import_module("types").SimpleNamespace(command="version"))
+    assert ver_info["managed"] is True
+    assert ver_info["install"] == str(custom_dir)
+    assert ver_info["release"]["build_number"] == 1
+
+    # Re-runs preserve the recorded root without prompting and refuse relocation
+    tty_rerun = FakeTTY([])
+    preserved, _ = module.resolve_install_location(
+        home,
+        invoking_dir=tmp_path / "another-empty-dir",
+        interactive=True,
+        tty=tty_rerun,
+    )
+    assert preserved.install == custom_dir
+    assert tty_rerun.output == ""
+    with pytest.raises(module.InstallError, match="refusing to relocate"):
+        module.resolve_install_location(
+            home,
+            install_dir=tmp_path / "relocated",
+            interactive=False,
+        )
+
+    # Update, rollback, and recover use the custom install root
+    gen1 = (custom_dir / "current").resolve()
+    archive2, release2 = archive_release(tmp_path, build=2)
+    module.install_release(
+        discovered, release2, archive2, prepare=lambda *a: None, busy=lambda: False
+    )
+    assert (custom_dir / "current").resolve() != gen1
+    rb = module.rollback(discovered, gen1.name, busy=lambda: False)
+    assert rb["action"] == "code_rollback"
+    assert (custom_dir / "current").resolve() == gen1
+    assert module.recover(discovered, busy=lambda: False)["action"] == "nothing_to_recover"
+
+    # Guard roots protect the custom install root and never grant workspace access
+    monkeypatch.setenv("KINAIYA_INSTALL_ROOT", str(custom_dir))
+    guard_roots = set(launcher.managed_guard_roots())
+    assert custom_dir in guard_roots
+    assert discovered.workspace not in guard_roots
