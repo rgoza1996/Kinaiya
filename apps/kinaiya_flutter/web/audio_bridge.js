@@ -522,6 +522,12 @@
 
   var api = {
     chooseRecording: function () {
+      // Resume playback in the import gesture, before the file picker and
+      // asynchronous upload consume browser activation. This opens no mic or
+      // audio source, and never delays the picker on a held resume promise.
+      try {
+        ensureContext(24000).catch(function () { /* Playback remains unavailable. */ });
+      } catch (e) { /* Import is still available on hosts without Web Audio. */ }
       return new Promise(function (resolve) {
         var input=document.createElement('input');
         input.type='file';input.accept='audio/*,.wav,.webm,.ogg,.mp4,.m4a';
@@ -626,7 +632,7 @@
       // stale source is ever started.
       var gen = state.generation;
       return ensureContext(sampleRate || 24000).then(function (ctx) {
-        if (gen !== state.generation) return 'stopped';
+        if (gen !== state.generation || ctx.state !== 'running') return 'stopped';
         var bin;
         try {
           bin =

@@ -65,7 +65,7 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze
       - run: flutter test
-      - run: node --test web/audio_bridge.test.js
+      - run: node --test web/audio_bridge.test.js web/audio_import_activation.test.js
       - run: flutter build web --release --no-web-resources-cdn
       - name: Build foreground companion
         run: flutter build web --release --no-web-resources-cdn -t lib/companion_main.dart --output build/companion-web
