@@ -488,6 +488,7 @@ async def test_layout_and_configuration_matrix_spaces_idempotency_and_bootstrap_
     ) == "workspace data intact"
 
     # 4. Bootstrap plan inspection (cancelled before download/install, equivalent to dry-run plan check).
+    monkeypatch.delenv("KINAIYA_INSTALL_ROOT", raising=False)
     bootstrap = _load_bootstrap_module()
     monkeypatch.setattr(bootstrap, "preflight", lambda **kw: None)
     monkeypatch.setattr(bootstrap, "missing_dependencies", lambda: ["bubblewrap"])

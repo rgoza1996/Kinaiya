@@ -3,6 +3,10 @@
 # Trust: official GitHub HTTPS metadata + immutable release assets + SHA-256,
 # not an independent publisher signature. Never fetch or execute main/latest code.
 set -eu
+if [ -z "${KINAIYA_INVOKING_PWD:-}" ]; then
+  KINAIYA_INVOKING_PWD="$(pwd -P 2>/dev/null || pwd)"
+  export KINAIYA_INVOKING_PWD
+fi
 if [ -z "${KINAIYA_PYTHON:-}" ]; then
   for candidate in python3 python3.13 python3.12 python3.11; do
     if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] <= (3, 13) else 1)' 2>/dev/null; then
@@ -41,6 +45,46 @@ MAX_BYTES = 512 * 1024**2
 VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 MIN_BUBBLEWRAP_VERSION = (0, 6, 1)
 MIN_LIBSECCOMP_VERSION = (2, 5)
+PROTECTED_INSTALL_ROOTS = frozenset(
+    {
+        "/",
+        "/bin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/home",
+        "/lib",
+        "/lib32",
+        "/lib64",
+        "/libx32",
+        "/opt",
+        "/proc",
+        "/root",
+        "/run",
+        "/sbin",
+        "/srv",
+        "/sys",
+        "/tmp",
+        "/usr",
+        "/var",
+    }
+)
+PROTECTED_INSTALL_TREES = (
+    "/bin",
+    "/boot",
+    "/dev",
+    "/etc",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/libx32",
+    "/proc",
+    "/root",
+    "/run",
+    "/sbin",
+    "/sys",
+    "/usr",
+)
 DEFAULT_DPKG_STATUS_PATH = Path("/var/lib/dpkg/status")
 APT_STRICT_OPTIONS = (
     "--no-upgrade",
@@ -94,6 +138,216 @@ class BootstrapError(RuntimeError):
 def require(value, message):
     if not value:
         raise BootstrapError(message)
+
+
+def _atomic_write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+    tmp_path = Path(tmp_name)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def existing_install_root(home=None):
+    home = home or Path.home()
+    env_root = os.environ.get("KINAIYA_INSTALL_ROOT")
+    if env_root:
+        candidate = Path(env_root)
+        require(
+            not candidate.is_symlink() and candidate.resolve() == Path(os.path.abspath(candidate)),
+            "Launcher install root cannot use symlink aliases",
+        )
+        return candidate
+    marker = home / ".config/kinaiya/install-root.json"
+    require(not marker.is_symlink(), "Managed install location marker cannot be a symlink alias")
+    if marker.exists():
+        require(marker.is_file() and marker.stat().st_size <= 4 * 1024**2, "Invalid install location marker")
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raise BootstrapError("Malformed install location marker; preserve files for recovery") from None
+        require(isinstance(data, dict) and isinstance(data.get("install"), str), "Invalid install location marker")
+        recorded = Path(data["install"])
+        require(
+            not recorded.is_symlink() and recorded.resolve() == Path(os.path.abspath(recorded)),
+            "Recorded install root cannot use symlink aliases",
+        )
+        require(
+            (recorded / "layout.json").exists(),
+            "Recorded install root is missing layout metadata; preserve files for recovery",
+        )
+        return recorded
+    default_install = home / ".local/share/kinaiya/install"
+    require(not (default_install / "layout.json").is_symlink(), "Managed path alias is unsafe; refusing operation")
+    if (default_install / "layout.json").exists():
+        return default_install
+    return None
+
+
+def validate_install_root(candidate, *, home=None, workspace=None, data_dir=None):
+    home = home or Path.home()
+    if not isinstance(candidate, Path):
+        candidate = Path(candidate)
+    require(
+        candidate.is_absolute() and all(ord(c) >= 32 for c in str(candidate)),
+        "Install location must be an absolute path without control characters",
+    )
+    normalized = Path(os.path.abspath(candidate))
+    require(
+        not candidate.is_symlink() and candidate.resolve() == normalized,
+        "Install location cannot use symlink aliases",
+    )
+    posix_str = normalized.as_posix()
+    require(
+        posix_str not in PROTECTED_INSTALL_ROOTS
+        and not any(posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES),
+        f"Refusing protected system root as install location: {normalized}",
+    )
+    abs_home = Path(os.path.abspath(home))
+    require(
+        normalized != abs_home and normalized not in abs_home.parents,
+        "Install location cannot be the home directory or its parent",
+    )
+    data_root = Path(os.path.abspath(data_dir or (home / ".local/share/kinaiya/data")))
+    config_file = Path(os.path.abspath(home / ".config/kinaiya/config.json"))
+    config_root = config_file.parent
+    workspace_root = Path(os.path.abspath(workspace or (home / "Kinaiya Workspace")))
+    cache_root = Path(os.path.abspath(home / ".cache/kinaiya"))
+    bin_root = Path(os.path.abspath(home / ".local/bin"))
+    roots = [normalized, data_root, config_root, workspace_root, cache_root, bin_root]
+    for path in [*roots, config_file]:
+        require(
+            path.is_absolute() and all(ord(c) >= 32 for c in str(path)),
+            "Locations must be absolute paths without control characters",
+        )
+        require(
+            not path.is_symlink() and path.resolve() == Path(os.path.abspath(path)),
+            "Locations cannot use symlink aliases",
+        )
+    for idx, path in enumerate(roots):
+        for other in roots[idx + 1 :]:
+            require(
+                path != other and path not in other.parents and other not in path.parents,
+                "Install, data, config, workspace and cache must be disjoint",
+            )
+    if normalized.exists():
+        require(normalized.is_dir(), "Install location exists and is not a directory")
+        require(
+            os.access(normalized, os.R_OK | os.W_OK | os.X_OK),
+            "Install location lacks read/write/execute permissions",
+        )
+        for name in ("layout.json", "generations", "runtime.lock", "pending.json", "recovery.json"):
+            managed_item = normalized / name
+            require(
+                not managed_item.is_symlink()
+                and (not managed_item.exists() or managed_item.resolve() == managed_item),
+                "Managed path alias is unsafe; refusing operation",
+            )
+        marker = normalized / "layout.json"
+        if marker.exists():
+            try:
+                saved = json.loads(marker.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                raise BootstrapError("Malformed managed metadata; preserve files for recovery") from None
+            expected = {
+                "install": str(normalized),
+                "data": str(data_root),
+                "config": str(config_file),
+                "workspace": str(workspace_root),
+                "cache": str(cache_root),
+                "bin": str(bin_root),
+            }
+            require(saved == expected, "Saved layout differs; preserve existing data and configuration")
+        else:
+            require(not any(normalized.iterdir()), "Refusing non-empty or unmanaged installation directory")
+    else:
+        ancestor = next((p for p in normalized.parents if p.exists()), None)
+        require(
+            ancestor is not None and ancestor.is_dir() and os.access(ancestor, os.W_OK | os.X_OK),
+            "Install location parent directory is not writable",
+        )
+    return normalized
+
+
+def select_install_root(
+    home,
+    *,
+    install_dir=None,
+    install_location=None,
+    invoking_dir=None,
+    workspace=None,
+    data_dir=None,
+    interactive=False,
+    tty=None,
+):
+    require(
+        install_dir is None or install_location is None,
+        "Specify either --install-dir or --install-location, not both",
+    )
+    default_install = home / ".local/share/kinaiya/install"
+    existing = existing_install_root(home)
+    explicit = install_dir if install_dir is not None else install_location
+    if existing is not None:
+        if explicit is not None:
+            raw = str(explicit)
+            if raw == "default":
+                requested = default_install
+            elif raw == "current":
+                require(
+                    invoking_dir is not None,
+                    "Cannot infer current directory from a managed launcher; pass an explicit path",
+                )
+                requested = invoking_dir
+            else:
+                requested = Path(raw)
+            require(
+                requested.is_absolute() and Path(os.path.abspath(requested)) == existing,
+                f"Existing installation is recorded at {existing}; refusing to relocate existing installation",
+            )
+        return validate_install_root(existing, home=home, workspace=workspace, data_dir=data_dir), False
+    if explicit is not None:
+        raw = str(explicit)
+        if raw == "default":
+            candidate = default_install
+        elif raw == "current":
+            require(
+                invoking_dir is not None,
+                "Cannot infer current directory from a managed launcher; pass an explicit path",
+            )
+            candidate = invoking_dir
+        else:
+            candidate = Path(raw)
+        return validate_install_root(candidate, home=home, workspace=workspace, data_dir=data_dir), False
+    if not interactive or invoking_dir is None:
+        return validate_install_root(default_install, home=home, workspace=workspace, data_dir=data_dir), False
+    canonical_default = default_install.resolve()
+    canonical_invoking = invoking_dir.resolve()
+    if canonical_invoking == canonical_default:
+        return validate_install_root(default_install, home=home, workspace=workspace, data_dir=data_dir), False
+    tty.write(
+        "Select Kinaiya install location:\n"
+        f"  1) Default (recommended): {canonical_default}\n"
+        f"  2) Current directory:     {canonical_invoking}\n"
+        "Choose install location [1]: "
+    )
+    choice = tty.readline().strip().lower()
+    if choice in {"", "1", "default"}:
+        return validate_install_root(default_install, home=home, workspace=workspace, data_dir=data_dir), False
+    if choice == "yes":
+        return validate_install_root(default_install, home=home, workspace=workspace, data_dir=data_dir), True
+    if choice in {"2", "current"}:
+        return validate_install_root(invoking_dir, home=home, workspace=workspace, data_dir=data_dir), False
+    raise BootstrapError(
+        "Installation cancelled or invalid install location choice; select 1 (Default) or 2 (Current directory)"
+    )
 
 
 def _parse_version_tuple(raw):
@@ -884,11 +1138,19 @@ def open_terminal():
             yield terminal
 
 
-def run(argv=None):
+def run(argv=None, *, invoking_dir=None):
+    if invoking_dir is None:
+        env_pwd = os.environ.get("KINAIYA_INVOKING_PWD", "").strip()
+        if env_pwd:
+            invoking_dir = Path(env_pwd)
+        elif not os.environ.get("KINAIYA_INSTALL_ROOT"):
+            invoking_dir = Path.cwd()
     parser = argparse.ArgumentParser(description="Verified native Linux Kinaiya bootstrap; installs missing dependencies without upgrading existing packages")
     parser.add_argument("--channel", choices=("stable", "nightly"), default="stable")
     parser.add_argument("--yes", action="store_true")
     parser.add_argument("--no-setup", action="store_true")
+    parser.add_argument("--install-dir", type=Path, help="Explicit target directory for managed Kinaiya install root")
+    parser.add_argument("--install-location", help="Install root selection: 'default', 'current', or an absolute directory path")
     parser.add_argument("--workspace", type=Path)
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--endpoint")
@@ -903,24 +1165,62 @@ def run(argv=None):
     except TypeError:
         preflight()
         missing = []
-    manifest, artifact = resolve(args.channel)
-    plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(Path.home() / ".local/share/kinaiya/install"), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
-    if missing:
-        plan_summary["missing_system_dependencies"] = missing
-        plan_summary["system_dependency_check"] = " ".join(apt_simulation_command(missing))
-        plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
-        plan_summary["system_dependency_policy"] = (
-            "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+    home = Path.home()
+    selected_install = None
+    if args.yes or args.install_dir is not None or args.install_location is not None or existing_install_root(home) is not None:
+        selected_install, _ = select_install_root(
+            home,
+            install_dir=args.install_dir,
+            install_location=args.install_location,
+            invoking_dir=invoking_dir,
+            workspace=args.workspace,
+            data_dir=args.data_dir,
+            interactive=False,
         )
-    print(json.dumps(plan_summary), flush=True)
+    manifest, artifact = resolve(args.channel)
     if not args.yes:
         with open_terminal() as tty:
+            pre_consented = False
+            if selected_install is None:
+                selected_install, pre_consented = select_install_root(
+                    home,
+                    install_dir=args.install_dir,
+                    install_location=args.install_location,
+                    invoking_dir=invoking_dir,
+                    workspace=args.workspace,
+                    data_dir=args.data_dir,
+                    interactive=True,
+                    tty=tty,
+                )
+            plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(selected_install), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
+            if missing:
+                plan_summary["missing_system_dependencies"] = missing
+                plan_summary["system_dependency_check"] = " ".join(apt_simulation_command(missing))
+                plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
+                plan_summary["system_dependency_policy"] = (
+                    "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+                )
+            print(json.dumps(plan_summary), flush=True)
             tty.write("Review the plan. Type yes to download and install: ")
-            require(tty.readline().strip() == "yes", "Installation cancelled; no files changed")
+            confirm_line = tty.readline()
+            require(
+                confirm_line.strip() == "yes" or (pre_consented and confirm_line == ""),
+                "Installation cancelled; no files changed",
+            )
+    else:
+        plan_summary = {"channel": args.channel, "source_sha": manifest["source_sha"], "download_bytes": artifact["size"], "install": str(selected_install), "dependencies": "hash-locked isolated venv; no voice/model downloads", "trust": "official GitHub HTTPS plus artifact SHA-256, not publisher signing"}
+        if missing:
+            plan_summary["missing_system_dependencies"] = missing
+            plan_summary["system_dependency_check"] = " ".join(apt_simulation_command(missing))
+            plan_summary["system_dependency_command"] = " ".join(dependency_install_command(missing))
+            plan_summary["system_dependency_policy"] = (
+                "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+            )
+        print(json.dumps(plan_summary), flush=True)
     if missing:
         install_missing_dependencies(missing)
         preflight()
-    cache = Path.home() / ".cache/kinaiya"
+    cache = home / ".cache/kinaiya"
     require(cache.resolve() == cache.absolute(), "Bootstrap cache cannot use symlink aliases")
     cache.mkdir(parents=True, exist_ok=True, mode=0o700)
     with tempfile.TemporaryDirectory(prefix="bootstrap-", dir=cache) as temporary:
@@ -937,11 +1237,15 @@ def run(argv=None):
         validate_manifest(manifest, channel=args.channel)
         identity = json.loads((source / "release-identity.json").read_text())
         require(all(identity.get(key) == manifest.get(key) for key in identity) and identity.get("source_sha") == manifest["source_sha"], "Bundled source identity mismatch")
-        layout = Layout.for_home(Path.home())
+        try:
+            layout = Layout.for_home(home, install_root=selected_install)
+        except TypeError:
+            layout = replace(Layout.for_home(home), install=selected_install)
         layout = replace(layout, workspace=args.workspace or layout.workspace, data=args.data_dir or layout.data)
         native_preflight(layout)
         install_release(layout, manifest, archive)
-        print(json.dumps({"installed": manifest["source_sha"], "launcher": str(layout.bin / "kinaiya"), "PATH": 'Add "$HOME/.local/bin" to PATH explicitly', "ready": False}), flush=True)
+        _atomic_write_json(layout.config.parent / "install-root.json", {"install": str(layout.install)})
+        print(json.dumps({"installed": manifest["source_sha"], "install": str(layout.install), "launcher": str(layout.bin / "kinaiya"), "PATH": 'Add "$HOME/.local/bin" to PATH explicitly', "ready": False}), flush=True)
     if not args.no_setup and not layout.config.exists():
         # The bootstrap interpreter has no runtime dependencies. Setup must execute
         # in the verified managed venv, not import the native launcher into system Python.
