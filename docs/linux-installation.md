@@ -49,24 +49,34 @@ kinaiya web           # http://127.0.0.1:8780
 
 ## Candidate baseline and prerequisites
 
-- Native Ubuntu **22.04 or 24.04**, `x86_64` or `aarch64`.
-- Python **3.11–3.13**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
+- Native Ubuntu **22.04, 24.04, or 26.04**, `x86_64` or `aarch64`.
+- Python **3.11–3.14**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
   default Python 3.10 is insufficient; select an explicitly installed interpreter.
+  Ubuntu 26.04's default Python 3.14 is accepted; if its venv support is missing,
+  the installer plans `python3.14-venv` under the same no-upgrade policy below.
 - `bubblewrap`, `libseccomp2`, at least **1 GiB** free for Agent-only staging,
   working GitHub/PyPI HTTPS access, and a writable private user home.
 - The actual bubblewrap namespace probe must succeed. A container/VPS kernel may
   deny it even with bubblewrap installed. Fix the host policy with the host
   administrator, or use a supported host; **never disable isolation** to install.
-- **Ubuntu 24.04** enables `kernel.apparmor_restrict_unprivileged_userns=1` by
-  default, which denies the probe. Do not set that sysctl to `0` globally; have an
+- **Ubuntu 24.04/26.04** enables `kernel.apparmor_restrict_unprivileged_userns=1`
+  by default. If the installed bubblewrap profile does not permit the probe, do
+  not set that sysctl to `0` globally; have an
   administrator review and load the bwrap-only profile in
   [`docs/examples/apparmor-bwrap`](examples/apparmor-bwrap)
   (`sudo install -m 0644 docs/examples/apparmor-bwrap /etc/apparmor.d/kinaiya-bwrap`
   then `sudo apparmor_parser -r /etc/apparmor.d/kinaiya-bwrap`). It permits only
   `/usr/bin/bwrap` to create user namespaces; the restriction stays on for every
   other program.
-- Windows, macOS, WSL, other distros, Python 3.14, GPUs and optional voice/model
+- Windows, macOS, WSL, other distros, Python 3.15+, GPUs and optional voice/model
   backends are not qualified by this installer.
+
+Ubuntu 26.04/Python 3.14 support requires a release containing this host-admission
+change as well as an updated bootstrap. Older nightlies still reject the host
+during the bundled runtime's preflight even when a newer `install.sh` accepts it.
+Do not edit a downloaded release or bypass its checks; publish a new qualified
+nightly through the existing release workflow. Accepting this candidate baseline
+does not qualify optional voice/model wheels for Python 3.14.
 
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
 upgrades, downgrades, or removes existing system packages, never changes kernel
@@ -109,7 +119,7 @@ sh install.sh --workspace "$HOME/My Work" --data-dir "$HOME/Private Kinaiya Data
 ```
 
 When `KINAIYA_PYTHON` is not set, `install.sh` automatically selects a supported
-Python `3.11`–`3.13` interpreter (`python3`, `python3.13`, `python3.12`, or
+Python `3.11`–`3.14` interpreter (`python3`, `python3.14`, `python3.13`, `python3.12`, or
 `python3.11`) if installed. The release source allowlist includes root
 `install.sh`, `services/distribution/*`, and `packages/distribution/*`.
 

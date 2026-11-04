@@ -8,8 +8,8 @@ if [ -z "${KINAIYA_INVOKING_PWD:-}" ]; then
   export KINAIYA_INVOKING_PWD
 fi
 if [ -z "${KINAIYA_PYTHON:-}" ]; then
-  for candidate in python3 python3.13 python3.12 python3.11; do
-    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] <= (3, 13) else 1)' 2>/dev/null; then
+  for candidate in python3 python3.14 python3.13 python3.12 python3.11; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] <= (3, 14) else 1)' 2>/dev/null; then
       KINAIYA_PYTHON="$candidate"
       break
     fi
@@ -55,7 +55,7 @@ STAGES = (
 STAGE_LABELS = dict(STAGES)
 STAGE_INDEX = {key: idx + 1 for idx, (key, _) in enumerate(STAGES)}
 STAGE_REMEDIATION = {
-    "preflight": "Verify Ubuntu 22.04/24.04 host prerequisites, Python 3.11-3.13, >=1 GiB free disk, and bubblewrap user namespaces.",
+    "preflight": "Verify Ubuntu 22.04/24.04/26.04 host prerequisites, Python 3.11-3.14, >=1 GiB free disk, and bubblewrap user namespaces.",
     "dependencies": "Install missing packages manually with `sudo apt-get install --no-upgrade -y <pkgs>` or refresh your local apt index.",
     "download": "Check HTTPS connectivity to github.com / release-assets.githubusercontent.com and retry the installation.",
     "staging": "Check Python venv/ensurepip availability, network access to pypi.org, and writable space in the install root.",
@@ -1059,7 +1059,7 @@ def check_outdated_system_blockers():
     if sys.version_info[:2] < (3, 11):
         raise BootstrapError(
             f"Out-of-date system blocker: Python {sys.version_info[0]}.{sys.version_info[1]} is out of date "
-            "(Kinaiya requires Python 3.11-3.13). Please update Python first; "
+            "(Kinaiya requires Python 3.11-3.14). Please update Python first; "
             "the installer will not update existing system packages for you."
         )
     if platform.system() != "Linux":
@@ -1070,12 +1070,12 @@ def check_outdated_system_blockers():
         distro = {}
     distro_id = distro.get("ID")
     version_id = distro.get("VERSION_ID", "")
-    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04"}:
+    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04", "26.04"}:
         parsed_ubuntu = _parse_version_tuple(version_id)
         if parsed_ubuntu is not None and parsed_ubuntu < (22, 4):
             raise BootstrapError(
                 f"Out-of-date system blocker: Ubuntu {version_id} is out of date "
-                "(Kinaiya requires Ubuntu 22.04 or 24.04). Please update Ubuntu first; "
+                "(Kinaiya requires Ubuntu 22.04, 24.04, or 26.04). Please update Ubuntu first; "
                 "the installer will not update your system for you."
             )
     bwrap_bin = shutil.which("bwrap")
@@ -1110,8 +1110,8 @@ def preflight(*, allow_missing_dependencies=False):
     require(os.geteuid() != 0, "Never run the installer as root; the CLI invokes sudo only for missing dependencies")
     check_outdated_system_blockers()
     distro = platform.freedesktop_os_release()
-    require(distro.get("ID") == "ubuntu" and distro.get("VERSION_ID") in {"22.04", "24.04"}, "Candidate baseline: Ubuntu 22.04/24.04 only")
-    require(platform.machine() in {"x86_64", "aarch64"} and (3, 11) <= sys.version_info[:2] <= (3, 13), "Require x86_64/aarch64 Python 3.11-3.13 with venv/ensurepip")
+    require(distro.get("ID") == "ubuntu" and distro.get("VERSION_ID") in {"22.04", "24.04", "26.04"}, "Candidate baseline: Ubuntu 22.04/24.04/26.04 only")
+    require(platform.machine() in {"x86_64", "aarch64"} and (3, 11) <= sys.version_info[:2] <= (3, 14), "Require x86_64/aarch64 Python 3.11-3.14 with venv/ensurepip")
     require(shutil.disk_usage(Path.home()).free >= 1024**3, "At least 1 GiB free disk is required")
     missing = missing_dependencies()
     if missing and not allow_missing_dependencies:
