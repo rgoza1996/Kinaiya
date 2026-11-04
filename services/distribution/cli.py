@@ -31,6 +31,11 @@ from services.distribution.installation import (
     source_artifact,
     update_plan,
 )
+from services.distribution.stage_progress import (
+    StageReporter,
+    activate_reporter,
+    current_reporter,
+)
 from services.distribution.terminal import open_terminal
 
 
@@ -43,6 +48,9 @@ def configure(commands):
         "--yes", action="store_true", help="Confirm the displayed installation plan"
     )
     install.add_argument("--no-setup", action="store_true")
+    install.add_argument(
+        "--json", action="store_true", help="Emit deterministic machine-readable JSON output"
+    )
     install.add_argument(
         "--install-dir",
         type=Path,
@@ -94,6 +102,9 @@ def configure(commands):
         "--plan", action="store_true", help="Read-only update plan (same safety as --check)"
     )
     updater.add_argument("--yes", action="store_true")
+    updater.add_argument(
+        "--json", action="store_true", help="Emit deterministic machine-readable JSON output"
+    )
     commands.add_parser("version", help="Verify and show installed immutable provenance")
     doctor = commands.add_parser(
         "doctor",
@@ -223,6 +234,7 @@ def download_artifact(artifact, target):
     """HTTPS allowlist/redirect validation is shared with the release resolver."""
     if type(artifact.get("size")) is not int or not 0 < artifact["size"] <= MAX_ASSET_BYTES:
         raise InstallError("Invalid artifact size bound")
+    reporter = current_reporter()
     created = False
     try:
         with target.open("xb") as outgoing:
@@ -241,9 +253,13 @@ def download_artifact(artifact, target):
                     if total > artifact["size"]:
                         raise InstallError("Artifact size exceeds release bound")
                     outgoing.write(chunk)
+                    if reporter is not None:
+                        reporter.update_download(total, artifact["size"])
             outgoing.flush()
             os.fsync(outgoing.fileno())
         verify_artifact(target, artifact)
+        if reporter is not None:
+            reporter.mark_sha256_verified(artifact.get("sha256"))
     except BaseException:
         if created:
             target.unlink(missing_ok=True)
@@ -511,52 +527,104 @@ def dispatch(args):
                 raise InstallError(
                     "Interactive install requires a controlling terminal (/dev/tty) or --yes"
                 ) from None
-    try:
-        host = preflight(layout, allow_missing_dependencies=(args.command == "install"))
-        missing = (
-            list(host.get("missing_dependencies", []))
-            if isinstance(host, dict) and "missing_dependencies" in host
-            else (missing_system_dependencies() if args.command == "install" else [])
-        )
-    except TypeError:
-        host = preflight(layout)
-        missing = []
-    plan = check_update(layout, args.channel)
-    if plan["action"] == "current" and not missing:
-        return plan
-    confirmation_payload = {"host": host, "plan": plan, "install": str(layout.install)}
-    if missing:
-        confirmation_payload["missing_dependencies"] = missing
-        confirmation_payload["dependency_check"] = " ".join(apt_simulation_command(missing))
-        confirmation_payload["dependency_command"] = " ".join(dependency_install_command(missing))
-        confirmation_payload["dependency_policy"] = (
-            "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
-        )
-    confirm(args.yes, json.dumps(confirmation_payload, indent=2), pre_consented=pre_consented)
-    if missing:
-        install_missing_dependencies(missing)
-        host = preflight(layout)
-    layout.cache.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with TemporaryDirectory(prefix="download-", dir=layout.cache) as temporary:
-        artifact = source_artifact(plan["release"])
-        archive = download_artifact(artifact, Path(temporary) / "source.tar.gz")
-        install_release(layout, plan["release"], archive)
-    result = {
-        "installed": plan["release"],
-        "ready": False,
-        "launcher": str(layout.bin / "kinaiya"),
-        "next": "kinaiya setup; kinaiya serve host",
-    }
-    if args.command == "install" and not args.no_setup and not layout.config.exists():
-        import subprocess
+    reporter = StageReporter(
+        log_path=layout.cache / "install.log",
+        json_output=bool(getattr(args, "json", False)),
+        defer_log_creation=True,
+    )
+    with activate_reporter(reporter):
+        reporter.start_stage("preflight")
+        try:
+            try:
+                host = preflight(layout, allow_missing_dependencies=(args.command == "install"))
+                missing = (
+                    list(host.get("missing_dependencies", []))
+                    if isinstance(host, dict) and "missing_dependencies" in host
+                    else (missing_system_dependencies() if args.command == "install" else [])
+                )
+            except TypeError:
+                host = preflight(layout)
+                missing = []
+        except (InstallError, ReleaseError) as exc:
+            reporter.fail_stage("preflight", str(exc))
+            raise
+        reporter.complete_stage("preflight")
+        plan = check_update(layout, args.channel)
+        if plan["action"] == "current" and not missing:
+            return plan
+        confirmation_payload = {"host": host, "plan": plan, "install": str(layout.install)}
+        if missing:
+            confirmation_payload["missing_dependencies"] = missing
+            confirmation_payload["dependency_check"] = " ".join(apt_simulation_command(missing))
+            confirmation_payload["dependency_command"] = " ".join(
+                dependency_install_command(missing)
+            )
+            confirmation_payload["dependency_policy"] = (
+                "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+            )
+        try:
+            confirm(
+                args.yes,
+                reporter.render_plan(confirmation_payload, indent=2),
+                pre_consented=pre_consented,
+            )
+        except InstallError as exc:
+            reporter.cancel(str(exc))
+            raise
+        layout.cache.mkdir(parents=True, exist_ok=True, mode=0o700)
+        reporter.enable_log_persistence()
+        reporter.start_stage("dependencies")
+        try:
+            if missing:
+                install_missing_dependencies(missing)
+                host = preflight(layout)
+                reporter.complete_stage("dependencies", detail=f"installed {', '.join(missing)}")
+            else:
+                reporter.complete_stage("dependencies", detail="already satisfied")
+        except (InstallError, ReleaseError) as exc:
+            reporter.fail_stage("dependencies", str(exc))
+            raise
+        with TemporaryDirectory(prefix="download-", dir=layout.cache) as temporary:
+            artifact = source_artifact(plan["release"])
+            reporter.start_stage("download")
+            try:
+                archive = download_artifact(artifact, Path(temporary) / "source.tar.gz")
+                reporter.complete_stage("download", sha256_verified=True)
+            except (InstallError, ReleaseError) as exc:
+                reporter.fail_stage("download", str(exc))
+                raise
+            reporter.start_stage("staging")
+            try:
+                install_release(layout, plan["release"], archive)
+                reporter.complete_stage("staging")
+            except (InstallError, ReleaseError) as exc:
+                reporter.fail_stage("staging", str(exc))
+                raise
+        result = {
+            "installed": plan["release"],
+            "ready": False,
+            "launcher": str(layout.bin / "kinaiya"),
+            "log": str(reporter.log_path),
+            "next": "kinaiya setup; kinaiya serve host",
+        }
+        if args.command == "install" and not args.no_setup and not layout.config.exists():
+            import subprocess
 
-        # The bootstrap interpreter intentionally lacks runtime dependencies.
-        result["setup_exit_code"] = subprocess.run(
-            [str(layout.bin / "kinaiya"), "setup"], check=False
-        ).returncode
-        if result["setup_exit_code"]:
-            raise InstallError("Code installed; setup incomplete. Run kinaiya setup explicitly")
-    return result
+            reporter.start_stage("setup_handoff")
+            # The bootstrap interpreter intentionally lacks runtime dependencies.
+            result["setup_exit_code"] = subprocess.run(
+                [str(layout.bin / "kinaiya"), "setup"], check=False
+            ).returncode
+            if result["setup_exit_code"]:
+                reporter.fail_stage(
+                    "setup_handoff",
+                    "Code installed; setup incomplete. Run kinaiya setup explicitly",
+                )
+                raise InstallError("Code installed; setup incomplete. Run kinaiya setup explicitly")
+            reporter.complete_stage("setup_handoff")
+        else:
+            reporter.skip_stage("setup_handoff", reason="not required")
+        return result
 
 
 def main(argv=None):
