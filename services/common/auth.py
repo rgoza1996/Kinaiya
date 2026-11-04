@@ -9,6 +9,7 @@ import os
 import secrets
 import socket
 import stat
+import time
 import uuid
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
@@ -423,6 +424,8 @@ class Auth:
         allowed_origins: tuple[str, ...] = (),
         *,
         token_store_path: Path | None = None,
+        host_generation: str | None = None,
+        session_clock: Callable[[], float] | None = None,
     ):
         if isinstance(tokens, ServiceTokenStore):
             loaded = tokens.load()
@@ -457,6 +460,8 @@ class Auth:
         self.token_store_path: Path | None = (
             Path(token_store_path) if token_store_path is not None else None
         )
+        self.host_generation: str | None = host_generation
+        self._session_clock: Callable[[], float] = session_clock or time.time
         self._media_snapshot = tuple(self.tokens.items())
         self._media_instance = secrets.token_hex(16)
         self._media_identity = None
@@ -527,6 +532,21 @@ class Auth:
         for role, expected in self.tokens.items():
             if secrets.compare_digest(token, expected):
                 return role
+        if token.startswith("kny_sess_") and self.token_store_path is not None:
+            from services.common.owner_signin import LocalSignInError, SessionTokenManager
+
+            owner_token = self.tokens.get("owner", "")
+            owner_sha = hashlib.sha256(owner_token.encode("utf-8")).hexdigest()
+            manager = SessionTokenManager(self.token_store_path.parent, clock=self._session_clock)
+            try:
+                return manager.verify_session_token(
+                    token,
+                    expected_owner_epoch=self.owner_epoch,
+                    expected_owner_token_sha256=owner_sha,
+                    expected_host_generation=self.host_generation,
+                )
+            except LocalSignInError as exc:
+                raise HTTPException(401, "Invalid bearer credential") from exc
         raise HTTPException(401, "Invalid bearer credential")
 
     def require(self, *roles: str):

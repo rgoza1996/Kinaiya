@@ -39,7 +39,11 @@ class LocalSignInResult {
   });
 
   factory LocalSignInResult.fromJson(Map<String, Object?> json) {
-    final rawToken = json['owner_token'] ?? json['ownerToken'];
+    final rawToken =
+        json['owner_token'] ??
+        json['ownerToken'] ??
+        json['session_token'] ??
+        json['sessionToken'];
     if (rawToken is! String || rawToken.trim().isEmpty) {
       throw const FormatException(
         'Local sign-in response is missing owner_token.',
