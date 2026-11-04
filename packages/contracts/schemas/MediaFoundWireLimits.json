@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "MediaReceipt_MediaWireLimits_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaWireLimits"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaWireLimits]",
+      "type": "object"
+    },
+    "MediaWireLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_packet_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Audio Packet Ms",
+          "type": "integer"
+        },
+        "body_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Body Bytes",
+          "type": "integer"
+        },
+        "clip_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Clip Bytes",
+          "type": "integer"
+        },
+        "clip_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Clip Ms",
+          "type": "integer"
+        },
+        "consumer_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Consumer Bytes",
+          "type": "integer"
+        },
+        "consumer_packets": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Consumer Packets",
+          "type": "integer"
+        },
+        "control_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Control Bytes",
+          "type": "integer"
+        },
+        "image_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Image Bytes",
+          "type": "integer"
+        },
+        "live_backlog_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Live Backlog Ms",
+          "type": "integer"
+        },
+        "total_pending_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Total Pending Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "control_bytes",
+        "body_bytes",
+        "audio_packet_ms",
+        "image_bytes",
+        "clip_bytes",
+        "clip_ms",
+        "consumer_packets",
+        "consumer_bytes",
+        "total_pending_bytes",
+        "live_backlog_ms"
+      ],
+      "title": "MediaWireLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaWireLimits_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaWireLimits]",
+  "type": "object"
+}

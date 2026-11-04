@@ -401,3 +401,32 @@ def test_wizard_integration_with_stored_profiles_and_discovery(
     cfg = json.loads(layout.config.read_text(encoding="utf-8"))
     assert cfg["providers"]["agent"]["model"] == "deepseek-coder-v2"
     assert cfg["providers"]["agent"]["kind"] == "lmstudio"
+
+    # Also verify normal wizard flow (profiles=None) loads persisted providers.env profiles
+    layout2 = Layout.for_home(tmp_path / "persisted-home")
+    layout2.data.mkdir(parents=True, exist_ok=True, mode=0o700)
+    (layout2.data / "providers.env").write_text(
+        "KINAIYA_CUSTOM_PROVIDER_IDS=p01\n"
+        'KINAIYA_PROVIDER_P01_NAME="Persisted Local"\n'
+        'KINAIYA_PROVIDER_P01_BASE_URL="http://127.0.0.1:1234"\n'
+        'KINAIYA_PROVIDER_P01_ADAPTER="lmstudio"\n'
+        'KINAIYA_PROVIDER_P01_API_KEY=""\n'
+        "KINAIYA_PROVIDER_P01_ENABLED=true\n"
+        'KINAIYA_PROVIDER_P01_DISCOVERED_MODELS="qwen2.5-coder-7b,deepseek-coder-v2"\n',
+        encoding="utf-8",
+    )
+    tty2 = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "p01",  # pick persisted profile p01
+            "2",  # select model 2 (deepseek-coder-v2)
+            "no",  # converse
+            "yes",  # confirm write
+        ]
+    )
+    res2 = wizard.run_wizard(layout2, tty=tty2)
+    assert res2["ready"] is False
+    reloaded = load_role_model_selection(layout2.config, "agent")
+    assert reloaded.identity == ("p01", "deepseek-coder-v2")
+    assert reloaded.qualified_id == "p01:deepseek-coder-v2"

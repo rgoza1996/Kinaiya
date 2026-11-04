@@ -232,3 +232,69 @@ def test_cli_install_installs_missing_system_dependencies_without_upgrade(tmp_pa
     assert result["ready"] is False
     assert dep_calls == [["bubblewrap", "libseccomp2"]]
     assert preflight_calls == [True, False]
+
+
+def test_cli_confirm_accepts_short_y_and_rejects_n(monkeypatch):
+    from contextlib import contextmanager
+
+    from services.distribution import cli
+
+    prompts = []
+
+    @contextmanager
+    def fake_tty(answer):
+        class _Tty:
+            def write(self, text):
+                prompts.append(text)
+
+            def flush(self):
+                pass
+
+            def readline(self):
+                return answer
+
+        yield _Tty()
+
+    monkeypatch.setattr(cli, "open_terminal", lambda: fake_tty("y\n"))
+    cli.confirm(False, "plan preview")
+    assert any("(y/n) [n]: " in p for p in prompts)
+
+    monkeypatch.setattr(cli, "open_terminal", lambda: fake_tty("n\n"))
+    with pytest.raises(cli.InstallError, match="Cancelled"):
+        cli.confirm(False, "plan preview")
+
+
+@pytest.mark.parametrize(
+    "answer,pre_consented,accepted",
+    [
+        ("Y\n", False, True),
+        (" YeS \n", False, True),
+        ("N\n", False, False),
+        ("no\n", False, False),
+        ("maybe\n", False, False),
+        ("\n", False, False),
+        ("", False, False),
+        ("", True, True),
+        ("\n", True, False),
+        ("n\n", True, False),
+        ("maybe\n", True, False),
+    ],
+)
+def test_cli_confirmation_preserves_only_existing_eof_consent(
+    monkeypatch, answer, pre_consented, accepted
+):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    from services.distribution import cli
+
+    @contextmanager
+    def terminal():
+        yield SimpleNamespace(write=lambda text: None, flush=lambda: None, readline=lambda: answer)
+
+    monkeypatch.setattr(cli, "open_terminal", terminal)
+    if accepted:
+        cli.confirm(False, "plan preview", pre_consented=pre_consented)
+    else:
+        with pytest.raises(cli.InstallError, match="Cancelled"):
+            cli.confirm(False, "plan preview", pre_consented=pre_consented)

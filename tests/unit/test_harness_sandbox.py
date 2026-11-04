@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import shutil
 import socket
-import threading
 
 import pytest
 
@@ -56,21 +55,39 @@ def test_env_cleared(tmp_path, monkeypatch):
 
 def test_network_denied(tmp_path):
     need_bwrap()
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.bind(("127.0.0.1", 0))
-    srv.listen(1)
-    port = srv.getsockname()[1]
-    threading.Thread(target=lambda: srv.accept(), daemon=True).start()
-    src = write(
-        tmp_path,
-        "s.py",
-        "import socket\ndef select_context(p):\n"
-        f"    s = socket.create_connection(('127.0.0.1', {port}), timeout=2)\n"
-        "    s.close()\n    return ['open']\n",
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as srv:
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        port = srv.getsockname()[1]
+        src = write(
+            tmp_path,
+            "s.py",
+            "import socket\ndef select_context(p):\n"
+            f"    s = socket.create_connection(('127.0.0.1', {port}), timeout=2)\n"
+            "    s.close()\n    return ['open']\n",
+        )
+        with pytest.raises(E.CandidateFailure):
+            S.run_selector(src, PAYLOAD, limits=S.SandboxLimits(wall_timeout_s=6.0))
+    assert srv.fileno() == -1
+
+
+def test_network_denied_closes_listener_when_runner_raises(tmp_path, monkeypatch):
+    holder: list[socket.socket] = []
+    real_socket = socket.socket
+
+    def tracked_socket(*args, **kwargs):
+        sock = real_socket(*args, **kwargs)
+        holder.append(sock)
+        return sock
+
+    monkeypatch.setattr(socket, "socket", tracked_socket)
+    monkeypatch.setattr(
+        S, "run_selector", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
     )
-    with pytest.raises(E.CandidateFailure):
-        S.run_selector(src, PAYLOAD, limits=S.SandboxLimits(wall_timeout_s=6.0))
-    srv.close()
+    with pytest.raises(RuntimeError, match="boom"):
+        test_network_denied(tmp_path)
+    assert len(holder) == 1
+    assert holder[0].fileno() == -1
 
 
 def test_host_files_unreadable(tmp_path):

@@ -1,0 +1,276 @@
+{
+  "combined_media_foundation": {
+    "artifact_bundle": "204-combined-media-foundation-p__83tro",
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-u",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/unit/test_media_bootstrap.py",
+      "tests/unit/test_media_channel_callback_reuse.py",
+      "tests/unit/test_media_contracts.py",
+      "tests/unit/test_media_decode_plan.py",
+      "tests/unit/test_media_decode_plan_boundaries.py",
+      "tests/unit/test_media_decoder_contracts.py",
+      "tests/unit/test_media_decoder_wire.py",
+      "tests/unit/test_media_process_retirement_guards.py",
+      "tests/unit/test_media_processes.py",
+      "tests/unit/test_media_schema_exports.py",
+      "tests/unit/test_media_spool.py",
+      "tests/unit/test_media_spool_grants.py",
+      "tests/unit/test_media_spool_guards.py",
+      "tests/unit/test_media_wire.py",
+      "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-combined-media-foundation-p__83tro/pytest-tmp",
+      "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-combined-media-foundation-p__83tro/junit.xml"
+    ],
+    "elapsed_wall_seconds": 41.63191947299856,
+    "exit_code": 0,
+    "hashes": {
+      "junit.xml": "98d017a4fda84c97a3a4229717815fcb0bc79f02bd001b904560a674bcfd8a59",
+      "manifest.json": "9bc4b16fa0bc95d6f71a809bd2c2c1c184d20c702faffd90dae38761817b8536",
+      "post-pins.json": "8636b4d170777f909b49839f07ff153ec173e44f09ff84222f89b40738cb2d30",
+      "pre-pins.json": "8636b4d170777f909b49839f07ff153ec173e44f09ff84222f89b40738cb2d30",
+      "pytest.log": "fa3ec3e5053cca832b367e6275fb5f9d713318fd9fded80c4a57173d1f874332",
+      "receipt.json": "17112491cd60fddbb4895ea5e90015e4225e57993ae03fad24cec939169e1258"
+    },
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "hostname": "roggoz",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "635",
+        "time": "41.181",
+        "timestamp": "2026-11-02T23:19:40.875046-08:00"
+      }
+    ],
+    "qualified_head": "431de141dcdba4eff0c050b30444cb704341c543",
+    "qualified_inputs_stable": true,
+    "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+    "tracked_input_count": 1693
+  },
+  "independent_reviews": {
+    "combined635_raw": {
+      "artifact_bundle": "204-media-foundation635-independent-raw-v1-da72be17d8",
+      "receipt_sha256": "4924cdfe77cc1059a6a5565e86199b5f92a4defb3d8d9e348d2b00dbaca32b5d",
+      "seal_sha256": "7b0cfb5afe3d6c4b2895d40b67cbd90e95ae2338559eef2ca87cd7f40c6e796f"
+    },
+    "corrected55_raw": {
+      "artifact_bundle": "204-media-process55-corrected-independent-raw-v1-c17b8ec880",
+      "receipt_sha256": "f8d3c386cbd0b03492eae8b3581bc61b67f5188ccb99dc3ae0cb039b642212ac",
+      "seal_sha256": "adf8837bc46b146fb23b6fa71785d416d163cd942810ff9a19a5446e465f89c7"
+    },
+    "failed53_raw": {
+      "artifact_bundle": "204-media-process53-first-independent-raw-v1-35e9e7d797",
+      "receipt_sha256": "6c65156523118e53416ec285fbcc01266cc414ff3aefcd7e26a98d51833704d8",
+      "seal_sha256": "90e75fb97331ea6b5a50e11987053e3c1ce6e0b55713089bc658104edff6de5f"
+    },
+    "final_process_source": {
+      "artifact_bundle": "204-media-processes-independent-final-source-v1-7cce02102d",
+      "receipt_sha256": "6b573b931b0e1d253dae640a371e3b30c22ca88233f0afc275d1b05e30a3da54",
+      "seal_sha256": "f32c96c467d12a6e7bdc39b30e5abe0ac3f0fdf98648366037c43ddccaf8e33e"
+    }
+  },
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/204",
+  "limitations": [
+    "These635 executions span14 targeted unit modules, not635 new unique tests or full repository CI. Earlier146/99/55 cases overlap this run.",
+    "JUnit has no per-original cleanup properties. Synthetic assertions and raw artifacts establish bounded tested observations only.",
+    "No actual decoder/PyAV/bwrap/runtime asset closure, probe-charged continuation budget or inner/publication owner integration is established.",
+    "Native media admission/publication/lookup/transcript/consumer/Agent APIs and all AT64\u2013AT66/sign-language acceptance remain incomplete.",
+    "Source refs/digests and metadata quotas confer no permission, codec qualification, measured RSS or latency guarantee.",
+    "FailedCI500/#356 and native H64 failure remain separate unresolved evidence.",
+    "No paid inference, private news/video, live model/GPU/device, dependency installation, live service/config or preview change was performed."
+  ],
+  "process_fixture_history": {
+    "changes": "Only result-aware fixtures changed between first53 and corrected55: deliberate frozen-model mutation; append marker for two distinct legitimate children; pidfd refusal scoped to the captured media-original seam; explicit native readiness for generic-worker identity. All existing assertions, waits and caps retained. Added lost-return natural exit without a fixture kill and new-reader callback cases. All production bytes unchanged between these two cuts.",
+    "corrected_run": {
+      "artifact_bundle": "204-media-process-grant-corrected-3relbjha",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_media_processes.py",
+        "tests/unit/test_media_spool_grants.py",
+        "tests/unit/test_media_process_retirement_guards.py",
+        "tests/unit/test_media_channel_callback_reuse.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-process-grant-corrected-3relbjha/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-process-grant-corrected-3relbjha/junit.xml"
+      ],
+      "elapsed_wall_seconds": 13.849131175997172,
+      "exit_code": 0,
+      "hashes": {
+        "junit.xml": "6cd4aedb4829afd30cd02e46d06fa94429f4e9c93a98f1a9292c7501e29608a1",
+        "manifest.json": "839d4a2df8fd0a4a6062aa062a2f5c97b2d0fb094a8387f6bf8f6f5c1c752855",
+        "post-pins.json": "8636b4d170777f909b49839f07ff153ec173e44f09ff84222f89b40738cb2d30",
+        "pre-pins.json": "8636b4d170777f909b49839f07ff153ec173e44f09ff84222f89b40738cb2d30",
+        "pytest.log": "be1a2bede8a1f183918b404823f0f7e09810b076f63e638c24ff812f4c8bda27",
+        "receipt.json": "3793d6b14f7d69816cd32920f67e595e6cc3a050c0313c5ba8b1a00d5927bf38"
+      },
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "55",
+          "time": "13.531",
+          "timestamp": "2026-11-02T22:57:37.640757-08:00"
+        }
+      ],
+      "qualified_head": "f7d9ec97a1fb0b824a5684af8a8083d3f73855c8",
+      "qualified_inputs_stable": true,
+      "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+      "tracked_input_count": 1693
+    },
+    "extra_callback_run": {
+      "artifact_bundle": "204-media-callback-new-reader-cu1e80g4",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_media_channel_callback_reuse.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-callback-new-reader-cu1e80g4/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-callback-new-reader-cu1e80g4/junit.xml"
+      ],
+      "elapsed_wall_seconds": 0.7135030190001999,
+      "exit_code": 0,
+      "hashes": {
+        "junit.xml": "fd75c523e5c31b6bd6b1d352843c1b074fe3e2539712223416c4d7323467a9a2",
+        "manifest.json": "9c930c56991d4c1ee5273a655b0ea933368acced2dfdf0657908738e43ea07c0",
+        "post-pins.json": "a9ab474d3dee6ef8ea9c42f5ba14dc580dd44019a2816fbbe52b2928a366ea9e",
+        "pre-pins.json": "a9ab474d3dee6ef8ea9c42f5ba14dc580dd44019a2816fbbe52b2928a366ea9e",
+        "pytest.log": "791acbb2840ecff621592488f8e65512e312896e3865560d4000495c22ef5d13",
+        "receipt.json": "dd60ba0d473142cdbe5fa65325d6ee75415fc6fa7c3caff7016d477b9583d5b8"
+      },
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "0.417",
+          "timestamp": "2026-11-02T22:52:52.060786-08:00"
+        }
+      ],
+      "qualified_head": "97bb7af9f05229e08853bb2930044e73620a68d5",
+      "qualified_inputs_stable": true,
+      "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+      "tracked_input_count": 1693
+    },
+    "first_failed_run": {
+      "artifact_bundle": "204-media-process-grant-first-zrnsu1x5",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_media_processes.py",
+        "tests/unit/test_media_spool_grants.py",
+        "tests/unit/test_media_process_retirement_guards.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-process-grant-first-zrnsu1x5/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-media-process-grant-first-zrnsu1x5/junit.xml"
+      ],
+      "elapsed_wall_seconds": 14.130302068999299,
+      "exit_code": 1,
+      "hashes": {
+        "junit.xml": "0cbbf13e74fff939e5d62cfc5f6f9925392ae5846184e2e21c8ed5a8d88ee0a6",
+        "manifest.json": "5508fb96607ea81395a1667fd4576c7a2d87f7b1e53beb846621013335009616",
+        "post-pins.json": "51b6a97b6409687bf5fc6178c4763fd94629336e75984369ad72ab09444bd673",
+        "pre-pins.json": "51b6a97b6409687bf5fc6178c4763fd94629336e75984369ad72ab09444bd673",
+        "pytest.log": "264b6c8d23740635036562575ad5c441bff0d0903a77a328bd0195064609b77f",
+        "receipt.json": "2a23f4176139244745f80ce7c557c6ca361f06c4c4f208d1f97b59ec9956df1e"
+      },
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "4",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "53",
+          "time": "13.747",
+          "timestamp": "2026-11-02T22:39:34.748608-08:00"
+        }
+      ],
+      "qualified_head": "3b6b72a13453f5252ca01a8208ed103ed9792549",
+      "qualified_inputs_stable": true,
+      "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+      "tracked_input_count": 1692
+    },
+    "first_result": "49 passed,4 failed; original failure artifacts and all four case identities retained",
+    "fixture_commits": [
+      "ebe878b196da280bb9d16fc61e540dd00389e2c6",
+      "f7d9ec97a1fb0b824a5684af8a8083d3f73855c8"
+    ],
+    "interpretation": "Passing results include expected unknown/retained-claim scenarios; they do not assert every original was positively released."
+  },
+  "qualified_source_head": "431de141dcdba4eff0c050b30444cb704341c543",
+  "qualified_source_tree": "661206056ae6edca262562729a51c45fc7b10b10",
+  "review_provenance": "Pool source opinion sealed before oracle-body exposure. Later failed-run and changed-fixture phases separately disclosed and sealed. Raw reviewer authored the coupled private spool port; not an independent author review of that own port. A separate non-author source review covered the spool port. All original blocked opinions remain retained.",
+  "scope": "Private registered media-child/spool process foundation; not complete native media ingestion or demo acceptance",
+  "source_sha256": {
+    "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+    "packages/resources/media_decode_plan.py": "83643fdbd3927a88729fbd001d9759d4f46ad3305cd72f982c1fa4b8535daf0d",
+    "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+    "packages/resources/processes.py": "9051dd344d43ca8864b357b86417739f96aa8e93ed35ec79966f229b4d2abf3a",
+    "services/common/media_decoder_wire.py": "76242f7b7553bbec164028140228a8c7a8f7186750f38756cafb576a072bb8c1",
+    "services/session/media_spool.py": "a2c00aff56d36dd9e9c583abf0146cfa0a9c4bf94e1c7e35884c157873a8fe73"
+  },
+  "version": 1,
+  "wire_pr": {
+    "ancestry_only_merge_preserved_source_tree": true,
+    "ci": "https://github.com/rgoza1996/Kinaiya/actions/runs/41587415416",
+    "ci_scope": "All5 jobs passed for fd3 on72981; not CI of the later process changes. Both Python jobs report11519passed,6skipped,2deselected,1warning.",
+    "head": "fd3f195387767d047f41bbac111bbbf5add71bf9",
+    "merge": "4cb3b0dac6cd64f0792e6fb4d0b5c3c704337f35",
+    "merged_into": "codex/204-media-bootstrap",
+    "reconciled_local_head": "431de141dcdba4eff0c050b30444cb704341c543",
+    "url": "https://github.com/rgoza1996/Kinaiya/pull/364"
+  }
+}

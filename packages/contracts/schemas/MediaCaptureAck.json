@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "blob": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "source": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "source_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Source Seq",
+      "type": "integer"
+    },
+    "track_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Track Id",
+      "type": "string"
+    },
+    "track_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Track Seq",
+      "type": "integer"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "source",
+    "track_id",
+    "track_seq",
+    "source_seq",
+    "blob"
+  ],
+  "title": "MediaCaptureAck",
+  "type": "object"
+}

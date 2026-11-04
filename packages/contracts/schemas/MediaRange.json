@@ -1,0 +1,237 @@
+{
+  "$defs": {
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaQ",
+      "type": "object"
+    },
+    "MediaTrackRange": {
+      "additionalProperties": false,
+      "properties": {
+        "first_frame": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Frame"
+        },
+        "first_sample": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "First Sample"
+        },
+        "first_track_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "First Track Seq",
+          "type": "integer"
+        },
+        "frame_count": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Frame Count"
+        },
+        "sample_count": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sample Count"
+        },
+        "through_track_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Through Track Seq",
+          "type": "integer"
+        },
+        "track_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "track_id",
+        "first_track_seq",
+        "through_track_seq",
+        "first_sample",
+        "sample_count",
+        "first_frame",
+        "frame_count"
+      ],
+      "title": "MediaTrackRange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "end": {
+      "$ref": "#/$defs/MediaQ"
+    },
+    "first_source_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "First Source Seq",
+      "type": "integer"
+    },
+    "generation": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Generation",
+      "type": "integer"
+    },
+    "manifest_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "range_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Range Id",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "source_equivalence_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Source Equivalence Id",
+      "type": "string"
+    },
+    "source_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
+    },
+    "start": {
+      "$ref": "#/$defs/MediaQ"
+    },
+    "through_page": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "through_source_seq": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Through Source Seq",
+      "type": "integer"
+    },
+    "tracks": {
+      "items": {
+        "$ref": "#/$defs/MediaTrackRange"
+      },
+      "maxItems": 8,
+      "title": "Tracks",
+      "type": "array"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "range_id",
+    "source",
+    "source_equivalence_id",
+    "source_revision",
+    "generation",
+    "manifest_id",
+    "through_page",
+    "tracks",
+    "start",
+    "end",
+    "first_source_seq",
+    "through_source_seq"
+  ],
+  "title": "MediaRange",
+  "type": "object"
+}
