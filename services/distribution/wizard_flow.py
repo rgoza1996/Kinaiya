@@ -20,6 +20,7 @@ from services.distribution.installation import (
     InstallError,
     Layout,
     check_outdated_system_blockers,
+    reconfigure_section,
     setup,
 )
 from services.distribution.terminal import open_terminal
@@ -28,6 +29,11 @@ from services.distribution.terminal_ui import (
     RESET,
     ColorMode,
     detect_color_mode,
+)
+from services.distribution.wizard_navigation import (
+    WizardNavigator,
+    is_cancel_command,
+    validate_setup_section,
 )
 
 VALID_WIZARD_MODES = (None, "standard", "quick", "advanced")
@@ -48,6 +54,8 @@ def ask_yn(tty, label: str, *, default: bool = False) -> bool:
         if not answer:
             raise InstallError("Setup cancelled: terminal input closed")
         cleaned = answer.strip().lower()
+        if is_cancel_command(cleaned):
+            raise InstallError("Setup cancelled; no configuration written")
         if not cleaned:
             return default
         if cleaned in {"y", "yes"}:
@@ -74,8 +82,10 @@ class WizardFlowCoordinator:
         *,
         tty: Any,
         mode: str | None = None,
+        section: str | None = None,
         mascot_fn: Callable[..., str] | None = None,
         setup_fn: Callable[..., dict[str, Any]] = setup,
+        reconfigure_fn: Callable[..., dict[str, Any]] = reconfigure_section,
         profile_id: str = "p01",
         getpass_fn: Callable[..., str] | None = None,
     ) -> None:
@@ -84,8 +94,10 @@ class WizardFlowCoordinator:
         self.layout = layout
         self.tty = tty
         self.mode = mode
+        self.section = validate_setup_section(section)
         self.mascot_fn = mascot_fn
         self.setup_fn = setup_fn
+        self.reconfigure_fn = reconfigure_fn
         self.profile_id = profile_id
         self.getpass_fn = getpass_fn
         self.color_mode = detect_color_mode(tty)
@@ -110,7 +122,10 @@ class WizardFlowCoordinator:
         answer = self.tty.readline()
         if not answer:
             raise InstallError("Setup cancelled: terminal input closed")
-        return answer.strip() or default
+        cleaned = answer.strip()
+        if is_cancel_command(cleaned):
+            raise InstallError("Setup cancelled; no configuration written")
+        return cleaned or default
 
     def ask_yn(self, label: str, *, default: bool = False) -> bool:
         return ask_yn(self.tty, label, default=default)
@@ -239,8 +254,9 @@ class WizardFlowCoordinator:
             setup_kwargs["allow_existing"] = True
         return self.setup_fn(chosen, **setup_kwargs)
 
-    def run_quick(self) -> dict[str, Any]:
-        self._write_header()
+    def run_quick(self, *, skip_header: bool = False) -> dict[str, Any]:
+        if not skip_header:
+            self._write_header()
         self.tty.write(
             "Quick Setup: using safe default workspace and data paths "
             "(choose Advanced settings before confirmation to customize).\n"
@@ -389,17 +405,33 @@ class WizardFlowCoordinator:
         return result
 
     def run(self) -> dict[str, Any]:
+        if self.section is not None:
+            return WizardNavigator(
+                self.layout,
+                tty=self.tty,
+                section=self.section,
+                mode=self.mode,
+                mascot_fn=self.mascot_fn,
+                setup_fn=self.setup_fn,
+                reconfigure_fn=self.reconfigure_fn,
+                profile_id=self.profile_id,
+                getpass_fn=self.getpass_fn,
+            ).run()
         if self.mode == "quick" and os.path.lexists(self.layout.config):
             raise InstallError("Preserving existing configuration; edit it explicitly instead")
         if self.mode == "quick":
             return self.run_quick()
-        if self.mode == "advanced":
-            return self.run_advanced()
-        self._write_header()
-        first = self.ask("Authorized workspace", str(self.layout.workspace))
-        if first.strip().lower() in {":quick", "quick"}:
-            return self.run_quick()
-        return self.run_advanced(first_workspace_answer=first)
+        return WizardNavigator(
+            self.layout,
+            tty=self.tty,
+            section=None,
+            mode=self.mode,
+            mascot_fn=self.mascot_fn,
+            setup_fn=self.setup_fn,
+            reconfigure_fn=self.reconfigure_fn,
+            profile_id=self.profile_id,
+            getpass_fn=self.getpass_fn,
+        ).run()
 
 
 def run_quick_wizard(

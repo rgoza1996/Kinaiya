@@ -12,7 +12,12 @@ import zlib
 from pathlib import Path
 from typing import Any
 
-from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
+from services.distribution.installation import (
+    InstallError,
+    check_outdated_system_blockers,
+    reconfigure_section,
+    setup,
+)
 from services.distribution.terminal import open_terminal
 from services.distribution.terminal_ui import NON_COLOR_TERMS, ColorMode, detect_color_mode
 from services.distribution.wizard_flow import (
@@ -23,6 +28,7 @@ from services.distribution.wizard_flow import (
 from services.distribution.wizard_flow import (
     run_quick_wizard as _run_quick_wizard,
 )
+from services.distribution.wizard_navigation import WizardNavigator, validate_setup_section
 
 ASCII_MOON_RAMP = " .:-=+*#%@"
 
@@ -291,9 +297,18 @@ def run_quick_wizard(layout, *, tty=None):
     return _run_quick_wizard(layout, tty=tty, mascot_fn=mascot, setup_fn=setup)
 
 
-def run_wizard(layout, *, tty=None, mode: str | None = None, profile_id="p01", getpass_fn=None):
+def run_wizard(
+    layout,
+    *,
+    tty=None,
+    mode: str | None = None,
+    section: str | None = None,
+    profile_id="p01",
+    getpass_fn=None,
+):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
+    normalized_section = validate_setup_section(section)
     if tty is None:
         try:
             with open_terminal() as terminal:
@@ -301,6 +316,7 @@ def run_wizard(layout, *, tty=None, mode: str | None = None, profile_id="p01", g
                     layout,
                     tty=terminal,
                     mode=mode,
+                    section=normalized_section,
                     profile_id=profile_id,
                     getpass_fn=getpass_fn,
                 )
@@ -313,24 +329,34 @@ def run_wizard(layout, *, tty=None, mode: str | None = None, profile_id="p01", g
         layout,
         tty=tty,
         mode=mode,
+        section=normalized_section,
         mascot_fn=mascot,
         setup_fn=setup,
+        reconfigure_fn=reconfigure_section,
         profile_id=profile_id,
         getpass_fn=getpass_fn,
     )
     return coordinator.run()
 
 
+def run_section_wizard(layout, section: str, *, tty=None):
+    """Run interactive reconfiguration for one section: workspace, model, or converse."""
+    return run_wizard(layout, tty=tty, section=section)
+
+
 __all__ = [
     "ASCII_MOON_RAMP",
     "MASCOT",
     "WizardFlowCoordinator",
+    "WizardNavigator",
     "ask_yn",
     "colorize_mascot",
     "mascot",
     "render_moon_ascii_from_image",
     "run_first_run_wizard",
     "run_quick_wizard",
+    "run_section_wizard",
     "run_wizard",
     "tty_supports_color",
+    "validate_setup_section",
 ]

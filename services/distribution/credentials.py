@@ -685,6 +685,17 @@ def prompt_masked_api_key(
         return result
 
     lowered = cleaned.lower()
+    if lowered in {":cancel", ":q", "cancel", "quit"}:
+        raise InstallError("Setup cancelled; no configuration written")
+    if lowered in {":back", "<", "back"}:
+        return MaskedKeyAction(
+            action="back",
+            profile_id=pid,
+            endpoint=endpoint,
+            credential_env=None,
+            api_key=None,
+            masked_display="[back]",
+        )
     if lowered in (":clear", ":remove"):
         tty.write(f"Credential for {pid}: [removed from private local .env]\n")
         tty.flush()
