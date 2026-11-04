@@ -50,7 +50,7 @@ def _case(*, exchange_audio_ids=False):
     profile["driver"] = "pyav17_timed_fd_v2"
     profile["protocol"]["kind"] = "decoder_fd_v2"
     profile["formats"] = [video, audio1, image, audio0]
-    profile = fixtures._self_hash("DecoderProfile", profile, "profile_sha256")
+    profile = fixtures._self_hash("DecoderProfileV2", profile, "profile_sha256")
     profile_hash = profile["profile_sha256"]
     probe = fixtures._probe()
     probe["container"] = "mp4"
@@ -245,7 +245,7 @@ def _native_args(case):
         "seal_ref": _typed("MediaNativeRef", fixtures._OWNER),
         "admission": _typed("MediaSourceAdmission", case["admission"]),
         "seal": _typed("MediaSeal", case["seal"]),
-        "profile": _typed("MediaDecoderProfile", case["profile"]),
+        "profile": _typed("MediaDecoderProfileV2", case["profile"]),
         "open_plan": _typed("MediaDecodeOpenPlan", case["plan"]),
     }
 
@@ -257,7 +257,7 @@ def _put(value, path, replacement):
 
 
 def _rehash_profile(case):
-    profile = fixtures._self_hash("DecoderProfile", case["profile"], "profile_sha256")
+    profile = fixtures._self_hash("DecoderProfileV2", case["profile"], "profile_sha256")
     case["profile"] = profile
     pin = profile["profile_sha256"]
     case["admission"]["decoder_profile_sha256"] = pin
@@ -394,9 +394,9 @@ def test_v2_profile_and_protocol_must_be_selected_together(driver, protocol):
     profile = fixtures._profile()
     profile["driver"] = driver
     profile["protocol"]["kind"] = protocol
-    profile = fixtures._self_hash("DecoderProfile", profile, "profile_sha256")
+    profile = fixtures._self_hash("DecoderProfileV2", profile, "profile_sha256")
     with pytest.raises(media.MediaContractError):
-        _typed("MediaDecoderProfile", profile)
+        _typed("MediaDecoderProfileV2", profile)
 
 
 @pytest.mark.parametrize(

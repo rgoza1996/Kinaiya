@@ -595,7 +595,7 @@ async def _launch(
     profile["protocol"]["segments"] = segments
     profile["limits"] = limits.model_dump(mode="json")
     profile["formats"] = copy.deepcopy(formats)
-    profile = metadata._self_hash("DecoderProfile", profile, "profile_sha256")
+    profile = metadata._self_hash("DecoderProfileV2", profile, "profile_sha256")
     # The wrapper loads av from the selected interpreter before adding only the
     # primary contract dependency path. No ambient PYTHONPATH is inherited.
     spec = WorkerSpec(

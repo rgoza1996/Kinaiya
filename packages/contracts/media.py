@@ -782,7 +782,7 @@ class MediaProbeResult(_MediaModel):
 
 
 class MediaDecoderProtocol(_MediaModel):
-    kind: Literal["decoder_fd_v1", "decoder_fd_v2"]
+    kind: Literal["decoder_fd_v1"]
     implementation: MediaCodePin | None
     request_schema_sha256: _Hash | None
     response_schema_sha256: _Hash | None
@@ -798,7 +798,7 @@ class MediaDecoderProfile(_MediaModel):
     id: _Id
     generation: _P
     profile_sha256: _Hash
-    driver: Literal["pyav17_timed_fd_v1", "ffmpeg_cli_fd_v1", "pyav17_timed_fd_v2"]
+    driver: Literal["pyav17_timed_fd_v1", "ffmpeg_cli_fd_v1"]
     implementation: MediaCodePin | None
     executables: _items(MediaAssetPin, 3)
     runtime: MediaRuntime | None
@@ -812,9 +812,43 @@ class MediaDecoderProfile(_MediaModel):
         if any(asset.kind not in _EXECUTABLE_KINDS for asset in self.executables):
             _bad()
         _distinct(self.executables, "guest")
-        if (self.driver == "pyav17_timed_fd_v2") != (self.protocol.kind == "decoder_fd_v2"):
-            _bad()
         if self.profile_sha256 != _hash("DecoderProfile", self.__dict__, "profile_sha256"):
+            _bad()
+        return self
+
+
+class MediaDecoderProtocolV2(_MediaModel):
+    kind: Literal["decoder_fd_v2"]
+    implementation: MediaCodePin | None
+    request_schema_sha256: _Hash | None
+    response_schema_sha256: _Hash | None
+    wire: Literal["u32be_json_then_body"]
+    peer: Literal["owned_pid_incarnation_nonce"]
+    pts: Literal["original_rational"]
+    cleanup: Literal["pidfd_reap"]
+    segments: Literal["retained_child", "one_segment_child"]
+
+
+class MediaDecoderProfileV2(_MediaModel):
+    v: Literal[1]
+    id: _Id
+    generation: _P
+    profile_sha256: _Hash
+    driver: Literal["pyav17_timed_fd_v2"]
+    implementation: MediaCodePin | None
+    executables: _items(MediaAssetPin, 3)
+    runtime: MediaRuntime | None
+    formats: _items(MediaFormat, 16)
+    transform: MediaTransform
+    limits: MediaLimits
+    protocol: MediaDecoderProtocolV2
+
+    @model_validator(mode="after")
+    def _profile(self) -> Self:
+        if any(asset.kind not in _EXECUTABLE_KINDS for asset in self.executables):
+            _bad()
+        _distinct(self.executables, "guest")
+        if self.profile_sha256 != _hash("DecoderProfileV2", self.__dict__, "profile_sha256"):
             _bad()
         return self
 
@@ -1213,7 +1247,7 @@ class MediaDecodeRequestV2(_MediaModel):
     profile_sha256: _Hash
     seq: _P
     command: Literal["probe", "open", "next", "cancel"]
-    profile: MediaDecoderProfile | None
+    profile: MediaDecoderProfileV2 | None
     plan: MediaDecodeOpenPlan | None
 
     @model_validator(mode="after")
@@ -1856,6 +1890,8 @@ _RECORDS = (
     MediaDecodeResponse,
     MediaInputEnd,
     MediaDecodeBudget,
+    MediaDecoderProtocolV2,
+    MediaDecoderProfileV2,
     MediaProbeClock,
     MediaProbeObservation,
     MediaDecodeSelection,
@@ -1988,6 +2024,7 @@ _SELF = MappingProxyType(
     {
         MediaRuntime: "manifest_sha256",
         MediaDecoderProfile: "profile_sha256",
+        MediaDecoderProfileV2: "profile_sha256",
         **{kind: "sha256" for kind in _short_names if issubclass(kind, MediaReceipt)},
     }
 )
@@ -2357,7 +2394,7 @@ def media_digest(short_type: str, body: _MediaModel | dict) -> str:
                 )
             _check_version(fields["v"], kind.model_fields["v"].annotation)
             digest = _hash(short_type, fields)
-            if kind in (MediaRuntime, MediaDecoderProfile):
+            if kind in (MediaRuntime, MediaDecoderProfile, MediaDecoderProfileV2):
                 # Construction helpers still execute every complete root semantic
                 # check and full-envelope cap with the computed self hash present.
                 kind(**fields, **{self_field: digest})

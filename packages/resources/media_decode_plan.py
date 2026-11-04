@@ -154,7 +154,7 @@ def build_decode_plan(
     seal_ref: media.MediaNativeRef,
     admission: media.MediaSourceAdmission,
     seal: media.MediaSeal,
-    profile: media.MediaDecoderProfile,
+    profile: media.MediaDecoderProfile | media.MediaDecoderProfileV2,
     probe: media.MediaProbeResult,
     ready: media.MediaDecodeReady,
     selections: tuple[TrackSelection, ...],
@@ -167,6 +167,12 @@ def build_decode_plan(
     separate required guards. A structurally valid plan grants none of them.
     """
     try:
+        profile_kind = type(profile)
+        if (
+            profile_kind is not media.MediaDecoderProfile
+            and profile_kind is not media.MediaDecoderProfileV2
+        ):
+            _refuse()
         pins = []
         values = []
         for value, kind in (
@@ -174,7 +180,7 @@ def build_decode_plan(
             (seal_ref, media.MediaNativeRef),
             (admission, media.MediaSourceAdmission),
             (seal, media.MediaSeal),
-            (profile, media.MediaDecoderProfile),
+            (profile, profile_kind),
             (probe, media.MediaProbeResult),
             (ready, media.MediaDecodeReady),
         ):
@@ -215,10 +221,10 @@ def build_decode_plan(
         ):
             _refuse("bound")
         if (
-            (profile.driver, profile.protocol.kind)
+            (type(profile), profile.driver, profile.protocol.kind)
             not in (
-                ("pyav17_timed_fd_v1", "decoder_fd_v1"),
-                ("pyav17_timed_fd_v2", "decoder_fd_v2"),
+                (media.MediaDecoderProfile, "pyav17_timed_fd_v1", "decoder_fd_v1"),
+                (media.MediaDecoderProfileV2, "pyav17_timed_fd_v2", "decoder_fd_v2"),
             )
             or profile.runtime is None
             or profile.implementation is None
@@ -339,7 +345,7 @@ def build_decode_plan_from_open(
     seal_ref: media.MediaNativeRef,
     admission: media.MediaSourceAdmission,
     seal: media.MediaSeal,
-    profile: media.MediaDecoderProfile,
+    profile: media.MediaDecoderProfileV2,
     open_plan: media.MediaDecodeOpenPlan,
 ) -> DecodePlan:
     """Bind a v2 open plan to the existing full initial-plan checks.
@@ -357,7 +363,7 @@ def build_decode_plan_from_open(
             (seal_ref, media.MediaNativeRef),
             (admission, media.MediaSourceAdmission),
             (seal, media.MediaSeal),
-            (profile, media.MediaDecoderProfile),
+            (profile, media.MediaDecoderProfileV2),
             (open_plan, media.MediaDecodeOpenPlan),
         ):
             raw, fresh = _pin(value, kind)
