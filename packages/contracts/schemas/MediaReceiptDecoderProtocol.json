@@ -59,7 +59,10 @@
           ]
         },
         "kind": {
-          "const": "decoder_fd_v1",
+          "enum": [
+            "decoder_fd_v1",
+            "decoder_fd_v2"
+          ],
           "title": "Kind",
           "type": "string"
         },

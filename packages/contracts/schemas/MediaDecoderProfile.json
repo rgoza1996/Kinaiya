@@ -312,7 +312,10 @@
           ]
         },
         "kind": {
-          "const": "decoder_fd_v1",
+          "enum": [
+            "decoder_fd_v1",
+            "decoder_fd_v2"
+          ],
           "title": "Kind",
           "type": "string"
         },
@@ -793,7 +796,8 @@
     "driver": {
       "enum": [
         "pyav17_timed_fd_v1",
-        "ffmpeg_cli_fd_v1"
+        "ffmpeg_cli_fd_v1",
+        "pyav17_timed_fd_v2"
       ],
       "title": "Driver",
       "type": "string"

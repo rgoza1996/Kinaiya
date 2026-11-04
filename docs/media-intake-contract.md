@@ -146,12 +146,14 @@ real capture, model inference, device behavior or the complete Omni pipeline.
 
 ## Remaining decoder launch work
 
-The existing general worker launcher does not yet supply the original media
-duplex control endpoint and read-only source descriptor required by this driver.
-The initial descriptor protocol also needs explicit probe-index to allocated
-track/format mapping, original clock observations, initial sequence/budget
-binding and a sealed-runtime launch contract. A profile hash or an unstated
-array order cannot supply those values to a networkless child.
+The private MediaWorkerPool can transfer the original duplex control endpoint
+and read-only source as FD3/FD4. Native Session still needs to compose this
+launcher with actual decoder execution. The explicit [v2 handshake](media-decoder-v2.md)
+adds the selected profile before probe, observed clocks, per-index native
+track/format mappings, Seal and initial segment budget/cursor bindings. These
+structural records do not resolve native budget references or qualify the
+sealed runtime. A profile hash or an unstated array order cannot supply a
+missing child input or establish launch authority.
 
 Decoder execution remains unavailable until those interfaces, per-segment
 resource enforcement and original peer/control/body/publication settlement are

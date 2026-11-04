@@ -55,6 +55,24 @@ def _bound() -> None:
     raise MediaContractError("bound")
 
 
+def _version_values(annotation):
+    origin = get_origin(annotation)
+    if origin is Annotated:
+        args = get_args(annotation)
+        if args:
+            annotation = args[0]
+            origin = get_origin(annotation)
+    if origin is Literal:
+        return get_args(annotation)
+    return ()
+
+
+def _check_version(value, annotation) -> None:
+    allowed = _version_values(annotation)
+    if type(value) is not int or value not in allowed:
+        _bad()
+
+
 def _text(limit: int):
     def check(value: str) -> str:
         try:
@@ -122,8 +140,7 @@ class _MediaModel(BaseModel):
     def _strict_version(cls, value):
         _checked_graph(value, cls, construction=True)
         if type(value) is dict and "v" in cls.model_fields:
-            if type(value.get("v")) is not int or value["v"] != 1:
-                _bad()
+            _check_version(value.get("v"), cls.model_fields["v"].annotation)
         return value
 
     @model_validator(mode="after")
@@ -765,7 +782,7 @@ class MediaProbeResult(_MediaModel):
 
 
 class MediaDecoderProtocol(_MediaModel):
-    kind: Literal["decoder_fd_v1"]
+    kind: Literal["decoder_fd_v1", "decoder_fd_v2"]
     implementation: MediaCodePin | None
     request_schema_sha256: _Hash | None
     response_schema_sha256: _Hash | None
@@ -781,7 +798,7 @@ class MediaDecoderProfile(_MediaModel):
     id: _Id
     generation: _P
     profile_sha256: _Hash
-    driver: Literal["pyav17_timed_fd_v1", "ffmpeg_cli_fd_v1"]
+    driver: Literal["pyav17_timed_fd_v1", "ffmpeg_cli_fd_v1", "pyav17_timed_fd_v2"]
     implementation: MediaCodePin | None
     executables: _items(MediaAssetPin, 3)
     runtime: MediaRuntime | None
@@ -795,6 +812,8 @@ class MediaDecoderProfile(_MediaModel):
         if any(asset.kind not in _EXECUTABLE_KINDS for asset in self.executables):
             _bad()
         _distinct(self.executables, "guest")
+        if (self.driver == "pyav17_timed_fd_v2") != (self.protocol.kind == "decoder_fd_v2"):
+            _bad()
         if self.profile_sha256 != _hash("DecoderProfile", self.__dict__, "profile_sha256"):
             _bad()
         return self
@@ -1044,6 +1063,219 @@ class MediaDecodeBudget(_MediaModel):
     cpu_spent_ms: _N
     wall_spent_ms: _N
     state: Literal["running", "ended", "unknown"]
+
+
+class MediaProbeClock(_MediaModel):
+    probe_index: _N
+    first_pts: _I
+    timebase: MediaQ
+    provenance: Literal["container", "untimed_image"]
+
+    @model_validator(mode="after")
+    def _clock_shape(self) -> Self:
+        if self.timebase.num == 0:
+            _bad()
+        if self.provenance == "untimed_image" and self.first_pts != 0:
+            _bad()
+        return self
+
+
+class MediaProbeObservation(_MediaModel):
+    v: Literal[2]
+    source: MediaNativeRef
+    seal: MediaNativeRef
+    child_owner: MediaNativeRef
+    profile_sha256: _Hash
+    probe: MediaProbeResult
+    clocks: _items(MediaProbeClock, 8)
+
+    @model_validator(mode="after")
+    def _observation_shape(self) -> Self:
+        _distinct(self.clocks, "probe_index")
+        if {item.probe_index for item in self.clocks} != {
+            track.index for track in self.probe.tracks
+        }:
+            _bad()
+        by_index = {track.index: track for track in self.probe.tracks}
+        for item in self.clocks:
+            track = by_index[item.probe_index]
+            if (item.timebase.num, item.timebase.den) != (
+                track.timebase.num,
+                track.timebase.den,
+            ):
+                _bad()
+            expected = "untimed_image" if track.kind == "image" else "container"
+            if item.provenance != expected:
+                _bad()
+        return self
+
+
+class MediaDecodeSelection(_MediaModel):
+    probe_index: _N
+    track: MediaTrack
+    format: MediaFormat
+
+    @model_validator(mode="after")
+    def _selection_shape(self) -> Self:
+        if self.track.command_lane:
+            _bad()
+        if self.track.format_sha256 != media_digest("Format", self.format):
+            _bad()
+        expected = {"audio": "audio", "image": "image", "video": "video_frame"}[self.track.kind]
+        if self.format.kind != expected:
+            _bad()
+        return self
+
+
+class MediaDecodeTrackCursor(_MediaModel):
+    track_id: _Id
+    next_seq: _P
+
+
+class MediaDecodeOpenPlan(_MediaModel):
+    v: Literal[2]
+    observation: MediaProbeObservation
+    ready: MediaDecodeReady
+    selections: _items(MediaDecodeSelection, 8)
+    segment: MediaSegment
+    budget_ref: MediaNativeRef
+    budget: MediaDecodeBudget
+    next_source_seq: _P
+    cursors: _items(MediaDecodeTrackCursor, 8)
+
+    @model_validator(mode="after")
+    def _open_shape(self) -> Self:
+        if (
+            self.ready.source != self.observation.source
+            or self.ready.seal != self.observation.seal
+            or self.ready.probe != self.observation.probe
+            or self.ready.decoder_profile_sha256 != self.observation.profile_sha256
+        ):
+            _bad()
+        if (
+            self.segment.source != self.ready.source
+            or self.segment.profile_sha256 != self.ready.decoder_profile_sha256
+            or set(self.segment.track_ids) != {track.track_id for track in self.ready.tracks}
+        ):
+            _bad()
+        _distinct(self.selections, "probe_index")
+        _distinct([item.track.track_id for item in self.selections], None)
+        if {item.probe_index for item in self.selections} != {
+            track.index for track in self.observation.probe.tracks
+        }:
+            _bad()
+        by_id = {track.track_id: track for track in self.ready.tracks}
+        if {item.track.track_id for item in self.selections} != set(by_id):
+            _bad()
+        for item in self.selections:
+            if item.track != by_id[item.track.track_id]:
+                _bad()
+        _tracks(self.ready.tracks)
+        probe_by_index = {track.index: track for track in self.observation.probe.tracks}
+        clock_by_index = {item.probe_index: item for item in self.observation.clocks}
+        for item in self.selections:
+            probe = probe_by_index[item.probe_index]
+            clock = clock_by_index[item.probe_index]
+            if item.track.kind != probe.kind:
+                _bad()
+            if (item.track.timebase.num, item.track.timebase.den) != (
+                probe.timebase.num,
+                probe.timebase.den,
+            ):
+                _bad()
+            if (item.track.timebase.num, item.track.timebase.den) != (
+                clock.timebase.num,
+                clock.timebase.den,
+            ):
+                _bad()
+            if item.track.clock_provenance != clock.provenance:
+                _bad()
+        _distinct(self.cursors, "track_id")
+        if {item.track_id for item in self.cursors} != set(by_id):
+            _bad()
+        if (
+            self.budget.segment_id != self.segment.segment_id
+            or self.budget.child_owner != self.observation.child_owner
+            or self.budget.state != "running"
+        ):
+            _bad()
+        return self
+
+
+class MediaDecodeRequestV2(_MediaModel):
+    v: Literal[2]
+    operation_id: _Id
+    source: MediaNativeRef
+    seal: MediaNativeRef
+    consumer: MediaConsumerRef
+    fence: MediaFence
+    child_owner: MediaNativeRef
+    profile_sha256: _Hash
+    seq: _P
+    command: Literal["probe", "open", "next", "cancel"]
+    profile: MediaDecoderProfile | None
+    plan: MediaDecodeOpenPlan | None
+
+    @model_validator(mode="after")
+    def _command_shape(self) -> Self:
+        if self.command == "probe":
+            if self.profile is None or self.plan is not None:
+                _bad()
+            if self.profile.driver != "pyav17_timed_fd_v2":
+                _bad()
+            if self.profile.protocol.kind != "decoder_fd_v2":
+                _bad()
+            if self.profile.profile_sha256 != self.profile_sha256:
+                _bad()
+        elif self.command == "open":
+            if self.plan is None or self.profile is not None:
+                _bad()
+            if self.plan.observation.source != self.source:
+                _bad()
+            if self.plan.observation.seal != self.seal:
+                _bad()
+            if self.plan.observation.child_owner != self.child_owner:
+                _bad()
+            if self.plan.observation.profile_sha256 != self.profile_sha256:
+                _bad()
+            if self.plan.segment.source != self.source:
+                _bad()
+            if self.plan.segment.profile_sha256 != self.profile_sha256:
+                _bad()
+            if self.plan.segment.source_revision != self.fence.source_revision:
+                _bad()
+            if self.plan.segment.generation != self.fence.generation:
+                _bad()
+        elif self.profile is not None or self.plan is not None:
+            _bad()
+        return self
+
+
+class MediaDecodeResponseV2(_MediaModel):
+    v: Literal[2]
+    operation_id: _Id
+    seq: _P
+    segment_id: _Id | None
+    result: Literal["probe", "packet", "end", "cancel_ack", "error"]
+    probe: MediaProbeObservation | None
+    packet: MediaPacketHeader | None
+    end: MediaDecodeEnd | None
+    error: MediaError | None
+
+    @model_validator(mode="after")
+    def _result_shape(self) -> Self:
+        for name in ("probe", "packet", "end", "error"):
+            if (getattr(self, name) is not None) != (name == self.result):
+                _bad()
+        if self.result == "probe" and self.segment_id is not None:
+            _bad()
+        if self.result in ("packet", "end") and self.segment_id is None:
+            _bad()
+        if self.packet is not None and self.packet.operation_id != self.operation_id:
+            _bad()
+        if self.end is not None and self.end.segment_id != self.segment_id:
+            _bad()
+        return self
 
 
 class MediaOwnerTextObjective(_MediaModel):
@@ -1624,6 +1856,13 @@ _RECORDS = (
     MediaDecodeResponse,
     MediaInputEnd,
     MediaDecodeBudget,
+    MediaProbeClock,
+    MediaProbeObservation,
+    MediaDecodeSelection,
+    MediaDecodeTrackCursor,
+    MediaDecodeOpenPlan,
+    MediaDecodeRequestV2,
+    MediaDecodeResponseV2,
     MediaOwnerTextObjective,
     MediaOwnerMediaObjective,
     MediaTaskProofRequest,
@@ -1882,8 +2121,8 @@ def _rebuild(value, kind):
     if type(value) is not dict or value.keys() != kind.model_fields.keys():
         _bad()
     # Literal adapters may use equality; reject bool before they can normalize it.
-    if "v" in kind.model_fields and (type(value["v"]) is not int or value["v"] != 1):
-        _bad()
+    if "v" in kind.model_fields:
+        _check_version(value["v"], kind.model_fields["v"].annotation)
     fields = {
         name: _field(value[name], field.rebuild_annotation(), typed)
         for name, field in kind.model_fields.items()
@@ -2107,8 +2346,7 @@ def media_digest(short_type: str, body: _MediaModel | dict) -> str:
             expected = kind.model_fields.keys() - {self_field}
             if values.keys() not in (expected, kind.model_fields.keys()):
                 _bad()
-            if type(values["v"]) is not int or values["v"] != 1:
-                _bad()
+            _check_version(values["v"], kind.model_fields["v"].annotation)
             fields = {
                 name: _field(values[name], kind.model_fields[name].rebuild_annotation(), typed)
                 for name in expected
@@ -2117,8 +2355,7 @@ def media_digest(short_type: str, body: _MediaModel | dict) -> str:
                 _field(
                     values[self_field], kind.model_fields[self_field].rebuild_annotation(), typed
                 )
-            if type(fields["v"]) is not int or fields["v"] != 1:
-                _bad()
+            _check_version(fields["v"], kind.model_fields["v"].annotation)
             digest = _hash(short_type, fields)
             if kind in (MediaRuntime, MediaDecoderProfile):
                 # Construction helpers still execute every complete root semantic
