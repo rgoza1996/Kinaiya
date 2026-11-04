@@ -273,9 +273,11 @@ def confirm(yes, message, *, pre_consented=False):
         return
     try:
         with open_terminal() as tty:
-            tty.write("Type yes to continue: ")
+            tty.write("Continue? (y/n) [n]: ")
+            if hasattr(tty, "flush"):
+                tty.flush()
             line = tty.readline()
-            if line.strip() == "yes" or (pre_consented and line == ""):
+            if line.strip().lower() in {"y", "yes"} or (pre_consented and line == ""):
                 return
     except OSError:
         pass

@@ -17,6 +17,7 @@ from services.distribution.terminal import open_terminal
 from services.distribution.terminal_ui import NON_COLOR_TERMS, ColorMode, detect_color_mode
 from services.distribution.wizard_flow import (
     WizardFlowCoordinator,
+    ask_yn,
     run_first_run_wizard,
 )
 from services.distribution.wizard_flow import (
@@ -324,6 +325,7 @@ __all__ = [
     "ASCII_MOON_RAMP",
     "MASCOT",
     "WizardFlowCoordinator",
+    "ask_yn",
     "colorize_mascot",
     "mascot",
     "render_moon_ascii_from_image",

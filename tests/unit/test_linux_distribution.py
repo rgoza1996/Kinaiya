@@ -714,3 +714,27 @@ def test_install_root_selection_routes_through_layout_receipt_update_rollback_an
     guard_roots = set(launcher.managed_guard_roots())
     assert custom_dir in guard_roots
     assert discovered.workspace not in guard_roots
+
+
+def test_wizard_accepts_short_yn_and_reprompts_invalid_boolean(tmp_path):
+    import io
+
+    from services.distribution import wizard
+
+    module = distribution()
+    layout = module.Layout.for_home(tmp_path)
+    answers = iter(["", "", "", "local-model", "maybe", "n", "", "n", "y"])
+    output = io.StringIO()
+    tty = type(
+        "TTY",
+        (),
+        {
+            "write": output.write,
+            "flush": lambda self: None,
+            "readline": lambda self: next(answers) + "\n",
+        },
+    )()
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    assert "Please enter y or n." in output.getvalue()
+    assert "(y/n) [n]: " in output.getvalue()

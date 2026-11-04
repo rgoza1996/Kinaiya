@@ -303,7 +303,7 @@ def test_bootstrap_shell_captures_invoking_pwd_and_prompts_default_vs_current(
     with pytest.raises(SystemExit):
         bootstrap.run(["--no-setup"])
     assert "Choose install location" not in tty_equal.written
-    assert "Review the plan. Type yes to download and install:" in tty_equal.written
+    assert "Review the plan. Download and install? (y/n) [n]: " in tty_equal.written
 
 
 def test_bootstrap_rejects_unsafe_or_populated_install_roots_without_deleting_files(
@@ -344,3 +344,62 @@ def test_bootstrap_rejects_unsafe_or_populated_install_roots_without_deleting_fi
         bootstrap.run(
             ["--yes", "--no-setup", "--install-dir", str(home / "Kinaiya Workspace" / "sub")]
         )
+
+
+def test_bootstrap_confirm_yn_accepts_short_y_and_rejects_n(bootstrap):
+    out_y = io.StringIO()
+    tty_y = type(
+        "TTY",
+        (),
+        {
+            "write": out_y.write,
+            "flush": lambda self: None,
+            "readline": lambda self: "y\n",
+        },
+    )()
+    assert bootstrap.confirm_yn(tty_y) is True
+    assert "(y/n) [n]: " in out_y.getvalue()
+
+    out_n = io.StringIO()
+    tty_n = type(
+        "TTY",
+        (),
+        {
+            "write": out_n.write,
+            "flush": lambda self: None,
+            "readline": lambda self: "n\n",
+        },
+    )()
+    assert bootstrap.confirm_yn(tty_n) is False
+
+
+@pytest.mark.parametrize(
+    "answer,pre_consented,expected",
+    [
+        ("Y\n", False, True),
+        (" YeS \n", False, True),
+        ("N\n", False, False),
+        ("no\n", False, False),
+        ("maybe\n", False, False),
+        ("\n", False, False),
+        ("", False, False),
+        ("", True, True),
+        ("\n", True, False),
+        ("n\n", True, False),
+        ("maybe\n", True, False),
+    ],
+)
+def test_bootstrap_confirmation_preserves_only_existing_eof_consent(
+    bootstrap, answer, pre_consented, expected
+):
+    class Terminal:
+        def write(self, text):
+            pass
+
+        def flush(self):
+            pass
+
+        def readline(self):
+            return answer
+
+    assert bootstrap.confirm_yn(Terminal(), pre_consented=pre_consented) is expected
