@@ -16,6 +16,21 @@ The authenticated `POST /v1/converse/native-audio/clips` accepts strict session/
 
 A protected SQLite intent ledger durably reserves request and utterance identity before ASR. Exact in-process duplicates join the same original task. Changed requests, lost clips after restart, stale epochs and unavailable originals refuse without a second ASR. The ledger retains at most4096 intents without eviction; RAM retains at most32 clips and16MiB, reserving room for input copies and up to2MiB output before admission. Saturation refuses rather than evicting a live receipt.
 
+`GET /health` exposes the native owner's bounded `capacity` metadata: retained
+clip count, maximum and remaining clip slots, reserved bytes, maximum and
+remaining reserved bytes, the minimum valid clip reservation and an `exhausted`
+boolean. Reserved bytes include the complete WAV, a second PCM copy and the
+2MiB reply reservation even after publication or a completed refusal. They are
+an admission reservation, not a measured process-memory value. The smallest
+valid clip reserves 2097200 bytes (a 46-byte WAV, 2-byte PCM copy and 2MiB reply).
+`available` is false when even that clip cannot fit or no clip slot remains;
+true still does not promise a particular larger clip will fit or prove endpoint
+readiness. Capacity exhaustion alone is not pending cleanup, so a settled full
+owner can report `available: false`, `active: 0`, and `pending: false` together.
+New originals still refuse with the existing constant HTTP503 before adding
+an intent. Existing originals retain their replay behavior. These diagnostics
+neither evict retained clips nor delete durable intents or reset the ledger.
+
 The provider retains original acquisition, send/receive, response and close futures across cancelled observers. Repeated cancellation cannot restart the bounded cleanup wait or transfer custody to a replacement transport. Export requires confirmed close and a final authority/deadline check. Unconfirmed cleanup stays unavailable with its original work retained. Owner shutdown similarly retains the original provider and closer.
 
 The shared `settled_converse_operations` model-change boundary uses exactly ten base operation names: `preparing`, `text`, `text_admitting`, `windows`, `speech`, `stt`, `stt_cleanup`, `native_audio`, `playback_pending`, and `memory_pending`. The `native_audio` count is a bounded integer0 or1: zero when no native owner has pending work, and one while its original work, uncertain admission, shutdown or failed cleanup remains retained. Standalone and HTTP-wired runtimes expose the same complete set. The independent [text](0091-converse-text-model-settings.md), [STT](0099-independent-stt-model-settings.md) and [TTS](0101-independent-tts-model-settings.md) owners, and their Flutter metadata parsers, retain exact-name and bounded-integer validation. Any nonzero count still blocks model changes; missing, unknown or malformed counts remain unavailable rather than being filtered away.
