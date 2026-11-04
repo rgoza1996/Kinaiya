@@ -1,5 +1,5 @@
 {
-  "source_sha": "7f099458626fc81954ca2998b3938dedbfd03509",
+  "source_sha": "3535617bca96d4c6a6d26e5bce16d95558caabc0",
   "host": {
     "distro": "ubuntu 26.04",
     "kernel": "7.0.0-38-generic",
@@ -32,7 +32,7 @@
         2,
         3
       ],
-      "source_sha": "7f099458626fc81954ca2998b3938dedbfd03509"
+      "source_sha": "3535617bca96d4c6a6d26e5bce16d95558caabc0"
     },
     {
       "check": "invalid_digest",
@@ -42,13 +42,13 @@
     {
       "check": "clean_install",
       "outcome": "passed",
-      "generation": "604162abb1174afb8240b40cc4f1a162",
+      "generation": "854e5056bdcd45aebb804dfc11c51861",
       "build_number": 1
     },
     {
       "check": "rerun_same_release",
       "outcome": "current",
-      "generation": "604162abb1174afb8240b40cc4f1a162"
+      "generation": "854e5056bdcd45aebb804dfc11c51861"
     },
     {
       "check": "agent_only_setup",
@@ -69,7 +69,7 @@
     {
       "check": "update",
       "outcome": "passed",
-      "generation": "f0420a038861412cb79f77bfaed04bc9",
+      "generation": "f2a9d4a1a6ec4c35883eafc30e0b593e",
       "config_preserved": true
     },
     {
@@ -114,8 +114,8 @@
     {
       "check": "compatible_rollback",
       "outcome": "passed",
-      "to": "604162abb1174afb8240b40cc4f1a162",
-      "back_to": "f0420a038861412cb79f77bfaed04bc9",
+      "to": "854e5056bdcd45aebb804dfc11c51861",
+      "back_to": "f2a9d4a1a6ec4c35883eafc30e0b593e",
       "action": "code_rollback",
       "database_restored": false
     },
@@ -129,5 +129,20 @@
     }
   ],
   "result": "passed",
-  "redaction": "Host-specific qualification directory replaced with <qualification-root>; check results are unchanged."
+  "redaction": "Host-specific qualification directory replaced with <qualification-root>; check results are unchanged.",
+  "verification_context": {
+    "focused_compatibility_tests": {
+      "python_3_12": 331,
+      "python_3_14": 331
+    },
+    "media_lifecycle_focused_rerun": {
+      "python_3_12": "2 passed",
+      "python_3_14": "2 passed"
+    },
+    "remaining_qualification_limits": [
+      "https://github.com/rgoza1996/Kinaiya/issues/481",
+      "https://github.com/rgoza1996/Kinaiya/issues/482"
+    ],
+    "scope": "Agent-only installer lifecycle; not optional managed-model/voice or full native-suite qualification"
+  }
 }
