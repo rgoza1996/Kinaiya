@@ -135,6 +135,17 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
         if key_ref and not profile.get("api_key"):
             profile["api_key"] = os.environ.get(key_ref, "")
         result = MetaResponsesProvider(**profile)
+    elif kind == "measured_chat":
+        if role != "converse":
+            raise SystemExit("Measured chat supports Converse text only")
+        from packages.providers.measured_chat import MeasuredChatProvider
+
+        if profile.pop("allow_cloud", False) is not False:
+            raise ValueError("Measured chat is local only")
+        key_ref = profile.pop("api_key_env", None)
+        if key_ref:
+            profile["api_key"] = os.environ.get(key_ref, "")
+        result = MeasuredChatProvider(**profile)
     elif kind == "lmstudio":
         if role not in {"converse", "agent", "auxiliary"}:
             raise SystemExit("Native LM Studio supports Converse, Agent and auxiliary text only")
@@ -285,10 +296,10 @@ def validate_setup_provider(role, profile):
                 "('lmstudio' or 'meta') that implements prepare_complete"
             )
     elif role == "converse":
-        if kind not in {"lmstudio", "compatible", "meta"}:
+        if kind not in {"lmstudio", "compatible", "measured_chat", "meta"}:
             raise ValueError(
                 f"Unsupported Converse setup adapter kind {kind!r}; select 'lmstudio', "
-                "'compatible', or 'meta'"
+                "'compatible', 'measured_chat', or 'meta'"
             )
     elif role == "decisions":
         if kind not in {"compatible", "laya", "native_d1", "openrouter_decisions", "meta"}:

@@ -425,7 +425,7 @@ class ConverseModelSettings:
                     "provider": declaration_info(config).model_dump(),
                     "reasoning": config.get("reasoning_effort"),
                     "reasoning_options": list(EFFORTS)
-                    if config["kind"] == "meta"
+                    if config["kind"] in {"meta", "measured_chat"}
                     else ["none"]
                     if config["kind"] == "lmstudio"
                     else [],
