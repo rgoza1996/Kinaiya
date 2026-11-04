@@ -55,9 +55,9 @@ def clip(tmp_path):
     return path.read_bytes()
 
 
-def setup(tmp_path, clip):
+def setup(tmp_path, clip, profile=None):
     sha = hashlib.sha256(clip).hexdigest()
-    profile = SamVideoProfile(sha, 320, 334, 1, 1, 1, 1.0)
+    profile = profile or SamVideoProfile(sha, 320, 334, 1, 1, 1, 1.0)
     registry = Registry()
     projector = SamVideoProjector(
         media_assets=registry, work_root=tmp_path / "private", profile=profile
@@ -121,6 +121,90 @@ async def test_actual_synthetic_mask_decode_and_isolated_video_render(tmp_path, 
     pixels = list(zip(decoded[0::3], decoded[1::3], decoded[2::3], strict=True))
     assert any(g > r + 30 and g > b + 30 for r, g, b in pixels)
     assert sum(b > r + 80 and b > g + 80 for r, g, b in pixels) > 5000
+    assert list(projector.work_root.iterdir()) == []
+    assert not projector._owners
+
+
+@pytest.mark.sandbox
+async def test_720p_png_overlay_codec_under_unchanged_address_space_cap(tmp_path):
+    source_path = tmp_path / "synthetic-720p.mp4"
+    subprocess.run(
+        [
+            "/usr/bin/ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=1280x720:r=30000/1001",
+            "-frames:v",
+            "2",
+            "-c:v",
+            "libx264",
+            "-threads",
+            "1",
+            str(source_path),
+        ],
+        check=True,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=15,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    source = source_path.read_bytes()
+    profile = SamVideoProfile(
+        hashlib.sha256(source).hexdigest(), 1280, 720, 30000, 1001, 2, 2 * 1001 / 30000
+    )
+    projector, prepared, registry = setup(tmp_path, source, profile)
+    text = SAMPLE.replace("w=320;h=334", "w=1280;h=720")
+    # This exercises the actual native worker's unchanged 1536 MiB RLIMIT_AS.
+    result = await projector(prepared, {}, text, lambda: None)
+    assert result["data"]["segmentation"]["source_frame_count"] == 2
+    assert result["data"]["segmentation"]["mask_count"] == 2
+    assert len(registry.calls) == 1
+    published = registry.calls[0]
+    assert published["source_bytes"] == source
+    assert (published["width"], published["height"], published["frame_count"]) == (1280, 720, 2)
+    rendered_path = tmp_path / "actual-synthetic-720p-highlighted.mp4"
+    rendered_path.write_bytes(published["rendered_mp4"])
+    decoded = subprocess.run(
+        [
+            "/usr/bin/ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-threads",
+            "1",
+            "-i",
+            str(rendered_path),
+            "-frames:v",
+            "1",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-threads",
+            "1",
+            "-",
+        ],
+        check=True,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=15,
+        env={"PATH": "/usr/bin:/bin"},
+    ).stdout
+    assert len(decoded) == 1280 * 720 * 3
+    green = sum(
+        decoded[index + 1] > decoded[index] + 30 and decoded[index + 1] > decoded[index + 2] + 30
+        for index in range(0, len(decoded), 3)
+    )
+    blue = sum(
+        decoded[index + 2] > decoded[index] + 80 and decoded[index + 2] > decoded[index + 1] + 80
+        for index in range(0, len(decoded), 3)
+    )
+    assert green > 0
+    assert blue > 1280 * 720 // 2
     assert list(projector.work_root.iterdir()) == []
     assert not projector._owners
 

@@ -192,6 +192,9 @@ def run():
             "source.mp4",
             "-framerate",
             f"{profile['fps_num']}/{profile['fps_den']}",
+            # Decoder options apply to each following input independently.
+            "-threads",
+            "1",
             "-i",
             "mask-%06d.png",
             "-filter_complex_threads",
