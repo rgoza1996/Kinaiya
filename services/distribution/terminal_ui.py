@@ -160,16 +160,25 @@ def _stream_is_tty(stream: Any) -> bool:
     return False
 
 
+NON_COLOR_TERMS: frozenset[str] = frozenset(
+    {"dumb", "vt100", "vt52", "unknown", "cons25", "emacs", "none"}
+)
+
+
 def detect_color_mode(
     stream: Any = None,
     env: Mapping[str, str] | None = None,
 ) -> ColorMode:
-    """Determine terminal color support while honoring NO_COLOR and TERM=dumb."""
+    """Determine terminal color support while honoring NO_COLOR, CLICOLOR=0, and non-color TERMs."""
     active_env = os.environ if env is None else env
-    if active_env.get("NO_COLOR", "") != "" or active_env.get("KINAIYA_NO_COLOR", "") != "":
+    if (
+        active_env.get("NO_COLOR", "") != ""
+        or active_env.get("KINAIYA_NO_COLOR", "") != ""
+        or active_env.get("CLICOLOR", "") == "0"
+    ):
         return ColorMode.NONE
     term = active_env.get("TERM", "").strip().lower()
-    if term == "dumb":
+    if term in NON_COLOR_TERMS or term.endswith("-m") or term.endswith("-mono"):
         return ColorMode.NONE
     if not _stream_is_tty(stream):
         return ColorMode.NONE

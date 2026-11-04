@@ -23,6 +23,12 @@ from services.distribution.installation import (
     setup,
 )
 from services.distribution.terminal import open_terminal
+from services.distribution.terminal_ui import (
+    PALETTE,
+    RESET,
+    ColorMode,
+    detect_color_mode,
+)
 
 VALID_WIZARD_MODES = (None, "standard", "quick", "advanced")
 
@@ -73,9 +79,24 @@ class WizardFlowCoordinator:
         self.setup_fn = setup_fn
         self.profile_id = profile_id
         self.getpass_fn = getpass_fn
+        self.color_mode = detect_color_mode(tty)
+
+    def _paint(self, text: str, token_fg: str) -> str:
+        if self.color_mode == ColorMode.NONE or not token_fg:
+            return text
+        return f"{token_fg}{text}{RESET}"
 
     def ask(self, label: str, default: str = "") -> str:
-        self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+        if self.color_mode == ColorMode.NONE:
+            self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+        else:
+            c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+            c_def = PALETTE.amber.fg_sequence(self.color_mode)
+            prompt_str = f"{c_lbl}{label}{RESET}"
+            if default:
+                prompt_str += f" {c_def}[{default}]{RESET}"
+            prompt_str += f"{c_lbl}: {RESET}"
+            self.tty.write(prompt_str)
         self.tty.flush()
         answer = self.tty.readline()
         if not answer:
@@ -84,9 +105,27 @@ class WizardFlowCoordinator:
 
     def _write_header(self) -> None:
         if self.mascot_fn is not None:
-            self.tty.write(self.mascot_fn(width=shutil.get_terminal_size().columns) + "\n")
-        self.tty.write("Agent-only by default. No microphone capture or task execution.\n")
-        self.tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
+            cols = shutil.get_terminal_size().columns
+            try:
+                banner = self.mascot_fn(width=cols, color=self.color_mode)
+            except TypeError:
+                banner = self.mascot_fn(width=cols)
+            self.tty.write(banner + "\n")
+        c_slate = PALETTE.slate.fg_sequence(self.color_mode)
+        self.tty.write(
+            self._paint(
+                "Agent-only by default. No microphone capture or task execution.",
+                c_slate,
+            )
+            + "\n"
+        )
+        self.tty.write(
+            self._paint(
+                "No models, voice packs or optional UI tools will be downloaded.",
+                c_slate,
+            )
+            + "\n"
+        )
 
     def _collect_role_profiles(
         self,
