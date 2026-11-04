@@ -1,4 +1,4 @@
-"""Resources-owned direct batch STT child; only framed private Unix IPC."""
+"""Resources-owned batch/incremental STT child; only framed private Unix IPC."""
 
 import argparse
 import os
@@ -141,7 +141,7 @@ def main():
         isolation = deny_network()
         from packages.providers.whistle_backend import WhistleEngine
 
-        engine = WhistleEngine(args.weights, args.library, args.workspace)
+        engine = WhistleEngine(args.weights, args.library, args.workspace, enable_streaming=True)
         serve(directory, engine, secrets.token_hex(32), isolation, listener, parent_pid)
 
 
