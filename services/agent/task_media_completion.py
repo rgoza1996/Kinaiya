@@ -39,7 +39,7 @@ def _source(runtime, rec, proof):
     )
 
 
-def _publication(runtime, rec, grant, observed):
+def _publication(runtime, rec, grant, observed, *, program_text=None):
     store = runtime.artifact_store
     _require(store is not None)
     task = runtime._publication_task(rec)
@@ -56,7 +56,10 @@ def _publication(runtime, rec, grant, observed):
             json_bytes(media.get("binding")) == json_bytes(grant.binding.model_dump(mode="json"))
         )
     transcript = None
-    if transcription is not None:
+    if program_text is not None:
+        transcript = " ".join(program_text.split())
+        _require(bool(transcript))
+    elif transcription is not None:
         transcript = " ".join(transcription["text"].split())
         _require(bool(transcript))
     latest = {
@@ -230,12 +233,19 @@ def check_completion(factory, runtime, rec):
             json_bytes(result.get("consultations")) == json_bytes(receipts)
             and json_bytes(extension_data.get("consultations")) == json_bytes(receipts)
         )
-        _publication(runtime, rec, grant, observed)
+        program_text = None
+        if enrolled.plan.completion_mode == "executable-v1":
+            from services.agent.task_program import check_program_completion
+
+            program_text = check_program_completion(factory, runtime, rec)
+        _publication(runtime, rec, grant, observed, program_text=program_text)
         # Synchronous store hooks and external file replacements cannot revoke
         # authority unnoticed during publication validation.
         factory._current(runtime, rec)
         _source(runtime, rec, proof)
         _snapshot(enrolled.policy, grant)
+        if program_text is not None:
+            _require(check_program_completion(factory, runtime, rec) == program_text)
         for value in observed.values():
             broker.check_primary_export(runtime.provider_info_for(rec), value)
         return True

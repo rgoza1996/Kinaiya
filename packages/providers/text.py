@@ -774,6 +774,12 @@ class MetaResponsesProvider:
             raise ProviderError("Unknown Meta credential reference")
         if not api_key:
             raise ProviderError("Meta credential is unavailable")
+        from packages.providers.meta_policy import WONDER_STANDARD_MODEL, meta_reasoning_options
+
+        if (reasoning_effort == "max" and model != WONDER_STANDARD_MODEL) or (
+            model == WONDER_STANDARD_MODEL and reasoning_effort not in meta_reasoning_options(model)
+        ):
+            raise ProviderError("Invalid Wonder Standard reasoning effort")
         self.info = ProviderInfo(provider="meta", model=model, local=False, streaming=True)
         self.model, self.max_tokens, self.effort = model, max_tokens, reasoning_effort
         self.structured_actions = structured_actions
@@ -793,10 +799,13 @@ class MetaResponsesProvider:
         self._measurement_required = False
         self._measurement = None
         self._count_generation = 0
+        headers = {"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"}
+        if model == WONDER_STANDARD_MODEL:
+            del headers["x-tbh-contributor-mode"]
         self.http = RequestBoundAsyncClient(
             base_url=base_url.rstrip("/") + "/",
             timeout=120,
-            headers={"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"},
+            headers=headers,
             transport=transport,
             trust_env=False,
             follow_redirects=False,
@@ -1115,6 +1124,8 @@ class MetaResponsesProvider:
             wire += " For plugin_call use plugin_id and JSON-encode input in plugin_arguments_json."
         if "run_task_harness" in tools:
             wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
+        if "run_task_program" in tools:
+            wire += " For run_task_program supply the declared literal argv array including separate {input} and {output} placeholders; native code pins the executable and input bytes."
         if messages and messages[0].get("role") == "system":
             messages[0]["content"] += wire
         else:
@@ -1175,6 +1186,14 @@ class MetaResponsesProvider:
         }
 
     def body(self, messages, stream):
+        from packages.providers.meta_policy import WONDER_STANDARD_MODEL
+
+        result = self._body(messages, stream)
+        if self.model == WONDER_STANDARD_MODEL:
+            result["store"] = False
+        return result
+
+    def _body(self, messages, stream):
         snapshot = current_agent_tools()
         tools = snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
         if self.structured_actions and self.action_format == "typed-v2":
@@ -1195,6 +1214,8 @@ class MetaResponsesProvider:
                 )
             if "run_task_harness" in tools:
                 wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
+            if "run_task_program" in tools:
+                wire += " For run_task_program use interpreter, source_path/source_sha256, entrypoint_path/entrypoint_sha256, input_path/input_sha256, fresh output_path, literal argv array and timeout_s; set unrelated fields null."
             if "publish_ui" in tools:
                 wire += (
                     "\nFor publish_ui, JSON-encode the complete logical publication argument object "
@@ -1306,6 +1327,28 @@ class MetaResponsesProvider:
                         "harness_input_json": {"type": ["string", "null"], "maxLength": 65536},
                     }
                 )
+            if "run_task_program" in tools:
+                fields.update(
+                    {
+                        key: {"type": ["string", "null"]}
+                        for key in (
+                            "interpreter",
+                            "source_path",
+                            "source_sha256",
+                            "entrypoint_path",
+                            "entrypoint_sha256",
+                            "input_path",
+                            "input_sha256",
+                            "output_path",
+                        )
+                    }
+                )
+                fields["argv"] = {
+                    "type": ["array", "null"],
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 32,
+                }
             for action, optional_fields in (
                 ("select_context", ("max_chars",)),
                 ("skill_load", ("skill_id", "resource")),

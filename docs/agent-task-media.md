@@ -25,7 +25,7 @@ submission behavior and tool availability retain their existing defaults.
 5. Forward the clip through ordinary Converse/Decisions. After native submit
    confirmation, the retained preworker hook validates the immutable voice
    window, matching native Decisions queue route, exact submit receipt, fresh
-   session, primary Meta Contributor xhigh pin, and actual workspace video.
+   session, exact owner-selected primary Meta model/reasoning pin, and actual workspace video.
    It binds only one task; it does not accept model-provided permissions.
 
 The owner file DTO is `TaskMediaOwnerPlan`, schema `task_media_owner.v1`:
@@ -47,6 +47,58 @@ reasoning, exact prompt `hands`) and `transcribe_video` (`meta`,
 operations required. The primary result target is exact Meta Contributor,
 `local: false`. Owner text supplies the transcription prompt; the generated
 harness cannot supply or extend it.
+
+### Optional Wonder Standard target
+
+The default remains Contributor xhigh. A separately authored owner plan may
+select `muse-wonder-1.0`, `max` for both the primary result target and video
+transcription target. The factory requires that exact primary pin; a plan for
+Contributor cannot authorize Wonder exports, and a mixed primary/transcription
+model pair is refused. `muse-wonder-full-1.0`, aliases, and Contributor `max` are
+not supported by this option. Existing source/task/revision/publication checks
+and the private disclosure floor remain in force.
+
+The optional budget gateway flag is `--enable-wonder-standard`. It adds no
+allowance: the retained ledger, combined ceiling, unresolved reservations, and
+default **$1.50 media sublimit** remain unchanged. Its exact-video manifest must
+contain `sam-3.1` and `muse-wonder-1.0` prompt digests for the exact MP4 SHA256,
+byte count and independently measured frame count. Loading a Wonder manifest
+without the flag refuses. Standard requests omit the Contributor-mode header.
+
+The gateway admits only stateless, buffered Wonder `max` requests with local
+function tools, at most **32,768 input tokens and 32,768 output tokens**. A native
+primary profile can declare `context_tokens: 65536`, `max_tokens: 32768`; output
+includes reasoning. This is an explicit run bound. It does not claim that the
+model's full context is affordable. The existing native history selection and
+measured-request identity checks still apply; no suffix clipping or unchecked
+tool-schema reduction is introduced.
+
+Before each generation, the gateway requires a completed exact-model token
+count for the same canonical complete body and authorization. This bounded,
+process-local receipt expires after 60 seconds and is consumed once before
+budget admission. A changed body, authorization, unknown count, over-bound
+count, restart, or used receipt refuses generation. Native Wonder video counts
+its exact trusted prompt plus entire granted MP4 and closes that original
+stream before opening the generation stream. Counts never generate output.
+
+[Meta's pricing](https://dev.meta.ai/docs/pricing-rate-limits) lists Wonder
+Standard at $4 input, $0.20 cached input, and $20 output per million tokens.
+There is no API Contributor variant. The gateway reserves twice the uncached
+input/output bounds: a 32,768/32,768 request reserves **$1.572864**, while the old
+1,007,997-input/32,768-output bounds would require **$9.374696**. A verified,
+settled response can use the separately reported cache count; future admission
+never assumes a cache hit. Model identity, finite bounded usage, EOF and the
+original upstream close must all succeed before settlement or delivery. An
+uncertain response retains the full reservation and never retries.
+
+The [official model catalog](https://dev.meta.ai/docs/models) identifies
+`muse-wonder-1.0` as Standard API; Wonder Full is subscription-only in Muse Code.
+The [reasoning guide](https://dev.meta.ai/docs/reasoning) supports `max` for
+Wonder Standard and states that reasoning consumes the output budget. The
+[counting guide](https://dev.meta.ai/docs/token-counting) requires recounting
+when changing models; Contributor usage is not a Wonder token-count receipt.
+Enabling this source option does not prove a provider connection, successful
+transcription, completion, playback, or available budget for an entire task.
 
 The plan contains no task ID or expected transcription of the voice intent.
 Enrollment derives the objective digest and native task identity from
@@ -111,6 +163,26 @@ retain precedence. Missing, failed, stale or unsettled work cannot report succes
 through a generic read or text-only publication. Other owner plans follow their
 declared required subset; non-enrolled Tasks retain their existing completion
 behavior. An admitted live runtime is not retroactively changed by a source fix.
+
+### Optional executable completion
+
+A fresh owner plan may explicitly select `completion_mode: "executable-v1"`.
+The legacy `media-v1` mode remains the default. The new mode retains its declared
+native media consultations and requires actual SAM media, then additionally
+requires an Agent-authored program executed through the separate
+[`task_program.v1` route](task-program.md). It publishes the actual complete
+program output rather than treating a video model's descriptive text as an ASL
+translation. The native floor and exact-primary result-export check are installed
+at enrollment before ordinary research/build shell can emit source-derived
+stdout. An enrolled plan cannot silently acquire this mode by being rewritten.
+
+The focused local qualification passed 1,496 synthetic/contract/integration
+tests with stable Python input hashes; the separate sandbox runner suite passed
+43 tests after preserving and repairing its initial anonymous-file mount
+failures. Those results include optional Wonder source paths with fake
+transports only. They authorize no Wonder activation, extra allowance, provider
+call or live-task success claim. The complete execution limits and retained
+failure interpretation are documented with the task-program route.
 
 Synthetic broker tests are in `tests/unit/test_agent_media_tools.py`; native
 SQLite enrollment, protected-file, revocation, refusal, and cancellation

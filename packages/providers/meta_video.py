@@ -75,7 +75,7 @@ class _StreamOwner:
 
 def request_body(prepared):
     target = prepared.target
-    if target.model not in {"sam-3.1", "muse-spark-1.3-contributor"}:
+    if target.model not in {"sam-3.1", "muse-spark-1.3-contributor", "muse-wonder-1.0"}:
         raise MetaVideoError("Video model is unavailable")
     source = prepared.source_bytes
     if (
@@ -113,6 +113,10 @@ def request_body(prepared):
         if target.reasoning != "xhigh":
             raise MetaVideoError("The selected video reasoning target is unavailable")
         body.update(reasoning={"effort": "xhigh"}, max_output_tokens=8192, tools=[])
+    elif target.model == "muse-wonder-1.0":
+        if target.reasoning != "max":
+            raise MetaVideoError("The selected Wonder Standard video target is unavailable")
+        body.update(reasoning={"effort": "max"}, max_output_tokens=8192, tools=[])
     return body
 
 
@@ -226,6 +230,39 @@ class MetaVideoProvider:
         owner = _StreamOwner()
         self._owners.add(owner)
         try:
+            if prepared.target.model == "muse-wonder-1.0":
+                # The optional Standard gateway requires one exact-model count
+                # receipt for this same complete body before any generation.
+                # Retain both original streams in this request's owner; the
+                # count must reach EOF and close before the generation opens.
+                count_raw = bytearray()
+                async with asyncio.timeout(15):
+                    async with complete_stream(
+                        self.http, "responses/input_tokens", body, current, owner.own
+                    ) as counted:
+                        if (
+                            counted.status_code != 200
+                            or counted.headers.get("content-encoding", "identity") != "identity"
+                            or counted.headers.get("content-type", "").split(";")[0]
+                            != "application/json"
+                        ):
+                            raise MetaVideoError("Wonder video input measurement is unavailable")
+                        async for chunk in counted.aiter_raw():
+                            current()
+                            if len(count_raw) + len(chunk) > 4096:
+                                raise MetaVideoError(
+                                    "Wonder video input measurement exceeds its bound"
+                                )
+                            count_raw.extend(chunk)
+                count = _json(count_raw)
+                if (
+                    set(count) != {"object", "input_tokens"}
+                    or count["object"] != "response.input_tokens"
+                    or type(count["input_tokens"]) is not int
+                    or not 1 <= count["input_tokens"] <= 32768
+                ):
+                    raise MetaVideoError("Wonder video input exceeds its measured budget")
+                current()
             async with complete_stream(
                 self.http, "responses", body, current, owner.own
             ) as response:

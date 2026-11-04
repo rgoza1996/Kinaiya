@@ -16,11 +16,13 @@ process group.
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import hashlib
 import math
 import os
 import re
 import secrets
+import shlex
 import shutil
 import stat
 import subprocess
@@ -48,6 +50,12 @@ SHELL_MAX_TIMEOUT = 120.0
 # kills runaway output instead of buffering it without limit.
 SHELL_OUTPUT_CAP = 262144
 SHELL_OUTPUT_HARD_MAX = 2 * 1024 * 1024
+PROGRAM_MAX_BYTES = 64 * 1024 * 1024
+PROGRAM_INPUT_MAX_BYTES = 32 * 1024 * 1024
+_PROGRAM_SEALS = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
+_NETWORK_RESOLV = Path("/etc/resolv.conf")
+_NETWORK_CA_BUNDLE = Path("/etc/ssl/certs/ca-certificates.crt")
+_NETWORK_CA_DIRECTORY = Path("/etc/ssl/certs")
 
 
 class ToolFailure(Exception):
@@ -228,7 +236,12 @@ def _readonly_bindings(policy: ToolPolicy):
 
 
 def build_bwrap_args(
-    policy: ToolPolicy, command: str, network_allowed: bool, *, readonly_bindings=()
+    policy: ToolPolicy,
+    command: str,
+    network_allowed: bool,
+    *,
+    readonly_bindings=(),
+    _program_fds=None,
 ) -> tuple[list[str], bool]:
     """Bubblewrap argv plus whether the network namespace is isolated.
 
@@ -310,6 +323,43 @@ def build_bwrap_args(
     for kind, descriptor, destination in readonly_bindings:
         if kind == "--ro-bind-fd":
             args += [kind, str(descriptor), str(destination)]
+    if _program_fds is not None:
+        if type(_program_fds) is not tuple or len(_program_fds) != 2:
+            raise ToolFailure("Native program snapshots are unavailable")
+        for descriptor, destination in zip(
+            _program_fds, ("/kinaiya-program", "/kinaiya-input"), strict=True
+        ):
+            if (
+                type(descriptor) is not int
+                or descriptor < 0
+                or not stat.S_ISREG(os.fstat(descriptor).st_mode)
+                or fcntl.fcntl(descriptor, fcntl.F_GET_SEALS) & _PROGRAM_SEALS != _PROGRAM_SEALS
+            ):
+                raise ToolFailure("Native program snapshots are unavailable")
+            # Anonymous memfds have no canonical host pathname. BWrap's data
+            # operation consumes their sealed bytes directly, then mounts the
+            # resulting file read-only; the ordinary fd-bind operation cannot.
+            if os.lseek(descriptor, 0, os.SEEK_CUR) != 0:
+                raise ToolFailure("Native program snapshot offset changed")
+            mode = (
+                "0500"
+                if destination == "/kinaiya-program" and os.fstat(descriptor).st_mode & 0o111
+                else "0400"
+            )
+            args += ["--perms", mode, "--ro-bind-data", str(descriptor), destination]
+    if network_allowed:
+        # This grant shares the entire host network, including loopback. These
+        # public DNS/CA files make ordinary HTTPS usable; they do not impose an
+        # egress allowlist or grant provider disclosure. Never bind /etc wholesale.
+        if (
+            not _NETWORK_RESOLV.is_file()
+            or not _NETWORK_CA_BUNDLE.is_file()
+            or not _NETWORK_CA_DIRECTORY.is_dir()
+        ):
+            raise ShellUnavailable("Networked shell requires native DNS and CA configuration")
+        args += ["--ro-bind", str(_NETWORK_RESOLV), "/etc/resolv.conf"]
+        args += ["--ro-bind", str(_NETWORK_CA_DIRECTORY), "/etc/ssl/certs"]
+        args += ["--ro-bind", str(_NETWORK_CA_BUNDLE), "/etc/ssl/certs/ca-certificates.crt"]
     args += [
         "--tmpfs",
         "/tmp",
@@ -409,6 +459,7 @@ async def run_shell(
     approval_id: str | None = None,
     digest: str | None = None,
     proc_slot: dict[str, RunningProc | None] | None = None,
+    _program_fds: tuple[int, int] | None = None,
 ) -> tuple[str, Evidence]:
     if not isinstance(command, str) or not command.strip():
         raise ToolFailure("shell requires a non-empty command string")
@@ -430,8 +481,9 @@ async def run_shell(
     )
     try:
         with _readonly_bindings(policy) as (bindings, descriptors):
+            native = {} if _program_fds is None else {"_program_fds": _program_fds}
             argv, isolated = build_bwrap_args(
-                policy, command, policy.network, readonly_bindings=bindings
+                policy, command, policy.network, readonly_bindings=bindings, **native
             )
             spawn = asyncio.create_task(
                 asyncio.create_subprocess_exec(
@@ -439,7 +491,7 @@ async def run_shell(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.STDOUT,
                     start_new_session=True,
-                    pass_fds=descriptors,
+                    pass_fds=descriptors + (() if _program_fds is None else _program_fds),
                 )
             )
             interrupted = False
@@ -504,6 +556,138 @@ async def run_shell(
                             notify()
 
                 cleanup.add_done_callback(reaped)
+
+
+def task_program_command(interpreter: str, argv: list[str]) -> str:
+    """Exact ordinary-shell admission command for the native program runner.
+
+    The supervisor substitutes its verified input/output paths before calling.
+    Quoting preserves each argument as data; no placeholder is interpreted here.
+    """
+    interpreters = {
+        "python3": ["/usr/bin/python3", "-B"],
+        "bash": ["/bin/bash", "--noprofile", "--norc"],
+        "direct": [],
+    }
+    if type(interpreter) is not str or interpreter not in interpreters:
+        raise ToolFailure("Native program interpreter is unavailable")
+    if type(argv) is not list or len(argv) > 64:
+        raise ToolFailure("Native program arguments exceed their bound")
+    total = 0
+    for value in argv:
+        if type(value) is not str or "\0" in value:
+            raise ToolFailure("Native program arguments require UTF-8 strings")
+        try:
+            size = len(value.encode("utf-8"))
+        except UnicodeError:
+            raise ToolFailure("Native program arguments require UTF-8 strings") from None
+        if size > 4096:
+            raise ToolFailure("Native program arguments exceed their bound")
+        total += size
+    if total > 16384:
+        raise ToolFailure("Native program arguments exceed their bound")
+    return shlex.join(["exec", *interpreters[interpreter], "/kinaiya-program", *argv])
+
+
+@contextmanager
+def _sealed_program_snapshot(descriptor, expected_sha256, maximum, *, executable=False):
+    """Copy a stable open regular file, verify its digest, then seal every byte.
+
+    Caller FDs remain owned by the caller and their offsets are unchanged. The
+    original pathname is never reopened. Stable metadata alone is not sufficient:
+    the digest must match the caller's admitted snapshot before any child starts.
+    """
+    if (
+        type(descriptor) is not int
+        or descriptor < 0
+        or type(expected_sha256) is not str
+        or re.fullmatch(r"[a-f0-9]{64}", expected_sha256) is None
+    ):
+        raise ToolFailure("Native program snapshot is invalid")
+    snapshot = None
+    try:
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not 1 <= before.st_size <= maximum
+            or executable
+            and not before.st_mode & 0o111
+        ):
+            raise ToolFailure("Native program snapshot is invalid")
+        snapshot = os.memfd_create("kinaiya-task-program", os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+        digest = hashlib.sha256()
+        offset = 0
+        while offset < before.st_size:
+            chunk = os.pread(descriptor, min(65536, before.st_size - offset), offset)
+            if not chunk:
+                raise ToolFailure("Native program snapshot changed")
+            digest.update(chunk)
+            written = 0
+            while written < len(chunk):
+                count = os.write(snapshot, chunk[written:])
+                if count <= 0:
+                    raise ToolFailure("Native program snapshot is unavailable")
+                written += count
+            offset += len(chunk)
+        after = os.fstat(descriptor)
+        if (
+            _read_stat_identity(before) != _read_stat_identity(after)
+            or digest.hexdigest() != expected_sha256
+        ):
+            raise ToolFailure("Native program snapshot changed")
+        os.fchmod(snapshot, 0o500 if executable else 0o400)
+        fcntl.fcntl(snapshot, fcntl.F_ADD_SEALS, _PROGRAM_SEALS)
+        if fcntl.fcntl(snapshot, fcntl.F_GET_SEALS) & _PROGRAM_SEALS != _PROGRAM_SEALS:
+            raise ToolFailure("Native program snapshot is unavailable")
+        os.lseek(snapshot, 0, os.SEEK_SET)
+        yield snapshot
+    except (OSError, ValueError, OverflowError):
+        raise ToolFailure("Native program snapshot is unavailable") from None
+    finally:
+        if snapshot is not None:
+            os.close(snapshot)
+
+
+async def run_program(
+    policy: ToolPolicy,
+    program_fd: int,
+    interpreter: str,
+    argv: list[str],
+    timeout_s: float,
+    objective_revision: int,
+    *,
+    input_fd: int,
+    source_sha256: str,
+    input_sha256: str,
+    approval_id: str | None = None,
+    digest: str | None = None,
+    proc_slot: dict[str, RunningProc | None] | None = None,
+) -> tuple[str, Evidence]:
+    """Run immutable entrypoint/input snapshots through the existing shell owner.
+
+    Raw pinned regular FDs or already sealed memfds are accepted. The supervisor
+    must bind ordinary shell admission to ``task_program_command(interpreter,
+    argv)`` and this exact timeout/revision. No model-visible shell argument can
+    supply the private mount parameters. The source digest identifies the actual
+    entrypoint (including compiled binaries), not a claim of compiler provenance.
+    Networking, permissions, 120s cap, output bounds and retained process custody
+    are exactly those of run_shell. This returns command evidence only.
+    """
+    command = task_program_command(interpreter, argv)
+    with _sealed_program_snapshot(
+        program_fd, source_sha256, PROGRAM_MAX_BYTES, executable=interpreter == "direct"
+    ) as entrypoint:
+        with _sealed_program_snapshot(input_fd, input_sha256, PROGRAM_INPUT_MAX_BYTES) as source:
+            return await run_shell(
+                policy,
+                command,
+                timeout_s,
+                objective_revision,
+                approval_id=approval_id,
+                digest=digest,
+                proc_slot=proc_slot,
+                _program_fds=(entrypoint, source),
+            )
 
 
 _WRITE_FILE_ALLOWED_KEYS = frozenset({"path", "content", "objective_revision"})
@@ -841,8 +1025,10 @@ __all__ = [
     "bwrap_path",
     "netns_works",
     "run_read",
+    "run_program",
     "run_search",
     "run_shell",
     "run_write",
+    "task_program_command",
     "validate_write_arguments",
 ]

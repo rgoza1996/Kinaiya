@@ -69,8 +69,8 @@ class ConsultMediaRequest(MediaRecord):
 class MediaTarget(MediaRecord):
     operation: MediaOperation
     provider: Literal["meta"] = "meta"
-    model: Literal["sam-3.1", "muse-spark-1.3-contributor"]
-    reasoning: Literal["minimal", "low", "medium", "high", "xhigh"] | None = None
+    model: Literal["sam-3.1", "muse-spark-1.3-contributor", "muse-wonder-1.0"]
+    reasoning: Literal["minimal", "low", "medium", "high", "xhigh", "max"] | None = None
     # Owner text is part of the grant. Generated harness input cannot add a
     # prompt or smuggle unrelated workspace contents through this source grant.
     prompt: str = Field(min_length=1, max_length=8000)
@@ -87,7 +87,10 @@ class MediaTarget(MediaRecord):
         if self.operation == "sam_hands":
             if self.model != "sam-3.1" or self.reasoning is not None or self.prompt != "hands":
                 raise ValueError("SAM consultation requires its exact target")
-        elif self.model != "muse-spark-1.3-contributor" or self.reasoning is None:
+        elif self.model == "muse-wonder-1.0":
+            if self.reasoning != "max":
+                raise ValueError("Wonder Standard video requires its exact max target")
+        elif self.model != "muse-spark-1.3-contributor" or self.reasoning in {None, "max"}:
             raise ValueError("Video transcription requires its exact target")
         return self
 
@@ -96,7 +99,7 @@ class MediaPrimaryResultTarget(MediaRecord):
     """Separate owner grant for these exact derived results at primary export."""
 
     provider: Literal["meta"] = "meta"
-    model: Literal["muse-spark-1.3-contributor"] = "muse-spark-1.3-contributor"
+    model: Literal["muse-spark-1.3-contributor", "muse-wonder-1.0"] = "muse-spark-1.3-contributor"
     local: Literal[False] = False
 
 
@@ -172,7 +175,7 @@ def bounded_data(value):
 class MediaProviderResult(MediaRecord):
     """Native adapter observation, never raw wire bodies or credentials."""
 
-    model: Literal["sam-3.1", "muse-spark-1.3-contributor"]
+    model: Literal["sam-3.1", "muse-spark-1.3-contributor", "muse-wonder-1.0"]
     provider_request_sha256: Digest
     provider_response_sha256: Digest
     text: str = Field(max_length=16000)

@@ -414,6 +414,9 @@ class _Record:
     task_harness_export_check: Any | None = None
     task_harness_publication_scope: str = "public_synthetic"
     task_harness_description: dict | None = None
+    task_program_executions: list = field(default_factory=list)
+    task_program_proof: Any | None = None
+    task_program_export_check: Any | None = None
     task_media_completion_check: Any | None = None
     cancel_requested: bool = False
     closing: bool = False
@@ -3500,6 +3503,7 @@ class AgentRuntime:
     def host_tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
         """Native gateways, independently of action approval/target readiness."""
         from services.agent.task_harness import task_harness_available
+        from services.agent.task_program import task_program_available
 
         harness = (
             task.harness_version
@@ -3527,6 +3531,7 @@ class AgentRuntime:
             ),
             catalog_available=True,
             task_harness_available=task_harness_available(self, task),
+            task_program_available=task_program_available(self, task),
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
@@ -3576,8 +3581,11 @@ class AgentRuntime:
     @staticmethod
     def _catalog_export_current(rec: _Record, guards) -> bool:
         harness_check = getattr(rec, "task_harness_export_check", None)
+        program_check = getattr(rec, "task_program_export_check", None)
         try:
-            harness_current = harness_check is None or harness_check() is True
+            harness_current = (harness_check is None or harness_check() is True) and (
+                program_check is None or program_check() is True
+            )
         except Exception:
             harness_current = False
         if harness_current and all(guard.disclosure_current() for guard in guards):
@@ -3632,7 +3640,7 @@ class AgentRuntime:
                 rec.ui_format_pending_revision = None
         elif tool == "run_task_harness":
             rec.failed_task_harness = not ok
-        elif tool in {"write_file", "shell", "mcp_call"}:
+        elif tool in {"write_file", "shell", "mcp_call", "run_task_program"}:
             rec.failed_work_effect = not ok
         rec.failed_effect = rec.failed_work_effect or rec.failed_artifact
 
@@ -4213,7 +4221,9 @@ class AgentRuntime:
                     return
                 try:
                     action = parse_action(
-                        text, allow_task_harness=tools.supports("run_task_harness")
+                        text,
+                        allow_task_harness=tools.supports("run_task_harness"),
+                        allow_task_program=tools.supports("run_task_program"),
                     )
                 except ValueError as exc:
                     rec.history.append({"role": "assistant", "content": text})
@@ -4232,7 +4242,7 @@ class AgentRuntime:
                     rec,
                     action.tool,
                     action.arguments.model_dump(mode="json")
-                    if action.tool == "run_task_harness"
+                    if action.tool in {"run_task_harness", "run_task_program"}
                     else dict(action.arguments),
                     text,
                 )
@@ -4993,6 +5003,10 @@ class AgentRuntime:
                 from services.agent.task_harness import run_task_harness
 
                 out, evidence = await run_task_harness(self, rec, args)
+            elif tool == "run_task_program":
+                from services.agent.task_program import run_task_program
+
+                out, evidence = await run_task_program(self, rec, args)
             elif tool == "tool_catalog":
                 from packages.contracts.tool_catalog import CatalogError, encode_catalog
                 from services.agent.tool_catalog import inspect_catalog

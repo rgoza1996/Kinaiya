@@ -507,6 +507,90 @@ async def test_enrolled_completion_requires_actual_both_operations_and_same_arti
     assert env.rec.task_media_completion_check is not None
 
 
+@pytest.mark.parametrize("raced_path", ["translation.txt", "solution.py"])
+async def test_executable_owner_mode_requires_native_program_and_publishes_its_actual_output(
+    env, monkeypatch, raced_path
+):
+    from core.supervision import command_evidence
+    from services.agent import task_program as native
+
+    write_plan(env, completion_mode="executable-v1")
+    env.runtime.policy.allow_shell = True
+    env = await _prepare_completion(env)
+    assert env.runtime.tool_snapshot(env.rec.task).supports("run_task_program")
+    await _program(env)
+    # Real media consultations alone retain the original native obligation but
+    # cannot satisfy this explicitly different owner execution requirement.
+    await _publish(env)
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+    code = "# Public synthetic Agent-authored executable task\nprint('fixture')\n"
+    code_sha = hashlib.sha256(code.encode()).hexdigest()
+    await _effect(
+        env, "write_file", {"path": "solution.py", "content": code, "objective_revision": 1}
+    )
+    actual = "Actual synthetic executable result, distinct from the video-model observation."
+
+    async def execute(policy, fd, interpreter, argv, timeout, revision, **kwargs):
+        assert policy is env.runtime.policy and interpreter == "python3"
+        assert argv == ["/kinaiya-input", "/workspace/translation.txt"]
+        assert kwargs["source_sha256"] == code_sha and kwargs["input_sha256"] == SHA
+        (env.workspace / "translation.txt").write_text(actual)
+        return "fixture", command_evidence("fixture", 0, "fixture", revision, "fixture exit")
+
+    monkeypatch.setattr(native, "run_program", execute)
+    await _effect(
+        env,
+        "run_task_program",
+        {
+            "interpreter": "python3",
+            "source_path": "solution.py",
+            "source_sha256": code_sha,
+            "entrypoint_path": "solution.py",
+            "entrypoint_sha256": code_sha,
+            "input_path": "clip.mp4",
+            "input_sha256": SHA,
+            "output_path": "translation.txt",
+            "argv": ["{input}", "{output}"],
+            "timeout_s": 120,
+        },
+    )
+    assert env.rec.last_tool_ok is True and env.rec.task_program_proof is not None
+    # Publishing the old model text still cannot replace the actual program result.
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+    await _publish(env, text=actual)
+    assert env.factory.check_completion(env.runtime, env.rec) is True
+    original_get = env.runtime.artifact_store.get
+
+    def race(*args, **kwargs):
+        artifact = original_get(*args, **kwargs)
+        (env.workspace / raced_path).write_text("changed during native publication validation")
+        return artifact
+
+    monkeypatch.setattr(env.runtime.artifact_store, "get", race)
+    with pytest.raises(MediaCompletionError):
+        env.factory.check_completion(env.runtime, env.rec)
+
+
+async def test_legacy_owner_mode_never_advertises_executable_route(completion_env):
+    env = completion_env
+    assert not env.runtime.tool_snapshot(env.rec.task).supports("run_task_program")
+    assert env.factory._enrollment.plan.completion_mode == "media-v1"
+
+
+async def test_executable_enrollment_installs_private_floor_before_any_shell_or_program(env):
+    write_plan(env, completion_mode="executable-v1")
+    env = await _prepare_completion(env)
+    assert env.rec.task_program_executions == [] and env.media_calls == []
+    assert env.rec.task_harness_publication_scope == "private_cloud_authorized"
+    assert env.rec.task_program_export_check() is True
+    assert env.runtime._publication_task(env.rec).content_scope == "private_cloud_authorized"
+    (env.workspace / "clip.mp4").write_bytes(VIDEO[:-1] + b"!")
+    assert env.runtime._catalog_export_current(env.rec, []) is False
+    assert env.rec.task.content_scope == "local_only"
+
+
 @pytest.mark.parametrize("required", ["sam_hands", "transcribe_video"])
 async def test_other_owner_plans_keep_their_declared_required_subset(env, required):
     env = await _prepare_completion(env, [required])
@@ -867,3 +951,141 @@ async def test_non_enrolled_legacy_finish_retains_existing_behavior(env):
     assert env.rec.task_media_completion_check is None
     await _finish_media(env)
     assert env.rec.task.state == TaskState.SUCCEEDED
+
+
+WONDER_STANDARD = "muse-wonder-1.0"
+
+
+def _wonder_owner_plan(env, **changes):
+    plan = write_plan(env)
+    plan["targets"][1].update(model=WONDER_STANDARD, reasoning="max")
+    plan["primary_result_target"]["model"] = WONDER_STANDARD
+    plan.update(changes)
+    return write_plan(env, **plan)
+
+
+def _wonder_primary(env):
+    env.primary.info = ProviderInfo(provider="meta", model=WONDER_STANDARD, local=False)
+    env.primary.reasoning_effort = "max"
+
+
+async def test_wonder_standard_enrolls_exact_native_pin_and_bound_result_export(env):
+    from services.agent.media_tools import MediaToolError
+
+    _wonder_primary(env)
+    plan = _wonder_owner_plan(env)
+    media_calls = []
+
+    async def observed(prepared, current):
+        current()
+        media_calls.append(prepared)
+        return MediaProviderResult(
+            model=WONDER_STANDARD,
+            provider_request_sha256="b" * 64,
+            provider_response_sha256="c" * 64,
+            text="Synthetic Wonder transcript.",
+            data={},
+        )
+
+    env.factory.provider = observed
+    accepted = await env.runtime.submit(request(env), actor="decisions")
+    await asyncio.wait_for(env.started.wait(), 1)
+    rec = env.calls[0]
+    assert accepted.task_id == rec.task.task_id
+    assert (
+        rec.task.model_pin.provider,
+        rec.task.model_pin.model,
+        rec.task.model_pin.local,
+        rec.task.model_pin.reasoning,
+    ) == (
+        "meta",
+        WONDER_STANDARD,
+        False,
+        "max",
+    )
+    assert env.factory.available(env.runtime, rec.task)
+    broker = env.factory(env.runtime, rec, lambda: None)
+    try:
+        assert broker.grant.primary_result_target.model == WONDER_STANDARD
+        assert broker.required_operations == {"sam_hands", "transcribe_video"}
+        assert broker.grant.targets[1].prompt == plan["targets"][1]["prompt"]
+        value = await broker.call(
+            {"operation": "transcribe_video", "source_path": "clip.mp4", "source_sha256": SHA}
+        )
+        assert len(media_calls) == 1 and media_calls[0].target.reasoning == "max"
+        assert value.model == WONDER_STANDARD and value.content_scope == "private_cloud_authorized"
+        assert broker.check_primary_export(env.primary.info, value) is None
+        for info in (
+            ProviderInfo(provider="meta", model="muse-spark-1.3-contributor", local=False),
+            ProviderInfo(provider="meta", model="muse-wonder-1.0-full", local=False),
+            ProviderInfo(provider="meta", model=WONDER_STANDARD, local=True),
+        ):
+            with pytest.raises(MediaToolError):
+                broker.check_primary_export(info, value)
+    finally:
+        assert await broker.close() is True
+    assert env.primary.calls == []
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "spark_primary",
+        "full_primary",
+        "effort",
+        "local",
+        "plan_primary",
+        "plan_effort",
+        "missing_primary_target",
+    ],
+)
+async def test_wonder_owner_plan_cannot_change_primary_or_effort_authority(env, damage):
+    _wonder_primary(env)
+    plan = _wonder_owner_plan(env)
+    if damage == "spark_primary":
+        env.primary.info = ProviderInfo(
+            provider="meta", model="muse-spark-1.3-contributor", local=False
+        )
+        env.primary.reasoning_effort = "xhigh"
+    elif damage == "full_primary":
+        env.primary.info = ProviderInfo(provider="meta", model="muse-wonder-1.0-full", local=False)
+    elif damage == "effort":
+        env.primary.reasoning_effort = "xhigh"
+    elif damage == "local":
+        env.primary.info = ProviderInfo(provider="meta", model=WONDER_STANDARD, local=True)
+    elif damage == "plan_primary":
+        plan["primary_result_target"]["model"] = "muse-spark-1.3-contributor"
+    elif damage == "plan_effort":
+        plan["targets"][1]["reasoning"] = "xhigh"
+    else:
+        del plan["primary_result_target"]
+    env.plan_path.write_text(json.dumps(plan))
+    refused = await env.runtime.submit(request(env), actor="decisions")
+    assert refused.state == TaskState.FAILED
+    assert env.calls == [] and env.primary.calls == []
+    rec = env.runtime._tasks[refused.task_id]
+    assert rec.submit_confirmed and rec.native_task_identity is not None
+    assert not env.factory.available(env.runtime, rec.task)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("model", "muse-spark-1.3-contributor"),
+        ("reasoning", "xhigh"),
+        ("local", True),
+        ("provider", "other"),
+    ],
+)
+async def test_wonder_native_pin_cannot_be_substituted_after_enrollment(env, field, value):
+    _wonder_primary(env)
+    _wonder_owner_plan(env)
+    await env.runtime.submit(request(env), actor="decisions")
+    await asyncio.wait_for(env.started.wait(), 1)
+    rec = env.calls[0]
+    assert env.factory.available(env.runtime, rec.task)
+    rec.task.model_pin = rec.task.model_pin.model_copy(update={field: value})
+    assert not env.factory.available(env.runtime, rec.task)
+    with pytest.raises(RuntimeError, match="enrollment is unavailable"):
+        env.factory(env.runtime, rec, lambda: None)
+    assert env.primary.calls == []

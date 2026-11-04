@@ -37,6 +37,7 @@ _OPERATIONS = {
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")]
 Generation = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 Effort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+MetaEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 
 def _text(value, limit):
@@ -113,10 +114,14 @@ class MetaProfile(TextProfile):
     credential: CredentialBinding
     max_tokens: int = Field(default=2048, ge=16, le=65536)
     context_tokens: int | None = Field(default=None, ge=64, le=MAX_REVISION)
-    reasoning_effort: Effort = "xhigh"
+    reasoning_effort: MetaEffort = "xhigh"
 
     @model_validator(mode="after")
     def bounds(self):
+        from packages.providers.meta_policy import meta_reasoning_options
+
+        if self.reasoning_effort not in meta_reasoning_options(self.model):
+            raise ValueError("Meta reasoning effort is unavailable for this exact model")
         if not self.allow_cloud:
             raise ValueError("Meta requires explicit cloud authorization")
         self.base_url = _origin(self.base_url, cloud=True)

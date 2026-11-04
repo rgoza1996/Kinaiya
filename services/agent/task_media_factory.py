@@ -31,6 +31,7 @@ from packages.contracts.agent_media import (
 )
 from packages.contracts.agent_submit import submit_entry
 from packages.contracts.models import SpeechWindow, TaskState, WindowDecision
+from packages.providers.disclosure import combine_scopes
 from services.agent.media_tools import WorkspaceMediaBroker, _identity, _snapshot
 from services.agent.model_settings import AgentModelSettings
 
@@ -60,6 +61,7 @@ class TaskMediaOwnerPlan(MediaRecord):
     required_operations: tuple[Literal["sam_hands", "transcribe_video"], ...] = Field(
         min_length=1, max_length=2
     )
+    completion_mode: Literal["media-v1", "executable-v1"] = "media-v1"
 
     _path = field_validator("source_path")(source_path)
 
@@ -71,11 +73,17 @@ class TaskMediaOwnerPlan(MediaRecord):
             or len(set(self.required_operations)) != len(self.required_operations)
             or not set(self.required_operations) <= operations
             or any(
-                target.operation == "transcribe_video" and target.reasoning != "xhigh"
+                target.operation == "transcribe_video"
+                and (
+                    target.model != self.primary_result_target.model
+                    or target.reasoning != ("max" if target.model == "muse-wonder-1.0" else "xhigh")
+                )
                 for target in self.targets
             )
         ):
             raise ValueError("Owner media targets or required operations are invalid")
+        if self.completion_mode == "executable-v1" and "sam_hands" not in self.required_operations:
+            raise ValueError("Executable media completion requires an actual SAM hand result")
         return self
 
     def grant_for(self, task):
@@ -199,15 +207,16 @@ class TaskMediaFactory:
     def _primary(runtime, rec):
         provider = runtime.provider_for(rec)
         info, pin = runtime.provider_info_for(rec), rec.task.model_pin
+        effort = "max" if info.model == "muse-wonder-1.0" else "xhigh"
         if (
             info.provider != "meta"
-            or info.model != "muse-spark-1.3-contributor"
+            or info.model not in {"muse-spark-1.3-contributor", "muse-wonder-1.0"}
             or info.local is not False
-            or AgentModelSettings.effort(provider) != "xhigh"
+            or AgentModelSettings.effort(provider) != effort
             or pin is None
             or pin.local is not False
             or (pin.provider, pin.model, pin.local, pin.reasoning)
-            != ("meta", "muse-spark-1.3-contributor", False, "xhigh")
+            != ("meta", info.model, False, effort)
         ):
             raise MediaEnrollmentError()
         return provider
@@ -265,6 +274,13 @@ class TaskMediaFactory:
         except Exception:
             return False
 
+    def program_available(self, runtime, task=None):
+        """Fresh explicit owner mode; no legacy enrollment can acquire it."""
+        return (
+            self.available(runtime, task)
+            and self._enrollment.plan.completion_mode == "executable-v1"
+        )
+
     def describe(self, runtime, task):
         """Passive source reference for the first native Agent prompt only."""
         if not self.available(runtime, task):
@@ -316,6 +332,7 @@ class TaskMediaFactory:
                 or rec.native_task_identity != identity
                 or identity is None
                 or self._primary(runtime, rec) is not primary
+                or plan.primary_result_target.model != runtime.provider_info_for(rec).model
                 or (task.session_id, task.thread_id, task.epoch)
                 != (plan.session_id, plan.thread_id, plan.epoch)
                 or task.objective_revision != 1
@@ -442,6 +459,28 @@ class TaskMediaFactory:
         # Capture this owner on the native record. Removing/replacing the
         # advertised factory cannot remove the enrolled completion obligation.
         rec.task_media_completion_check = lambda: self.check_completion(runtime, rec)
+        if plan.completion_mode == "executable-v1":
+            # Ordinary research/build shell runs before run_task_program and can
+            # already read this exact source. Protect all resulting task output
+            # before the worker starts, including failed-command stdout/stderr.
+            rec.task_harness_publication_scope = combine_scopes(
+                rec.task_harness_publication_scope, grant.content_scope
+            )
+
+            def program_source_export():
+                actual = self._current(runtime, rec)
+                _snapshot(actual.policy, actual.grant)
+                info = runtime.provider_info_for(rec)
+                target = actual.grant.primary_result_target
+                if target is None or (info.provider, info.model, info.local) != (
+                    target.provider,
+                    target.model,
+                    target.local,
+                ):
+                    raise MediaEnrollmentError()
+                return True
+
+            rec.task_program_export_check = program_source_export
 
     def check_completion(self, runtime, rec):
         from services.agent.task_media_completion import check_completion

@@ -311,3 +311,241 @@ async def test_untrusted_response_is_bounded_and_refused_before_native_projectio
         assert stream.closed and stream.calls == 1
     finally:
         await provider.close()
+
+
+WONDER_STANDARD = "muse-wonder-1.0"
+COUNT_RAW = b'{"object":"response.input_tokens","input_tokens":321}'
+
+
+def wonder_prepared():
+    value = prepared(MODEL)
+    value.target.model = WONDER_STANDARD
+    value.target.reasoning = "max"
+    return value
+
+
+def test_wonder_video_body_is_exact_source_bound_standard_max():
+    body = request_body(wonder_prepared())
+    assert body["model"] == WONDER_STANDARD and body["reasoning"] == {"effort": "max"}
+    assert body["max_output_tokens"] == 8192 and body["tools"] == []
+    assert body["stream"] is False and body["store"] is False
+    assert body["input"] == request_body(prepared(MODEL))["input"]
+    for model, effort in (
+        (WONDER_STANDARD, "xhigh"),
+        (MODEL, "max"),
+        ("muse-wonder-1.0-full", "max"),
+    ):
+        value = wonder_prepared()
+        value.target.model, value.target.reasoning = model, effort
+        with pytest.raises(MetaVideoError):
+            request_body(value)
+
+
+@pytest.mark.asyncio
+async def test_wonder_video_counts_exact_body_and_closes_count_before_generation():
+    count = HeldStream(WONDER_STANDARD, raw=COUNT_RAW)
+    generation = HeldStream(WONDER_STANDARD)
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        if request.url.path.endswith("/input_tokens"):
+            assert len(calls) == 1
+            stream = count
+        else:
+            assert count.closed and count.calls == 1
+            stream = generation
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=stream)
+
+    provider = MetaVideoProvider(
+        api_key="SYNTHETIC_WONDER_CREDENTIAL",
+        sam_projector=projection,
+        transport=httpx.MockTransport(handle),
+    )
+    call = asyncio.create_task(provider(wonder_prepared(), lambda: None))
+    try:
+        await asyncio.wait_for(count.started.wait(), 1)
+        assert len(calls) == 1 and len(provider._owners) == 1 and not call.done()
+        count.release.set()
+        await asyncio.wait_for(generation.started.wait(), 1)
+        assert not call.done() and len(calls) == 2
+        assert [request.url.path for request in calls] == [
+            "/v1/responses/input_tokens",
+            "/v1/responses",
+        ]
+        assert calls[0].content == calls[1].content
+        assert json.loads(calls[1].content) == request_body(wonder_prepared())
+        assert all("x-tbh-contributor-mode" not in request.headers for request in calls)
+        generation.release.set()
+        value = await call
+        assert (
+            value.model == WONDER_STANDARD and value.text == "Public synthetic video observation."
+        )
+        assert value.provider_request_sha256 == hashlib.sha256(calls[1].content).hexdigest()
+        assert count.calls == generation.calls == 1 and generation.closed
+        assert not provider._owners
+        await provider.close()
+    finally:
+        count.release.set()
+        generation.release.set()
+        await asyncio.gather(call, return_exceptions=True)
+        await provider.http.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "raw,status,headers",
+    [
+        (b'{"object":"response.input_tokens","input_tokens":0}', 200, {}),
+        (b'{"object":"response.input_tokens","input_tokens":true}', 200, {}),
+        (b'{"object":"response.input_tokens","input_tokens":32769}', 200, {}),
+        (b'{"object":"other","input_tokens":3}', 200, {}),
+        (b'{"object":"response.input_tokens","input_tokens":3,"extra":true}', 200, {}),
+        (b'{"object":"response.input_tokens","input_tokens":3,"input_tokens":4}', 200, {}),
+        (b'{"object":"response.input_tokens","input_tokens":NaN}', 200, {}),
+        (b" " * 4097, 200, {}),
+        (COUNT_RAW, 302, {}),
+        (COUNT_RAW, 200, {"content-type": "text/plain"}),
+        (COUNT_RAW, 200, {"content-encoding": "gzip"}),
+    ],
+)
+async def test_wonder_count_refusal_closes_original_and_never_generates(raw, status, headers):
+    stream = HeldStream(WONDER_STANDARD, raw=raw)
+    stream.release.set()
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(
+            status, headers={"content-type": "application/json", **headers}, stream=stream
+        )
+
+    provider = MetaVideoProvider(
+        api_key="SYNTHETIC_WONDER_CREDENTIAL",
+        sam_projector=projection,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        with pytest.raises(MetaVideoError):
+            await provider(wonder_prepared(), lambda: None)
+        assert len(calls) == 1 and calls[0].url.path == "/v1/responses/input_tokens"
+        assert stream.calls == 1 and stream.closed and not provider._owners
+    finally:
+        await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_wonder_cancel_during_count_close_joins_original_without_generation():
+    stream = HeldStream(WONDER_STANDARD, raw=COUNT_RAW)
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=stream)
+
+    provider = MetaVideoProvider(
+        api_key="SYNTHETIC_WONDER_CREDENTIAL",
+        sam_projector=projection,
+        transport=httpx.MockTransport(handle),
+    )
+    call = asyncio.create_task(provider(wonder_prepared(), lambda: None))
+    try:
+        await asyncio.wait_for(stream.started.wait(), 1)
+        call.cancel()
+        await asyncio.sleep(0)
+        call.cancel()
+        await asyncio.sleep(0)
+        assert not call.done() and stream.calls == 1 and len(calls) == 1
+        stream.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        assert stream.closed and stream.calls == 1 and not provider._owners
+    finally:
+        stream.release.set()
+        await asyncio.gather(call, return_exceptions=True)
+        await provider.http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_wonder_failed_count_close_retains_custody_without_generation_or_error_leak():
+    stream = HeldStream(WONDER_STANDARD, failure=True, raw=COUNT_RAW)
+    stream.release.set()
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=stream)
+
+    provider = MetaVideoProvider(
+        api_key="SYNTHETIC_WONDER_CREDENTIAL",
+        sam_projector=projection,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        with pytest.raises(MetaVideoError) as failure:
+            await provider(wonder_prepared(), lambda: None)
+        assert "SYNTHETIC_PRIVATE_CREDENTIAL" not in str(failure.value)
+        assert len(calls) == 1 and stream.calls == 1 and not stream.closed
+        assert provider._owners
+        with pytest.raises(MetaVideoError):
+            await provider.close()
+    finally:
+        await provider.http.aclose()
+
+
+@pytest.mark.asyncio
+async def test_wonder_count_stream_failure_never_opens_generation():
+    class BrokenCount(HeldStream):
+        async def __aiter__(self):
+            yield b'{"object":"response.input_tokens",'
+            raise OSError("SYNTHETIC_PRIVATE_COUNT_FAILURE")
+
+    stream = BrokenCount(WONDER_STANDARD)
+    stream.release.set()
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=stream)
+
+    provider = MetaVideoProvider(
+        api_key="SYNTHETIC_WONDER_CREDENTIAL",
+        sam_projector=projection,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        with pytest.raises(MetaVideoError) as failure:
+            await provider(wonder_prepared(), lambda: None)
+        assert "SYNTHETIC_PRIVATE_COUNT_FAILURE" not in str(failure.value)
+        assert len(calls) == 1 and calls[0].url.path == "/v1/responses/input_tokens"
+        assert stream.calls == 1 and stream.closed and not provider._owners
+    finally:
+        await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_wonder_authority_change_after_count_close_prevents_generation():
+    stream = HeldStream(WONDER_STANDARD, raw=COUNT_RAW)
+    stream.release.set()
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        return httpx.Response(200, headers={"content-type": "application/json"}, stream=stream)
+
+    def current():
+        if stream.closed:
+            raise RuntimeError("SYNTHETIC_REVOKED_AUTHORITY")
+
+    provider = MetaVideoProvider(
+        api_key="SYNTHETIC_WONDER_CREDENTIAL",
+        sam_projector=projection,
+        transport=httpx.MockTransport(handle),
+    )
+    try:
+        with pytest.raises(MetaVideoError):
+            await provider(wonder_prepared(), current)
+        assert len(calls) == 1 and stream.closed and stream.calls == 1
+        assert not provider._owners
+    finally:
+        await provider.close()

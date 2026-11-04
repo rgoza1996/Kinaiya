@@ -15,8 +15,12 @@ from packages.contracts.models import SCHEMA_VERSION, ToolAction
 NATIVE_TOOL_ORDER: tuple[str, ...] = get_args(ToolAction.model_fields["tool"].annotation)
 MAX_NATIVE_TOOLS = 16
 # Optional additive action; published legacy protocol constants stay frozen.
-SUPPORTED_NATIVE_TOOL_ORDER = NATIVE_TOOL_ORDER[:-1] + ("run_task_harness", "finish")
-MAX_EXTENDED_NATIVE_TOOLS = 17
+SUPPORTED_NATIVE_TOOL_ORDER = NATIVE_TOOL_ORDER[:-1] + (
+    "run_task_harness",
+    "run_task_program",
+    "finish",
+)
+MAX_EXTENDED_NATIVE_TOOLS = 18
 # Unbound provider calls retain the pre-discovery protocol selection. Only a
 # trusted runtime snapshot can advertise the new operation to an inference.
 LEGACY_NATIVE_TOOL_ORDER = tuple(
@@ -33,6 +37,7 @@ _OPTIONAL_GROUPS = (
     ("consult_model",),
     ("tool_catalog",),
     ("run_task_harness",),
+    ("run_task_program",),
 )
 
 
@@ -105,7 +110,9 @@ class NativeToolSnapshot:
         ):
             raise ValueError("Invalid explicit native owner mask")
         if type(names) is not tuple or not (1 if masked else len(base)) <= len(names) <= (
-            MAX_EXTENDED_NATIVE_TOOLS if "run_task_harness" in names else MAX_NATIVE_TOOLS
+            MAX_EXTENDED_NATIVE_TOOLS
+            if any(name in names for name in ("run_task_harness", "run_task_program"))
+            else MAX_NATIVE_TOOLS
         ):
             raise ValueError("Native tool snapshot requires a bounded tuple of protocol actions")
         if any(type(name) is not str or name not in SUPPORTED_NATIVE_TOOL_ORDER for name in names):
@@ -139,6 +146,7 @@ def native_tool_snapshot(
     auxiliary_available: bool = False,
     catalog_available: bool = False,
     task_harness_available: bool = False,
+    task_program_available: bool = False,
 ) -> NativeToolSnapshot:
     """Project trusted strict booleans; grants never remove base operations."""
     flags = (
@@ -150,6 +158,7 @@ def native_tool_snapshot(
         ("auxiliary_available", auxiliary_available),
         ("catalog_available", catalog_available),
         ("task_harness_available", task_harness_available),
+        ("task_program_available", task_program_available),
     )
     enabled = set(_BASE_TOOLS)
     for (flag, value), group in zip(flags, _OPTIONAL_GROUPS, strict=True):

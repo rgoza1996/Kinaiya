@@ -176,15 +176,16 @@ def _schema(row, schema, *, output_schema=None):
 
 def _permissions(runtime, task, tool, target=None):
     policy = runtime.policy
+    permission_tool = "shell" if tool == "run_task_program" else tool
     scoped = None
     if runtime.tool_permissions is not None and (
-        target is not None or tool in {"read_file", "write_file", "shell", "search"}
+        target is not None or permission_tool in {"read_file", "write_file", "shell", "search"}
     ):
         try:
             scoped = (
                 runtime.tool_permissions.resolve_target(task, target)
                 if target is not None
-                else runtime.tool_permissions.resolve(task, tool)
+                else runtime.tool_permissions.resolve(task, permission_tool)
             )
         except Exception:
             raise CatalogError("invalid_metadata") from None
@@ -193,10 +194,10 @@ def _permissions(runtime, task, tool, target=None):
         approval = {"deny": "denied", "ask": "per_action", "allow": "not_required"}[
             scoped["effective"]
         ]
-    elif policy.denies(tool):
+    elif policy.denies(permission_tool):
         approval = "denied"
-    elif tool in {"write_file", "shell"}:
-        approval = "per_action" if policy.needs_approval(tool) else "broad_grant"
+    elif permission_tool in {"write_file", "shell"}:
+        approval = "per_action" if policy.needs_approval(permission_tool) else "broad_grant"
     elif tool == "mcp_call":
         approval = "broad_grant" if policy.yolo else "per_action"
     return {
@@ -218,7 +219,9 @@ def _permissions(runtime, task, tool, target=None):
 def _native(runtime, task, query):
     snapshot = runtime.tool_snapshot(task)
     order = (
-        SUPPORTED_NATIVE_TOOL_ORDER if snapshot.supports("run_task_harness") else NATIVE_TOOL_ORDER
+        SUPPORTED_NATIVE_TOOL_ORDER
+        if any(snapshot.supports(name) for name in ("run_task_harness", "run_task_program"))
+        else NATIVE_TOOL_ORDER
     )
     names = (query.name,) if query.selected else order
     rows = []

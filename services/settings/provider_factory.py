@@ -108,7 +108,12 @@ def _recipe(catalog, binding, reasoning, role="agent"):
             raise ValueError("Measured chat is available only for Converse text")
         effort = config["reasoning_effort"] if reasoning is None else reasoning
     elif kind == "meta":
-        if config["context_tokens"] is None or reasoning not in {None, *EFFORTS}:
+        from packages.providers.meta_policy import meta_reasoning_options
+
+        if config["context_tokens"] is None or reasoning not in {
+            None,
+            *meta_reasoning_options(config["model"]),
+        }:
             label = "Agent" if role == "agent" else "Converse"
             raise ValueError(f"Meta {label} requests require explicit measured context limits")
         effort = config["reasoning_effort"] if reasoning is None else reasoning

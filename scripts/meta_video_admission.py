@@ -2,7 +2,8 @@
 
 The owner supplies a private manifest, independently measured from the original
 source. Neither model requests nor uploaded MP4 metadata create that authority.
-No uploads, remote URLs, arbitrary prompts, hosted tools or Wonder are accepted.
+No uploads, remote URLs, arbitrary prompts or hosted tools are accepted. Wonder
+Standard requires a separate explicit opt-in and its own exact model prompt.
 """
 
 import base64
@@ -50,7 +51,7 @@ def finite_float(raw):
     return value
 
 
-def load_video_grants(path):
+def load_video_grants(path, *, wonder_standard=False):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         info = os.fstat(fd)
@@ -102,7 +103,10 @@ def load_video_grants(path):
         if type(row["frames"]) is not int or not 1 <= row["frames"] <= 1800:
             raise ValueError("Video frame bound exceeded")
         prompts = row["prompts"]
-        if type(prompts) is not dict or set(prompts) != {"sam-3.1", "muse-spark-1.3-contributor"}:
+        targets = [{"sam-3.1", "muse-spark-1.3-contributor"}]
+        if wonder_standard:
+            targets.append({"sam-3.1", "muse-wonder-1.0"})
+        if type(prompts) is not dict or set(prompts) not in targets:
             raise ValueError("Exact video targets required")
         if any(
             type(x) is not str or not re.fullmatch(r"[0-9a-f]{64}", x) for x in prompts.values()
@@ -126,12 +130,12 @@ def contains_video(value):
     )
 
 
-def video_request(data, grants):
+def video_request(data, grants, *, wonder_standard=False):
     if type(data) is not dict:
         raise ValueError("Exact video object required")
     model = data.get("model") if type(data) is dict else None
     keys = {"model", "input", "stream", "store"}
-    if model == "muse-spark-1.3-contributor":
+    if model == "muse-spark-1.3-contributor" or (wonder_standard and model == "muse-wonder-1.0"):
         keys |= {"max_output_tokens", "reasoning", "tools"}
     elif model != "sam-3.1":
         raise ValueError("Video model is not authorized")
@@ -139,7 +143,7 @@ def video_request(data, grants):
         raise ValueError("Exact buffered stateless video request required")
     if model != "sam-3.1" and (
         data["tools"] != []
-        or data["reasoning"] != {"effort": "xhigh"}
+        or data["reasoning"] != {"effort": "max" if model == "muse-wonder-1.0" else "xhigh"}
         or type(data["max_output_tokens"]) is not int
         or not 1 <= data["max_output_tokens"] <= 8192
     ):
@@ -170,6 +174,8 @@ def video_request(data, grants):
     grant = grants.get(sha)
     if grant is None or len(raw) != grant["bytes"] or raw[4:8] != b"ftyp":
         raise ValueError("Video source is not authorized")
-    if hashlib.sha256(text["text"].encode("utf-8")).hexdigest() != grant["prompts"][model]:
+    if model not in grant["prompts"] or (
+        hashlib.sha256(text["text"].encode("utf-8")).hexdigest() != grant["prompts"][model]
+    ):
         raise ValueError("Video prompt is not authorized")
     return grant

@@ -12,6 +12,7 @@ import base64
 import binascii
 import email.policy
 import fcntl
+import hashlib
 import importlib.util
 import json
 import math
@@ -48,6 +49,93 @@ _video_spec = importlib.util.spec_from_file_location(
 _video = importlib.util.module_from_spec(_video_spec)
 _video_spec.loader.exec_module(_video)
 VIDEO_GRANTS = {}
+WONDER_STANDARD = False
+WONDER_MODEL = "muse-wonder-1.0"
+WONDER_INPUT_CAP = 32768
+WONDER_OUTPUT_CAP = 32768
+WONDER_PRICING_POLICY = "wonder_standard_2x_v1"
+WONDER_COUNT_TICKETS = {}
+WONDER_TICKET_SECONDS = 60
+
+
+def wonder_request(data):
+    """One stateless max request; only an exact Standard-model count can admit it."""
+    if (
+        not WONDER_STANDARD
+        or type(data) is not dict
+        or set(data)
+        - {"model", "input", "stream", "store", "max_output_tokens", "reasoning", "text", "tools"}
+        or data.get("model") != WONDER_MODEL
+        or data.get("reasoning") != {"effort": "max"}
+        or data.get("stream") is not False
+        or data.get("store") is not False
+        or any(key in data for key in ("previous_response_id", "conversation", "background"))
+        or type(data.get("max_output_tokens")) is not int
+        or not 1 <= data["max_output_tokens"] <= WONDER_OUTPUT_CAP
+        or not local_function_tools(data.get("tools", []))
+    ):
+        raise ValueError("Exact bounded Wonder Standard request required")
+    if not _video.contains_video(data):
+        rows = data.get("input")
+        if (
+            type(rows) is not list
+            or not rows
+            or any(
+                type(row) is not dict
+                or set(row) != {"role", "content"}
+                or type(row["role"]) is not str
+                or row["role"] not in {"system", "developer", "user", "assistant"}
+                or type(row["content"]) is not str
+                for row in rows
+            )
+        ):
+            raise ValueError("Wonder primary input requires native text messages")
+
+
+def wonder_ticket_key(data, authorization):
+    if type(authorization) is not str or not 1 <= len(authorization) <= 16384:
+        raise ValueError("A bound Wonder authorization is required")
+    canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    return hashlib.sha256(canonical).hexdigest(), hashlib.sha256(authorization.encode()).hexdigest()
+
+
+def wonder_ticket(data, authorization, *, tokens=None):
+    """LOCK held. Bounded process-local one-use receipts; never persistent authority."""
+    wonder_request(data)
+    now = time.monotonic()
+    for key, ticket in list(WONDER_COUNT_TICKETS.items()):
+        if now - ticket[0] > WONDER_TICKET_SECONDS:
+            del WONDER_COUNT_TICKETS[key]
+    key = wonder_ticket_key(data, authorization)
+    if tokens is not None:
+        if type(tokens) is not int or not 1 <= tokens <= WONDER_INPUT_CAP:
+            raise ValueError("Measured Wonder input exceeds the authored cap")
+        if key not in WONDER_COUNT_TICKETS and len(WONDER_COUNT_TICKETS) >= 128:
+            del WONDER_COUNT_TICKETS[next(iter(WONDER_COUNT_TICKETS))]
+        previous = WONDER_COUNT_TICKETS.get(key)
+        uses = 1 if previous is None else min(128, previous[2] + 1)
+        WONDER_COUNT_TICKETS[key] = (now, tokens, uses)
+        return tokens
+    ticket = WONDER_COUNT_TICKETS.get(key)
+    if ticket is None:
+        raise ValueError("One exact Wonder input count is required")
+    if ticket[2] == 1:
+        del WONDER_COUNT_TICKETS[key]
+    else:
+        WONDER_COUNT_TICKETS[key] = (ticket[0], ticket[1], ticket[2] - 1)
+    return ticket[1]
+
+
+def wonder_usage(value):
+    normalized, _ = measured_usage(value)
+    inputs, outputs = normalized["input_tokens"], normalized["output_tokens"]
+    cached = normalized["input_tokens_details"]["cached_tokens"]
+    if inputs > WONDER_INPUT_CAP or outputs > WONDER_OUTPUT_CAP:
+        raise ValueError("Wonder usage exceeds its admitted bounds")
+    # Official Standard rates: input4/cached0.20/output20 USD per million.
+    # Keep an uncached audit floor plus a separately verified 2x cache cost.
+    actual = ((inputs - cached) * 4 + cached * 0.20 + outputs * 20) / 1_000_000
+    return normalized, {"standard": actual, "admission": (inputs * 8 + outputs * 40) / 1_000_000}
 
 
 def strict_json(raw, *, video=False):
@@ -425,7 +513,16 @@ def reconcile(state):
     for record in state["calls"]:
         reservation = money(record["reservation_usd"])
         try:
-            normalized, costs = measured_usage(record.get("reported_usage"))
+            is_wonder = record.get("model") == WONDER_MODEL
+            if is_wonder and record.get("pricing_policy") != WONDER_PRICING_POLICY:
+                raise ValueError("Unknown Wonder pricing policy retains its reservation")
+            if is_wonder and record.get("resolved_model") != WONDER_MODEL:
+                raise ValueError("Unknown Wonder response identity retains its reservation")
+            normalized, costs = (
+                wonder_usage(record.get("reported_usage"))
+                if is_wonder
+                else measured_usage(record.get("reported_usage"))
+            )
         except ValueError:
             if record["state"] == "usage_reported":
                 newly_uncertain += reservation
@@ -439,6 +536,13 @@ def reconcile(state):
             )
             known += record["admission_estimated_usd"]
             if (
+                is_wonder
+                and record["state"] == "usage_reported"
+                and record.get("resolved_model") == WONDER_MODEL
+            ):
+                premium = max(0.0, record["admission_estimated_usd"] - costs["admission"])
+                cache_aware += 2 * costs["standard"] + premium
+            elif (
                 record["state"] == "usage_reported"
                 and record.get("model") == MODEL
                 and record.get("resolved_model") == MODEL
@@ -456,7 +560,11 @@ def reconcile(state):
     state["cache_aware_admission_estimated_usd"] = max(
         money(state.get("cache_aware_admission_estimated_usd", 0)), cache_aware + unexplained
     )
-    state["admission_basis"] = "verified_contributor_cache_v1"
+    state["admission_basis"] = (
+        "verified_model_cache_v2"
+        if any(row.get("model") == WONDER_MODEL for row in state["calls"])
+        else "verified_contributor_cache_v1"
+    )
     state["ordinary_spark_comparison_usd"] = money(state["estimated_usd"])
     return state
 
@@ -779,6 +887,125 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def forward_wonder_text(self, body, data, grant=None):
+        """Opt-in buffered Standard lane; close before settlement and delivery."""
+        try:
+            wonder_request(data)
+            if self.headers.get("x-tbh-contributor-mode") is not None:
+                raise ValueError("Wonder requires Standard mode")
+            with LOCK:
+                counted = wonder_ticket(data, self.headers.get("Authorization", ""))
+                reservation = (WONDER_INPUT_CAP * 8 + data["max_output_tokens"] * 40) / 1_000_000
+                if not admission_available(text=reservation):
+                    self.local_json(
+                        402, {"error": "Combined Wonder budget admission limit reached"}
+                    )
+                    return
+                record = {
+                    "id": len(STATE["calls"]) + 1,
+                    "started_at": time.time(),
+                    "path": "/v1/responses",
+                    "state": "in_flight",
+                    "reservation_usd": reservation,
+                    "model": WONDER_MODEL,
+                    "pricing_mode": "standard",
+                    "pricing_policy": WONDER_PRICING_POLICY,
+                    "measured_input_tokens": counted,
+                    "input_cap": WONDER_INPUT_CAP,
+                    "output_cap": data["max_output_tokens"],
+                    "count_body_canonical_sha256": wonder_ticket_key(
+                        data, self.headers.get("Authorization", "")
+                    )[0],
+                }
+                if grant is not None:
+                    record.update(kind="video", source_sha256=grant["sha256"])
+                STATE["calls"].append(record)
+                STATE["reserved_usd"] += reservation
+                save()
+        except (ValueError, TypeError):
+            self.local_json(403, {"error": "Exact measured Wonder Standard admission required"})
+            return
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args):
+                return None
+
+        request = urllib.request.Request(
+            "https://api.meta.ai/v1/responses",
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": self.headers.get("Authorization", ""),
+                "Content-Type": "application/json",
+                "Accept-Encoding": "identity",
+            },
+        )
+        completed, status = False, 502
+        raw = b'{"error":"Unconfirmed Wonder Standard response"}'
+        try:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(
+                request, timeout=300
+            ) as response:
+                if (
+                    response.status != 200
+                    or response.headers.get("Content-Encoding", "identity").lower() != "identity"
+                    or response.headers.get("Content-Type", "").split(";")[0].lower()
+                    != "application/json"
+                ):
+                    raise ValueError("Invalid Wonder Standard response")
+                raw = bounded_entity(response, 8_000_000)
+                _video.check_json_structure(raw)
+                payload = strict_json(raw, video=True)
+                if (
+                    type(payload) is not dict
+                    or payload.get("status") != "completed"
+                    or payload.get("model") != WONDER_MODEL
+                    or type(payload.get("output")) is not list
+                ):
+                    raise ValueError("Unconfirmed Wonder Standard identity or completion")
+                usage, costs = wonder_usage(payload.get("usage"))
+                if usage["output_tokens"] > data["max_output_tokens"]:
+                    raise ValueError("Wonder output exceeds its reservation")
+            completed, status = True, 200
+        except urllib.error.HTTPError as error:
+            status = error.code
+            error.close()
+            raw = b'{"error":"Wonder Standard request refused"}'
+        except Exception:
+            raw = b'{"error":"Unconfirmed Wonder Standard response"}'
+        finally:
+            with LOCK:
+                record["finished_at"] = time.time()
+                if completed:
+                    record.update(
+                        state="usage_reported",
+                        resolved_model=WONDER_MODEL,
+                        reported_usage=usage,
+                        standard_estimated_usd=costs["standard"],
+                        admission_estimated_usd=costs["admission"],
+                    )
+                    STATE["wonder_standard_estimated_usd"] = (
+                        money(STATE.get("wonder_standard_estimated_usd", 0)) + costs["standard"]
+                    )
+                    STATE["admission_estimated_usd"] += costs["admission"]
+                    STATE["reported_input_tokens"] += usage["input_tokens"]
+                    STATE["reported_output_tokens"] += usage["output_tokens"]
+                    STATE["reported_cached_tokens"] += usage["input_tokens_details"][
+                        "cached_tokens"
+                    ]
+                    STATE["reserved_usd"] -= reservation
+                    reconcile(STATE)
+                else:
+                    record["state"] = "wonder_uncertain_reservation_retained"
+                save()
+        self.close_connection = True
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(raw)
+
     def bounded_body(self, limit):
         lengths = self.headers.get_all("Content-Length", [])
         if (
@@ -799,15 +1026,27 @@ class Handler(BaseHTTPRequestHandler):
 
     def forward_auxiliary(self, *, voice):
         record = None
+        is_wonder = False
         try:
-            body = self.bounded_body(MAX_VOICE_BODY if voice else 8_000_000)
-            if not voice and _video.contains_video(strict_json(body)):
-                raise ValueError("Video token-count disclosure is not enabled")
+            body = self.bounded_body(
+                MAX_VOICE_BODY if voice else _video.MAX_VIDEO_BODY if WONDER_STANDARD else 8_000_000
+            )
             if voice:
                 seconds = voice_request(body, self.headers.get("Content-Type", ""))
             else:
                 data = strict_json(body)
-                if (
+                is_wonder = type(data) is dict and data.get("model") == WONDER_MODEL
+                if not is_wonder and len(body) > 8_000_000:
+                    raise ValueError("Legacy count body exceeds its unchanged bound")
+                if is_wonder:
+                    wonder_request(data)
+                    if self.headers.get("x-tbh-contributor-mode") is not None:
+                        raise ValueError("Wonder requires Standard mode")
+                    if _video.contains_video(data):
+                        _video.video_request(data, VIDEO_GRANTS, wonder_standard=WONDER_STANDARD)
+                elif _video.contains_video(data):
+                    raise ValueError("Video token-count disclosure is not enabled")
+                elif (
                     type(data) is not dict
                     or data.get("model") != MODEL
                     or not local_function_tools(data.get("tools", []))
@@ -859,7 +1098,7 @@ class Handler(BaseHTTPRequestHandler):
             "Content-Type": self.headers.get("Content-Type", "application/json"),
             "Authorization": self.headers.get("Authorization", ""),
         }
-        if not voice:
+        if not voice and not is_wonder:
             headers["x-tbh-contributor-mode"] = "true"
         request = urllib.request.Request(
             "https://api.meta.ai" + self.path, data=body, headers=headers, method="POST"
@@ -917,6 +1156,16 @@ class Handler(BaseHTTPRequestHandler):
                     upstream.close()
             except Exception:
                 output, valid_duration, status = None, None, 502
+            if is_wonder and output is not None:
+                try:
+                    with LOCK:
+                        wonder_ticket(
+                            data,
+                            self.headers.get("Authorization", ""),
+                            tokens=value["input_tokens"],
+                        )
+                except ValueError:
+                    output, status = None, 400
             if record is not None:
                 with LOCK:
                     record["finished_at"] = time.time()
@@ -970,7 +1219,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 video_grant = (
-                    _video.video_request(data, VIDEO_GRANTS)
+                    _video.video_request(data, VIDEO_GRANTS, wonder_standard=WONDER_STANDARD)
                     if _video.contains_video(data)
                     else None
                 )
@@ -979,6 +1228,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if video_grant is not None and data.get("model") == "sam-3.1":
                 self.forward_media(generation=False, body=body, data=data, video_grant=video_grant)
+                return
+            if data.get("model") == WONDER_MODEL:
+                self.forward_wonder_text(body, data, video_grant)
                 return
             if video_grant is not None:
                 self.forward_video_text(body, data, video_grant)
@@ -1158,7 +1410,7 @@ def lower_budget_limit(state, requested):
 
 
 def main():
-    global STATE, LEDGER, MEDIA_SMOKE, VIDEO_GRANTS
+    global STATE, LEDGER, MEDIA_SMOKE, VIDEO_GRANTS, WONDER_STANDARD
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=9790)
     parser.add_argument("--ledger", type=Path, default=LEDGER)
@@ -1169,6 +1421,11 @@ def main():
         help="Opt in to exact owner-authorized MP4 and prompt digests",
     )
     parser.add_argument(
+        "--enable-wonder-standard",
+        action="store_true",
+        help="Opt in to exact measured muse-wonder-1.0 max requests under the same combined ceiling",
+    )
+    parser.add_argument(
         "--enable-media-smoke",
         action="store_true",
         help="Enable bounded single-image tests with a $0.10 sublimit",
@@ -1176,8 +1433,11 @@ def main():
     args = parser.parse_args()
     LEDGER = args.ledger
     MEDIA_SMOKE = args.enable_media_smoke
+    WONDER_STANDARD = args.enable_wonder_standard
     VIDEO_GRANTS = (
-        {} if args.video_manifest is None else _video.load_video_grants(args.video_manifest)
+        {}
+        if args.video_manifest is None
+        else _video.load_video_grants(args.video_manifest, wonder_standard=WONDER_STANDARD)
     )
     with ledger_owner(LEDGER):
         STATE = (

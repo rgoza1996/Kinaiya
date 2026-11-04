@@ -227,6 +227,34 @@ def _publication_schema(*, media_available=False):
 
 
 _SCHEMAS = {
+    "run_task_program": _schema(
+        _object(
+            {
+                "interpreter": {"enum": ["python3", "bash", "direct"]},
+                "source_path": _string(1, 1024),
+                "source_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "entrypoint_path": _string(1, 1024),
+                "entrypoint_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "input_path": _string(1, 1024),
+                "input_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "output_path": _string(1, 1024),
+                "argv": _array(_string(0, 4096), 2, 32),
+                "timeout_s": _integer(1, 120),
+            },
+            (
+                "interpreter",
+                "source_path",
+                "source_sha256",
+                "entrypoint_path",
+                "entrypoint_sha256",
+                "input_path",
+                "input_sha256",
+                "output_path",
+                "argv",
+                "timeout_s",
+            ),
+        )
+    ),
     "run_task_harness": _schema(
         _object(
             {
@@ -400,6 +428,28 @@ _INTEGER_KIND = "Native strict integer checks also reject integral floats; stand
 # Metadata is trusted static text. In particular, no selected foreign schema,
 # configuration, approval, filesystem path or invocation data enters this table.
 _METADATA = {
+    "run_task_program": {
+        "description": "Execute pinned Agent-authored task code or a real binary in the workspace OS sandbox.",
+        "source": [
+            "services/agent/task_program.py:run_task_program",
+            "services/agent/tools.py:run_program",
+        ],
+        "requirements": [
+            "native_executable_task_mode",
+            "current_revision_source_write",
+            "exact_program_input_digests",
+            "effective_shell_allow",
+            "required_os_isolation",
+        ],
+        "constraints": [
+            "Ordinary shell performs research, downloads and builds under existing owner grants; this route grants nothing.",
+            "Entrypoint and input are copied into sealed native snapshots and mounted read-only; generated code runs outside the supervisor.",
+            "argv requires exactly one standalone {input} and {output}; other arguments remain literal.",
+            "Output must be fresh, stable nonempty UTF-8 at most65536bytes; source at most256KiB, executable at most64MiB.",
+            "Receipts bind actual executed bytes and result, not source-to-binary compiler causality, semantic correctness or task success.",
+        ],
+        "legacy_behavior": [],
+    },
     "run_task_harness": {
         "description": "Execute an Agent-authored isolated task program with native media mediation.",
         "source": [
