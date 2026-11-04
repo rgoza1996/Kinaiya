@@ -417,9 +417,9 @@
       ids.add(device.deviceId);
       rows.push({ id: device.deviceId, label: device.label || 'Audio input' });
     });
-    // Refuse the complete inventory, including otherwise selectable rows.
-    // A private sentinel prevents arbitrary browser errors claiming this reason.
-    if (identifiersUnavailable) throw inputIdentifiersUnavailable;
+    // Anonymous rows cannot be selected, but do not invalidate exposed IDs.
+    // A private sentinel distinguishes an entirely hidden inventory from errors.
+    if (identifiersUnavailable && !rows.length) throw inputIdentifiersUnavailable;
     return rows;
   }
 
