@@ -1,0 +1,103 @@
+{
+  "$defs": {
+    "MediaAssetPin": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "maximum": 268435456,
+          "minimum": 1,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "guest": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Guest",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "decoder_exec",
+            "probe_exec",
+            "sandbox_exec",
+            "python_exec",
+            "runtime_library",
+            "driver_source"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "path",
+        "guest",
+        "bytes",
+        "sha256"
+      ],
+      "title": "MediaAssetPin",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaAssetPin"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaAssetPin]",
+  "type": "object"
+}

@@ -1,0 +1,451 @@
+{
+  "$defs": {
+    "MediaChild": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "cleanup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaNativeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Instance",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "upload",
+            "decoder",
+            "converse_provider",
+            "decisions_provider",
+            "input_asr",
+            "assistant_asr",
+            "tts_provider",
+            "playback",
+            "agent_media",
+            "agent_delivery"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "cancelled",
+                "failed",
+                "not_started"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "state": {
+          "enum": [
+            "reserved",
+            "running",
+            "fenced",
+            "closing",
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "instance",
+        "operation_id",
+        "owner",
+        "binding_sha256",
+        "state",
+        "outcome",
+        "cleanup"
+      ],
+      "title": "MediaChild",
+      "type": "object"
+    },
+    "MediaFence": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "lease_generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "session": {
+          "$ref": "#/$defs/MediaSession"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session",
+        "source_revision",
+        "generation",
+        "lease_generation"
+      ],
+      "title": "MediaFence",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_MediaStatus_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaStatus"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaStatus]",
+      "type": "object"
+    },
+    "MediaReservation": {
+      "additionalProperties": false,
+      "properties": {
+        "child_slots": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Child Slots",
+          "type": "integer"
+        },
+        "global_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Global Spool Bytes",
+          "type": "integer"
+        },
+        "metadata_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Metadata Bytes",
+          "type": "integer"
+        },
+        "owner_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Owner Spool Bytes",
+          "type": "integer"
+        },
+        "policy_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "reservation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Reservation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reservation_id",
+        "owner_spool_bytes",
+        "global_spool_bytes",
+        "metadata_bytes",
+        "child_slots",
+        "policy_sha256"
+      ],
+      "title": "MediaReservation",
+      "type": "object"
+    },
+    "MediaSession": {
+      "additionalProperties": false,
+      "properties": {
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "MediaSession",
+      "type": "object"
+    },
+    "MediaStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "items": {
+            "$ref": "#/$defs/MediaChild"
+          },
+          "maxItems": 16,
+          "title": "Children",
+          "type": "array"
+        },
+        "desired": {
+          "enum": [
+            "running",
+            "stopped",
+            "deleted"
+          ],
+          "title": "Desired",
+          "type": "string"
+        },
+        "fence": {
+          "$ref": "#/$defs/MediaFence"
+        },
+        "local_actual": {
+          "enum": [
+            "reserved",
+            "uploading",
+            "sealed",
+            "ready",
+            "running",
+            "fenced",
+            "closing",
+            "settled",
+            "unknown",
+            "deleted"
+          ],
+          "title": "Local Actual",
+          "type": "string"
+        },
+        "raw_state": {
+          "enum": [
+            "buffered",
+            "retained",
+            "expired",
+            "delete_pending",
+            "deleted"
+          ],
+          "title": "Raw State",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "none",
+            "denied",
+            "stale",
+            "superseded",
+            "target_changed",
+            "owner_stop",
+            "disconnect",
+            "lease_expired",
+            "reset",
+            "replacement",
+            "eof",
+            "expired",
+            "deleted",
+            "overrun",
+            "quota",
+            "decode_error",
+            "provider_error",
+            "publication_unknown",
+            "cleanup_unknown",
+            "representation_conflict"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "remote_liability_head": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaNativeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remote_state": {
+          "enum": [
+            "none",
+            "unknown"
+          ],
+          "title": "Remote State",
+          "type": "string"
+        },
+        "reservation": {
+          "$ref": "#/$defs/MediaReservation"
+        },
+        "source": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "source",
+        "fence",
+        "desired",
+        "local_actual",
+        "children",
+        "remote_state",
+        "remote_liability_head",
+        "reason",
+        "reservation",
+        "raw_state"
+      ],
+      "title": "MediaStatus",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaStatus_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaStatus]",
+  "type": "object"
+}

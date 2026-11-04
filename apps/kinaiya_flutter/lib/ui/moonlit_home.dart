@@ -602,7 +602,7 @@ class _MoonlitHomeState extends State<MoonlitHome>
           cursor: SystemMouseCursors.move,
           child: Icon(
             Icons.drag_handle,
-            size: 20,
+            size: effectiveHeight == null ? 20 : 18,
             color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
@@ -752,18 +752,20 @@ class _MoonlitHomeState extends State<MoonlitHome>
                       child: _card(
                         key: const ValueKey('home-action-card'),
                         prominent: true,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 14,
-                        ),
+                        padding: effectiveHeight == null
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              )
+                            : const EdgeInsets.fromLTRB(18, 2, 18, 12),
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             dragGrip,
-                            const SizedBox(height: 2),
-                            if (effectiveHeight == null)
-                              ...bodyChildren
-                            else
+                            if (effectiveHeight == null) ...[
+                              const SizedBox(height: 2),
+                              ...bodyChildren,
+                            ] else
                               Flexible(
                                 child: SingleChildScrollView(
                                   key: const ValueKey('home-panel-scroll'),

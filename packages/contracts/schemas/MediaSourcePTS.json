@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "frame_index": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Frame Index"
+    },
+    "pts": {
+      "maximum": 9007199254740991,
+      "minimum": -9007199254740991,
+      "title": "Pts",
+      "type": "integer"
+    },
+    "sample_count": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Sample Count"
+    },
+    "sample_start": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Sample Start"
+    },
+    "time_base_den": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Time Base Den",
+      "type": "integer"
+    },
+    "time_base_num": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Time Base Num",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "pts",
+    "time_base_num",
+    "time_base_den",
+    "sample_start",
+    "sample_count",
+    "frame_index"
+  ],
+  "title": "MediaSourcePTS",
+  "type": "object"
+}

@@ -235,6 +235,7 @@ class SttModelsSnapshot {
       'speech',
       'stt',
       'stt_cleanup',
+      'native_audio',
       'playback_pending',
       'memory_pending',
       'leases',

@@ -226,6 +226,11 @@ class _HomeShellState extends State<HomeShell> {
     _converseVisible = widget.presentation.preferences.showConverseView;
     widget.presentation.addListener(_presentationChanged);
     widget.state.addListener(_viewChanged);
+    if (widget.state.localSignInExchange != null &&
+        widget.state.localSignInState == LocalHostSignInState.idle &&
+        !widget.state.connected) {
+      unawaited(widget.state.attemptLocalSignIn());
+    }
   }
 
   @override
