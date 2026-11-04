@@ -51,6 +51,9 @@ publication guard; receiving an identity does not prove that registration ran.
 
 Both stages retain their original work across cancelled observers. Exact replay
 observes that work; it never respawns or invents a replacement after uncertainty.
+Death before the first grant refuses release. After a successful grant, replay
+may return the same historical Child even after process exit; this result proves
+neither current liveness nor cleanup and grants no additional execution.
 Legacy `start` remains available to its existing internal callers, but cannot
 release a launch enrolled through the held interface. A legacy launch cannot be
 reinterpreted as a prepared launch. Fence, settle and close prevent a later

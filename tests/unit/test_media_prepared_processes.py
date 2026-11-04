@@ -84,18 +84,29 @@ async def test_cancelled_prepare_waiter_reuses_original_late_spawn(harness):
     _, grant = harness.grant(launch, binding)
     harness.hold_spawn = True
     waiting = asyncio.create_task(pool.prepare(launch, grant))
-    await asyncio.wait_for(harness.spawned.wait(), _WAIT)
-    waiting.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await waiting
-    _still_held(harness.processes[0], marker)
-    replay = asyncio.create_task(pool.prepare(launch, grant))
-    harness.release_spawn.set()
-    prepared = await asyncio.wait_for(replay, _WAIT)
-    _still_held(harness.processes[0], marker)
-    child = await pool.start_prepared(prepared)
-    assert json.loads(await _line(child.channel))["pid"] == harness.processes[0].pid
-    assert len(harness.processes) == 1
+    try:
+        await asyncio.wait_for(harness.spawned.wait(), _WAIT)
+        waiting.cancel()
+        done, _ = await asyncio.wait({waiting}, timeout=_WAIT)
+        assert waiting in done, "cancelled observer did not detach from the held original"
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+        _still_held(harness.processes[0], marker)
+        replay = asyncio.create_task(pool.prepare(launch, grant))
+        harness.release_spawn.set()
+        prepared = await asyncio.wait_for(replay, _WAIT)
+        _still_held(harness.processes[0], marker)
+        child = await pool.start_prepared(prepared)
+        assert json.loads(await _line(child.channel))["pid"] == harness.processes[0].pid
+        assert len(harness.processes) == 1
+    finally:
+        # A broken cancellation shield must not prevent fixture teardown from
+        # releasing and actually joining the intercepted native spawn.
+        harness.release_spawn.set()
+        done, _ = await asyncio.wait({waiting}, timeout=_WAIT)
+        assert waiting in done, "test observer remains unresolved after spawn release"
+        if not waiting.cancelled():
+            waiting.exception()
 
 
 async def test_cancelled_release_observer_retains_one_original_grant(harness):
@@ -108,13 +119,22 @@ async def test_cancelled_release_observer_retains_one_original_grant(harness):
         if releasing:
             releasing = False
             requested.set()
-            asyncio.get_running_loop().call_soon(observer.cancel)
+            observer.cancel()
         return True
 
     pool, marker, _, _, _, _, prepared = await _prepared(harness, current=current)
+    assigned = asyncio.Event()
+
+    async def observe():
+        await assigned.wait()
+        return await pool.start_prepared(prepared)
+
     releasing = True
-    observer = asyncio.create_task(pool.start_prepared(prepared))
+    observer = asyncio.create_task(observe())
+    assigned.set()  # Also prevents an eager factory from entering before assignment.
     await asyncio.wait_for(requested.wait(), _WAIT)
+    done, _ = await asyncio.wait({observer}, timeout=_WAIT)
+    assert observer in done, "cancelled release observer failed to detach"
     with pytest.raises(asyncio.CancelledError):
         await observer
     child = await asyncio.wait_for(pool.start_prepared(prepared), _WAIT)
@@ -169,8 +189,9 @@ async def test_copied_or_foreign_capsule_never_selects_original(harness):
     except (TypeError, ValueError):
         pass  # A capsule that cannot be copied also refuses this forgery.
     else:
-        assert copied is not prepared
-        await _async_refused(pool.start_prepared(copied))
+        if copied is not prepared:
+            await _async_refused(pool.start_prepared(copied))
+        # Identity-preserving copying is ordinary exact replay, not a forgery.
     _still_held(harness.processes[0], marker)
     assert not other_marker.exists()
     child = await pool.start_prepared(prepared)
@@ -215,9 +236,11 @@ async def test_wrong_grant_refuses_before_spawning_and_does_not_replace(harness)
 
 async def test_unavailable_kernel_boot_identity_never_grants(harness, monkeypatch):
     native_open = os.open
+    hits = []
 
     def unavailable(path, *args, **kwargs):
         if os.fspath(path) == "/proc/sys/kernel/random/boot_id":
+            hits.append(path)
             raise OSError(errno.ENOENT, "synthetic kernel observation unavailable")
         return native_open(path, *args, **kwargs)
 
@@ -227,7 +250,24 @@ async def test_unavailable_kernel_boot_identity_never_grants(harness, monkeypatc
     launch = harness.register(pool, binding)
     _, grant = harness.grant(launch, binding)
     await _async_refused(pool.prepare(launch, grant))
+    assert hits, "source-reviewed kernel observation fault was not reached"
     assert not marker.exists()
     assert (await pool.settle(launch)).state == "settled"
+    assert len(harness.processes) <= 1
+    for process in harness.processes:
+        await asyncio.wait_for(process.wait(), _WAIT)
+        assert process.returncode is not None
+
+
+async def test_successful_release_replay_after_exit_observes_historical_original(harness):
+    pool, marker, _, launch, _, _, prepared = await _prepared(harness)
+    child = await pool.start_prepared(prepared)
+    await _line(child.channel)
+    await child.channel.send_chunk(b"EXIT\n")
+    assert await _line(child.channel) == b"BYE"
+    process = harness.processes[0]
+    assert await asyncio.wait_for(process.wait(), _WAIT) == 0
+    assert await pool.start_prepared(prepared) is child
     assert len(harness.processes) == 1
-    assert harness.processes[0].returncode is not None
+    assert marker.read_bytes() == b"original executed once"
+    assert (await pool.settle(launch)).state == "settled"
