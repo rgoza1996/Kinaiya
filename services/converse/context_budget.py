@@ -319,6 +319,23 @@ class ContextBudgetBuilder:
             await self._measure(self._compile(selected, pin, recall)), pin, recall
         )
 
+    async def complete_unmeasured(self):
+        """Retrieve the whole qualified history for native audio, or refuse.
+
+        The external realtime protocol has no exact audio-token count method.
+        Its server must admit the complete request or return overflow. These
+        native page/byte/deadline guards bound retrieval; they never select a
+        last-N dialogue suffix or manufacture a measured context observation.
+        Selected memory has a separate measurement contract and is not added.
+        """
+        while not self.exhausted:
+            await self._page()
+        self._check()
+        return replace(
+            self._compile([entry for page in self.pages for entry in page], None, None),
+            history_watermark=self.through_sequence,
+        )
+
     async def finalize(self, projection):
         """Refresh the selected request after memory fallback and before dispatch."""
         measured = await self._measure(projection)

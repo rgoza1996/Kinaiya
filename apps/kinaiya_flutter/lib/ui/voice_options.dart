@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../audio/vad_settings.dart';
+import '../audio/speech_audio.dart';
 import 'design_tokens.dart';
 
 /// Presentation-only Voice options sheet for Converse.
@@ -27,6 +27,13 @@ class VoiceOptionsSheet extends StatelessWidget {
     this.onRecalibrate,
     this.busy = false,
     this.notice,
+    this.audioOutputs,
+    this.audioOutputBusy = false,
+    this.audioOutputNotice,
+    this.onAudioOutputSelected,
+    this.onChooseAudioOutput,
+    this.onDefaultAudioOutput,
+    this.onRefreshAudioOutputs,
   });
 
   final int endSilenceMs;
@@ -38,6 +45,109 @@ class VoiceOptionsSheet extends StatelessWidget {
   final VoidCallback? onRecalibrate;
   final bool busy;
   final String? notice;
+  final List<AudioOutputDevice>? audioOutputs;
+  final bool audioOutputBusy;
+  final String? audioOutputNotice;
+  final ValueChanged<String>? onAudioOutputSelected;
+  final VoidCallback? onChooseAudioOutput;
+  final VoidCallback? onDefaultAudioOutput;
+  final VoidCallback? onRefreshAudioOutputs;
+
+  Widget _outputOptions(BuildContext context) {
+    final devices = audioOutputs ?? const <AudioOutputDevice>[];
+    final selected = devices.where((device) => device.selected).toList();
+    final selectedId = selected.length == 1 ? selected.single.opaqueId : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KinaiyaDesign.spaceMd),
+      child: DesignPanel(
+        key: const ValueKey('voice-group-output'),
+        padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Audio output',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose where this session plays speech. This does not change your microphone or system default.',
+            ),
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            if (devices.isNotEmpty)
+              InputDecorator(
+                key: const ValueKey('audio-output-device'),
+                decoration: const InputDecoration(
+                  labelText: 'Available output',
+                  helperText:
+                      'Device permission and availability are controlled by your browser.',
+                  helperMaxLines: 4,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selectedId,
+                    hint: const Text('Choose an output'),
+                    isExpanded: true,
+                    items: [
+                      for (final device in devices)
+                        DropdownMenuItem(
+                          value: device.opaqueId,
+                          child: Text(
+                            device.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: audioOutputBusy || onAudioOutputSelected == null
+                        ? null
+                        : (id) {
+                            if (id != null) onAudioOutputSelected!(id);
+                          },
+                  ),
+                ),
+              ),
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  key: const ValueKey('audio-output-choose'),
+                  onPressed: audioOutputBusy ? null : onChooseAudioOutput,
+                  child: const Text('Choose output'),
+                ),
+                OutlinedButton(
+                  key: const ValueKey('audio-output-default'),
+                  onPressed: audioOutputBusy ? null : onDefaultAudioOutput,
+                  child: const Text('Use system default'),
+                ),
+                TextButton(
+                  key: const ValueKey('audio-output-refresh'),
+                  onPressed: audioOutputBusy ? null : onRefreshAudioOutputs,
+                  child: const Text('Refresh devices'),
+                ),
+              ],
+            ),
+            if (audioOutputBusy)
+              const LinearProgressIndicator(
+                semanticsLabel: 'Selecting audio output',
+              ),
+            if (audioOutputNotice != null || audioOutputs == null) ...[
+              const SizedBox(height: KinaiyaDesign.spaceSm),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  audioOutputNotice ??
+                      'Audio output selection is unavailable in this browser.',
+                  key: const ValueKey('audio-output-notice'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _duration({
     required String label,
@@ -262,6 +372,12 @@ class VoiceOptionsSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (audioOutputs != null ||
+                          audioOutputNotice != null ||
+                          onChooseAudioOutput != null ||
+                          onDefaultAudioOutput != null ||
+                          onRefreshAudioOutputs != null)
+                        _outputOptions(context),
                       if (vadSettings case final settings?)
                         _dynamicOptions(context, settings),
                       DesignPanel(

@@ -63,6 +63,12 @@ class ConverseEvent {
   String get error => raw['error'] as String? ?? 'Unknown Converse error';
 }
 
+class NativeAudioClipAdmission {
+  const NativeAudioClipAdmission(this.entry, this.replay);
+  final JournalEntry entry;
+  final bool replay;
+}
+
 /// Clearly labeled mock marker for tests.
 bool get isMockApi => _mockLabel != null;
 String? _mockLabel;
@@ -890,6 +896,48 @@ class KinaiyaClient {
 
   Future<Map<String, Object?>> transcribeWindow(Map<String, Object?> window) =>
       _post(converseBase, '/v1/converse/audio/windows', window);
+
+  /// One explicit recording submission. Never retries or falls back to text.
+  Future<NativeAudioClipAdmission> submitNativeAudioClip({
+    required SessionInfo session,
+    required String utteranceId,
+    required String requestId,
+    required List<int> wav,
+    required ContentScope contentScope,
+  }) async {
+    final result =
+        await _post(converseBase, '/v1/converse/native-audio/clips', {
+          'session_id': session.sessionId,
+          'thread_id': session.threadId,
+          'epoch': session.epoch,
+          'utterance_id': utteranceId,
+          'request_id': requestId,
+          'content_scope': contentScope.wireValue,
+          'audio_base64': base64Encode(wav),
+        });
+    final entry = result['entry'];
+    if (result.length != 2 ||
+        result['replay'] is! bool ||
+        entry is! Map<String, Object?>) {
+      throw ApiException(502, 'Native audio clip admission was not confirmed.');
+    }
+    if (entry['epoch'] is! int ||
+        entry['sequence'] is! int ||
+        entry['epoch'] != session.epoch ||
+        (entry['sequence'] as int) < 1 ||
+        entry['session_id'] != session.sessionId ||
+        entry['thread_id'] != session.threadId ||
+        entry['kind'] != 'conversation.window' ||
+        entry['origin'] != 'authenticated-user' ||
+        entry['event_id'] is! String ||
+        (entry['event_id'] as String).isEmpty) {
+      throw ApiException(502, 'Native audio clip admission was not confirmed.');
+    }
+    return NativeAudioClipAdmission(
+      JournalEntry.fromJson(entry),
+      result['replay'] as bool,
+    );
+  }
 
   Stream<Map<String, Object?>> speech({
     required String eventId,

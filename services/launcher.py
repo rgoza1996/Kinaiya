@@ -123,6 +123,65 @@ def converse_speech(config, token, *, resource_state=None):
     return local
 
 
+def converse_native_audio(config, runtime, data_dir, workspace):
+    """Explicit paired host capability, never inferred from a model name.
+
+    The owner supplies and runs the external engine. This first buffered mode
+    supports the host selection only; catalog/resource-managed native audio
+    requires its own admission interface rather than borrowing a text lease.
+    """
+    declared = config.get("native_audio")
+    if declared is None:
+        return None
+    from packages.providers.realtime_audio import RealtimeAudioProvider
+    from services.converse.native_audio import NativeAudioOwner
+
+    if (
+        type(declared) is not dict
+        or set(declared)
+        - {"kind", "base_url", "model", "api_key_env", "max_output_tokens", "timeout"}
+        or declared.get("kind") != "realtime_v1"
+        or config.get("resources", {}).get("enabled") is True
+    ):
+        raise ValueError("Native buffered audio declaration is unavailable")
+    host = config.get("providers", {}).get("converse", {})
+
+    def origin(value):
+        if type(value) is not str:
+            raise ValueError("Native audio host pairing is invalid")
+        normalized = value.rstrip("/")
+        return normalized[:-3] if normalized.endswith("/v1") else normalized
+
+    if (
+        host.get("kind") not in {"compatible", "measured_chat"}
+        or host.get("allow_cloud", False) is not False
+        or origin(host.get("base_url")) != origin(declared.get("base_url"))
+        or host.get("model") != declared.get("model")
+        or host.get("api_key_env") != declared.get("api_key_env")
+        or host.get("api_key")
+    ):
+        raise ValueError("Native audio requires the exact explicit local host pair")
+    reference = declared.get("api_key_env")
+    if reference is not None and (
+        type(reference) is not str
+        or not reference.isascii()
+        or not reference.isidentifier()
+        or len(reference) > 128
+        or not os.environ.get(reference)
+    ):
+        raise ValueError("Native audio credential declaration is unavailable")
+    adapter = RealtimeAudioProvider(
+        declared["base_url"],
+        declared["model"],
+        api_key=os.environ.get(reference, "") if reference is not None else "",
+        max_output_tokens=declared.get("max_output_tokens", 512),
+        timeout=declared.get("timeout", 90),
+    )
+    return NativeAudioOwner(
+        runtime, adapter, path=data_dir / "native-audio.sqlite", workspace=workspace
+    )
+
+
 def provider(config, role, *, resource_state=None, service_token=None, workspace=None):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
@@ -983,6 +1042,13 @@ def serve(args):
             if config.get("streaming_windows", {}).get("enabled", True)
             else None
         )
+        # A malformed explicit declaration must not silently run the legacy
+        # transcript-to-text/TTS path under a native-audio configuration.
+        runtime.native_audio = converse_native_audio(
+            config, runtime, args.data_dir.resolve(), args.workspace.resolve()
+        )
+        if runtime.native_audio is not None and windows is None:
+            raise ValueError("Native buffered audio requires Decisions window routing")
         app = create_app(runtime, auth, speech, windows, setup=setup)
 
         @asynccontextmanager
@@ -1005,6 +1071,8 @@ def serve(args):
                 observer, *([window_observer] if window_observer else []), return_exceptions=True
             )
             await runtime.close()
+            if runtime.native_audio is not None:
+                await runtime.native_audio.close()
             if runtime.model_settings is not None:
                 await runtime.model_settings.close()
             from services.converse.stt_operations import retire_converse_shared
