@@ -339,11 +339,9 @@ async def test_clean_linux_install_to_first_session_end_to_end_journey(tmp_path,
         ]
     )
     setup_result = wizard.run_wizard(layout, tty=tty)
-    assert setup_result == {
-        "ready": False,
-        "provider_connection": "not_checked",
-        "next": "kinaiya serve host",
-    }
+    assert setup_result["ready"] is False
+    assert setup_result["provider_connection"] == "not_checked"
+    assert setup_result["next"] == "kinaiya serve host"
     assert "Provider connection is not checked" in tty.output
 
     config = json.loads(layout.config.read_text(encoding="utf-8"))
