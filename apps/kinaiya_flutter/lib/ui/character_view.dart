@@ -736,7 +736,7 @@ class _CharacterViewState extends State<CharacterView> {
       );
 
   bool _nativeOutputCurrent(JournalEntry entry, NativeAudioClipOwner? owner) =>
-      owner != null && _nativeClipCurrent(owner) && owner.accepts(entry);
+      owner != null && _nativeClipCurrent(owner) && owner.ownsReply(entry);
 
   void _clearWindows() {
     _pendingWindow = null;
@@ -775,7 +775,8 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    nativeOutput = nativeOutput && nativeOwner.accepts(entry);
+    nativeOutput = nativeOutput && nativeOwner.bindReply(entry);
+    if (nativeOutput && _windowPlayed.contains(entry.eventId)) return;
     final liveWindow = _armed && _windowMode;
     if (!mounted ||
         (!nativeOutput && !liveWindow) ||
@@ -800,7 +801,12 @@ class _CharacterViewState extends State<CharacterView> {
                     : entry.payload['generation_epoch'])
                 as num?)
             ?.toInt();
-    if (epoch != null && epoch > _s.speechEpoch) {
+    // A failed import or service restart can leave the optimistic local
+    // interruption counter ahead of the service. Only the exact admitted,
+    // current native source may adopt its authenticated reply's epoch in
+    // either direction; ordinary window events retain the monotonic gate.
+    if (epoch != null &&
+        (epoch > _s.speechEpoch || (nativeOutput && epoch != _s.speechEpoch))) {
       _s.turnNonce++;
       if (nativeOutput) nativeOwner.turnNonce = _s.turnNonce;
       _s.speechEpoch = epoch;

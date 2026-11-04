@@ -98,6 +98,7 @@ class NativeAudioClipOwner {
   final String sessionId, threadId, utteranceId, requestId;
   int turnNonce;
   String? _sourceId;
+  (String, String, int, String)? _replyBinding;
   final _pending = <String, JournalEntry>{};
 
   bool get admitted => _sourceId != null;
@@ -142,6 +143,28 @@ class NativeAudioClipOwner {
       admitted &&
       candidate(entry) &&
       entry.payload['window_source_id'] == _sourceId;
+
+  (String, String, int, String) _replyIdentity(JournalEntry entry) => (
+    entry.eventId,
+    entry.payload['runtime_id'] as String,
+    entry.payload['generation_epoch'] as int,
+    entry.payload['chunk_id'] as String,
+  );
+
+  /// A buffered clip owns one atomic native reply. Replays must keep its
+  /// exact identity; another tuple cannot reset playback or its epoch.
+  bool bindReply(JournalEntry entry) {
+    if (!accepts(entry)) return false;
+    final next = _replyIdentity(entry);
+    if (_replyBinding != null) return _replyBinding == next;
+    _replyBinding = next;
+    return true;
+  }
+
+  bool ownsReply(JournalEntry entry) =>
+      _replyBinding != null &&
+      accepts(entry) &&
+      _replyBinding == _replyIdentity(entry);
 
   void defer(JournalEntry entry) {
     if (!candidate(entry)) return;
