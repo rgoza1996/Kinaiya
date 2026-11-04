@@ -602,6 +602,31 @@ class JournalClient:
         response.raise_for_status()
         return response.json()
 
+    async def decisions_calls(
+        self,
+        *,
+        source_event_id: str,
+        session_id: str | None = None,
+        thread_id: str | None = None,
+        epoch: int | None = None,
+    ):
+        params = {
+            k: v
+            for k, v in {
+                "source_event_id": source_event_id,
+                "session_id": session_id,
+                "thread_id": thread_id,
+                "epoch": epoch,
+            }.items()
+            if v is not None
+        }
+        response = await self.http.get("/v1/decisions/calls", params=params)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("calls"), list):
+            raise ValueError("Invalid Decisions call recovery payload")
+        return payload["calls"]
+
     async def read(self, **kwargs):
         params = {k: v for k, v in kwargs.items() if v is not None}
         if "kinds" in params:

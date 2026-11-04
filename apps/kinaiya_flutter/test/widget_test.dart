@@ -5,6 +5,7 @@ import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/model_setup.dart';
+import 'package:kinaiya_flutter/ui/setup_dialog.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'client_test.dart' show mockClient;
@@ -205,4 +206,133 @@ void main() {
     );
     expect(state.converseDraft, 'remember me');
   });
+
+  testWidgets(
+    'trusted local first-run auto-connects without entering 4 service URLs or typing an owner token',
+    (tester) async {
+      final state = AppState(
+        localSignInExchange: () async => LocalSignInResult(
+          ownerToken: 'ram-only-local-token',
+          converseEnabled: false,
+        ),
+      );
+      await state.attemptLocalSignIn(injected: mockClient());
+      addTearDown(state.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SetupDialog(state: state, embedded: true)),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('local-host-connection-card')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('local-host-status-connected')),
+        findsOneWidget,
+      );
+      expect(find.text('Connected to local Kinaiya host'), findsOneWidget);
+      expect(find.textContaining('Connected (Agent-only)'), findsOneWidget);
+      expect(
+        find.textContaining('Converse optional / not enabled'),
+        findsOneWidget,
+      );
+      // Service URL fields start collapsed on trusted local first run.
+      expect(find.text('Session service URL'), findsNothing);
+      expect(state.connected, isTrue);
+      expect(state.sessionAuthenticated, isTrue);
+      expect(state.connection!.backendProfile, BackendProfile.clean);
+    },
+  );
+
+  testWidgets(
+    'unavailable local sign-in shows truthful status, retry recovery, and advanced manual connection',
+    (tester) async {
+      var attempts = 0;
+      final state = AppState(
+        localSignInExchange: () async {
+          attempts++;
+          if (attempts == 1) {
+            throw const FormatException('local handoff unavailable');
+          }
+          return LocalSignInResult(ownerToken: 'recovered-ram-token');
+        },
+      );
+      addTearDown(state.dispose);
+
+      await state.attemptLocalSignIn(injected: mockClient());
+      expect(state.connected, isFalse);
+      expect(state.localSignInState, LocalHostSignInState.unavailable);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SetupDialog(state: state, embedded: true)),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('local-host-status-unavailable')),
+        findsOneWidget,
+      );
+      expect(find.text('Local automatic sign-in unavailable'), findsOneWidget);
+      expect(find.byKey(const Key('local-host-retry-signin')), findsOneWidget);
+
+      // Expand Advanced connection to verify manual endpoint & token fields remain usable.
+      await tester.tap(find.byKey(const Key('setup-toggle-endpoint-fields')));
+      await tester.pump();
+      expect(find.text('Session service URL'), findsOneWidget);
+      expect(find.text('Owner access token'), findsOneWidget);
+
+      // Retry local sign-in recovers cleanly when injected/client succeeds.
+      await state.attemptLocalSignIn(injected: mockClient());
+      await tester.pump();
+      expect(state.connected, isTrue);
+      expect(
+        find.byKey(const Key('local-host-status-connected')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'local sign-in preserves inference disclosure and distinguishes Agent-only from broken Agent host',
+    (tester) async {
+      final state = AppState(
+        localSignInExchange: () async => LocalSignInResult.fromJson({
+          'owner_token': 'ram-token-2',
+          'session_url': 'http://127.0.0.1:8760',
+          'agent_url': 'http://127.0.0.1:8761',
+          'converse_url': 'http://127.0.0.1:8762',
+          'converse_enabled': false,
+          'allow_cloud': true,
+          'backend_profile': 'cloudDevelopment',
+        }),
+      );
+      addTearDown(state.dispose);
+
+      await state.attemptLocalSignIn(
+        backendProfile: BackendProfile.clean,
+        injected: mockClient(),
+      );
+      expect(state.connection!.backendProfile, BackendProfile.clean);
+      expect(state.isAgentOnlyConnected, isTrue);
+      expect(
+        state.hostRoleStatusSummary,
+        'Connected (Agent-only) · Converse optional / not enabled',
+      );
+
+      // Simulate broken Agent host (session authenticated, Agent offline).
+      state.agentOnline = false;
+      state.agentInferenceAllowed = false;
+      state.converseOnline = false;
+      state.converseInferenceAllowed = false;
+      state.connected = false;
+      expect(state.isAgentOnlyConnected, isFalse);
+      expect(state.hostRoleStatusSummary, 'Agent host unreachable');
+    },
+  );
 }

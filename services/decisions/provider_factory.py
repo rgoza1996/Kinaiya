@@ -12,6 +12,7 @@ def provider_protocol(name):
     return {
         "laya": "laya_systemone",
         "native_d1": "native_d1_systemone",
+        "openrouter_decisions": "laya_systemone",
     }.get(name, "host_configured")
 
 
@@ -38,7 +39,7 @@ def _recipe(catalog, selection):
     profile = catalog.profile(binding.id, binding.generation, for_new=True)
     if profile["configuration_sha256"] != binding.configuration_sha256:
         raise ValueError("Classifier catalog configuration changed")
-    if profile["config"]["kind"] not in {"laya", "native_d1"}:
+    if profile["config"]["kind"] not in {"laya", "native_d1", "openrouter_decisions"}:
         raise ValueError("Only exact typed catalog classifiers are supported")
     return DecisionsRecipe(
         selection,
@@ -90,6 +91,17 @@ def open_recipe(catalog, selection, *, resource_state=None):
             allow_cloud=config["allow_cloud"],
             timeout=config["timeout_s"],
             min_confidence=config["min_confidence"],
+        )
+    elif config["kind"] == "openrouter_decisions":
+        from packages.providers.openrouter_decisions import OpenRouterDecisionsProvider
+
+        adapter = OpenRouterDecisionsProvider(
+            config["base_url"],
+            config["model"],
+            api_key=key,
+            allow_cloud=config["allow_cloud"],
+            timeout=config["timeout_s"],
+            min_confidence=config["min_confidence_bps"] / 10000.0,
         )
     else:
         adapter = LayaRoutingProvider(
