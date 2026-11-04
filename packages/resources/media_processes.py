@@ -410,6 +410,11 @@ class MediaLaunch:
         self._prepared = self._prepared_identity = None
         self._prepared_leader = None
         self._bootstrap_nonce = self._bootstrap_path = None
+        self._cgroup_custody_owner = None
+        self._cgroup_scope = None
+        self._cgroup_startup_deadline = None
+        self._cgroup_ready = False
+        self._cgroup_empty_snapshot = None
         self._tasks, self._io_tasks = set(), set()
         self._child = self._control = self._managed = None
         self._process = None
@@ -491,6 +496,15 @@ class MediaLaunch:
     def _spool_grant_can_retire(self, grant):
         self._owned()
         with self._pool._lock:
+            if self._cgroup_custody_owner is not None:
+                try:
+                    scope = self._cgroup_custody_owner._scope_for_cleanup(self)
+                    if self._cgroup_scope is not None and self._cgroup_scope is not scope:
+                        return False
+                except Exception:
+                    return False
+            elif self._cgroup_scope is not None:
+                return False
             return bool(
                 grant is self._grant
                 and self._parent_source_closed
@@ -498,6 +512,10 @@ class MediaLaunch:
                 and self._outer_positive
                 and self._io_positive
                 and self._dependencies_positive
+                and (
+                    self._cgroup_custody_owner is None
+                    or scope._pool_empty_matches(self, self._cgroup_empty_snapshot)
+                )
                 and not self._close_unknown
                 and not self._metadata_unknown
             )
@@ -639,28 +657,85 @@ class MediaLaunch:
                 _error()
             bootstrap = str(Path(__file__).with_name("_media_bootstrap.py").resolve())
             self._bootstrap_path = bootstrap
+            scoped = getattr(self, "_cgroup_scope", None)
+            enroll_fd = None
+            if scoped is not None:
+                try:
+                    enroll_fd = scoped._borrow_enrollment_fd(self)
+                except Exception:
+                    _error("conflict")
+                if type(enroll_fd) is not int or enroll_fd <= 2:
+                    _error()
+                for other in (grant_read.fd, config.fd, child_control.fd, source_fd):
+                    if enroll_fd == other:
+                        _error()
             with self._pool._lock:
                 if self._fenced or self._pool._closed:
                     _error("expired")
-                self._spawn_dispatched = True
-                self._spawn_task = self._task(
-                    asyncio.create_subprocess_exec(
-                        sys.executable,
-                        bootstrap,
-                        str(grant_read.fd),
-                        str(config.fd),
-                        nonce,
-                        str(child_control.fd),
-                        str(source_fd),
-                        cwd=str(spec.cwd),
-                        env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
-                        stdin=asyncio.subprocess.DEVNULL,
-                        stdout=stdout_write.fd,
-                        stderr=stderr_write.fd,
-                        start_new_session=True,
-                        pass_fds=(grant_read.fd, config.fd, child_control.fd, source_fd),
+                if scoped is None:
+                    self._spawn_dispatched = True
+                    self._spawn_task = self._task(
+                        asyncio.create_subprocess_exec(
+                            sys.executable,
+                            bootstrap,
+                            str(grant_read.fd),
+                            str(config.fd),
+                            nonce,
+                            str(child_control.fd),
+                            str(source_fd),
+                            cwd=str(spec.cwd),
+                            env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
+                            stdin=asyncio.subprocess.DEVNULL,
+                            stdout=stdout_write.fd,
+                            stderr=stderr_write.fd,
+                            start_new_session=True,
+                            pass_fds=(grant_read.fd, config.fd, child_control.fd, source_fd),
+                        )
                     )
-                )
+                else:
+                    # Linearize this original dispatch with direct scope.fence.
+                    # Only an already-dispatched original may enroll later.
+                    with scoped._lock:
+                        if (
+                            getattr(self, "_cgroup_scope", None) is not scoped
+                            or getattr(scoped, "_pool", None) is not self._cgroup_custody_owner
+                        ):
+                            _error("conflict")
+                        try:
+                            scoped._check_bindable_for(self)
+                        except Exception as error:
+                            from packages.resources.media_cgroup import MediaCgroupError
+
+                            if isinstance(error, MediaCgroupError) and error.code == "expired":
+                                _error("expired")
+                            _error()
+                        self._spawn_dispatched = True
+                        self._spawn_task = self._task(
+                            asyncio.create_subprocess_exec(
+                                sys.executable,
+                                bootstrap,
+                                str(grant_read.fd),
+                                str(config.fd),
+                                nonce,
+                                str(child_control.fd),
+                                str(source_fd),
+                                "--kinaiya-cgroup-v1",
+                                str(enroll_fd),
+                                cwd=str(spec.cwd),
+                                env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
+                                stdin=asyncio.subprocess.DEVNULL,
+                                stdout=stdout_write.fd,
+                                stderr=stderr_write.fd,
+                                start_new_session=True,
+                                pass_fds=(
+                                    grant_read.fd,
+                                    config.fd,
+                                    child_control.fd,
+                                    source_fd,
+                                    enroll_fd,
+                                ),
+                            )
+                        )
             proc = await asyncio.shield(self._spawn_task)
             if not isinstance(proc, asyncio.subprocess.Process):
                 _error()
@@ -697,6 +772,8 @@ class MediaLaunch:
                 self._prepared_identity = _snapshot(identity, MediaProcessIdentity)
                 self._prepared_leader = leader
                 self._prepared = MediaPreparedChild(self)
+                if self._cgroup_scope is not None:
+                    await self._wait_scoped_enrollment()
                 if self._fenced or not self._pool._current(self):
                     _error("expired")
                 return self._prepared
@@ -722,6 +799,35 @@ class MediaLaunch:
             self._spawn_phase = False
             if self._fenced:
                 self._pool._ensure_cleanup(self)
+
+    async def _wait_scoped_enrollment(self):
+        scope = self._cgroup_scope
+        deadline = self._cgroup_startup_deadline
+        loop = asyncio.get_running_loop()
+        if scope is None or deadline is None:
+            _error()
+        while True:
+            if loop.time() >= deadline:
+                _error()
+            if (
+                self._fenced
+                or self._pool._closed
+                or self._cgroup_scope is not scope
+                or not self._pool._current(self)
+            ):
+                _error("expired")
+            if not self._held_current():
+                _error()
+            scope._check_bindable_for(self)
+            member = scope._owns_pid(self._process.pid)
+            # The same actual held identity must bracket the native membership
+            # read. A late observation never renews the original startup budget.
+            if not self._held_current() or loop.time() >= deadline:
+                _error()
+            if member:
+                self._cgroup_ready = True
+                return
+            await asyncio.sleep(min(0.01, max(0.0, deadline - loop.time())))
 
     def _held_current(self):
         managed, owner = self._managed, self._leader
@@ -756,14 +862,38 @@ class MediaLaunch:
             _error("expired")
         if self._start_mode == "prepared" and not self._held_current():
             _error()
+        scope = self._cgroup_scope
         with self._pool._lock:
             if self._close_unknown or self._fenced:
                 _error("expired")
-            if os.write(self._grant_writer.fd, b"\x01") != 1:
-                _error()
-            if not self._close(self._grant_writer):
-                _error()
-            self._granted = self._managed.granted = True
+            if scope is None:
+                if os.write(self._grant_writer.fd, b"\x01") != 1:
+                    _error()
+                if not self._close(self._grant_writer):
+                    _error()
+                self._granted = self._managed.granted = True
+            else:
+                try:
+                    # Worker -> cgroup is the sole lock order. The shared scope
+                    # RLock spans the final checks AND sole grant write, so a
+                    # concurrent scope fence cannot slip between them.
+                    with scope._lock:
+                        if self._cgroup_scope is not scope or not self._cgroup_ready:
+                            _error("expired")
+                        scope._check_bindable_for(self)
+                        if not self._held_current() or not scope._owns_pid(self._process.pid):
+                            _error("expired")
+                        if not self._held_current():
+                            _error("expired")
+                        if os.write(self._grant_writer.fd, b"\x01") != 1:
+                            _error()
+                        if not self._close(self._grant_writer):
+                            _error()
+                        self._granted = self._managed.granted = True
+                except MediaProcessError:
+                    raise
+                except Exception:
+                    _error("expired")
         self._child = MediaChild(self, _Duplex(self, self._control))
         return self._child
 
@@ -1065,8 +1195,44 @@ class MediaLaunch:
             for owner in self._pass_owners:
                 self._close(owner)
             self._close_parent_source()
+            scope = self._cgroup_scope
+            custody_failed = False
+            if self._cgroup_custody_owner is not None:
+                try:
+                    original_scope = self._cgroup_custody_owner._scope_for_cleanup(self)
+                    if scope is not None and scope is not original_scope:
+                        custody_failed = True
+                    scope = original_scope
+                except Exception:
+                    custody_failed = True
+            elif scope is not None:
+                custody_failed = True
+            kill_requested = False
+            if scope is not None and not custody_failed:
+                # Setup/release have joined. C1 allows their late historical
+                # enrollment, but no new borrowing/spawn/grant can now occur.
+                self._cgroup_empty_snapshot = None
+                try:
+                    scope.request_kill()
+                    kill_requested = True
+                except Exception:
+                    pass  # Still stop/wait the actual original outer process.
             if not self._outer_positive:
                 self._outer_positive = await self._pool._manager._stop_media_owned(self)
+            if custody_failed:
+                return False
+            if scope is not None:
+                if not kill_requested or not self._outer_positive:
+                    return False
+                # This SAME cleanup remains retained across the public five-
+                # second observation. No fresh internal timeout or recursive
+                # close_after_settle/pool.settle can manufacture retirement.
+                while True:
+                    observed = scope._observe_empty_for_pool(self)
+                    if observed is not None:
+                        self._cgroup_empty_snapshot = observed
+                        break
+                    await asyncio.sleep(0.01)
             for task in tuple(self._io_tasks):
                 task.cancel()
             if self._io_tasks:
@@ -1091,6 +1257,10 @@ class MediaLaunch:
                 owner.closed and not owner.unknown for owner in self._all_owners
             )
             if self._close_unknown or not self._io_positive or not self._parent_source_closed:
+                return False
+            if scope is not None and not scope._pool_empty_matches(
+                self, self._cgroup_empty_snapshot
+            ):
                 return False
             if self._grant is not None:
                 result = self._grant._retire_child_use(self)
@@ -1202,6 +1372,8 @@ class MediaWorkerPool:
         if launch._grant is not grant or grant is None:
             _error("conflict")
         with self._lock:
+            if launch._cgroup_custody_owner is not None:
+                _error("conflict")
             if launch._start_mode not in (None, "legacy"):
                 _error("conflict")
             create = not launch._start_requested
@@ -1241,6 +1413,13 @@ class MediaWorkerPool:
             self.fence(launch)
             self._ensure_cleanup(launch)
             _error("expired")
+        if launch._cgroup_scope is not None:
+            try:
+                launch._cgroup_scope._check_bindable_for(launch)
+            except Exception:
+                self.fence(launch)
+                self._ensure_cleanup(launch)
+                _error("expired")
 
     def _actual_task(self, task, coroutine):
         return (
@@ -1249,11 +1428,14 @@ class MediaWorkerPool:
             and task.get_coro() is coroutine
         )
 
-    async def prepare(self, launch, grant):
+    async def prepare(self, launch, grant, *, cgroup_scope=None):
         """Retain one verified, ungranted bootstrap for native owner linking.
 
         This reserves no new budget and grants no exec or Session authority.
         Cancelling a caller only cancels its observation of the original Task.
+        A non-null exact MediaCgroupScope must already belong to the SAME
+        actual registered launch; it is resolved/bound under the native lock
+        before any original spawn. Default None leaves old paths unchanged.
         """
         self._loop_now()
         self._owned(launch)
@@ -1262,6 +1444,49 @@ class MediaWorkerPool:
         with self._lock:
             if launch._start_mode not in (None, "prepared"):
                 _error("conflict")
+        if cgroup_scope is not None:
+            try:
+                from packages.resources.media_cgroup import MediaCgroupScope as _CGScope
+            except Exception:
+                _error()
+            if type(cgroup_scope) is not _CGScope:
+                _error("conflict")
+            with self._lock:
+                if (
+                    launch._cgroup_custody_owner is None
+                    or getattr(cgroup_scope, "_pool", None) is not launch._cgroup_custody_owner
+                ):
+                    _error("conflict")
+                existing = getattr(launch, "_cgroup_scope", None)
+                if existing is None:
+                    try:
+                        cgroup_scope._check_bindable_for(launch)
+                    except Exception as exc:
+                        from packages.resources.media_cgroup import MediaCgroupError as _CGE
+
+                        # A refused selector never owns this launch's fence.
+                        # Only uncertainty/expiry of actual custody can fence
+                        # and retain the original for cleanup.
+                        if isinstance(exc, _CGE) and exc.code in (
+                            "capacity",
+                            "conflict",
+                            "bad_input",
+                        ):
+                            raise MediaProcessError(
+                                "bad_packet" if exc.code == "bad_input" else exc.code
+                            ) from None
+                        self.fence(launch)
+                        self._ensure_cleanup(launch)
+                        if isinstance(exc, _CGE) and exc.code == "expired":
+                            raise MediaProcessError("expired") from None
+                        raise MediaProcessError() from None
+                    launch._cgroup_scope = cgroup_scope
+                elif existing is not cgroup_scope:
+                    _error("conflict")
+        else:
+            with self._lock:
+                if launch._cgroup_custody_owner is not None or launch._cgroup_scope is not None:
+                    _error("conflict")
         self._prepared_current(launch)
         with self._lock:
             create = not launch._start_requested
@@ -1270,6 +1495,14 @@ class MediaWorkerPool:
                     _error("expired")
                 launch._start_mode = "prepared"
                 launch._start_requested = launch._future_spawn = True
+                if launch._cgroup_scope is not None:
+                    # One absolute original deadline, before task creation and
+                    # therefore no later than actual scoped spawn dispatch.
+                    launch._cgroup_startup_deadline = self._loop.time() + float(
+                        self._spec.startup_timeout_s
+                    )
+                    launch._cgroup_ready = False
+                    launch._cgroup_empty_snapshot = None
         if create:
             coroutine = self._manager._start_media_owned(launch)
             try:
@@ -1347,6 +1580,26 @@ class MediaWorkerPool:
         self._owned(launch)
         with self._lock:
             launch._fenced = True
+            scope = launch._cgroup_scope
+            if launch._cgroup_custody_owner is not None:
+                try:
+                    original_scope = launch._cgroup_custody_owner._scope_for_cleanup(launch)
+                    if scope is not None and scope is not original_scope:
+                        launch._metadata_unknown = True
+                        scope = None
+                    else:
+                        scope = original_scope
+                except Exception:
+                    launch._metadata_unknown = True
+                    scope = None
+            elif scope is not None:
+                launch._metadata_unknown = True
+                scope = None
+            if scope is not None:
+                try:
+                    scope.fence()
+                except Exception:
+                    launch._metadata_unknown = True
             if launch._grant_writer is not None:
                 launch._close(launch._grant_writer)
         for task in tuple(launch._io_tasks):
