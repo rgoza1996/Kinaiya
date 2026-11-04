@@ -509,7 +509,8 @@ async def test_layout_and_configuration_matrix_spaces_idempotency_and_bootstrap_
     assert plan_json["source_sha"] == release["source_sha"]
     assert plan_json["missing_system_dependencies"] == ["bubblewrap"]
     assert (
-        plan_json["system_dependency_command"] == "sudo apt-get install --no-upgrade -y bubblewrap"
+        plan_json["system_dependency_command"]
+        == "sudo apt-get install --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y -- bubblewrap"
     )
 
 

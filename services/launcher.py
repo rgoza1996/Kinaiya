@@ -1219,6 +1219,7 @@ def main(argv=None):
     if args.command in {
         "install",
         "setup",
+        "start",
         "update",
         "version",
         "doctor",

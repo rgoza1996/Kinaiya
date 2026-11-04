@@ -513,7 +513,7 @@ def test_doctor_sandbox_isolation_failures_report_actionable_remediation(tmp_pat
     assert sandbox["status"] == "fail"
     assert "bwrap" in sandbox["missing_prerequisites"]
     assert "curl" in sandbox["missing_prerequisites"]
-    assert "sudo apt-get install --no-upgrade -y" in (sandbox["remediation"] or "")
+    assert "sudo apt-get install --no-upgrade" in (sandbox["remediation"] or "")
 
 
 def test_cli_and_launcher_doctor_json_no_color_and_tty_modes(
