@@ -646,6 +646,298 @@
       "warning_summary_lines": []
     }
   ],
+  "schema_compatibility_repair": {
+    "count_rule": "560P1F and126P stay distinct with126-case overlap. Actual30 passed in first selection on production6849412, unchanged by fixture-only180fae8. No summed or complete561-pass/CI claim.",
+    "exact_additive_v2_schema_count": 27,
+    "independent_source_gate": {
+      "manifest_sha256": "f80cfe0e728d6b5c60832b019cc13a9e8f4cae0ca4eed22798f14c0c44029813",
+      "report_sha256": "a4db7581aaa35ce3ca00d68cc18899331e5bbdc9e99a35da2932efe29e969106",
+      "scope": "Source-only, new source-aware schema test body unread",
+      "seal_sha256": "00bc956a0beacf402ce65a53e09aeaaaf5a81e873f38f96b06aaa5713555b7c6"
+    },
+    "limits": [
+      "Native Session V2 catalog/controller/start/resume/history/budgets remain pending",
+      "No native CPU/descendant or sealed-runtime qualification",
+      "No actual model inference/device/news-video/sign-language/full demo proof",
+      "Changed-head full CI remains required before merge"
+    ],
+    "metadata_defect_preserved": "Second raw receipt inherits the first runner broad scope sentence mentioning actual30. Its command, targets and126 JUnit identities prove only the one V2-unit module. Raw artifacts remain unchanged; this record and independent review explicitly correct interpretation. No actual30 or561-pass rerun is claimed.",
+    "negative_fixture_correction": {
+      "change": "Only helper preparation: V2 defaults retained; V1 negative constructs a genuinely valid V1 DTO using its original digest domain and passes it to the unchanged V2 planner rejection. Same seven faults, test signatures/decorators,27 asserts and final raises block retained. Production byte-identical to6849412.",
+      "head": "180fae80ea63e0c7a0f74648cceb96e6a07cc71d",
+      "independent_static_quality": "GO before rerun",
+      "proof": {
+        "after_sha256": "b0c8b44792461f2067c18e84b3a457cfbc8dc7b72d2d51d93b51eb947ea8d594",
+        "assertions_exact": 27,
+        "before_sha256": "d66193c9d91517d6ddf6ae35b95ab8935139689883b6d6cafa38bedb8a9355c5",
+        "scope": "Fixture preparation only, full original planner raises block retained; no production edits or rerun yet.",
+        "test_signatures_and_decorators_exact": true
+      }
+    },
+    "original_ci": {
+      "failures": [
+        "Original69 decoder schema byte pin: six old Profile/Protocol files had widened closed literals",
+        "Resource original184 inventory counted21 newly additive schema files"
+      ],
+      "head": "f0230ec523a8294d54ab714499ea86260c8ac9c2",
+      "platforms": "Flutter/web,Android,iOS passed",
+      "python311": "12411 passed,2 failed,2 deselected,1warning",
+      "python312": "cancelled",
+      "raw_log_sha256": "c859867d06894b1c8f73955c69f7c25d16090e7bdca6f55f474786081f6ee0f2",
+      "run_id": 41752858879
+    },
+    "original_main_schemas_byte_mode_exact": 423,
+    "root_export_quality": {
+      "ast_exact_after_format": true,
+      "baseline": "cf546a221c8d48fcc899ebf04adcb7fc57ec44b9",
+      "exact_additive_schema_names": [
+        "packages/contracts/schemas/MediaDecodeOpenPlan.json",
+        "packages/contracts/schemas/MediaDecodeRequestV2.json",
+        "packages/contracts/schemas/MediaDecodeResponseV2.json",
+        "packages/contracts/schemas/MediaDecodeSelection.json",
+        "packages/contracts/schemas/MediaDecodeTrackCursor.json",
+        "packages/contracts/schemas/MediaDecoderProfileV2.json",
+        "packages/contracts/schemas/MediaDecoderProtocolV2.json",
+        "packages/contracts/schemas/MediaFoundDecodeOpenPlan.json",
+        "packages/contracts/schemas/MediaFoundDecodeRequestV2.json",
+        "packages/contracts/schemas/MediaFoundDecodeResponseV2.json",
+        "packages/contracts/schemas/MediaFoundDecodeSelection.json",
+        "packages/contracts/schemas/MediaFoundDecodeTrackCursor.json",
+        "packages/contracts/schemas/MediaFoundDecoderProfileV2.json",
+        "packages/contracts/schemas/MediaFoundDecoderProtocolV2.json",
+        "packages/contracts/schemas/MediaFoundProbeClock.json",
+        "packages/contracts/schemas/MediaFoundProbeObservation.json",
+        "packages/contracts/schemas/MediaProbeClock.json",
+        "packages/contracts/schemas/MediaProbeObservation.json",
+        "packages/contracts/schemas/MediaReceiptDecodeOpenPlan.json",
+        "packages/contracts/schemas/MediaReceiptDecodeRequestV2.json",
+        "packages/contracts/schemas/MediaReceiptDecodeResponseV2.json",
+        "packages/contracts/schemas/MediaReceiptDecodeSelection.json",
+        "packages/contracts/schemas/MediaReceiptDecodeTrackCursor.json",
+        "packages/contracts/schemas/MediaReceiptDecoderProfileV2.json",
+        "packages/contracts/schemas/MediaReceiptDecoderProtocolV2.json",
+        "packages/contracts/schemas/MediaReceiptProbeClock.json",
+        "packages/contracts/schemas/MediaReceiptProbeObservation.json"
+      ],
+      "format_changed_files": [
+        "tests/unit/test_media_decoder_v2_schema_exports.py"
+      ],
+      "old_schemas_byte_mode_exact": 423,
+      "scope": "Export and static checks only; no pytest, native Session/media/demo qualification yet.",
+      "source_gate": "GO reviewed before execution",
+      "steps": [
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-m",
+            "ruff",
+            "format",
+            "packages/contracts/media.py",
+            "packages/resources/media_decode_plan.py",
+            "tests/unit/test_media_decoder_v2.py",
+            "tests/integration/test_media_decoder_child.py",
+            "tests/unit/test_standing_resource_finalization_contracts.py",
+            "tests/unit/test_media_decoder_v2_schema_exports.py"
+          ],
+          "exit": 0,
+          "name": "format"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-m",
+            "ruff",
+            "check",
+            "."
+          ],
+          "exit": 0,
+          "name": "ruff-check"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-m",
+            "ruff",
+            "format",
+            "--check",
+            "."
+          ],
+          "exit": 0,
+          "name": "ruff-format-check"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "scripts/export_contracts.py"
+          ],
+          "exit": 0,
+          "name": "export"
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit": 0,
+          "name": "diff-check"
+        }
+      ],
+      "total_schemas": 450
+    },
+    "runs": [
+      {
+        "actual_scope": "Ten explicit modules: original schema pins/new V2 contracts/wire/planner/actual30. Historical result remains560passed1failed; V1-negative fixture failed before planner entry.",
+        "exit_code": 1,
+        "head": "6849412e4c078795eb1dca22d9b1cfc32a1c382e",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "1",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "561",
+            "time": "40.097",
+            "timestamp": "2026-11-03T18:24:50.433370-08:00"
+          }
+        ],
+        "manifest_sha256": "8f453e391eedf4979ed26a417c95cb97242eedc2bc577550b0b6f08ca8f96c7f",
+        "module_cases": {
+          "tests/integration/test_media_decoder_child.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 29
+          },
+          "tests/integration/test_media_decoder_multitrack.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 1
+          },
+          "tests/unit/test_media_contracts.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 29
+          },
+          "tests/unit/test_media_decode_plan.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 23
+          },
+          "tests/unit/test_media_decoder_contracts.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 221
+          },
+          "tests/unit/test_media_decoder_v2.py": {
+            "errors": 0,
+            "failures": 1,
+            "skips": 0,
+            "tests": 126
+          },
+          "tests/unit/test_media_decoder_v2_schema_exports.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 4
+          },
+          "tests/unit/test_media_decoder_wire.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 59
+          },
+          "tests/unit/test_media_schema_exports.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 6
+          },
+          "tests/unit/test_standing_resource_finalization_contracts.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 63
+          }
+        },
+        "payload_sha256": {
+          "junit.xml": "e5d6d5c9a511fcfd6eb648ef2a028fccb4094484db8dd84717f62b4ec13f2679",
+          "post-pins.json": "1256363c0300febbd5aaf25a0e90c78254beb686e26013512cadeb811802dd3f",
+          "pre-pins.json": "1256363c0300febbd5aaf25a0e90c78254beb686e26013512cadeb811802dd3f",
+          "pytest.log": "d4f156dffca7d484b8693c5396a77e382dfdbe83bc00207352cb47b9fd274061",
+          "receipt.json": "cb25fb8a9e789fd5fb0fa1585f904eef67ecf726b65c0b2a4ef5f0128fd5503b",
+          "runner.py": "0d6b2089e182eb82923ea73347b1bc9c02e6df48a9215ba2a2e1d6e82205bbdc",
+          "start.json": "ad337c5b09b29e7a8d093d65e7698f44e7238a43d46e3652a062895f1c8e7d4b"
+        },
+        "raw_directory_relative_to_publication_checkout": ".dev-run/441-schema-v2-repair-qualified-v1-cu6tarww",
+        "stable_tracked_inputs": 1859,
+        "targets": [
+          "tests/unit/test_media_schema_exports.py",
+          "tests/unit/test_standing_resource_finalization_contracts.py",
+          "tests/unit/test_media_decoder_v2_schema_exports.py",
+          "tests/unit/test_media_decoder_v2.py",
+          "tests/unit/test_media_decoder_contracts.py",
+          "tests/unit/test_media_contracts.py",
+          "tests/unit/test_media_decoder_wire.py",
+          "tests/unit/test_media_decode_plan.py",
+          "tests/integration/test_media_decoder_child.py",
+          "tests/integration/test_media_decoder_multitrack.py"
+        ],
+        "tree": "ab3ae9a14ad9f5b542e0fda10f4ec02d8c59cff9",
+        "wall_s": 40.98690144699867
+      },
+      {
+        "actual_scope": "Only126 V2-unit cases, including corrected valid-V1 negative input. No actual child/other schema module rerun on this follow-up.",
+        "exit_code": 0,
+        "head": "180fae80ea63e0c7a0f74648cceb96e6a07cc71d",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "126",
+            "time": "6.332",
+            "timestamp": "2026-11-03T18:28:31.818212-08:00"
+          }
+        ],
+        "manifest_sha256": "e5d32cada5cae84e4b06cfb1dad7974cd6f4e02472d6812782ec784f051abfc4",
+        "module_cases": {
+          "tests/unit/test_media_decoder_v2.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 126
+          }
+        },
+        "payload_sha256": {
+          "junit.xml": "68beda0ecde5ebc4071168cbf2045c3957aef1d92f5c278f19db5a07268b98d2",
+          "post-pins.json": "659e52c07a540fd9f2225c81ae7dc2ded054ed975062f82ecc80955b607768c4",
+          "pre-pins.json": "659e52c07a540fd9f2225c81ae7dc2ded054ed975062f82ecc80955b607768c4",
+          "pytest.log": "4e981336465340780c0eb37a5b73c39b728667a8ac8299a2076ac80221450a3c",
+          "receipt.json": "7401422a3c37e4ca6753019067cda81d1c89d4aa091e9aa5a375faa8fe15a602",
+          "runner.py": "0d6b2089e182eb82923ea73347b1bc9c02e6df48a9215ba2a2e1d6e82205bbdc",
+          "start.json": "0379b6a6763076c4529d61d7310751749e07f9eeb3c30f47a93a1b78275c60b9"
+        },
+        "raw_directory_relative_to_publication_checkout": ".dev-run/441-v1-negative-fixture-qualified-v1-kq753rpz",
+        "stable_tracked_inputs": 1859,
+        "targets": [
+          "tests/unit/test_media_decoder_v2.py"
+        ],
+        "tree": "56acc32879cb18e731d6ad7e83a0f2ce8520d2f0",
+        "wall_s": 6.773566002997541
+      }
+    ],
+    "selected_contract": "Restore original V1 profile/protocol byte-exact; independent closed ProfileV2/ProtocolV2 metadata v1 with separate canonical domains. Exact V2 request field and full planner checks. Explicit9x3 new schemas, unchanged original69/184 expected pins.",
+    "source_repair_head": "6849412e4c078795eb1dca22d9b1cfc32a1c382e",
+    "total_schema_count": 450
+  },
   "static_checks": {
     "changed_head_ci": "pending",
     "development_codec_dependencies": "dev extra declares exact PyAV17.1.0/NumPy2.3.3; development lock composes existing reviewed meta-speech/whistle locks, so unchanged CI installs/audits them. Fresh CI remains pending.",
