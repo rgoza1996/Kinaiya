@@ -594,3 +594,6 @@ test('custom interrupt timing stops local playback only after sustained voice', 
 
 // Keep the existing CI entrypoint responsible for both trusted browser bridges.
 require('./presentation_bridge.cases.js');
+
+// Keep independent import-activation checks in the existing CI entry point.
+require('./audio_import_activation.test.js');
