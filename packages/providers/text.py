@@ -102,6 +102,25 @@ class ProviderCleanupError(ProviderError):
     """The provider's HTTP response did not confirm resource cleanup."""
 
 
+class MetaResponseError(ProviderError):
+    """A terminal native status with closed, redacted request-bound metadata."""
+
+    def __init__(self, diagnostic):
+        from packages.providers.response_diagnostics import (
+            meta_failure_message,
+            validate_meta_diagnostic,
+        )
+
+        self._diagnostic = validate_meta_diagnostic(diagnostic)
+        super().__init__(meta_failure_message(self._diagnostic))
+
+    @property
+    def diagnostic(self):
+        from packages.providers.response_diagnostics import validate_meta_diagnostic
+
+        return validate_meta_diagnostic(self._diagnostic)
+
+
 _UI_SPEC_MAX_BYTES = 48 * 1024
 # JSON string escaping can expand one UTF-8 byte to six wire bytes. This
 # envelope bound includes that expansion plus the other nullable wire fields.
@@ -1327,8 +1346,11 @@ class MetaResponsesProvider:
             data = json.loads(raw)
         except (ValueError, RecursionError) as exc:
             raise ProviderError("Meta returned invalid response JSON") from exc
-        if data.get("status") in {"failed", "incomplete"}:
-            raise ProviderError("Meta response did not complete within its token budget")
+        if type(data) is dict and data.get("status") in ("failed", "incomplete"):
+            from packages.providers.prompt_budget import request_digest
+            from packages.providers.response_diagnostics import meta_failure_diagnostic
+
+            raise MetaResponseError(meta_failure_diagnostic(data, request_digest(body)))
         messages = [item for item in data.get("output", []) if item.get("type") == "message"]
         final_messages = [
             item for item in messages if item.get("phase") in {"final", "final_answer"}
@@ -1447,7 +1469,13 @@ class MetaResponsesProvider:
                 elif event.get("type") == "response.completed":
                     terminal = True
                 elif event.get("type") in {"response.failed", "response.incomplete", "error"}:
-                    raise ProviderError("Meta streaming response failed or exhausted budget")
+                    # A stream failure alone does not establish output exhaustion.
+                    message = {
+                        "response.failed": "Meta streaming response failed",
+                        "response.incomplete": "Meta streaming response did not complete",
+                        "error": "Meta streaming response error",
+                    }[event["type"]]
+                    raise ProviderError(message)
         if not terminal:
             raise ProviderError("Meta stream disconnected before completion")
 
