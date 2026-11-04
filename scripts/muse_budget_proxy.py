@@ -12,6 +12,7 @@ import base64
 import binascii
 import email.policy
 import fcntl
+import importlib.util
 import json
 import math
 import os
@@ -41,9 +42,15 @@ MAX_VOICE_BODY = 3_000_000
 MEDIA_SMOKE = False
 MEDIA_LIMIT_USD = 0.10
 MEDIA_RESERVATIONS = {"sam-3.1": 0.005, "muse-image-1.0": 0.02}
+_video_spec = importlib.util.spec_from_file_location(
+    "meta_video_admission", Path(__file__).with_name("meta_video_admission.py")
+)
+_video = importlib.util.module_from_spec(_video_spec)
+_video_spec.loader.exec_module(_video)
+VIDEO_GRANTS = {}
 
 
-def strict_json(raw):
+def strict_json(raw, *, video=False):
     def pairs(items):
         value = {}
         for key, item in items:
@@ -56,7 +63,12 @@ def strict_json(raw):
         raise ValueError("Non-finite JSON")
 
     try:
-        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=invalid)
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=pairs,
+            parse_constant=invalid,
+            parse_float=_video.finite_float if video else float,
+        )
     except (UnicodeError, RecursionError) as exc:
         raise ValueError("Invalid JSON") from exc
 
@@ -268,7 +280,7 @@ def media_request(data, *, generation):
     return data["model"]
 
 
-def admission_available(*, text=0, audio=0, media=0):
+def admission_available(*, text=0, audio=0, media=0, video=0):
     audio_state(STATE)
     media_state(STATE)
     text_spent = money(
@@ -283,6 +295,7 @@ def admission_available(*, text=0, audio=0, media=0):
         (not text or max(text_spent, billed) + reserved + text <= 22)
         and audio_spent + audio_reserved + audio <= 3
         and (not media or media_spent + media_reserved + media <= MEDIA_LIMIT_USD)
+        and (not video or media_spent + media_reserved + video <= _video.VIDEO_LIMIT_USD)
         and max(text_spent + audio_spent + media_spent, billed)
         + reserved
         + audio_reserved
@@ -290,6 +303,7 @@ def admission_available(*, text=0, audio=0, media=0):
         + text
         + audio
         + media
+        + video
         <= min(25, money(STATE["limit_usd"]))
     )
 
@@ -520,20 +534,27 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.forward()
 
-    def forward_media(self, *, generation, body=None, data=None):
+    def forward_media(self, *, generation, body=None, data=None, video_grant=None):
         try:
             if body is None:
                 body = self.bounded_body(3_000_000)
                 data = strict_json(body)
-            model = media_request(data, generation=generation)
+            model = (
+                "sam-3.1" if video_grant is not None else media_request(data, generation=generation)
+            )
         except (ValueError, binascii.Error, OSError):
             self.local_json(400, {"error": "Invalid bounded media smoke request"})
             return
-        reservation = MEDIA_RESERVATIONS[model]
+        reservation = (
+            max(50, video_grant["frames"]) * 0.0004
+            if video_grant is not None
+            else MEDIA_RESERVATIONS[model]
+        )
         with LOCK:
             media_state(STATE)
+            category = "video" if video_grant is not None else "media"
             if len(STATE["media_calls"]) >= MAX_AUX_REQUESTS or not admission_available(
-                media=reservation
+                **{category: reservation}
             ):
                 self.local_json(402, {"error": "Media smoke or combined budget limit reached"})
                 return
@@ -544,6 +565,15 @@ class Handler(BaseHTTPRequestHandler):
                 "state": "in_flight",
                 "started_at": time.time(),
                 "reservation_usd": reservation,
+                **(
+                    {
+                        "source_sha256": video_grant["sha256"],
+                        "source_frames": video_grant["frames"],
+                        "kind": "video",
+                    }
+                    if video_grant is not None
+                    else {}
+                ),
             }
             STATE["media_calls"].append(record)
             STATE["media_reserved_usd"] += reservation
@@ -566,11 +596,15 @@ class Handler(BaseHTTPRequestHandler):
         status, raw, completed = 502, b'{"error":"Unconfirmed media response"}', False
         try:
             with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(
-                request, timeout=120
+                request, timeout=300 if video_grant is not None else 120
             ) as response:
-                raw = bounded_entity(response, 20 * 1024 * 1024)
+                raw = bounded_entity(
+                    response, (64 if video_grant is not None else 20) * 1024 * 1024
+                )
                 status = response.status
-                payload = strict_json(raw)
+                if video_grant is not None:
+                    _video.check_json_structure(raw)
+                payload = strict_json(raw, video=video_grant is not None)
                 if type(payload) is not dict:
                     raise ValueError("Media response must be an object")
                 if generation:
@@ -590,9 +624,34 @@ class Handler(BaseHTTPRequestHandler):
                         and payload.get("model", model) == model
                         and type(payload.get("output")) is list
                     )
+                    if video_grant is not None:
+                        usage = payload.get("usage")
+                        frames = (
+                            usage.get("video_frames_processed") if type(usage) is dict else None
+                        )
+                        completed = (
+                            completed
+                            and payload.get("model") == model
+                            and type(frames) is int
+                            and frames == max(50, video_grant["frames"])
+                        )
+                        if not completed:
+                            raise ValueError(
+                                "Video tracking result did not cover the authorized source"
+                            )
         except urllib.error.HTTPError as exc:
-            status, raw = exc.code, exc.read(65536)
+            completed = False
+            status, raw = (
+                exc.code,
+                (
+                    b'{"error":"Video segmentation request refused"}'
+                    if video_grant is not None
+                    else exc.read(65536)
+                ),
+            )
+            exc.close()
         except (ValueError, OSError, TimeoutError):
+            completed = False
             status, raw = 502, b'{"error":"Unconfirmed media response"}'
         finally:
             with LOCK:
@@ -602,6 +661,115 @@ class Handler(BaseHTTPRequestHandler):
                     STATE["media_estimated_usd"] += reservation
                 else:
                     record["state"] = "uncertain_reservation_retained"
+                save()
+        self.close_connection = True
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def forward_video_text(self, body, data, grant):
+        """A new buffered lane settles the original before exposing its result.
+
+        Ordinary streaming text behavior is unchanged. The full existing text
+        reserve covers video input tokens and reasoning; no separate allowance.
+        """
+        reservation = (1_007_997 * 0.20 + OUTPUT_CAP * 0.40) / 1_000_000
+        with LOCK:
+            if not admission_available(text=reservation):
+                self.local_json(402, {"error": "Combined video understanding budget reached"})
+                return
+            record = {
+                "id": len(STATE["calls"]) + 1,
+                "started_at": time.time(),
+                "path": "/v1/responses",
+                "state": "in_flight",
+                "reservation_usd": reservation,
+                "model": MODEL,
+                "source_sha256": grant["sha256"],
+                "kind": "video",
+            }
+            STATE["calls"].append(record)
+            STATE["reserved_usd"] += reservation
+            save()
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args):
+                return None
+
+        request = urllib.request.Request(
+            "https://api.meta.ai/v1/responses",
+            data=body,
+            headers={
+                "Authorization": self.headers.get("Authorization", ""),
+                "Content-Type": "application/json",
+                "Accept-Encoding": "identity",
+                "x-tbh-contributor-mode": "true",
+            },
+            method="POST",
+        )
+        completed = False
+        raw, status = b'{"error":"Unconfirmed video understanding response"}', 502
+        usage, costs = None, None
+        try:
+            with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect).open(
+                request, timeout=300
+            ) as response:
+                if (
+                    response.status != 200
+                    or response.headers.get("Content-Encoding", "identity").lower() != "identity"
+                    or response.headers.get("Content-Type", "").split(";")[0].lower()
+                    != "application/json"
+                ):
+                    raise ValueError("Invalid video understanding response")
+                raw = bounded_entity(response, 512 * 1024)
+                _video.check_json_structure(raw)
+                payload = strict_json(raw, video=True)
+                if (
+                    type(payload) is not dict
+                    or payload.get("status") != "completed"
+                    or payload.get("model") != MODEL
+                    or type(payload.get("output")) is not list
+                ):
+                    raise ValueError("Unconfirmed video understanding result")
+                usage, costs = measured_usage(payload.get("usage"))
+            # Only after the original upstream close succeeds is the complete
+            # response eligible for native delivery/accounting settlement.
+            completed, status = True, 200
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            exc.close()
+            raw = b'{"error":"Video understanding request refused"}'
+        except Exception:
+            raw = b'{"error":"Unconfirmed video understanding response"}'
+            status = 502
+        finally:
+            with LOCK:
+                record["finished_at"] = time.time()
+                if completed:
+                    record.update(
+                        state="usage_reported",
+                        resolved_model=MODEL,
+                        reported_usage=usage,
+                        contributor_estimated_usd=costs["contributor"],
+                        conservative_estimated_usd=costs["comparison"],
+                        admission_estimated_usd=costs["admission"],
+                    )
+                    STATE["estimated_usd"] += costs["comparison"]
+                    STATE["ordinary_spark_comparison_usd"] = STATE["estimated_usd"]
+                    STATE["admission_estimated_usd"] += costs["admission"]
+                    STATE["contributor_estimated_usd"] += costs["contributor"]
+                    STATE["reported_input_tokens"] += usage["input_tokens"]
+                    STATE["reported_output_tokens"] += usage["output_tokens"]
+                    STATE["reported_cached_tokens"] += usage["input_tokens_details"][
+                        "cached_tokens"
+                    ]
+                    STATE["reserved_usd"] -= reservation
+                    reconcile(STATE)
+                else:
+                    record["state"] = "video_uncertain_reservation_retained"
                 save()
         self.close_connection = True
         self.send_response(status)
@@ -633,6 +801,8 @@ class Handler(BaseHTTPRequestHandler):
         record = None
         try:
             body = self.bounded_body(MAX_VOICE_BODY if voice else 8_000_000)
+            if not voice and _video.contains_video(strict_json(body)):
+                raise ValueError("Video token-count disclosure is not enabled")
             if voice:
                 seconds = voice_request(body, self.headers.get("Content-Type", ""))
             else:
@@ -780,7 +950,11 @@ class Handler(BaseHTTPRequestHandler):
             self.local_json(400, {"error": "Invalid path"})
             return
         try:
-            body = self.bounded_body(8_000_000) if self.command == "POST" else None
+            body = (
+                self.bounded_body(_video.MAX_VIDEO_BODY if VIDEO_GRANTS else 8_000_000)
+                if self.command == "POST"
+                else None
+            )
         except (ValueError, OSError):
             self.local_json(400, {"error": "Invalid bounded request"})
             return
@@ -793,6 +967,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not isinstance(data, dict):
                 self.local_json(400, {"error": "JSON object required"})
+                return
+            try:
+                video_grant = (
+                    _video.video_request(data, VIDEO_GRANTS)
+                    if _video.contains_video(data)
+                    else None
+                )
+            except (ValueError, binascii.Error, UnicodeError):
+                self.local_json(403, {"error": "Exact native video grant required"})
+                return
+            if video_grant is not None and data.get("model") == "sam-3.1":
+                self.forward_media(generation=False, body=body, data=data, video_grant=video_grant)
+                return
+            if video_grant is not None:
+                self.forward_video_text(body, data, video_grant)
                 return
             if data.get("model") == "sam-3.1" and MEDIA_SMOKE:
                 self.forward_media(generation=False, body=body, data=data)
@@ -969,11 +1158,16 @@ def lower_budget_limit(state, requested):
 
 
 def main():
-    global STATE, LEDGER, MEDIA_SMOKE
+    global STATE, LEDGER, MEDIA_SMOKE, VIDEO_GRANTS
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=9790)
     parser.add_argument("--ledger", type=Path, default=LEDGER)
     parser.add_argument("--limit-usd", type=float, help="Tighten the existing combined ceiling")
+    parser.add_argument(
+        "--video-manifest",
+        type=Path,
+        help="Opt in to exact owner-authorized MP4 and prompt digests",
+    )
     parser.add_argument(
         "--enable-media-smoke",
         action="store_true",
@@ -982,6 +1176,9 @@ def main():
     args = parser.parse_args()
     LEDGER = args.ledger
     MEDIA_SMOKE = args.enable_media_smoke
+    VIDEO_GRANTS = (
+        {} if args.video_manifest is None else _video.load_video_grants(args.video_manifest)
+    )
     with ledger_owner(LEDGER):
         STATE = (
             json.loads(LEDGER.read_text())
