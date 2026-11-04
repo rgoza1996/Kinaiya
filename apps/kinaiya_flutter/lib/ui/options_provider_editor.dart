@@ -36,12 +36,26 @@ class _PendingProviderChange {
   String get operation => body['operation'] as String;
 }
 
+class _PendingCustomProviderChange {
+  _PendingCustomProviderChange(this.owner, this.body, this.successNotice);
+  final ProviderApi owner;
+  final Map<String, Object?> body;
+  final String Function(CustomProvidersSnapshot) successNotice;
+  bool inFlight = false, uncertain = false, confirmed = false;
+  String message = 'Saving custom provider (.env) change…';
+  String get key => body['client_operation_id'] as String;
+  String get action => body['action'] as String;
+  int get expectedRevision => body['expected_revision'] as int;
+}
+
 class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   // Unresolved exact requests only, never durable storage. A confirmed receipt
   // removes all body references, including an imported key, even after closure.
   static final _pending = <String, _PendingProviderChange>{};
+  static final _pendingCustom = <String, _PendingCustomProviderChange>{};
   static final _pendingEvents = ValueNotifier<int>(0);
   _PendingProviderChange? _observedPending;
+  _PendingCustomProviderChange? _observedCustomPending;
   final _form = GlobalKey<FormState>();
   final _id = TextEditingController(), _label = TextEditingController();
   final _endpoint = TextEditingController(), _model = TextEditingController();
@@ -62,6 +76,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   ProviderCatalogSnapshot? _catalog;
   CustomProvidersSnapshot _customCatalog =
       const CustomProvidersSnapshot.empty();
+  bool _customCatalogLoaded = false;
   CustomProviderProfile? _editingCustom;
   String? _customRoleReasoningOverride;
   bool _customEnabled = true,
@@ -86,20 +101,30 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       widget.active();
   _PendingProviderChange? get _operation =>
       widget.api == null ? null : _pending[widget.api!.baseUrl];
+  _PendingCustomProviderChange? get _customOperation =>
+      widget.api == null ? null : _pendingCustom[widget.api!.baseUrl];
   bool get _enabled =>
       widget.api != null &&
       widget.active() &&
       _catalog != null &&
       _operation == null &&
-      _pending.length < 16;
+      _customOperation == null &&
+      (_pending.length + _pendingCustom.length) < 16;
 
   @override
   void initState() {
     super.initState();
     _newProfileRequested = widget.startNewProfile;
     _observedPending = _operation;
+    _observedCustomPending = _customOperation;
+    if (_observedCustomPending != null) {
+      _tab = 'custom_apis';
+    }
     _pendingEvents.addListener(_pendingChanged);
     unawaited(_refresh());
+    if (_tab == 'custom_apis') {
+      unawaited(_refreshCustomProviders());
+    }
   }
 
   @override
@@ -112,6 +137,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _customApiKey.clear();
       _catalog = null;
       _customCatalog = const CustomProvidersSnapshot.empty();
+      _customCatalogLoaded = false;
       _editingCustom = null;
       _customDiscoveryBanner = null;
       _error = null;
@@ -120,7 +146,14 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _editing = null;
       _editingCredential = null;
       _observedPending = _operation;
+      _observedCustomPending = _customOperation;
+      if (_observedCustomPending != null) {
+        _tab = 'custom_apis';
+      }
       unawaited(_refresh());
+      if (_tab == 'custom_apis') {
+        unawaited(_refreshCustomProviders());
+      }
     }
   }
 
@@ -163,7 +196,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   void _pendingChanged() {
     if (!mounted || !widget.active()) return;
     final previous = _observedPending, current = _operation, api = widget.api;
+    final previousCustom = _observedCustomPending,
+        currentCustom = _customOperation;
     _observedPending = current;
+    _observedCustomPending = currentCustom;
     setState(() {});
     if (previous != null &&
         current == null &&
@@ -179,6 +215,18 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'Confirmed saved catalog change. Active role state is separate.';
       });
       unawaited(_refresh());
+    }
+    if (previousCustom != null &&
+        currentCustom == null &&
+        previousCustom.confirmed &&
+        api != null &&
+        api.sameOwner(previousCustom.owner)) {
+      setState(() {
+        _screen = 'list';
+        _customApiKey.clear();
+        _editingCustom = null;
+        _notice ??= previousCustom.successNotice(_customCatalog);
+      });
     }
   }
 
@@ -595,6 +643,53 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             onPressed: pending.inFlight || !widget.active()
                 ? null
                 : () => unawaited(_send(pending, api)),
+            child: const Text('Retry same request'),
+          ),
+        ],
+      ),
+    ]);
+  }
+
+  Widget _customPendingPanel(_PendingCustomProviderChange pending) {
+    final api = widget.api!;
+    if (!api.sameOwner(pending.owner)) {
+      return _panel([
+        const Text(
+          'An unresolved custom provider change belongs to another owner connection. Reconnect that owner to reconcile it before editing this endpoint.',
+          key: Key('custom-pending-owner-mismatch'),
+        ),
+      ]);
+    }
+    return _panel([
+      _title(
+        pending.inFlight
+            ? 'Saving custom provider change'
+            : 'Confirm this custom provider change',
+      ),
+      Text(pending.message, key: const Key('custom-pending-message')),
+      Text(
+        'Operation ID: ${pending.key} · Expected revision: ${pending.expectedRevision}',
+        key: const Key('custom-pending-operation-id'),
+      ),
+      const Text(
+        'A timeout does not prove failure. Pending data stays in this app’s memory only.',
+      ),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          OutlinedButton(
+            key: const Key('custom-check-receipt-button'),
+            onPressed: pending.inFlight || !widget.active()
+                ? null
+                : _checkCustomReceipt,
+            child: const Text('Check receipt'),
+          ),
+          FilledButton(
+            key: const Key('custom-retry-request-button'),
+            onPressed: pending.inFlight || !widget.active()
+                ? null
+                : () => unawaited(_sendCustom(pending, api)),
             child: const Text('Retry same request'),
           ),
         ],
@@ -1104,6 +1199,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = snap;
+          _customCatalogLoaded = true;
         });
       }
     } catch (_) {
@@ -1119,6 +1215,170 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         });
       }
     }
+  }
+
+  void _clearCustomPending(_PendingCustomProviderChange pending) {
+    if (identical(_pendingCustom[pending.owner.baseUrl], pending)) {
+      _pendingCustom.remove(pending.owner.baseUrl);
+      pending.body.clear();
+      _pendingEvents.value++;
+    }
+  }
+
+  Future<void> _sendCustom(
+    _PendingCustomProviderChange pending,
+    ProviderApi api,
+  ) async {
+    if (!api.sameOwner(pending.owner) || pending.inFlight) return;
+    final active = widget.active;
+    final wasUncertain = pending.uncertain;
+    final seq = ++_refreshSeq;
+    pending.inFlight = true;
+    _pendingEvents.value++;
+    if (_current(api, active)) {
+      setState(() {
+        _customBusy = true;
+      });
+    }
+    try {
+      final snap = await api.changeCustomProvider(pending.body);
+      if (!snap.matchesOperation(pending.body)) {
+        throw const ProviderFailure(
+          'Custom provider receipt did not match',
+          unconfirmed: true,
+        );
+      }
+      pending.confirmed = true;
+      _clearCustomPending(pending);
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _customCatalog = snap;
+          _customCatalogLoaded = true;
+          _customApiKey.clear();
+          _editingCustom = null;
+          _screen = 'list';
+          _notice = pending.successNotice(snap);
+          _formError = null;
+          _error = null;
+        });
+      }
+    } on ProviderFailure catch (failure) {
+      if (!failure.unconfirmed && !wasUncertain) {
+        _clearCustomPending(pending);
+        if (_current(api, active) && seq == _refreshSeq) {
+          setState(() {
+            final msg = failure.status == 409
+                ? 'Custom provider catalog changed (revision conflict). Refresh and review the current revision before saving again.'
+                : 'Custom API settings were rejected. Verify Base URL (HTTPS or loopback HTTP), endpoint paths, and Model ID.';
+            if (_screen == 'custom_api') {
+              _formError = msg;
+            } else {
+              _error = msg;
+            }
+          });
+        }
+      } else {
+        pending.uncertain = true;
+        pending.message =
+            'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
+      }
+    } catch (_) {
+      pending.uncertain = true;
+      pending.message =
+          'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
+    } finally {
+      pending.inFlight = false;
+      _pendingEvents.value++;
+      if (_current(api, active)) {
+        setState(() {
+          _customBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkCustomReceipt() async {
+    final api = widget.api, pending = _customOperation;
+    final active = widget.active;
+    if (api == null ||
+        pending == null ||
+        pending.inFlight ||
+        !api.sameOwner(pending.owner)) {
+      return;
+    }
+    final seq = ++_refreshSeq;
+    pending.inFlight = true;
+    _pendingEvents.value++;
+    setState(() {
+      _customBusy = true;
+    });
+    try {
+      final receipt = await api.customReceipt(pending.key);
+      if (receipt.found && receipt.status == 'committed') {
+        if (!receipt.matches(pending.body)) throw const FormatException();
+        pending.confirmed = true;
+        _clearCustomPending(pending);
+        if (_current(api, active) && seq == _refreshSeq) {
+          setState(() {
+            _customCatalog = receipt.snapshot;
+            _customCatalogLoaded = true;
+            _customApiKey.clear();
+            _editingCustom = null;
+            _screen = 'list';
+            _notice = pending.successNotice(receipt.snapshot);
+            _formError = null;
+            _error = null;
+          });
+        }
+      } else {
+        pending.message =
+            'No committed receipt is visible yet (host revision ${receipt.currentRevision}). The earlier request may still commit; retry only this same request.';
+      }
+    } on ProviderFailure catch (failure) {
+      pending.message = failure.status == 404
+          ? 'No committed receipt is visible yet. The earlier request may still commit; retry only this same request.'
+          : 'Custom provider receipt inspection is unavailable. The save outcome remains unconfirmed.';
+    } catch (_) {
+      pending.message =
+          'Custom provider receipt did not establish this save. Keep the exact request for reconciliation.';
+    } finally {
+      pending.inFlight = false;
+      _pendingEvents.value++;
+      if (_current(api, active)) {
+        setState(() {
+          _customBusy = false;
+        });
+      }
+    }
+  }
+
+  void _beginCustom(
+    Map<String, Object?> fields, {
+    required String Function(CustomProvidersSnapshot) successNotice,
+    int? capturedRevision,
+  }) {
+    final api = widget.api;
+    if (api == null ||
+        !_enabled ||
+        _customBusy ||
+        !_customCatalogLoaded ||
+        _customCatalog.revision >= providerMaxRevision) {
+      return;
+    }
+    final expectedRevision = capturedRevision ?? _customCatalog.revision;
+    final body = <String, Object?>{
+      ...fields,
+      'expected_revision': expectedRevision,
+      'client_operation_id': const Uuid().v4(),
+    };
+    final pending = _PendingCustomProviderChange(api, body, successNotice);
+    _pendingCustom[api.baseUrl] = pending;
+    _pendingEvents.value++;
+    _customApiKey.clear();
+    _notice = null;
+    _formError = null;
+    _error = null;
+    unawaited(_sendCustom(pending, api));
   }
 
   void _customApiForm([CustomProviderProfile? profile]) {
@@ -1148,8 +1408,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
 
   Future<void> _saveCustomApi() async {
     final api = widget.api;
-    final active = widget.active;
-    if (api == null || !_enabled || _customBusy) return;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
     final name = _customName.text.trim();
     final baseUrl = _customBaseUrl.text.trim();
     final chatPath = _customChatPath.text.trim().isEmpty
@@ -1181,105 +1442,61 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       setState(() => _formError = 'Enter an OpenAI-Compatible Base URL.');
       return;
     }
-    final seq = ++_refreshSeq;
-    setState(() {
-      _customBusy = true;
-      _formError = null;
-      _error = null;
-    });
-    try {
-      final editing = _editingCustom;
-      final payload = editing == null
-          ? <String, Object?>{
-              'action': 'add_custom_provider',
-              'name': name,
-              'base_url': baseUrl,
-              'chat_completions_path': chatPath,
-              'models_path': modelsPath,
-              'custom_endpoints': customEndpoints,
-              'max_output_tokens': maxOutputTokens,
-              'api_key': apiKey,
-              'enabled': _customEnabled,
-              'selected_model': modelId,
-              'allow_remote_http': _customAllowRemoteHttp,
-            }
-          : <String, Object?>{
-              'action': 'update_custom_provider',
-              'profile_id': editing.profileId,
-              'name': name,
-              'base_url': baseUrl,
-              'chat_completions_path': chatPath,
-              'models_path': modelsPath,
-              'custom_endpoints': customEndpoints,
-              'max_output_tokens': maxOutputTokens,
-              'clear_max_output_tokens': maxOutputTokens == null,
-              if (apiKey.isNotEmpty) 'api_key': apiKey,
-              'clear_api_key': _customClearKey,
-              'enabled': _customEnabled,
-              'selected_model': modelId,
-              'allow_remote_http': _customAllowRemoteHttp,
-            };
-      final snap = await api.changeCustomProvider(payload);
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _customCatalog = snap;
-          _customApiKey.clear();
-          _editingCustom = null;
-          _screen = 'list';
-          _notice = editing == null
-              ? 'Saved custom API "$name" to ${snap.envFileName} (0600).'
-              : 'Updated custom API "$name" in ${snap.envFileName} (0600).';
-        });
-      }
-    } catch (_) {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _formError =
-              'Custom API settings were rejected. Verify Base URL (HTTPS or loopback HTTP), endpoint paths, and Model ID.';
-        });
-      }
-    } finally {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() => _customBusy = false);
-      }
-    }
+    final editing = _editingCustom;
+    final payload = editing == null
+        ? <String, Object?>{
+            'action': 'add_custom_provider',
+            'name': name,
+            'base_url': baseUrl,
+            'chat_completions_path': chatPath,
+            'models_path': modelsPath,
+            'custom_endpoints': customEndpoints,
+            'max_output_tokens': maxOutputTokens,
+            'api_key': apiKey,
+            'enabled': _customEnabled,
+            'selected_model': modelId,
+            'allow_remote_http': _customAllowRemoteHttp,
+          }
+        : <String, Object?>{
+            'action': 'update_custom_provider',
+            'profile_id': editing.profileId,
+            'name': name,
+            'base_url': baseUrl,
+            'chat_completions_path': chatPath,
+            'models_path': modelsPath,
+            'custom_endpoints': customEndpoints,
+            'max_output_tokens': maxOutputTokens,
+            'clear_max_output_tokens': maxOutputTokens == null,
+            if (apiKey.isNotEmpty) 'api_key': apiKey,
+            'clear_api_key': _customClearKey,
+            'enabled': _customEnabled,
+            'selected_model': modelId,
+            'allow_remote_http': _customAllowRemoteHttp,
+          };
+    _beginCustom(
+      payload,
+      successNotice: (snap) => editing == null
+          ? 'Saved custom API "$name" to ${snap.envFileName} (0600).'
+          : 'Updated custom API "$name" in ${snap.envFileName} (0600).',
+    );
   }
 
   Future<void> _setGlobalReasoningEffort(String effort) async {
-    final api = widget.api;
-    final active = widget.active;
-    if (api == null || !_enabled || _customBusy) return;
-    final seq = ++_refreshSeq;
-    setState(() => _customBusy = true);
-    try {
-      final snap = await api.changeCustomProvider({
-        'action': 'set_global_reasoning_effort',
-        'reasoning_effort': effort,
-      });
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _customCatalog = snap;
-          _notice = 'Updated global reasoning effort to $effort.';
-        });
-      }
-    } catch (_) {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _error = 'Could not update global reasoning effort.';
-        });
-      }
-    } finally {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() => _customBusy = false);
-      }
-    }
+    _beginCustom(<String, Object?>{
+      'action': 'set_global_reasoning_effort',
+      'reasoning_effort': effort,
+    }, successNotice: (_) => 'Updated global reasoning effort to $effort.');
   }
 
   Future<void> _discoverCustomModels(CustomProviderProfile profile) async {
     final api = widget.api;
     final active = widget.active;
-    if (api == null || !_enabled || _customBusy) return;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
     final seq = ++_refreshSeq;
+    final capturedRev = _customCatalog.revision;
+    final opId = const Uuid().v4();
     setState(() {
       _customBusy = true;
       _error = null;
@@ -1287,10 +1504,15 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           'Querying GET ${profile.baseUrl}${profile.modelsPath} for ${profile.name}…';
     });
     try {
-      final result = await api.discoverCustomModels(profile.profileId);
+      final result = await api.discoverCustomModels(
+        profile.profileId,
+        expectedRevision: capturedRev,
+        clientOperationId: opId,
+      );
       if (_current(api, active) && seq == _refreshSeq) {
         setState(() {
           _customCatalog = result.snapshot;
+          _customCatalogLoaded = true;
           _customDiscoveryBanner = result.message;
           final refreshed = result.snapshot.profiles
               .where((p) => p.profileId == profile.profileId)
@@ -1323,35 +1545,15 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     CustomProviderProfile profile,
     bool enabled,
   ) async {
-    final api = widget.api;
-    final active = widget.active;
-    if (api == null || !_enabled || _customBusy) return;
-    final seq = ++_refreshSeq;
-    setState(() => _customBusy = true);
-    try {
-      final snap = await api.changeCustomProvider({
+    _beginCustom(
+      <String, Object?>{
         'action': 'set_custom_provider_enabled',
         'profile_id': profile.profileId,
         'enabled': enabled,
-      });
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _customCatalog = snap;
-          _notice =
-              '${profile.name} (${profile.profileId}) is now ${enabled ? 'enabled' : 'disabled'}.';
-        });
-      }
-    } catch (_) {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _error = 'Could not update enabled state for ${profile.name}.';
-        });
-      }
-    } finally {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() => _customBusy = false);
-      }
-    }
+      },
+      successNotice: (_) =>
+          '${profile.name} (${profile.profileId}) is now ${enabled ? 'enabled' : 'disabled'}.',
+    );
   }
 
   Future<void> _bindCustomRole(
@@ -1359,8 +1561,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     String role,
   ) async {
     final api = widget.api;
-    final active = widget.active;
-    if (api == null || !_enabled || _customBusy) return;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
     final modelId = profile.selectedModel.trim().isNotEmpty
         ? profile.selectedModel.trim()
         : (profile.discoveredModels.isNotEmpty
@@ -1373,35 +1576,18 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       });
       return;
     }
-    final seq = ++_refreshSeq;
-    setState(() => _customBusy = true);
-    try {
-      final snap = await api.changeCustomProvider({
+    _beginCustom(
+      <String, Object?>{
         'action': 'bind_custom_role_model',
         'role': role,
         'profile_id': profile.profileId,
         'model_id': modelId,
         if (_customRoleReasoningOverride != null)
           'reasoning_effort': _customRoleReasoningOverride,
-      });
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _customCatalog = snap;
-          _notice =
-              'Saved proposed $role selection for ${profile.name} (${profile.profileId}:$modelId) · proposed_unavailable pending native role-runtime admission.';
-        });
-      }
-    } catch (_) {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() {
-          _error = 'Could not bind ${profile.name} to $role.';
-        });
-      }
-    } finally {
-      if (_current(api, active) && seq == _refreshSeq) {
-        setState(() => _customBusy = false);
-      }
-    }
+      },
+      successNotice: (_) =>
+          'Saved proposed $role selection for ${profile.name} (${profile.profileId}:$modelId) · proposed_unavailable pending native role-runtime admission.',
+    );
   }
 
   Future<void> _removeCustomProfile(
@@ -1415,7 +1601,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   }) async {
     final api = widget.api;
     final generation = widget.active;
-    if (api == null || !_enabled || _customBusy) return;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
     final capturedRevision = _customCatalog.revision;
     final capturedStateSha256 = _customCatalog.stateSha256;
     final capturedProfileId = profile.profileId;
@@ -1449,7 +1637,12 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         ),
       );
       if (approve != true || !mounted) return;
-      if (!_current(api, generation) || !_enabled || _customBusy) return;
+      if (!_current(api, generation) ||
+          !_enabled ||
+          _customBusy ||
+          !_customCatalogLoaded) {
+        return;
+      }
       final currentProfile = _customCatalog.profiles
           .where((p) => p.profileId == capturedProfileId)
           .firstOrNull;
@@ -1467,33 +1660,16 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       }
       confirmed = true;
     }
-    final seq = ++_refreshSeq;
-    setState(() => _customBusy = true);
-    try {
-      final snap = await api.changeCustomProvider({
+    _beginCustom(
+      <String, Object?>{
         'action': 'remove_custom_provider',
         'profile_id': capturedProfileId,
         'confirm_referenced': confirmed,
-        if (capturedRevision > 0) 'expected_revision': capturedRevision,
-      });
-      if (_current(api, generation) && seq == _refreshSeq) {
-        setState(() {
-          _customCatalog = snap;
-          _notice =
-              'Removed $capturedName ($capturedProfileId). Remaining profile IDs were not renumbered.';
-        });
-      }
-    } catch (_) {
-      if (_current(api, generation) && seq == _refreshSeq) {
-        setState(() {
-          _error = 'Could not remove custom provider $capturedName.';
-        });
-      }
-    } finally {
-      if (_current(api, generation) && seq == _refreshSeq) {
-        setState(() => _customBusy = false);
-      }
-    }
+      },
+      capturedRevision: capturedRevision,
+      successNotice: (_) =>
+          'Removed $capturedName ($capturedProfileId). Remaining profile IDs were not renumbered.',
+    );
   }
 
   Widget _customApiEditor() {
@@ -1948,6 +2124,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   @override
   Widget build(BuildContext context) {
     final operation = _operation;
+    final customOperation = _customOperation;
     return Material(
       type: MaterialType.transparency,
       child: Column(
@@ -1975,7 +2152,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                       ),
                     ],
                     selected: {_tab},
-                    onSelectionChanged: operation == null
+                    onSelectionChanged:
+                        operation == null && customOperation == null
                         ? (values) {
                             final nextTab = values.single;
                             setState(() {
@@ -2017,6 +2195,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             _pendingPanel(operation),
             const SizedBox(height: 16),
           ],
+          if (customOperation != null) ...[
+            _customPendingPanel(customOperation),
+            const SizedBox(height: 16),
+          ],
           if (_notice != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
@@ -2038,7 +2220,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   : 'Provider management is unavailable on this host.',
             )
           else ...[
-            if (_pending.length >= 16 && operation == null)
+            if ((_pending.length + _pendingCustom.length) >= 16 &&
+                operation == null &&
+                customOperation == null)
               const Text(
                 'The app retains its maximum unresolved endpoint changes. Reconcile those requests before saving another endpoint.',
               ),
