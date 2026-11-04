@@ -52,6 +52,83 @@ class ProviderApi {
   Future<ProviderCatalogSnapshot> inspect() =>
       _request('GET', '/v1/providers', null, ProviderCatalogSnapshot.fromJson);
 
+  Future<CustomProvidersSnapshot> inspectCustomProviders() => _request(
+    'GET',
+    '/v1/providers/custom',
+    null,
+    CustomProvidersSnapshot.fromJson,
+  );
+
+  Future<CustomProvidersSnapshot> changeCustomProvider(
+    Map<String, Object?> request,
+  ) {
+    Map<String, Object?> body;
+    try {
+      body = jsonDecode(jsonEncode(request)) as Map<String, Object?>;
+    } catch (_) {
+      throw const ProviderFailure('Invalid custom provider change');
+    }
+    if (body['expected_revision'] is! int ||
+        (body['expected_revision'] as int) < 0 ||
+        (body['expected_revision'] as int) >= providerMaxRevision ||
+        body['client_operation_id'] is! String ||
+        !RegExp(
+          r'^[A-Za-z0-9:._-]{1,128}$',
+        ).hasMatch(body['client_operation_id'] as String) ||
+        !customProviderActions.contains(body['action'])) {
+      throw const ProviderFailure('Invalid custom provider change');
+    }
+    return _request('POST', '/v1/providers/custom', body, (value) {
+      final snap = CustomProvidersSnapshot.fromJson(value);
+      if (!snap.matchesOperation(body)) throw const FormatException();
+      return snap;
+    }).whenComplete(() {
+      body.remove('api_key');
+    });
+  }
+
+  Future<CustomProviderReceiptResult> customReceipt(String key) {
+    if (!RegExp(r'^[A-Za-z0-9:._-]{1,128}$').hasMatch(key)) {
+      throw const ProviderFailure('Invalid custom provider receipt key');
+    }
+    return _request(
+      'GET',
+      '/v1/providers/custom/receipts/${Uri.encodeComponent(key)}',
+      null,
+      CustomProviderReceiptResult.fromJson,
+    );
+  }
+
+  Future<CustomModelsDiscoveryResult> discoverCustomModels(
+    String profileId, {
+    int? expectedRevision,
+    String? clientOperationId,
+  }) {
+    final clean = profileId.trim().toLowerCase();
+    if (!RegExp(r'^p[0-9]{2,6}$').hasMatch(clean)) {
+      throw const ProviderFailure('Invalid custom provider ID');
+    }
+    if (expectedRevision != null &&
+        (expectedRevision < 0 || expectedRevision >= providerMaxRevision)) {
+      throw const ProviderFailure('Invalid custom provider discovery revision');
+    }
+    if (clientOperationId != null &&
+        !RegExp(r'^[A-Za-z0-9:._-]{1,128}$').hasMatch(clientOperationId)) {
+      throw const ProviderFailure(
+        'Invalid custom provider discovery operation ID',
+      );
+    }
+    return _request(
+      'POST',
+      '/v1/providers/custom/${Uri.encodeComponent(clean)}/discover',
+      <String, Object?>{
+        if (expectedRevision != null) 'expected_revision': expectedRevision,
+        if (clientOperationId != null) 'client_operation_id': clientOperationId,
+      },
+      CustomModelsDiscoveryResult.fromJson,
+    );
+  }
+
   Future<ProviderChangeReceipt> change(Map<String, Object?> request) {
     // Detach exactly once; this contains a key only for an explicit import.
     // Request bodies and failure details are never interpolated into errors.
