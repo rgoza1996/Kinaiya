@@ -1451,9 +1451,10 @@ class AppState extends ChangeNotifier {
               fetched.sessionId != session.sessionId ||
               fetched.threadId != session.threadId ||
               fetched.epoch != session.epoch ||
-              !const {'authenticated-user', 'converse'}.contains(
-                fetched.origin,
-              ) ||
+              !const {
+                'authenticated-user',
+                'converse',
+              }.contains(fetched.origin) ||
               targetId is! String ||
               fetched.payload['revision'] !=
                   receipt.payload['source_revision']) {

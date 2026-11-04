@@ -118,12 +118,10 @@ class ConverseHandoffTracker {
 
   void _bound() {
     while (_sources.length > 256) {
-      final pinned = _pending.values
-          .map((entry) {
-            final raw = entry.payload['source_event_id'];
-            return raw is String ? (_revisionTargets[raw] ?? raw) : raw;
-          })
-          .toSet();
+      final pinned = _pending.values.map((entry) {
+        final raw = entry.payload['source_event_id'];
+        return raw is String ? (_revisionTargets[raw] ?? raw) : raw;
+      }).toSet();
       final old = _sources.keys.firstWhere((id) => !pinned.contains(id));
       _sources.remove(old);
       _revisionTargets.removeWhere((_, target) => target == old);
