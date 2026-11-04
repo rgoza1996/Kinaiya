@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "MediaOwnedWorkerPeer": {
+      "additionalProperties": false,
+      "properties": {
+        "instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Instance",
+          "type": "string"
+        },
+        "kind": {
+          "const": "owned_worker",
+          "title": "Kind",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "instance",
+        "request_sha256"
+      ],
+      "title": "MediaOwnedWorkerPeer",
+      "type": "object"
+    },
+    "MediaReceipt_MediaOwnedWorkerPeer_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaOwnedWorkerPeer"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaOwnedWorkerPeer]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaOwnedWorkerPeer_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaOwnedWorkerPeer]",
+  "type": "object"
+}

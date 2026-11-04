@@ -1,0 +1,468 @@
+{
+  "version": 1,
+  "recorded_utc": "2026-11-03T23:37:41.916764+00:00",
+  "status": "focused local qualification; changed-head CI and native integration pending",
+  "issues": [
+    359,
+    379,
+    434,
+    357
+  ],
+  "pull_request": 375,
+  "qualified_source_commit": "c6ea7e08d9d47fd4b543f8eed98cb768665d7ff9",
+  "source_pins": {
+    "packages/providers/llama_media.py": "86852f91ab917f3a99af98031f38d451ace27422912ff2aef86378594b00cd15",
+    "services/decisions/media_classifier.py": "a3749cc648b9cfb86ba5fd3f7cc09573f651cce6e54fb4152f66b1e7ce35dd74",
+    "tests/unit/test_llama_media.py": "536a68aee4cc56944b7158236d33f79725a6b8c3253cbe37bb8b296fd28527e3",
+    "tests/unit/test_llama_media_final_fence.py": "85ac1fce59f44d6952ea56783911a9449482c6784f5c4e84fc23784007df03fb",
+    "tests/unit/test_media_preallocation_guards.py": "86c51687bd7d509a66d53a9139e2b3b5b394af4c827756418ee4ea72ff1915a6",
+    "tests/unit/test_decisions_media_classifier.py": "3a25b7c40dd516f6a7995252555ad2fe2f7568073a9edd4dad31fceee84168fe",
+    "docs/native-llama-media-transport.md": "9be7e2521633b4b80e72e34a631105df574ae41357156eb84cf903e50139ceea"
+  },
+  "integration": {
+    "original_public_transport": "3893b299e33570896a19d61ac2c9aaf0d05d716c",
+    "return_fence_commit": "98ec0a670d3c4b910613c8be44fda1f87ba1ff29",
+    "native_session_feature": "6ec5759e712e93500a8d7ba8ce5870f64bb46608",
+    "main_composed": "b7714668417334e53398bea4a8c659dbe2551133",
+    "normal_merges": [
+      "6d3a365edca76113e94d2535354a4d7eae20d0c0",
+      "2dbefd41f417cb878503cb916acbf04006909213"
+    ],
+    "input_guard_commit": "c6ea7e08d9d47fd4b543f8eed98cb768665d7ff9",
+    "five_transport_feature_files_preserved_through_normal_composition": true
+  },
+  "behavior": {
+    "return_fence": "Verify same original settlement once, then current/source+new cancellation+original absolute timeout before first consumer-disposition publication and usable return, without another await. Keep verified physical bundle independent of late consumer result. Propagating settlement cancellation retains same original as unknown/proof-none without retry. Registration suppressing new cancellation is rejected before HTTP while same native ownership remains conservative.",
+    "input_guard": "Decode already bounded raw snapshot first. Compare only exact builtin JSON along bounded decoded blueprint, retaining recursive body key order and signed-zero identity. No serialization/encoding/copy or custom equality of independent caller graph. Questions retain recursively unordered matching. Existing canonical/schema/provenance/transport/caps remain.",
+    "explicit_refusal_domain_changes": [
+      "Raw dictionary task descriptions over16000 characters now raise ProviderRefusal before full normalization, refusing whole projection and preserving associations. Within limit, old whitespace collapse/360-prefix/None/result validation remain, including ignored invalid suffixes.",
+      "Nested Python subclasses/custom objects in independent prepared graphs are refused rather than invoking caller hooks."
+    ]
+  },
+  "runs": [
+    {
+      "label": "379_original",
+      "directory_name": "379-final-fence-original-v1-tnvvj7yw",
+      "source_commit": "442c0bb44c834d72ed75f8ffd9055b940ba5dd75",
+      "source_tree": "fb1ee6148512920a7091538ff2ffba7c038abd19",
+      "targets": [
+        "tests/unit/test_llama_media_final_fence.py"
+      ],
+      "command": [
+        "python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_llama_media_final_fence.py",
+        "--basetemp=<isolated-run-directory>/pytest-tmp",
+        "--junitxml=<isolated-run-directory>/junit.xml"
+      ],
+      "exit_code": 1,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "12",
+          "skipped": "0",
+          "tests": "14",
+          "time": "10.454"
+        }
+      ],
+      "elapsed_wall_s": 10.888293633001012,
+      "tracked_input_count": 1700,
+      "inputs_stable": true,
+      "scope": "provider+controlled HTTPX and protocol bridge fixture; original cancellation/currentness/deadline regression",
+      "manifest_sha256": "f383a87c0ea7600cb4ddf28e130c6bd158a25ee078dab64fc09ae85859e48fab",
+      "payload_sha256": {
+        "junit.xml": "8615b80b4ac8ba46b14824ebc0ef60e9236083f543415e7a700761166aff0af2",
+        "post-pins.json": "f780b061e9df5fa33372fe4edc86de93e06a03dd1853cba6a370e52ddb6f016a",
+        "pre-pins.json": "f780b061e9df5fa33372fe4edc86de93e06a03dd1853cba6a370e52ddb6f016a",
+        "pytest.log": "e70ec9833a00ec10be3de9bfca54182637087de3e9d70fb311d1424e1bcd58f3",
+        "receipt.json": "abd59fb512968410fcc62272e384aef212e28ad320a76c61d0d1b5833a855328",
+        "runner.py": "c4855dd9f3e1e2c2d39d7ebfb9b3d760c36bae0c8726884a54a383a989c0f637",
+        "start.json": "bef968adf5476e25ec3ff17b8fa51d5fad3bbe5d7b878220201919d85ad5be1b"
+      },
+      "retained_failures": [
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[suppressed_cancel-converse_chat]",
+          "message": "Failed: DID NOT RAISE CancelledError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[suppressed_cancel-decisions_systemone]",
+          "message": "Failed: DID NOT RAISE CancelledError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[deadline-converse_chat]",
+          "message": "Failed: DID NOT RAISE LlamaMediaTimeoutError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[deadline-decisions_systemone]",
+          "message": "Failed: DID NOT RAISE LlamaMediaTimeoutError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[revoked-converse_chat]",
+          "message": "Failed: DID NOT RAISE ProviderError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[revoked-decisions_systemone]",
+          "message": "Failed: DID NOT RAISE ProviderError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[current_cancels-converse_chat]",
+          "message": "Failed: DID NOT RAISE CancelledError"
+        },
+        {
+          "name": "test_returned_final_bundle_cannot_bypass_cancellation_deadline_or_currentness[current_cancels-decisions_systemone]",
+          "message": "Failed: DID NOT RAISE CancelledError"
+        },
+        {
+          "name": "test_final_settlement_cancellation_without_bundle_retains_original_unknown[converse_chat]",
+          "message": "assert (None is not None)"
+        },
+        {
+          "name": "test_final_settlement_cancellation_without_bundle_retains_original_unknown[decisions_systemone]",
+          "message": "assert (None is not None)"
+        },
+        {
+          "name": "test_new_cancellation_suppressed_by_registration_never_reaches_original_http[converse_chat]",
+          "message": "AssertionError: assert [<Request('PO...load=false')>] == []"
+        },
+        {
+          "name": "test_new_cancellation_suppressed_by_registration_never_reaches_original_http[decisions_systemone]",
+          "message": "AssertionError: assert [<Request('PO...load=false')>] == []"
+        }
+      ]
+    },
+    {
+      "label": "379_local",
+      "directory_name": "379-final-fence-candidate-v1-tzwq8nip",
+      "source_commit": "98ec0a670d3c4b910613c8be44fda1f87ba1ff29",
+      "source_tree": "28489f629262f6b3cbec27443e5cd3b0d01e4894",
+      "targets": [
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_llama_media.py"
+      ],
+      "command": [
+        "python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_llama_media.py",
+        "--basetemp=<isolated-run-directory>/pytest-tmp",
+        "--junitxml=<isolated-run-directory>/junit.xml"
+      ],
+      "exit_code": 0,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "47",
+          "time": "10.762"
+        }
+      ],
+      "elapsed_wall_s": 11.208630598999662,
+      "tracked_input_count": 1700,
+      "inputs_stable": true,
+      "scope": "provider+controlled HTTPX and protocol bridge fixture",
+      "manifest_sha256": "b05a5a63de5a01dc6c0abfc14e6b193d758568ab561ba468c2b02fe1b257f399",
+      "payload_sha256": {
+        "junit.xml": "89b694b28c818d0adcab5fd511dd0aa72734753f906418ded8c92227801ec339",
+        "post-pins.json": "5aec5cf507672ffbb47fdba4c6a3563d816b56fbe70bff7a389db4f8293a0e99",
+        "pre-pins.json": "5aec5cf507672ffbb47fdba4c6a3563d816b56fbe70bff7a389db4f8293a0e99",
+        "pytest.log": "333e31f55aed61760dc2a219dbc331644adb63d5e34510648c5a04423c079a32",
+        "receipt.json": "0f82ef233bed6ee991c1fff280e5a2b06d3832d4db2677a3aa720aadc676fdfc",
+        "runner.py": "c4855dd9f3e1e2c2d39d7ebfb9b3d760c36bae0c8726884a54a383a989c0f637",
+        "start.json": "e9af8d13c4eb1d869433fa3f4e5cd8324893c708dbb5abcc8c2abfbd84577ca1"
+      },
+      "retained_failures": []
+    },
+    {
+      "label": "379_current_composition",
+      "directory_name": "379-current-composed-provider-v1-h9r4tiok",
+      "source_commit": "2dbefd41f417cb878503cb916acbf04006909213",
+      "source_tree": "dc4022ae813b318041ebb80e3ee2efc3734e5179",
+      "targets": [
+        "tests/unit/test_llama_media.py",
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/unit/test_media_contracts.py"
+      ],
+      "command": [
+        "python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_llama_media.py",
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/unit/test_media_contracts.py",
+        "--basetemp=<isolated-run-directory>/pytest-tmp",
+        "--junitxml=<isolated-run-directory>/junit.xml"
+      ],
+      "exit_code": 0,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "193",
+          "time": "11.169"
+        }
+      ],
+      "elapsed_wall_s": 11.571478342000773,
+      "tracked_input_count": 1822,
+      "inputs_stable": true,
+      "scope": "provider/classifier/native-d1/media-contract focused suite on current Session+main composition",
+      "manifest_sha256": "34cf9b0d13886da99a78a863a27eedf8cb1e54f4f4071f93fbe186b51e707802",
+      "payload_sha256": {
+        "junit.xml": "212d07835e4db2be335a6d956b96da4981a65e839beb4162c0794518079b1a27",
+        "post-pins.json": "eceae3a2cb84f069bf7af25f46b03023bf504dc401e679590068828644751c60",
+        "pre-pins.json": "eceae3a2cb84f069bf7af25f46b03023bf504dc401e679590068828644751c60",
+        "pytest.log": "f8279a4de24df7bc5245c44b8a3a18925e04161ab7d4e10a1211ff79ab641f7d",
+        "receipt.json": "556513ba446bc39dea6aafdaf0f26297e4b448173151b001d97b653dae7bc7af",
+        "runner.py": "c4855dd9f3e1e2c2d39d7ebfb9b3d760c36bae0c8726884a54a383a989c0f637",
+        "start.json": "b12108720bad3b00b4f149ba889d7647d42f42af9d2279e94698514d5fde07a7"
+      },
+      "retained_failures": []
+    },
+    {
+      "label": "434_original",
+      "directory_name": "434-preallocation-original-v1-yzjq5atq",
+      "source_commit": "a756a93e42651cfb87729ae67cddba0bd9a22acd",
+      "source_tree": "6a5edbbdd47cc4c1e3dae065fa5186b92d7fb1a9",
+      "targets": [
+        "tests/unit/test_media_preallocation_guards.py"
+      ],
+      "command": [
+        "python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_media_preallocation_guards.py",
+        "--basetemp=<isolated-run-directory>/pytest-tmp",
+        "--junitxml=<isolated-run-directory>/junit.xml"
+      ],
+      "exit_code": 1,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "10",
+          "skipped": "0",
+          "tests": "16",
+          "time": "0.452"
+        }
+      ],
+      "elapsed_wall_s": 0.8956508870014659,
+      "tracked_input_count": 1823,
+      "inputs_stable": true,
+      "scope": "pure prepared validation/public state projection; actual encoder and calibrated native str.split observation, no HTTP invocation",
+      "manifest_sha256": "77b30d67752def4075466e73fd6cb5119802a923dbcb6a3f1fa41845b1f4a35e",
+      "payload_sha256": {
+        "junit.xml": "eaf2ef74c6f6b07ab9fd2147e9f2e60df432c84a80a96f8043231907ce278f6f",
+        "post-pins.json": "2fe9c0db736fad7d72e32d48803ef1ae92f7d523976548b1532905f112c64957",
+        "pre-pins.json": "2fe9c0db736fad7d72e32d48803ef1ae92f7d523976548b1532905f112c64957",
+        "pytest.log": "1f5470bc2a780c2f0c080448afbd88b24b9ceccd2cb6e8af2e0bf4c157c539b8",
+        "receipt.json": "e80a0878fdc58bf78d43011a7d0cced909873fd4bfedfeac0c0f87f9bc418c29",
+        "runner.py": "c4855dd9f3e1e2c2d39d7ebfb9b3d760c36bae0c8726884a54a383a989c0f637",
+        "start.json": "1665f88d13b561b2db96afe7a608f466c6ce2fc4008665c60fec99dde9209788"
+      },
+      "retained_failures": [
+        {
+          "name": "test_small_valid_raw_rejects_oversized_independent_leaf_before_encoding[converse_chat]",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_small_valid_raw_rejects_oversized_independent_leaf_before_encoding[decisions_systemone]",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_nested_cycle_is_rejected_by_raw_blueprint_without_encoding_it[converse_chat]",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_nested_cycle_is_rejected_by_raw_blueprint_without_encoding_it[decisions_systemone]",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_nested_nonbuiltin_values_are_closed_before_encoding_or_equality[object]",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_nested_nonbuiltin_values_are_closed_before_encoding_or_equality[str-subclass]",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_body_dictionary_order_is_checked_recursively_without_encoding_caller",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_float_signed_zero_in_independent_body_is_not_equal_to_raw_positive_zero",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_raw_canonicality_still_refuses_whitespace_with_matching_raw_digest",
+          "message": "AssertionError: Independent caller graph reached the JSON encoder"
+        },
+        {
+          "name": "test_over_raw_description_limit_refuses_whole_projection_before_actual_split",
+          "message": "AssertionError: Over-limit raw task description was split before refusal"
+        }
+      ]
+    },
+    {
+      "label": "434_current_composition",
+      "directory_name": "434-preallocation-current-composed-v1-lxk3zklu",
+      "source_commit": "c6ea7e08d9d47fd4b543f8eed98cb768665d7ff9",
+      "source_tree": "162c434d2c9d2776f2a05b9099305d51a9577a4f",
+      "targets": [
+        "tests/unit/test_llama_media.py",
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_media_preallocation_guards.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/unit/test_media_contracts.py"
+      ],
+      "command": [
+        "python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/unit/test_llama_media.py",
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_media_preallocation_guards.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/unit/test_media_contracts.py",
+        "--basetemp=<isolated-run-directory>/pytest-tmp",
+        "--junitxml=<isolated-run-directory>/junit.xml"
+      ],
+      "exit_code": 0,
+      "junit_suites": [
+        {
+          "name": "pytest",
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "209",
+          "time": "11.224"
+        }
+      ],
+      "elapsed_wall_s": 11.651359087998571,
+      "tracked_input_count": 1824,
+      "inputs_stable": true,
+      "scope": "combined provider/controlledHTTPX plus pure input validation/classifier/native-d1/media-contract focused suite",
+      "manifest_sha256": "ef0bdfea94a0b607d3b97ee395661866de4fb7f6769ae667ca3346c8cd615689",
+      "payload_sha256": {
+        "junit.xml": "1a3fcd4ce0dfeca864ffac80e7ce6cc0f1ff91f5f685d96fa34e981eb53a1192",
+        "post-pins.json": "4e27a7e4891f27663d3423ccbae5321aefd83abf619c18db214e6ba15e818b87",
+        "pre-pins.json": "4e27a7e4891f27663d3423ccbae5321aefd83abf619c18db214e6ba15e818b87",
+        "pytest.log": "3d08885a33a614cc4b3f0940af1af93fa804c5244129e0fca42bedba3eaf066d",
+        "receipt.json": "b56c1530b87c25991eba4eb973a8aab00f02881fd34a214fe0fc799f89553bcc",
+        "runner.py": "c4855dd9f3e1e2c2d39d7ebfb9b3d760c36bae0c8726884a54a383a989c0f637",
+        "start.json": "61befd351f0e36bba0f03ce8e609957233311b4abb3fdd4331f52e89e934bc96"
+      },
+      "retained_failures": []
+    }
+  ],
+  "overlap": "47 and193 and209 share existing cases; do not add totals. New434 sixteen IDs occur in209; new379 fourteen IDs occur in47/193/209. Cold runs intentionally retain selected failures and healthy controls.",
+  "source_review": {
+    "379": "Independent C actual source gate a500d650 before new oracle body read/execution; D independent raw47/cold gate with no implementation/oracle authorship.",
+    "434": "Independent C actual source gate86852f91/a3749cc6 before root new oracle body read/execution; B authored tests from frozen2db after requirement freeze and without prospective source/Muse output. Root quality-reviewed all16 before execution.",
+    "current_raw": {
+      "disposition": "GO for bounded publication; source-aware C authored neither implementation nor oracle and ran no project code",
+      "report_sha256": "be512d9eba8c29689efb1f4daa77e0c4b6668f4eff591bd3b355e812fa49871a",
+      "manifest_sha256": "93e3cbc7beea337b8f4ba5e38c7822138769c553f60ee8e9aff0b54554f38458",
+      "verified": "21 raw payloads,5469 Git-bound pre/post inputs; current1824 unchanged; same193old+16new IDs; cold6P10selectedF, current209P; narrower cold scope required and included",
+      "post_test_change": "This evidence record alone was prepared after clean c6ea execution; production/tests remain exact."
+    }
+  },
+  "authorship": {
+    "379": "Actual Muse Contributor xhigh CLI made a partial unused refactor; root preserved it and rewrote completed coherent implementation. Root authored final code, B independent frozen oracles.",
+    "434": "Actual Muse Contributor xhigh CLI18750 reached8-step limit with read/search only and zero edits; root authored candidate, no unchanged paid retry. CLI usage348443input294551cached1447output519reasoning tokens, not an invoice.",
+    "379_muse_usage": "12calls636453input530139cached18834output14738reasoning; cached usage as reported, not an invoice."
+  },
+  "static_checks": {
+    "ruff_check": "pass whole tree",
+    "ruff_format": "848 files pass",
+    "git_diff_check": "pass"
+  },
+  "ci_at_preparation": {
+    "pr378_run41735277759": "Flutter/Android/iOS/Python3.12 success; Python3.11 in progress; head6ec; not overall green",
+    "new_pr375": "not pushed yet; no changed-head CI result claimed",
+    "new_main_b771": "separate run41737044120 pending"
+  },
+  "scope_correction": "434 cold generic runner uses a shared provider-family scope label. Its exact command selects only prepared validation/public projection tests. Actual narrower scope above and immutable side clarification retained; raw runner/receipt/manifest unchanged.",
+  "budget_summary_estimates_not_invoices": {
+    "schema_version": "1.0",
+    "estimates_not_invoices": true,
+    "limit_usd": 10.0,
+    "cache_aware_admission_estimated_usd": 3.7811703840000037,
+    "reserved_usd": 2.23925145,
+    "audio_estimated_usd": 0.019549999999999994,
+    "audio_reserved_usd": 0.0,
+    "media_estimated_usd": 0.025,
+    "media_reserved_usd": 0.0,
+    "billing_reported_usd": null,
+    "accounted_with_reservations_usd": 6.064971834000003
+  },
+  "remaining": [
+    "Native Session decoder/controller/qualified runtime and profile setup",
+    "Actual native consumer/exchange/body/reader/publication bridge and independent caller admission",
+    "Live/Omni native speech/duplex transport and actual media pipeline qualification",
+    "Actual inference, physical device/cleanup, news/sign-language and end-to-end demo rehearsal",
+    "371 durable Decisions admission remains separate"
+  ],
+  "limits": "No model/device/network endpoint/private video/live settings/preview/install action or performance/model-accuracy claim. Controlled protocol bridge records are not actual native producer/worker physical proof. Project execution serialized by root."
+}

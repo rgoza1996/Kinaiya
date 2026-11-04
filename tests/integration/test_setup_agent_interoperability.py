@@ -509,9 +509,13 @@ def test_interactive_and_noninteractive_setup_preserve_independent_roles_and_exi
             "compatible",
             "http://127.0.0.1:8081/v1",
             "converse-local-model",
+            "no",
+            "",
             "native_d1",
             "http://127.0.0.1:8082",
             "decisions-d1-model",
+            "no",
+            "",
             "yes",
         ]
     )

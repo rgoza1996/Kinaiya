@@ -87,9 +87,14 @@ class DecisionsModelPin(_Closed):
             raise ValueError("Native d1 requires its exact protocol")
         if self.protocol == "native_d1_systemone" and self.provider != "native_d1":
             raise ValueError("Native d1 protocol requires its exact provider")
+        if self.provider == "openrouter_decisions" and (
+            self.protocol != "laya_systemone" or self.local is not False
+        ):
+            raise ValueError("OpenRouter decisions requires its exact cloud protocol")
         if self.selection.source == "catalog" and (self.provider, self.protocol) not in {
             ("laya", "laya_systemone"),
             ("native_d1", "native_d1_systemone"),
+            ("openrouter_decisions", "laya_systemone"),
         }:
             raise ValueError("Only exact typed classifier protocol pairs are supported")
         return self

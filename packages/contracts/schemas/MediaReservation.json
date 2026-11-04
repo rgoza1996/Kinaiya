@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "child_slots": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Child Slots",
+      "type": "integer"
+    },
+    "global_spool_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Global Spool Bytes",
+      "type": "integer"
+    },
+    "metadata_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Metadata Bytes",
+      "type": "integer"
+    },
+    "owner_spool_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Owner Spool Bytes",
+      "type": "integer"
+    },
+    "policy_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Policy Sha256",
+      "type": "string"
+    },
+    "reservation_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Reservation Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reservation_id",
+    "owner_spool_bytes",
+    "global_spool_bytes",
+    "metadata_bytes",
+    "child_slots",
+    "policy_sha256"
+  ],
+  "title": "MediaReservation",
+  "type": "object"
+}

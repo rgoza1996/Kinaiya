@@ -1,0 +1,161 @@
+{
+  "$defs": {
+    "MediaCaptureAck": {
+      "additionalProperties": false,
+      "properties": {
+        "blob": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "source": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "source_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Seq",
+          "type": "integer"
+        },
+        "track_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Track Id",
+          "type": "string"
+        },
+        "track_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Track Seq",
+          "type": "integer"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "source",
+        "track_id",
+        "track_seq",
+        "source_seq",
+        "blob"
+      ],
+      "title": "MediaCaptureAck",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_MediaCaptureAck_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaCaptureAck"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaCaptureAck]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaCaptureAck_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaCaptureAck]",
+  "type": "object"
+}
