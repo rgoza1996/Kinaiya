@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "MediaCodePin": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "maxLength": 40,
+          "minLength": 40,
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Commit",
+          "type": "string"
+        },
+        "git_blob": {
+          "maxLength": 40,
+          "minLength": 40,
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Git Blob",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "commit",
+        "path",
+        "git_blob",
+        "sha256"
+      ],
+      "title": "MediaCodePin",
+      "type": "object"
+    },
+    "MediaDecoderProtocolV2": {
+      "additionalProperties": false,
+      "properties": {
+        "cleanup": {
+          "const": "pidfd_reap",
+          "title": "Cleanup",
+          "type": "string"
+        },
+        "implementation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaCodePin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "const": "decoder_fd_v2",
+          "title": "Kind",
+          "type": "string"
+        },
+        "peer": {
+          "const": "owned_pid_incarnation_nonce",
+          "title": "Peer",
+          "type": "string"
+        },
+        "pts": {
+          "const": "original_rational",
+          "title": "Pts",
+          "type": "string"
+        },
+        "request_schema_sha256": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Request Schema Sha256"
+        },
+        "response_schema_sha256": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Response Schema Sha256"
+        },
+        "segments": {
+          "enum": [
+            "retained_child",
+            "one_segment_child"
+          ],
+          "title": "Segments",
+          "type": "string"
+        },
+        "wire": {
+          "const": "u32be_json_then_body",
+          "title": "Wire",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "implementation",
+        "request_schema_sha256",
+        "response_schema_sha256",
+        "wire",
+        "peer",
+        "pts",
+        "cleanup",
+        "segments"
+      ],
+      "title": "MediaDecoderProtocolV2",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaDecoderProtocolV2"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaDecoderProtocolV2]",
+  "type": "object"
+}

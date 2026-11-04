@@ -405,6 +405,23 @@ def schema_pin():
             "WorkerCleanupAppend",
         )
     }
+    # The versioned decoder handshake is an exact additive nine-record family.
+    # Keep the old69 byte pin and this original184 aggregate unchanged.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "DecoderProtocolV2",
+            "DecoderProfileV2",
+            "ProbeClock",
+            "ProbeObservation",
+            "DecodeSelection",
+            "DecodeTrackCursor",
+            "DecodeOpenPlan",
+            "DecodeRequestV2",
+            "DecodeResponseV2",
+        )
+    }
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:
