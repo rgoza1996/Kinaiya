@@ -23,6 +23,7 @@ import '../api/artifact_client.dart';
 import '../artifacts/models.dart';
 import '../config/connection.dart';
 import 'converse_handoff.dart';
+import 'native_audio_clip.dart';
 
 part 'agent_workspace_state.dart';
 part 'artifact_state.dart';
@@ -117,6 +118,20 @@ class AppState extends ChangeNotifier {
   Map<String, Object?>? agentProvider;
   Map<String, Object?>? converseProvider;
   bool streamingWindows = false;
+  NativeAudioSupport nativeAudio = const NativeAudioSupport.unknown();
+  int nativeAudioSourceGeneration = 0;
+
+  void _setNativeAudioSupport(
+    NativeAudioSupport next, {
+    bool stopCurrent = true,
+  }) {
+    if (nativeAudio.sameAs(next)) return;
+    final stop = stopCurrent && nativeAudio.configured && nativeAudio.available;
+    nativeAudio = next;
+    nativeAudioSourceGeneration++;
+    if (stop) _resourceStops.add(nativeAudioSourceGeneration);
+  }
+
   bool _trustedInjection = false;
   int _connectionGeneration = 0;
   int _agentInferenceRead = 0;
@@ -387,6 +402,10 @@ class AppState extends ChangeNotifier {
       client?.converseModels.hasUnconfirmedChange != true;
 
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
+    _setNativeAudioSupport(
+      const NativeAudioSupport.unknown(),
+      stopCurrent: false,
+    );
     _resetArtifacts();
     _saveAgentWorkspace();
     final previous = connection;
@@ -470,6 +489,10 @@ class AppState extends ChangeNotifier {
     if (injected != null) {
       // Explicitly trusted test seam (see existing tests): injected
       // transports bypass live health verification.
+      _setNativeAudioSupport(
+        NativeAudioSupport.fromHealth(const {}),
+        stopCurrent: false,
+      );
       sessionAuthenticated = true;
       agentInferenceAllowed = true;
       converseInferenceAllowed = true;
@@ -514,8 +537,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (runner == null) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
       notifyListeners();
       return false;
     }
@@ -550,8 +572,7 @@ class AppState extends ChangeNotifier {
       return false;
     } catch (_) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
       notifyListeners();
       return false;
     }
@@ -561,8 +582,7 @@ class AppState extends ChangeNotifier {
     _decisionsModelOptionsRead++;
     decisionsModelOptions = null;
     decisionsModelOptionsLoading = false;
-    decisionsModelOptionsStatus =
-        'Decisions selection save is unconfirmed. Check the original request in Models.';
+    decisionsModelOptionsStatus = 'Decisions selection save is unconfirmed. Check the original request in Models.';
     notifyListeners();
   }
 
@@ -597,8 +617,7 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       if (!current()) return;
       decisionsModelOptions = null;
-      decisionsModelOptionsStatus =
-          'Decisions model options are unavailable. Other roles remain independent.';
+      decisionsModelOptionsStatus = 'Decisions model options are unavailable. Other roles remain independent.';
     } finally {
       if (current()) {
         decisionsModelOptionsLoading = false;
@@ -719,8 +738,7 @@ class AppState extends ChangeNotifier {
         if (agentOnline || converseOnline) {
           // At least one service answered but no role earned consent:
           // disclosure, malformed, or missing provider metadata.
-          connectionError =
-              'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
+          connectionError = 'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
         } else {
           connectionError =
               'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';
@@ -770,6 +788,7 @@ class AppState extends ChangeNotifier {
       agentProvider = null;
       converseProvider = null;
       streamingWindows = false;
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       connected = false;
       if (localSignInState == LocalHostSignInState.connecting) {
         localSignInState = LocalHostSignInState.unavailable;
@@ -801,6 +820,7 @@ class AppState extends ChangeNotifier {
     final request = ++_converseInferenceRead;
     converseInferenceAllowed = false;
     converseProvider = null;
+    _setNativeAudioSupport(const NativeAudioSupport.unknown());
     connected = sessionAuthenticated && agentInferenceAllowed;
     notifyListeners();
     return request;
@@ -834,6 +854,7 @@ class AppState extends ChangeNotifier {
       converseOnline = false;
       converseProvider = null;
       converseInferenceAllowed = false;
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       connected = sessionAuthenticated && agentInferenceAllowed;
     }
     notifyListeners();
@@ -1616,7 +1637,10 @@ class AppState extends ChangeNotifier {
 
   /// Apply only a health read already bound to the live client/generation.
   /// Legacy effective-only health cannot establish intentional sleep.
-  void applyConverseHealth(Map<String, Object?> health) {
+  void applyConverseHealth(
+    Map<String, Object?> health, {
+    bool updateNativeAudio = true,
+  }) {
     final observedRevision = health['owner_intent_revision'];
     if (observedRevision is int &&
         _converseOwnerRevision != null &&
@@ -1626,6 +1650,7 @@ class AppState extends ChangeNotifier {
     final wasEnabled = converseEnabled;
     converseOwnerStatusStale = true;
     Never invalid(String message) {
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       _lastHealthEnabled = null;
       if (wasEnabled) _stopUnavailableConverse();
       converseEnabled = false;
@@ -1649,6 +1674,9 @@ class AppState extends ChangeNotifier {
       _healthOwnerRevision = revision;
     }
     _lastHealthEnabled = health['enabled'] == true;
+    if (updateNativeAudio) {
+      _setNativeAudioSupport(NativeAudioSupport.fromHealth(health));
+    }
     _applyEffectiveConverseHealth();
     if (wasEnabled && !converseEnabled) {
       _stopUnavailableConverse();
@@ -1702,6 +1730,7 @@ class AppState extends ChangeNotifier {
       return !converseOwnerStatusStale;
     } catch (_) {
       if (!ownsConnection(generation, api)) return false;
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       converseOwnerStatusStale = true;
       _lastHealthEnabled = null;
       if (converseEnabled) _stopUnavailableConverse();
@@ -1728,7 +1757,7 @@ class AppState extends ChangeNotifier {
         // now completed, so a fresh read may reconcile effective availability.
         unawaited(refreshConverseAvailability());
       } else {
-        applyConverseHealth(result);
+        applyConverseHealth(result, updateNativeAudio: false);
       }
     } catch (_) {
       converseControlUncertain = uncertain;
@@ -1956,6 +1985,10 @@ class AppState extends ChangeNotifier {
   }
 
   void disconnect() {
+    _setNativeAudioSupport(
+      const NativeAudioSupport.unknown(),
+      stopCurrent: false,
+    );
     _resetArtifacts();
     _saveAgentWorkspace();
     _invalidateAgentWorkspace();
@@ -1999,6 +2032,10 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _setNativeAudioSupport(
+      const NativeAudioSupport.unknown(),
+      stopCurrent: false,
+    );
     _invalidateAgentWorkspace();
     _connectionGeneration++;
     _decisionsModelOptionsRead++;

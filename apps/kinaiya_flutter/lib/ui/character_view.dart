@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:uuid/uuid.dart';
@@ -13,6 +14,7 @@ import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import '../state/converse_handoff.dart';
+import '../state/native_audio_clip.dart';
 import 'book_sheet.dart';
 import 'converse_memory.dart';
 import 'converse_design.dart';
@@ -440,6 +442,7 @@ class _CharacterViewState extends State<CharacterView> {
   int _captureEpoch = 0;
   int _armOwner = 0;
   int _voiceRequest = 0;
+  NativeAudioClipOwner? _nativeClipOwner;
   bool _transcribing = false;
   RecordedAudio? _pendingClip;
   ContentScope _pendingClipScope = ContentScope.localOnly;
@@ -634,6 +637,7 @@ class _CharacterViewState extends State<CharacterView> {
       _s.busyConverse = false;
       _armOwner++;
       _voiceRequest++;
+      _nativeClipOwner = null;
       _pendingClip = null;
       _clearWindows();
       _armed = false;
@@ -648,6 +652,11 @@ class _CharacterViewState extends State<CharacterView> {
       unawaited(_audio.cancelRecording());
       unawaited(_stopLocalPlayback());
       unawaited(_refreshVoice());
+    }
+    final nativeOwner = _nativeClipOwner;
+    if (nativeOwner != null && !_nativeClipCurrent(nativeOwner)) {
+      _nativeClipOwner = null;
+      unawaited(_stopLocalPlayback());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncMouthSampling();
@@ -677,6 +686,7 @@ class _CharacterViewState extends State<CharacterView> {
     _resourceSubscription?.cancel();
     _armOwner++;
     _voiceRequest++;
+    _nativeClipOwner = null;
     // Invalidate every in-flight callback: stale completions must not
     // reset newer speaking/busy state or leak the mic.
     _s.turnNonce++;
@@ -710,6 +720,24 @@ class _CharacterViewState extends State<CharacterView> {
       _audio is WindowSpeechAudio ? _audio as WindowSpeechAudio : null;
   bool get _windowMode => _s.streamingWindows && _windowAudio != null;
 
+  bool _nativeClipCurrent(NativeAudioClipOwner owner) =>
+      mounted &&
+      identical(_nativeClipOwner, owner) &&
+      _s.nativeAudio.configured &&
+      _s.nativeAudio.available &&
+      _converseAvailable &&
+      _s.converseCanInfer &&
+      owner.current(
+        currentClient: _s.client,
+        connection: _s.connectionGeneration,
+        source: _s.nativeAudioSourceGeneration,
+        session: _s.converseSession,
+        nonce: _s.turnNonce,
+      );
+
+  bool _nativeOutputCurrent(JournalEntry entry, NativeAudioClipOwner? owner) =>
+      owner != null && _nativeClipCurrent(owner) && owner.accepts(entry);
+
   void _clearWindows() {
     _pendingWindow = null;
     _ownedUtterances.clear();
@@ -733,9 +761,24 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _onWindowEvent(JournalEntry entry) async {
+    final nativeOwner = _nativeClipOwner;
+    var nativeOutput =
+        nativeOwner != null &&
+        _nativeClipCurrent(nativeOwner) &&
+        nativeOwner.candidate(entry);
+    if (nativeOutput && !nativeOwner.admitted) {
+      try {
+        nativeOwner.defer(entry);
+      } on FormatException {
+        _nativeClipOwner = null;
+        await _stopLocalPlayback();
+      }
+      return;
+    }
+    nativeOutput = nativeOutput && nativeOwner.accepts(entry);
+    final liveWindow = _armed && _windowMode;
     if (!mounted ||
-        !_armed ||
-        !_windowMode ||
+        (!nativeOutput && !liveWindow) ||
         entry.sessionId != _s.converseSession?.sessionId ||
         entry.threadId != _s.converseSession?.threadId ||
         entry.epoch != _s.converseSession?.epoch) {
@@ -759,16 +802,20 @@ class _CharacterViewState extends State<CharacterView> {
             ?.toInt();
     if (epoch != null && epoch > _s.speechEpoch) {
       _s.turnNonce++;
+      if (nativeOutput) nativeOwner.turnNonce = _s.turnNonce;
       _s.speechEpoch = epoch;
       _speechQueue = SpeechQueue();
       await _stopLocalPlayback();
-      if (!mounted || !_armed) return;
+      if (!mounted ||
+          (nativeOutput ? !_nativeClipCurrent(nativeOwner) : !_armed)) {
+        return;
+      }
       setState(() => _speaking = false);
       _publishVoiceActivity();
     }
     final utterance = entry.payload['window_utterance_id'];
     if (entry.kind == 'conversation.converse' &&
-        _ownedUtterances.contains(utterance) &&
+        (nativeOutput || _ownedUtterances.contains(utterance)) &&
         epoch == _s.speechEpoch &&
         _windowPlayed.add(entry.eventId)) {
       while (_windowPlayed.length > 128) {
@@ -830,6 +877,7 @@ class _CharacterViewState extends State<CharacterView> {
       );
       return;
     }
+    _nativeClipOwner = null;
     final nonce = ++_s.turnNonce;
     bool stillAuthorized() {
       if (!mounted || !turnOwnsCleanup(nonce, _s.turnNonce)) return false;
@@ -1047,9 +1095,15 @@ class _CharacterViewState extends State<CharacterView> {
     int nonce,
     Set<String> playedAcked,
   ) async {
+    final nativeOutput = entry.payload['native_audio'] == true;
+    final nativeOwner = _nativeClipOwner;
+    bool nativeCurrent() =>
+        !nativeOutput || _nativeOutputCurrent(entry, nativeOwner);
+    if (!nativeCurrent()) return;
     if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
     if (!await _audio.availablePlayback) return;
+    if (!nativeCurrent()) return;
     if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
     final epoch =
@@ -1057,6 +1111,7 @@ class _CharacterViewState extends State<CharacterView> {
     if (!_s.audioIsLive(nonce, epoch)) return;
     final windowUtterance = entry.payload['window_utterance_id'] as String?;
     if (windowUtterance != null &&
+        !nativeOutput &&
         (!_armed || !_ownedUtterances.contains(windowUtterance))) {
       return;
     }
@@ -1069,12 +1124,14 @@ class _CharacterViewState extends State<CharacterView> {
         eventId: entry.eventId,
         generationEpoch: epoch,
       )) {
+        if (!nativeCurrent()) break;
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         if (!_s.audioIsLive(nonce, epoch)) break;
         final audio = frame['audio'] as String?;
         if (audio == null || audio.isEmpty) continue;
         final rate = (frame['sample_rate'] as num?)?.toInt() ?? 24000;
         if (!started &&
+            !nativeOutput &&
             windowUtterance != null &&
             entry.payload['window_behavior'] ==
                 'RESPOND_WITHOUT_INTERRUPTING_USER' &&
@@ -1100,11 +1157,12 @@ class _CharacterViewState extends State<CharacterView> {
               )
             : await _audio.queuePcm(audio, rate);
         if (!queued) return;
+        if (!nativeCurrent()) break;
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         if (!_s.audioIsLive(nonce, epoch)) break;
         if (!started) {
           started = true;
-          if (windowUtterance != null) {
+          if (windowUtterance != null && !nativeOutput) {
             _startedUtterances.add(windowUtterance);
             if (_windowUtterance == windowUtterance) {
               await _nextWindowUtterance();
@@ -1129,7 +1187,8 @@ class _CharacterViewState extends State<CharacterView> {
       }
       if (!started) return;
       if (!turnOwnsCleanup(nonce, _s.turnNonce) ||
-          !_s.audioIsLive(nonce, epoch)) {
+          !_s.audioIsLive(nonce, epoch) ||
+          !nativeCurrent()) {
         await _reportInterrupted(
           api,
           entry,
@@ -1143,7 +1202,8 @@ class _CharacterViewState extends State<CharacterView> {
       // True local playback gate: resolves only on source onended.
       await _audio.awaitPlayback();
       if (!turnOwnsCleanup(nonce, _s.turnNonce) ||
-          !_s.audioIsLive(nonce, epoch)) {
+          !_s.audioIsLive(nonce, epoch) ||
+          !nativeCurrent()) {
         await _reportInterrupted(
           api,
           entry,
@@ -1164,6 +1224,9 @@ class _CharacterViewState extends State<CharacterView> {
           playedSeconds: scheduled,
         );
       } catch (_) {}
+      if (nativeOutput && identical(_nativeClipOwner, nativeOwner)) {
+        _nativeClipOwner = null;
+      }
       if (mounted && _s.audioIsLive(nonce, epoch)) {
         setState(() => _speaking = false);
         _publishVoiceActivity();
@@ -1222,6 +1285,7 @@ class _CharacterViewState extends State<CharacterView> {
     final expected = _s.speechEpoch;
     final owner = ++_s.turnNonce;
     _voiceRequest++;
+    _nativeClipOwner = null;
     _pendingClip = null;
     _s.speechEpoch++;
     _s.busyConverse = false;
@@ -1271,10 +1335,14 @@ class _CharacterViewState extends State<CharacterView> {
     // Clearing _armed does not acknowledge a failed playback stop. Retain
     // that obligation so a retry must stop the same window speech as well.
     final stopWindowSpeech =
-        stopSpeech || _windowSpeechStopUnconfirmed || (_armed && _windowMode);
+        stopSpeech ||
+        _nativeClipOwner != null ||
+        _windowSpeechStopUnconfirmed ||
+        (_armed && _windowMode);
     _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
     _voiceRequest++;
+    _nativeClipOwner = null;
     _pendingClip = null;
     _s.voiceNonce++;
     _pollTimer?.cancel();
@@ -1320,6 +1388,8 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
     if (_micStopUnconfirmed || _vadBusy) return;
+    if (_nativeClipOwner != null) await _onBarge();
+    if (!mounted) return;
     final owner = ++_armOwner;
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
@@ -1580,12 +1650,69 @@ class _CharacterViewState extends State<CharacterView> {
     final scope = _s.selectedContentScope;
     if (api == null) return;
     final request = ++_voiceRequest;
+    if (!_s.nativeAudio.known) {
+      await _s.refreshConverseAvailability();
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          request != _voiceRequest) {
+        return;
+      }
+      if (!_s.nativeAudio.known) {
+        _s.appendHistory(
+          AppView.character,
+          ChatMsg(
+            role: 'system',
+            text:
+                'Audio input configuration is unavailable. Refresh the connection before importing.',
+          ),
+        );
+        return;
+      }
+    }
+    final native = _s.nativeAudio.configured;
+    final nativeSource = _s.nativeAudioSourceGeneration;
+    if (native && !_s.nativeAudio.available) {
+      _s.appendHistory(
+        AppView.character,
+        ChatMsg(
+          role: 'system',
+          text:
+              'Native audio is configured but unavailable. Review the host connection.',
+        ),
+      );
+      return;
+    }
     final recording = await _audio.chooseRecording();
     if (!mounted ||
         !_converseAvailable ||
         !_s.ownsConnection(generation, api) ||
         request != _voiceRequest ||
         recording == null) {
+      return;
+    }
+    if (nativeSource != _s.nativeAudioSourceGeneration) {
+      _s.appendHistory(
+        AppView.character,
+        ChatMsg(
+          role: 'system',
+          text:
+              'Audio input configuration changed. Choose the recording again.',
+        ),
+      );
+      return;
+    }
+    if (native) {
+      try {
+        final wav = canonicalNativeAudioWav(recording.bytes);
+        await _submitNativeRecording(wav, scope);
+      } on FormatException {
+        if (mounted && _s.ownsConnection(generation, api)) {
+          _s.appendHistory(
+            AppView.character,
+            ChatMsg(role: 'system', text: nativeAudioImportHint),
+          );
+        }
+      }
       return;
     }
     await _onBarge();
@@ -1620,6 +1747,113 @@ class _CharacterViewState extends State<CharacterView> {
           AppView.character,
           ChatMsg(role: 'system', text: 'Could not transcribe that recording.'),
         );
+      }
+    }
+  }
+
+  Future<void> _submitNativeRecording(List<int> wav, ContentScope scope) async {
+    final api = _s.client;
+    final connection = _s.connectionGeneration;
+    final source = _s.nativeAudioSourceGeneration;
+    if (api == null ||
+        !_s.nativeAudio.available ||
+        !_s.converseCanDisclose(scope)) {
+      return;
+    }
+    await _onBarge();
+    final nonce = _s.turnNonce;
+    bool current() =>
+        mounted &&
+        _s.ownsConnection(connection, api) &&
+        source == _s.nativeAudioSourceGeneration &&
+        _s.nativeAudio.configured &&
+        _s.nativeAudio.available &&
+        _converseAvailable &&
+        _s.converseCanDisclose(scope) &&
+        turnOwnsCleanup(nonce, _s.turnNonce);
+    if (!current()) return;
+    NativeAudioClipOwner? owner;
+    _s.busyConverse = true;
+    setState(() => _mood = 'listening');
+    _s.touch();
+    try {
+      final session =
+          _s.converseSession ??
+          await _s.ensureSession('converse', name: 'Converse');
+      if (!current()) return;
+      owner = NativeAudioClipOwner(
+        client: api,
+        connectionGeneration: connection,
+        sourceGeneration: source,
+        session: session,
+        utteranceId: const Uuid().v4(),
+        requestId: const Uuid().v4(),
+        turnNonce: nonce,
+      );
+      // Register before dispatch: polling may observe the response before POST returns.
+      _nativeClipOwner = owner;
+      final admission = await api.submitNativeAudioClip(
+        session: session,
+        utteranceId: owner.utteranceId,
+        requestId: owner.requestId,
+        wav: wav,
+        contentScope: scope,
+      );
+      if (!_nativeClipCurrent(owner)) return;
+      if (admission.entry.payload['audio_sha256'] !=
+              crypto.sha256.convert(wav).toString() ||
+          admission.entry.payload['content_scope'] != scope.wireValue ||
+          admission.entry.payload['start_ms'] != 0 ||
+          admission.entry.payload['end_ms'] !=
+              ((wav.length - 44) / 32).ceil()) {
+        throw const FormatException(
+          'Native audio clip admission did not match the submitted recording.',
+        );
+      }
+      owner.confirm(admission.entry);
+      if (!_s.converseHistory.any(
+        (message) => message.eventId == admission.entry.eventId,
+      )) {
+        _s.appendHistory(
+          AppView.character,
+          ChatMsg(
+            role: 'user',
+            text: admission.entry.text,
+            eventId: admission.entry.eventId,
+            utteranceId: owner.utteranceId,
+            windowIndex: 0,
+            windowRevision: 1,
+            note: 'Native audio transcript',
+          ),
+        );
+      }
+      for (final entry in owner.takePending()) {
+        if (!_nativeClipCurrent(owner)) break;
+        await _onWindowEvent(entry);
+      }
+      unawaited(_s.refreshNotices());
+    } catch (_) {
+      if (mounted && (owner == null ? current() : _nativeClipCurrent(owner))) {
+        _nativeClipOwner = null;
+        await _stopLocalPlayback();
+        if (mounted && _s.ownsConnection(connection, api)) {
+          _s.appendHistory(
+            AppView.character,
+            ChatMsg(
+              role: 'system',
+              text:
+                  'Native audio clip admission was not confirmed. Check conversation history before submitting again.',
+            ),
+          );
+        }
+      }
+    } finally {
+      if (mounted &&
+          _s.ownsConnection(connection, api) &&
+          (turnOwnsCleanup(nonce, _s.turnNonce) ||
+              (owner != null && identical(_nativeClipOwner, owner)))) {
+        _s.busyConverse = false;
+        _s.touch();
       }
     }
   }
@@ -1700,6 +1934,12 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     if (api == null || !_converseAvailable || !_s.converseCanInfer) return;
+    if (_nativeClipOwner != null) await _onBarge();
+    if (!mounted ||
+        !_s.ownsConnection(generation, api) ||
+        !_converseAvailable) {
+      return;
+    }
     final request = ++_voiceRequest;
     _recordingScope = _s.selectedContentScope;
     final status = await _audio.startRecording();
@@ -2549,14 +2789,18 @@ class _CharacterViewState extends State<CharacterView> {
                     children: [
                       if (_voiceReady && !_armed)
                         IconButton(
-                          tooltip: 'Use audio recording',
+                          tooltip: _s.nativeAudio.configured
+                              ? nativeAudioImportHint
+                              : 'Use audio recording',
                           icon: const Icon(Icons.audio_file_outlined),
                           onPressed: _toolsAction(
                             expectedOwner,
                             _converseAvailable ? _importRecording : null,
                           ),
                         ),
-                      if (_speaking || _s.busyConverse)
+                      if (_speaking ||
+                          _s.busyConverse ||
+                          _nativeClipOwner != null)
                         IconButton(
                           tooltip: 'Stop speech',
                           icon: const Icon(Icons.stop_circle_outlined),
@@ -2616,11 +2860,13 @@ class _CharacterViewState extends State<CharacterView> {
           ),
           if (_voiceReady && !_armed)
             IconButton(
-              tooltip: 'Use audio recording',
+              tooltip: _s.nativeAudio.configured
+                  ? nativeAudioImportHint
+                  : 'Use audio recording',
               onPressed: _converseAvailable ? _importRecording : null,
               icon: const Icon(Icons.audio_file_outlined),
             ),
-          if (_speaking || _s.busyConverse)
+          if (_speaking || _s.busyConverse || _nativeClipOwner != null)
             IconButton(
               tooltip: 'Stop speech',
               onPressed: _stopSpeech,
@@ -2639,7 +2885,11 @@ class _CharacterViewState extends State<CharacterView> {
           ),
         ],
       ),
-      const Text('Type or speak — your choice'),
+      Text(
+        _s.nativeAudio.configured
+            ? nativeAudioImportHint
+            : 'Type or speak — your choice',
+      ),
     ],
   );
 
