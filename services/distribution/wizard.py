@@ -6,7 +6,9 @@ disc=(cx=752.5, cy=-74.8, r=530.8), box-downsampled to 68x14, sky floor=0.14, ra
 Original text adaptation under the repository Apache-2.0 license; no runtime image dependency.
 """
 
+import os
 from pathlib import Path
+from typing import Any
 
 from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
 from services.distribution.terminal import open_terminal
@@ -19,6 +21,14 @@ from services.distribution.wizard_flow import (
 )
 
 ASCII_MOON_RAMP = " .:-=+*#%@"
+
+ANSI_RESET = "\x1b[0m"
+ANSI_MOON_BRIGHT = "\x1b[38;2;248;250;252m"
+ANSI_MOON_HIGH = "\x1b[38;2;147;197;253m"
+ANSI_MOON_MID = "\x1b[38;2;56;189;248m"
+ANSI_MOON_RIM = "\x1b[38;2;129;140;248m"
+ANSI_MOON_GOLD = "\x1b[38;2;251;191;36m"
+ANSI_MOON_CYAN = "\x1b[38;2;56;189;248m"
 
 MASCOT = "\n".join(
     [
@@ -39,6 +49,61 @@ MASCOT = "\n".join(
         "                        ( ~~~ Kinaiya ~~~ )",
     ]
 )
+
+
+def tty_supports_color(tty: Any = None, *, env: dict[str, str] | None = None) -> bool:
+    """Return True when ANSI terminal color is supported and not disabled via NO_COLOR/dumb."""
+    environ = os.environ if env is None else env
+    if environ.get("NO_COLOR") is not None:
+        return False
+    if environ.get("TERM", "").lower() == "dumb":
+        return False
+    if environ.get("KINAIYA_FORCE_COLOR") == "1":
+        return True
+    if tty is not None and getattr(tty, "name", None) == "/dev/tty":
+        return True
+    isatty = getattr(tty, "isatty", None)
+    return bool(callable(isatty) and isatty())
+
+
+def colorize_mascot(text: str = MASCOT) -> str:
+    """Apply Kinaiya's Moonlit ANSI truecolor palette to the deterministic 68x14 ASCII Moon."""
+    colored_lines: list[str] = []
+    raw_lines = text.splitlines()
+    for row_idx, line in enumerate(raw_lines):
+        if row_idx == len(raw_lines) - 1 and "Kinaiya" in line:
+            colored_lines.append(
+                line.replace("(", f"{ANSI_MOON_RIM}({ANSI_RESET}")
+                .replace("~~~", f"{ANSI_MOON_GOLD}~~~{ANSI_RESET}")
+                .replace("Kinaiya", f"{ANSI_MOON_CYAN}Kinaiya{ANSI_RESET}")
+                .replace(")", f"{ANSI_MOON_RIM}){ANSI_RESET}")
+            )
+            continue
+        out: list[str] = []
+        active_code = ""
+        for ch in line:
+            if ch == " ":
+                if active_code:
+                    out.append(ANSI_RESET)
+                    active_code = ""
+                out.append(" ")
+                continue
+            if ch in "@#%":
+                code = ANSI_MOON_BRIGHT
+            elif ch in "*+":
+                code = ANSI_MOON_HIGH
+            elif ch in "=-":
+                code = ANSI_MOON_MID
+            else:
+                code = ANSI_MOON_RIM
+            if code != active_code:
+                out.append(code)
+                active_code = code
+            out.append(ch)
+        if active_code:
+            out.append(ANSI_RESET)
+        colored_lines.append("".join(out))
+    return "\n".join(colored_lines)
 
 
 def render_moon_ascii_from_image(
@@ -82,11 +147,13 @@ def render_moon_ascii_from_image(
     return "\n".join(lines)
 
 
-def mascot(*, width=80, interactive=True):
+def mascot(*, width=80, interactive=True, color=False):
     if not interactive:
         return "Kinaiya"
     if width < max(map(len, MASCOT.splitlines())):
         return "Kinaiya"[: max(0, width)]
+    if color and os.environ.get("NO_COLOR") is None and os.environ.get("TERM", "").lower() != "dumb":
+        return colorize_mascot(MASCOT)
     return MASCOT
 
 
@@ -129,9 +196,11 @@ __all__ = [
     "ASCII_MOON_RAMP",
     "MASCOT",
     "WizardFlowCoordinator",
+    "colorize_mascot",
     "mascot",
     "render_moon_ascii_from_image",
     "run_first_run_wizard",
     "run_quick_wizard",
     "run_wizard",
+    "tty_supports_color",
 ]

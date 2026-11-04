@@ -84,7 +84,7 @@ The following recovery/final versions were saved in Penpot:
 6. **November 2 UI/UX review usability sync · Home, Converse, Agent and Options text layers** (revision 54).
 7. **Unlimited custom OpenAI-compatible .env API prototype boards & hidden Converse recovery sync** (revision 55).
 8. **Custom endpoint path fields, optional blank max output tokens, and global/per-model reasoning effort sync** (revision 56).
-9. **14-step standalone OS terminal CLI Installer & Setup Wizard decision tree with deterministic 68×14 ASCII Home Moon and all choice branches** (revisions 57–58).
+9. **14-step standalone OS terminal CLI Installer & Setup Wizard decision tree with multi-color ANSI syntax highlighting, multi-tone deterministic 68×14 ASCII Home Moon, and all choice branches** (revisions 57–59).
 
 Visual review caught labels hidden beneath imported backgrounds in the scoped
 patch. A guarded repair reordered 840 existing interface layers on 14 boards.
