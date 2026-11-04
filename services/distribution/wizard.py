@@ -13,8 +13,26 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from services.distribution.installation import InstallError, check_outdated_system_blockers, setup
+from services.distribution.connection_probe import run_interactive_connection_check
+from services.distribution.installation import (
+    InstallError,
+    check_outdated_system_blockers,
+    reconfigure_section,
+    setup,
+)
+from services.distribution.model_picker import (
+    discover_profile_models,
+    load_stored_profiles,
+    select_model_interactively,
+    select_profile_interactively,
+)
 from services.distribution.terminal import open_terminal
+from services.distribution.terminal_animation import (
+    MASCOT,
+    BrandedActivityIndicator,
+    render_intro_sequence,
+    should_animate,
+)
 from services.distribution.terminal_ui import NON_COLOR_TERMS, ColorMode, detect_color_mode
 from services.distribution.wizard_flow import (
     WizardFlowCoordinator,
@@ -23,6 +41,12 @@ from services.distribution.wizard_flow import (
 )
 from services.distribution.wizard_flow import (
     run_quick_wizard as _run_quick_wizard,
+)
+from services.distribution.wizard_navigation import WizardNavigator, validate_setup_section
+from services.distribution.wizard_summary import (
+    format_json_receipt,
+    render_completion_summary,
+    sanitize_completion_receipt,
 )
 
 ASCII_MOON_RAMP = " .:-=+*#%@"
@@ -41,26 +65,6 @@ ANSI16_MOON_MID = "\x1b[36m"
 ANSI16_MOON_RIM = "\x1b[94m"
 ANSI16_MOON_GOLD = "\x1b[33m"
 ANSI16_MOON_CYAN = "\x1b[96m"
-
-MASCOT = "\n".join(
-    [
-        "%@@@@@ .      :  %++#:*#++++#@%@@%@@@@@@@@@@@@@@@@+@@%=    =    +@%%",
-        "-@%*@@#=.      #*@*=%*.      .*@@@@@@@@@@@@@@@@@@@@--.  =:+=   =@@%=",
-        " #@@@%@+%-+=   *= #@@          -@@@@@@@@@@@@@@@@@@@+#  *#*@+ .#@#+%",
-        "  @@@+###@@@*=+***%##           =@-#@@@@@@@@@@@@%@%+#%%@@@@+#*@@#@.",
-        "  .@@%+@@@@@@@@@*-.=*#          -*=%%@@%@=@@@@@@%=  :%@@@@#@%*#+@:",
-        "   .@*%=.+#@@@@@%*  -=%=       :#+:%@%%=::-*+%@@%. :+#@@@@@@%+-#:",
-        "     #%%: .*@*@@@@==  ..-=+==+-=:.+@@%      #:%@@@#@@*%##%#@++%",
-        "      =%@*. +%#@@@#=#= .  :  -    +%*@-   .=%@@@@@@##-..*%%*@+",
-        "        *@@%*@@#@@@@@%%#-.    :::. #@@@%%*%+-%@@@@%.  :*@@%*",
-        "          *@@%%+*%#@@@*. :::    :#@#+**##@@#@%%@@@::-##%@*",
-        "            -%@@+:=#@@@%*==%#+:-+%@+.:-%@%*=:=%@@%%#%@%=",
-        "               -#@@@#%@@@@@@@#=--+%+%@@@@#@%@@%@@@@#=",
-        "                  .=*%@@@@@@@@@@@@@@@@@@@@@@@@%*=.",
-        "                        :-+*#%%@@@@@@%%#*+=:.",
-        "                        ( ~~~ Kinaiya ~~~ )",
-    ]
-)
 
 
 def _env_blocks_color(env: dict[str, str] | None = None) -> bool:
@@ -297,13 +301,19 @@ def run_wizard(
     *,
     tty=None,
     mode: str | None = None,
+    section: str | None = None,
     profile_id="p01",
     getpass_fn=None,
+    profiles=None,
+    discover_models: bool = False,
+    check_connection: bool = False,
+    opener=None,
     store_factory=None,
     read_secret=None,
 ):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
+    normalized_section = validate_setup_section(section)
     if tty is None:
         try:
             with open_terminal() as terminal:
@@ -311,8 +321,13 @@ def run_wizard(
                     layout,
                     tty=terminal,
                     mode=mode,
+                    section=normalized_section,
                     profile_id=profile_id,
                     getpass_fn=getpass_fn,
+                    profiles=profiles,
+                    discover_models=discover_models,
+                    check_connection=check_connection,
+                    opener=opener,
                     store_factory=store_factory,
                     read_secret=read_secret,
                 )
@@ -325,14 +340,20 @@ def run_wizard(
         layout,
         tty=tty,
         mode=mode,
+        section=normalized_section,
         mascot_fn=mascot,
         setup_fn=setup,
+        reconfigure_fn=reconfigure_section,
         profile_id=profile_id,
         getpass_fn=getpass_fn,
         replace_fn=replace,
+        profiles=profiles,
+        discover_models=discover_models,
+        check_connection=check_connection,
+        opener=opener,
     )
     result = coordinator.run()
-    if coordinator.used_quick:
+    if coordinator.used_quick or normalized_section is not None:
         return result
     return _offer_custom_api_profile(
         coordinator.chosen_layout,
@@ -364,16 +385,35 @@ def _offer_custom_api_profile(layout, tty, result, store_factory, read_secret):
     return {**result, "custom_profile_id": profile_id}
 
 
+def run_section_wizard(layout, section: str, *, tty=None):
+    """Run interactive reconfiguration for one section: workspace, model, or converse."""
+    return run_wizard(layout, tty=tty, section=section)
+
+
 __all__ = [
     "ASCII_MOON_RAMP",
+    "BrandedActivityIndicator",
     "MASCOT",
     "WizardFlowCoordinator",
+    "WizardNavigator",
     "ask_yn",
     "colorize_mascot",
+    "discover_profile_models",
+    "format_json_receipt",
+    "load_stored_profiles",
     "mascot",
+    "render_completion_summary",
+    "render_intro_sequence",
     "render_moon_ascii_from_image",
     "run_first_run_wizard",
+    "run_interactive_connection_check",
     "run_quick_wizard",
+    "run_section_wizard",
     "run_wizard",
+    "sanitize_completion_receipt",
+    "select_model_interactively",
+    "select_profile_interactively",
+    "should_animate",
     "tty_supports_color",
+    "validate_setup_section",
 ]

@@ -187,12 +187,14 @@ def test_wizard_offers_profile_after_config_and_returns_id(tmp_path, paths, monk
         store_factory=lambda chosen: store_for(paths),
         read_secret=secrets(""),
     )
-    assert result == {"ready": False, "custom_profile_id": "p01"}
+    assert result["ready"] is False
+    assert result["custom_profile_id"] == "p01"
 
     declined = wizard.run_wizard(
         layout, tty=FakeTTY([*base, ""]), store_factory=lambda chosen: store_for(paths)
     )
-    assert declined == {"ready": False}
+    assert declined["ready"] is False
+    assert "custom_profile_id" not in declined
 
     cancelled_tty = FakeTTY([*base, "y", "1"])
     picked = wizard.run_wizard(

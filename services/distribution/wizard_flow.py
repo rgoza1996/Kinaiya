@@ -20,6 +20,7 @@ from services.distribution.installation import (
     InstallError,
     Layout,
     check_outdated_system_blockers,
+    reconfigure_section,
     setup,
 )
 from services.distribution.terminal import open_terminal
@@ -28,6 +29,11 @@ from services.distribution.terminal_ui import (
     RESET,
     ColorMode,
     detect_color_mode,
+)
+from services.distribution.wizard_navigation import (
+    WizardNavigator,
+    is_cancel_command,
+    validate_setup_section,
 )
 
 VALID_WIZARD_MODES = (None, "standard", "quick", "advanced")
@@ -48,6 +54,8 @@ def ask_yn(tty, label: str, *, default: bool = False) -> bool:
         if not answer:
             raise InstallError("Setup cancelled: terminal input closed")
         cleaned = answer.strip().lower()
+        if is_cancel_command(cleaned):
+            raise InstallError("Setup cancelled; no configuration written")
         if not cleaned:
             return default
         if cleaned in {"y", "yes"}:
@@ -74,11 +82,17 @@ class WizardFlowCoordinator:
         *,
         tty: Any,
         mode: str | None = None,
+        section: str | None = None,
         mascot_fn: Callable[..., str] | None = None,
         setup_fn: Callable[..., dict[str, Any]] = setup,
+        reconfigure_fn: Callable[..., dict[str, Any]] = reconfigure_section,
         profile_id: str = "p01",
         getpass_fn: Callable[..., str] | None = None,
         replace_fn: Callable[..., Any] = replace,
+        profiles: Any = None,
+        discover_models: bool = False,
+        check_connection: bool = False,
+        opener: Any = None,
     ) -> None:
         if mode not in VALID_WIZARD_MODES:
             raise InstallError(f"Unsupported wizard mode {mode!r}; select 'quick' or 'advanced'")
@@ -87,11 +101,17 @@ class WizardFlowCoordinator:
         self.used_quick = mode == "quick"
         self.tty = tty
         self.mode = mode
+        self.section = validate_setup_section(section)
         self.mascot_fn = mascot_fn
         self.setup_fn = setup_fn
+        self.reconfigure_fn = reconfigure_fn
         self.profile_id = profile_id
         self.getpass_fn = getpass_fn
         self.replace_fn = replace_fn
+        self.profiles = profiles
+        self.discover_models = discover_models
+        self.check_connection = check_connection
+        self.opener = opener
         self.color_mode = detect_color_mode(tty)
 
     def _paint(self, text: str, token_fg: str) -> str:
@@ -114,7 +134,10 @@ class WizardFlowCoordinator:
         answer = self.tty.readline()
         if not answer:
             raise InstallError("Setup cancelled: terminal input closed")
-        return answer.strip() or default
+        cleaned = answer.strip()
+        if is_cancel_command(cleaned):
+            raise InstallError("Setup cancelled; no configuration written")
+        return cleaned or default
 
     def ask_yn(self, label: str, *, default: bool = False) -> bool:
         return ask_yn(self.tty, label, default=default)
@@ -122,11 +145,25 @@ class WizardFlowCoordinator:
     def _write_header(self) -> None:
         if self.mascot_fn is not None:
             cols = shutil.get_terminal_size().columns
-            try:
-                banner = self.mascot_fn(width=cols, color=self.color_mode)
-            except TypeError:
-                banner = self.mascot_fn(width=cols)
-            self.tty.write(banner + "\n")
+            from services.distribution.terminal_animation import (
+                render_intro_sequence,
+                should_animate,
+            )
+
+            if should_animate(self.tty, width=cols):
+                from services.distribution.wizard import colorize_mascot
+
+                render_intro_sequence(
+                    self.tty,
+                    width=cols,
+                    colorize_fn=lambda frame: colorize_mascot(frame, mode=self.color_mode),
+                )
+            else:
+                try:
+                    banner = self.mascot_fn(width=cols, color=self.color_mode)
+                except TypeError:
+                    banner = self.mascot_fn(width=cols)
+                self.tty.write(banner + "\n")
         c_slate = PALETTE.slate.fg_sequence(self.color_mode)
         self.tty.write(
             self._paint(
@@ -241,10 +278,70 @@ class WizardFlowCoordinator:
             setup_kwargs["decisions_profile"] = decisions_profile
         if chosen.config.exists():
             setup_kwargs["allow_existing"] = True
-        return self.setup_fn(chosen, **setup_kwargs)
+        raw_result = self.setup_fn(chosen, **setup_kwargs)
+        probe_dict: dict[str, Any] = {}
+        if self.check_connection:
+            from services.distribution.connection_probe import run_interactive_connection_check
 
-    def run_quick(self) -> dict[str, Any]:
-        self._write_header()
+            probe_res = run_interactive_connection_check(
+                self.tty,
+                endpoint=endpoint,
+                model=model,
+                role="agent",
+                adapter_kind=adapter,
+                allow_cloud=allow_cloud,
+                credential_env=credential_env,
+                config_saved=True,
+                opener=self.opener,
+            )
+            probe_dict = {
+                "ready": probe_res.ready,
+                "provider_connection": probe_res.provider_connection,
+                "connection_detail": probe_res.overall_readiness,
+                "connection_error": (
+                    probe_res.message if probe_res.overall_readiness == "failed" else None
+                ),
+                "connection_probe": probe_res.to_dict(),
+            }
+        from services.distribution.wizard_summary import (
+            render_completion_summary,
+            sanitize_completion_receipt,
+        )
+
+        effective_adapter = adapter or ("meta" if allow_cloud else "lmstudio")
+        receipt = sanitize_completion_receipt(
+            {
+                **(raw_result if isinstance(raw_result, dict) else {}),
+                "install": str(chosen.install),
+                "launcher": str(chosen.bin / "kinaiya"),
+                "config": str(chosen.config),
+                "data": str(chosen.data),
+                "workspace": str(chosen.workspace),
+                "adapter": effective_adapter,
+                "endpoint": endpoint,
+                "model": model,
+                "allow_cloud": allow_cloud,
+                "credential_env": credential_env,
+                "converse": converse,
+                "converse_profile": converse_profile,
+                **probe_dict,
+            }
+        )
+        cols = shutil.get_terminal_size().columns
+        self.tty.write(
+            render_completion_summary(
+                receipt,
+                is_tty=True,
+                no_color=bool(self.color_mode == ColorMode.NONE or cols < 40),
+                width=cols,
+            )
+        )
+        self.tty.flush()
+        return receipt
+
+    def run_quick(self, *, skip_header: bool = False) -> dict[str, Any]:
+        if not skip_header:
+            self._write_header()
         self.tty.write(
             "Quick Setup: using safe default workspace and data paths "
             "(choose Advanced settings before confirmation to customize).\n"
@@ -395,18 +492,47 @@ class WizardFlowCoordinator:
         return result
 
     def run(self) -> dict[str, Any]:
+        if self.section is not None:
+            return WizardNavigator(
+                self.layout,
+                tty=self.tty,
+                section=self.section,
+                mode=self.mode,
+                mascot_fn=self.mascot_fn,
+                setup_fn=self.setup_fn,
+                reconfigure_fn=self.reconfigure_fn,
+                profile_id=self.profile_id,
+                getpass_fn=self.getpass_fn,
+                replace_fn=self.replace_fn,
+                profiles=self.profiles,
+                discover_models=self.discover_models,
+                check_connection=self.check_connection,
+                opener=self.opener,
+            ).run()
         if self.mode == "quick" and os.path.lexists(self.layout.config):
             raise InstallError("Preserving existing configuration; edit it explicitly instead")
         if self.mode == "quick":
             return self.run_quick()
-        if self.mode == "advanced":
-            return self.run_advanced()
-        self._write_header()
-        first = self.ask("Authorized workspace", str(self.layout.workspace))
-        if first.strip().lower() in {":quick", "quick"}:
-            self.used_quick = True
-            return self.run_quick()
-        return self.run_advanced(first_workspace_answer=first)
+        nav = WizardNavigator(
+            self.layout,
+            tty=self.tty,
+            section=None,
+            mode=self.mode,
+            mascot_fn=self.mascot_fn,
+            setup_fn=self.setup_fn,
+            reconfigure_fn=self.reconfigure_fn,
+            profile_id=self.profile_id,
+            getpass_fn=self.getpass_fn,
+            replace_fn=self.replace_fn,
+            profiles=self.profiles,
+            discover_models=self.discover_models,
+            check_connection=self.check_connection,
+            opener=self.opener,
+        )
+        res = nav.run()
+        self.chosen_layout = nav.chosen_layout
+        self.used_quick = nav.used_quick
+        return res
 
 
 def run_quick_wizard(
