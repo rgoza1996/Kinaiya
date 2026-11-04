@@ -240,10 +240,14 @@ def healthy_sandbox(monkeypatch):
 def test_doctor_python_candidate_range_matches_installer(
     monkeypatch, healthy_sandbox, minor, supported
 ):
-    from services.distribution.doctor import _check_sandbox_isolation
+    from services.distribution import doctor
 
-    monkeypatch.setattr(sys, "version_info", (3, minor, 0, "final", 0))
-    check = _check_sandbox_isolation(runner=healthy_sandbox)
+    monkeypatch.setattr(
+        doctor,
+        "sys",
+        SimpleNamespace(version_info=(3, minor, 0, "final", 0), executable=sys.executable),
+    )
+    check = doctor._check_sandbox_isolation(runner=healthy_sandbox)
     assert check["python_supported"] is supported
     assert check["status"] == ("pass" if supported else "fail")
     assert check["bwrap_probe"] == "pass"

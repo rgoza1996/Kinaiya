@@ -84,6 +84,17 @@ real sandbox denials, service readiness, update recovery, rollback, and uninstal
 These were local unqualified release fixtures, not published releases or live
 provider tests. Ubuntu 26.04 ARM64 lifecycle remains unmeasured by this run.
 
+Full-suite verification also checks interpreter compatibility: standing UTC
+instants retain their existing `00:00:00`–`23:59:59` wire range even if a newer
+stdlib parser normalizes `24:00:00`, and JSON diagnostics follow the actual
+installed parser/encoder guard rather than inventing a fixed nesting limit.
+The default Ubuntu 26.04 bwrap AppArmor profile currently denies execution of
+the sealed optional GGUF worker; [#481](https://github.com/rgoza1996/Kinaiya/issues/481)
+retains that failing native test. Agent-only installation and isolation passed;
+this evidence does not qualify managed GGUF execution or justify relaxing the
+host policy. An intermittent media-reset cleanup failure observed in CI is
+tracked separately in [#482](https://github.com/rgoza1996/Kinaiya/issues/482).
+
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
 upgrades, downgrades, or removes existing system packages, never changes kernel
 policy, and never starts inference, captures a microphone, or submits an Agent

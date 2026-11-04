@@ -566,6 +566,8 @@ def test_occurrence_exact_gregorian_text_offset_and_leap_boundaries():
         assert kind.model_validate(raw).utc_offset_seconds == offset
     leap = {**occurrence(), "local_date": "2000-02-29", "due_utc": "2000-02-29T00:00:00Z"}
     assert kind.model_validate(leap).local_date == "2000-02-29"
+    last_second = {**occurrence(), "due_utc": "2026-11-01T23:59:59Z"}
+    assert kind.model_validate(last_second).due_utc == last_second["due_utc"]
     for field, values in (
         ("local_date", ("1900-02-29", "2026-02-30", "0000-01-01", "2026-1-01", "2026-11-01\n")),
         (

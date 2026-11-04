@@ -9,6 +9,7 @@ jobs:
   python:
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.11', '3.12', '3.14']
     steps:

@@ -4,7 +4,6 @@ import ctypes.util
 import os
 import platform
 import subprocess
-import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -39,7 +38,8 @@ def host_preflight(request, monkeypatch, tmp_path):
     monkeypatch.setattr(
         platform, "freedesktop_os_release", lambda: {"ID": "ubuntu", "VERSION_ID": "26.04"}
     )
-    monkeypatch.setattr(sys, "version_info", (3, 14, 0, "final", 0))
+    # Isolate interpreter emulation from pytest's own version-dependent imports.
+    monkeypatch.setattr(module, "sys", SimpleNamespace(version_info=(3, 14, 0, "final", 0)))
     monkeypatch.setattr(module.os, "geteuid", lambda: 1000)
     monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/" + name)
     monkeypatch.setattr(module.shutil, "disk_usage", lambda path: SimpleNamespace(free=2 * 1024**3))
@@ -65,7 +65,7 @@ def test_supported_hosts_still_require_namespace_probe(
     monkeypatch.setattr(
         platform, "freedesktop_os_release", lambda: {"ID": "ubuntu", "VERSION_ID": ubuntu}
     )
-    monkeypatch.setattr(sys, "version_info", (3, minor, 0, "final", 0))
+    monkeypatch.setattr(host_preflight.module.sys, "version_info", (3, minor, 0, "final", 0))
     monkeypatch.setattr(platform, "machine", lambda: architecture)
     host_preflight.run()
     assert len(host_preflight.probes) == 1
@@ -90,7 +90,7 @@ def test_other_distros_and_interim_releases_remain_refused(
 
 @pytest.mark.parametrize("minor", [10, 15])
 def test_python_versions_outside_candidate_range_remain_refused(host_preflight, monkeypatch, minor):
-    monkeypatch.setattr(sys, "version_info", (3, minor, 0, "final", 0))
+    monkeypatch.setattr(host_preflight.module.sys, "version_info", (3, minor, 0, "final", 0))
     with pytest.raises(host_preflight.error, match="Python"):
         host_preflight.run()
     assert not host_preflight.probes
