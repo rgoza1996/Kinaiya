@@ -96,6 +96,37 @@ class ActionDecodeError(ProviderError):
         return {"stage": self.stage, "reason": self.reason}
 
 
+class SettledPublicationRejection(ActionDecodeError):
+    """One rejected proposal from a consumed, closed, measured Meta request.
+
+    The parser still rejects the original object. This constant projection
+    carries no model text and cannot authorize publication or completion.
+    Unmeasured calls and all other decoding failures retain their old error.
+    """
+
+    def __init__(self, request_sha256: str):
+        if (
+            type(request_sha256) is not str
+            or len(request_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in request_sha256)
+        ):
+            raise ValueError("Invalid settled publication request")
+        super().__init__("ui_arguments", "json_syntax")
+        self._request_sha256 = request_sha256
+
+    def validate_request(self, request_sha256: str) -> None:
+        if (
+            type(self) is not SettledPublicationRejection
+            or self.stage != "ui_arguments"
+            or self.reason != "json_syntax"
+            or type(request_sha256) is not str
+            or len(request_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in request_sha256)
+            or self._request_sha256 != request_sha256
+        ):
+            raise ValueError("Invalid settled publication request")
+
+
 class ProviderRefusal(ProviderError):
     """A rejected input/result must be surfaced rather than retried as a decision."""
 
@@ -1457,7 +1488,26 @@ class MetaResponsesProvider:
                 active = {key: value for key, value in wire_args.items() if value is not None}
                 if set(active) != {"ui_spec_json"}:
                     raise ActionDecodeError("ui_wire", "argument_fields")
-                action["arguments"] = _ui_spec_object(active["ui_spec_json"])
+                try:
+                    action["arguments"] = _ui_spec_object(active["ui_spec_json"])
+                except ActionDecodeError as exc:
+                    if (
+                        type(exc) is ActionDecodeError
+                        and exc.stage == "ui_arguments"
+                        and exc.reason == "json_syntax"
+                        and check is not None
+                        and data.get("status") == "completed"
+                        and "publish_ui" in request_tools
+                    ):
+                        # The prepared path drained the original response and
+                        # confirmed owned close before parsing. No native tool
+                        # has received these rejected arguments. Never retry
+                        # this consumed request or repair its JSON here.
+                        from packages.providers.prompt_budget import request_digest
+
+                        check(body)
+                        raise SettledPublicationRejection(request_digest(body)) from None
+                    raise
                 return json.dumps(action, ensure_ascii=False, allow_nan=False)
             if action.get("tool") == "tool_catalog":
                 action = _closed_json_object(text, 16384, "catalog_wire")

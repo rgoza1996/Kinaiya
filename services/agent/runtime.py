@@ -108,8 +108,10 @@ from packages.providers.prompt_budget import PromptCountUnavailable
 from packages.providers.text import (
     ActionDecodeError,
     MetaResponseError,
+    MetaResponsesProvider,
     ProviderCleanupError,
     ProviderRefusal,
+    SettledPublicationRejection,
 )
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.completion import append_completion
@@ -219,6 +221,43 @@ class _InferenceProviderFailure(Exception):
         ):
             raise ValueError("Invalid provider response diagnostic")
         return result
+
+
+class _InferencePublicationRejection(Exception):
+    """A rejected, effect-free proposal bound to one native inference."""
+
+    def __init__(self, rec, generation_id, request_sha256, error, current):
+        self.record, self.revision = rec, rec.task.objective_revision
+        self.generation_id, self.request_sha256 = generation_id, request_sha256
+        self.error, self.current = error, current
+        super().__init__("Native UI publication proposal rejected before execution")
+
+    def for_record(self, rec):
+        self.current()
+        if (
+            self.record is not rec
+            or rec.task.state != TaskState.RUNNING
+            or rec.task.objective_revision != self.revision
+            or rec.cancel_requested
+            or rec.closing
+            or rec.pending_steer is not None
+            or rec.completion_pending
+            or rec._cleanup_uncertain
+            or rec.standing_cleanup_uncertain
+            or type(self.generation_id) is not str
+            or len(self.generation_id) != 32
+            or UUID(self.generation_id).hex != self.generation_id
+        ):
+            raise ValueError("Obsolete publication rejection")
+        if type(self.error) is not SettledPublicationRejection:
+            raise ValueError("Invalid publication rejection type")
+        self.error.validate_request(self.request_sha256)
+        return {
+            "provider_diagnostic": {"stage": "ui_arguments", "reason": "json_syntax"},
+            "generation_id": self.generation_id,
+            "request_sha256": self.request_sha256,
+            "objective_revision": self.revision,
+        }
 
 
 class _PublicationUncertain(ToolFailure):
@@ -365,6 +404,10 @@ class _Record:
     # reverse). Keep each failure class until its own successful operation.
     failed_work_effect: bool = False
     failed_artifact: bool = False
+    # One native, settled format rejection may be observed per revision. Its
+    # pending fence is cleared only by a later successful native publication.
+    ui_format_recovery_revision: int | None = None
+    ui_format_pending_revision: int | None = None
     failed_plugin: bool = False
     failed_task_harness: bool = False
     task_harness_execution: dict | None = None
@@ -2443,6 +2486,7 @@ class AgentRuntime:
         rec.failed_effect = False
         rec.failed_work_effect = False
         rec.failed_artifact = False
+        rec.ui_format_pending_revision = None
         rec.failed_plugin = False
         rec.failed_task_harness = False
         rec.history.append(
@@ -3584,6 +3628,8 @@ class AgentRuntime:
     def _effect_result(rec: _Record, tool: str, *, ok: bool) -> None:
         if tool == "publish_ui":
             rec.failed_artifact = not ok
+            if ok and rec.ui_format_pending_revision == rec.task.objective_revision:
+                rec.ui_format_pending_revision = None
         elif tool == "run_task_harness":
             rec.failed_task_harness = not ok
         elif tool in {"write_file", "shell", "mcp_call"}:
@@ -3978,6 +4024,30 @@ class AgentRuntime:
                 # invalidate the provider's request-local admission binding.
                 try:
                     text = await prepared.complete()
+                except SettledPublicationRejection as exc:
+                    try:
+                        if (
+                            type(provider) is not MetaResponsesProvider
+                            or type(exc) is not SettledPublicationRejection
+                            or prepared.measurement is None
+                        ):
+                            raise ValueError("Unmeasured publication rejection")
+                        exc.validate_request(prepared.measurement.request_sha256)
+                    except ValueError:
+                        # An unbound diagnostic is still the original terminal
+                        # decode failure, never permission for another request.
+                        raise ActionDecodeError("ui_arguments", "json_syntax") from None
+                    # The completed original request has settled. Recheck all
+                    # source, epoch, disclosure and owner fences after awaits
+                    # before offering the supervisor an effect-free notice.
+                    await check()
+                    raise _InferencePublicationRejection(
+                        rec,
+                        observation_operation,
+                        prepared.measurement.request_sha256,
+                        exc,
+                        current,
+                    ) from None
                 except MetaResponseError as exc:
                     # Preserve steering/cancellation/disclosure authority and
                     # bind only this consumed prepared generation's request.
@@ -4068,6 +4138,63 @@ class AgentRuntime:
                                 "the current revision",
                             ),
                         }
+                    )
+                    continue
+                except _InferencePublicationRejection as exc:
+                    if rec.cancel_requested or rec.closing:
+                        await self._cancel(rec)
+                        return
+                    if rec.pending_steer is not None:
+                        await self._apply_steer(rec)
+                        continue
+                    try:
+                        diagnostic = exc.for_record(rec)
+                    except ProviderCleanupError:
+                        rec._cleanup_uncertain = True
+                        raise
+                    except Exception:
+                        await self._fail(
+                            rec,
+                            "provider error: UI publication arguments require a bounded UTF-8 JSON object",
+                            decode_error=ActionDecodeError("ui_arguments", "json_syntax"),
+                        )
+                        return
+                    if rec.ui_format_recovery_revision == rec.task.objective_revision:
+                        await self._fail(
+                            rec,
+                            "provider error: UI publication arguments require a bounded UTF-8 JSON object",
+                            decode_error=ActionDecodeError("ui_arguments", "json_syntax"),
+                        )
+                        return
+                    # Consume the revision's single notice and establish the
+                    # finish fence before any journal await. No rejected raw
+                    # action, fabricated tool result or evidence is retained.
+                    rec.ui_format_recovery_revision = rec.task.objective_revision
+                    rec.ui_format_pending_revision = rec.task.objective_revision
+                    rec.last_tool_ok = False
+                    self._effect_result(rec, "publish_ui", ok=False)
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False,
+                                "Native publication proposal rejected (ui_arguments/json_syntax); "
+                                "no publication executed. Existing native results remain available. "
+                                "A new valid publication must succeed in this revision before finish. "
+                                "The objective and permissions are unchanged.",
+                            ),
+                        }
+                    )
+                    await self._append(
+                        rec,
+                        "agent.tool",
+                        {
+                            "tool": "publish_ui",
+                            "ok": False,
+                            "reason": "invalid_proposal_format",
+                            "effect_executed": False,
+                            **diagnostic,
+                        },
                     )
                     continue
                 except ActionDecodeError as exc:
@@ -4303,6 +4430,9 @@ class AgentRuntime:
             return True
         if rec.failed_task_harness:
             await self._fail(rec, "finish while required task harness execution failed")
+            return True
+        if rec.ui_format_pending_revision == rec.task.objective_revision:
+            await self._fail(rec, "finish while a rejected UI publication remains unresolved")
             return True
         if rec.failed_effect:
             await self._fail(
