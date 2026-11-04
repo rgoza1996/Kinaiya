@@ -360,14 +360,34 @@ def test_tty_wizard_requires_confirmation_and_keeps_agent_only(tmp_path, monkeyp
     assert not layout.config.exists()
 
 
-def test_mascot_falls_back_for_narrow_and_noninteractive_output():
+def test_mascot_falls_back_for_narrow_and_noninteractive_output(monkeypatch):
     try:
         wizard = importlib.import_module("services.distribution.wizard")
     except ModuleNotFoundError:
         pytest.fail("terminal mascot is not implemented")
     full = wizard.mascot(width=80, interactive=True)
-    assert "(" in full and "~" in full and "*" in full
+    assert "(" in full and "~" in full and "*" in full and "@" in full
     assert "\x1b" not in full
+    assert len(full.splitlines()) == 15
+    assert max(map(len, full.splitlines())) == 68
+    assert wizard.render_moon_ascii_from_image() == wizard.MASCOT
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("KINAIYA_NO_COLOR", raising=False)
+    monkeypatch.delenv("CLICOLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    colored_tc = wizard.mascot(width=80, interactive=True, color="truecolor")
+    assert "\x1b[38;2;" in colored_tc
+    colored_16 = wizard.mascot(width=80, interactive=True, color="ansi16")
+    assert "\x1b[97m" in colored_16 and "\x1b[38;2;" not in colored_16
+    for non_color_term in ("dumb", "vt100", "vt52", "unknown", "xterm-mono"):
+        monkeypatch.setenv("TERM", non_color_term)
+        assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("CLICOLOR", "0")
+    assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
+    monkeypatch.delenv("CLICOLOR", raising=False)
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
     assert wizard.mascot(width=80, interactive=False) == "Kinaiya"
     assert max(map(len, wizard.mascot(width=12, interactive=True).splitlines())) <= 12
 
@@ -508,13 +528,58 @@ def test_install_missing_dependencies_uses_no_upgrade_and_never_runs_apt_update(
 
     def fake_run(argv, **kwargs):
         commands.append(argv)
+        if "-s" in argv:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.\n"
+                    "Inst bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Inst libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                ),
+                stderr="",
+            )
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     installed = module.install_missing_dependencies(["bubblewrap", "libseccomp2"])
     assert installed == ["bubblewrap", "libseccomp2"]
     assert commands == [
-        ["sudo", "apt-get", "install", "--no-upgrade", "-y", "bubblewrap", "libseccomp2"]
+        [
+            "apt-get",
+            "-s",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "install",
+            "--",
+            "bubblewrap",
+            "libseccomp2",
+        ],
+        [
+            "sudo",
+            "apt-get",
+            "install",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "--",
+            "bubblewrap=0.9.0-1ubuntu0.3",
+            "libseccomp2=2.5.5-1ubuntu3.1",
+        ],
     ]
     for cmd in commands:
         assert "update" not in cmd and "upgrade" not in cmd

@@ -1,0 +1,212 @@
+{
+  "$defs": {
+    "MediaAudioFormat": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "enum": [
+            1,
+            2
+          ],
+          "title": "Channels",
+          "type": "integer"
+        },
+        "codec": {
+          "enum": [
+            "pcm_s16le",
+            "pcm_s24le",
+            "pcm_s32le"
+          ],
+          "title": "Codec",
+          "type": "string"
+        },
+        "container": {
+          "enum": [
+            "raw",
+            "wav"
+          ],
+          "title": "Container",
+          "type": "string"
+        },
+        "kind": {
+          "const": "audio",
+          "title": "Kind",
+          "type": "string"
+        },
+        "rate": {
+          "enum": [
+            16000,
+            24000,
+            48000
+          ],
+          "title": "Rate",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "container",
+        "codec",
+        "rate",
+        "channels"
+      ],
+      "title": "MediaAudioFormat",
+      "type": "object"
+    },
+    "MediaClipFormat": {
+      "additionalProperties": false,
+      "properties": {
+        "audio_codec": {
+          "enum": [
+            "aac",
+            "opus",
+            "none"
+          ],
+          "title": "Audio Codec",
+          "type": "string"
+        },
+        "container": {
+          "enum": [
+            "mp4",
+            "webm"
+          ],
+          "title": "Container",
+          "type": "string"
+        },
+        "kind": {
+          "const": "video_clip",
+          "title": "Kind",
+          "type": "string"
+        },
+        "video_codec": {
+          "enum": [
+            "h264",
+            "hevc",
+            "vp9",
+            "av1"
+          ],
+          "title": "Video Codec",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "container",
+        "video_codec",
+        "audio_codec"
+      ],
+      "title": "MediaClipFormat",
+      "type": "object"
+    },
+    "MediaImageFormat": {
+      "additionalProperties": false,
+      "properties": {
+        "codec": {
+          "enum": [
+            "png",
+            "mjpeg"
+          ],
+          "title": "Codec",
+          "type": "string"
+        },
+        "container": {
+          "enum": [
+            "png",
+            "jpeg"
+          ],
+          "title": "Container",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "image",
+            "video_frame"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "pixel_format": {
+          "const": "rgb24",
+          "title": "Pixel Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "container",
+        "codec",
+        "pixel_format"
+      ],
+      "title": "MediaImageFormat",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "discriminator": {
+        "mapping": {
+          "audio": "#/$defs/MediaAudioFormat",
+          "image": "#/$defs/MediaImageFormat",
+          "video_clip": "#/$defs/MediaClipFormat",
+          "video_frame": "#/$defs/MediaImageFormat"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MediaAudioFormat"
+        },
+        {
+          "$ref": "#/$defs/MediaImageFormat"
+        },
+        {
+          "$ref": "#/$defs/MediaClipFormat"
+        }
+      ],
+      "title": "Body"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[Annotated[Union[MediaAudioFormat, MediaImageFormat, MediaClipFormat], FieldInfo(annotation=NoneType, required=True, discriminator='kind')]]",
+  "type": "object"
+}

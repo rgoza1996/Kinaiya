@@ -1219,19 +1219,21 @@ def main(argv=None):
     if args.command in {
         "install",
         "setup",
+        "start",
         "update",
         "version",
+        "doctor",
         "recover",
         "rollback",
         "uninstall",
         "web",
     }:
         from packages.distribution.releases import ReleaseError
-        from services.distribution.cli import dispatch
+        from services.distribution.cli import dispatch, print_command_result
         from services.distribution.installation import InstallError
 
         try:
-            print(json.dumps(dispatch(args), indent=2))
+            print_command_result(args, dispatch(args))
         except (InstallError, ReleaseError) as exc:
             parser.exit(1, f"kinaiya: {exc}\n")
         except (OSError, ValueError):

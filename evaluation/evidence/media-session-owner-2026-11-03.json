@@ -1,0 +1,96 @@
+{
+  "checks": {
+    "changed_source_schemas": "unchanged",
+    "ruff_check": "pass",
+    "ruff_format_check": "826 files already formatted"
+  },
+  "historical_negative_preserved": {
+    "bundle": "204-owner51-lifecycle16-legacy13-qualified80-v1-p32rz5gi",
+    "failed": 1,
+    "failure": "Original media shutdown is unconfirmed in all-index ACK history teardown",
+    "later_changed_source_pass_does_not_rewrite_previous_failure": true,
+    "passed": 79,
+    "receipt_sha256": "0eef90881a01a71c52067bb7c1b6db41ce6ccb28a3a60083f792e0e097387830",
+    "source_head": "047e2667fb8375dc3e39b058555d06636c5b07eb",
+    "test_body_teardown_and_deadlines_unchanged_in_current_run": true
+  },
+  "independent_reviews": {
+    "fresh_receipt_source_review_sha256": "2fffca1e71f7446d493b0ea969cfeff3ea39f2e1e5508e0e814c069710c4e325",
+    "raw176_manifest_sha256": "573f8b510b269735e019cb71f10374c4c37e50a8f483f72a2218917515397656",
+    "raw176_receipt_sha256": "3fffbd53d8f21289738c349ff8833ad2429c32a9b483591c38cfb957250638e6",
+    "raw176_review_sha256": "7f47d363dbe5d68c4b6fb14c24ec0d6ec15a686fe93bd2a4db612efb95ab5e73",
+    "receipt_oracle_review_sha256": "fae01416e477e1a7b3055872b142628821694578d1ab4765dcae856f3a2d3fdd",
+    "scope": "Separate source, source-aware oracle and raw reviews; reviewers did not execute these tests"
+  },
+  "issues": [
+    204,
+    357
+  ],
+  "limits": [
+    "Raw evidence stays in ignored local bundles identified by hashes; not uploaded CI artifacts.",
+    "Receipt96 is contained in176; the counts are not additive.",
+    "The passing fixture assertions provide no independent reconstruction of every physical owner or cause of the prior teardown failure.",
+    "Full changed-head CI and parent integration remain required before merge.",
+    "Decoder launch, provider transport, direct media Decisions, Omni speech duplex, AT64-AT66, private news-video and sign-language demo acceptance remain open.",
+    "No paid inference, model/provider/device/GPU operation or live preview/configuration change occurred during this qualification.",
+    "The separate standing-work64 capacity gate is not qualified by these media tests."
+  ],
+  "module_cases": {
+    "legacy_events": 13,
+    "lifecycle": 16,
+    "owner": 51,
+    "receipt_parser": 96
+  },
+  "pull_request": 378,
+  "qualification": {
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-u",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/integration/test_session_media_owner.py",
+      "tests/integration/test_session_media_lifecycle_guards.py",
+      "tests/unit/test_legacy_events.py",
+      "tests/unit/test_media_owner_receipts.py",
+      "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-owner51-lifecycle16-legacy13-receipt96-qualified176-v1-bzso7ar9/pytest-tmp",
+      "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-owner51-lifecycle16-legacy13-receipt96-qualified176-v1-bzso7ar9/junit.xml"
+    ],
+    "elapsed_wall_s": 532.4240492339959,
+    "exit_code": 0,
+    "junit": [
+      {
+        "errors": "0",
+        "failures": "0",
+        "hostname": "roggoz",
+        "name": "pytest",
+        "skipped": "0",
+        "tests": "176",
+        "time": "531.190",
+        "timestamp": "2026-11-03T07:25:46.485576-08:00"
+      }
+    ],
+    "pins_preserved": true,
+    "qualified_inputs_stable": true,
+    "runner_preserved": true,
+    "started_at": "2026-11-03T15:25:46.256496+00:00",
+    "tracked_input_count": 1794
+  },
+  "raw_junit_sha256": "2f3da4b6e873b298314b92018b1feca39987534756432676fd01ec4faab29f2a",
+  "raw_local_bundle": "204-owner51-lifecycle16-legacy13-receipt96-qualified176-v1-bzso7ar9",
+  "raw_log_sha256": "ac42ae01f2434d0f3844d7f61c4cc43cc052f4968d6c371b3d77a5ee75cb60f6",
+  "raw_manifest_sha256": "3eef1ada47e9cb301afccc957c6b4fcb5a73543eb4d2c8e1e47b03b19c8cfcf1",
+  "raw_receipt_sha256": "7fa14792d4a6839abc0716b7f1aff689249c63bb1dfb0391c2f5d8f239613b30",
+  "scope": "Offline native media owner, Session lifecycle, ordinary event channel and receipt-parser regression; not a complete decoder or demo",
+  "source_head": "fcfbbb68a3d65af56d636ef13223505ce5726937",
+  "source_tree": "b4993533cf54ad1d14adc04910a5327f69f34bf9"
+}

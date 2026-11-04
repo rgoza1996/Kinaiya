@@ -29,6 +29,8 @@ part 'artifact_state.dart';
 
 enum AppView { character, agent }
 
+enum LocalHostSignInState { idle, connecting, connected, unavailable }
+
 class ChatMsg {
   ChatMsg({
     required this.role,
@@ -53,10 +55,14 @@ class ChatMsg {
 }
 
 class AppState extends ChangeNotifier {
-  AppState({DateTime Function()? artifactNow})
+  AppState({DateTime Function()? artifactNow, this.localSignInExchange})
     : _artifactNow = artifactNow ?? DateTime.now;
   final DateTime Function() _artifactNow;
   KinaiyaClient Function(ConnectionProfile profile)? clientFactory;
+  LocalSignInExchange? localSignInExchange;
+  LocalHostSignInState localSignInState = LocalHostSignInState.idle;
+  String? localSignInError;
+  BackendProfile _preferredBackendProfile = BackendProfile.clean;
 
   ConnectionProfile? connection;
   KinaiyaClient? client;
@@ -64,6 +70,29 @@ class AppState extends ChangeNotifier {
   bool connected = false;
   bool agentOnline = false;
   bool converseOnline = false;
+
+  bool get isTrustedLocalFirstRun =>
+      localSignInExchange != null ||
+      localSignInState != LocalHostSignInState.idle;
+
+  bool get isAgentOnlyConnected =>
+      connected && sessionAuthenticated && agentOnline && !converseOnline;
+
+  String get hostRoleStatusSummary {
+    if (!sessionAuthenticated) {
+      return 'Host session not authenticated';
+    }
+    if (!agentOnline && !converseOnline) {
+      return 'Agent host unreachable';
+    }
+    if (agentOnline && !converseOnline) {
+      return 'Connected (Agent-only) · Converse optional / not enabled';
+    }
+    if (!agentOnline && converseOnline) {
+      return 'Agent host unreachable · Converse reachable';
+    }
+    return 'Connected · Agent reachable · Converse reachable';
+  }
 
   /// Independent owner-only classifier metadata. No readiness grant.
   DecisionsModelsSnapshot? decisionsModelOptions;
@@ -419,6 +448,7 @@ class AppState extends ChangeNotifier {
     }
     final generation = ++_connectionGeneration;
     connection = profile;
+    _preferredBackendProfile = profile.backendProfile;
     _decisionsModelOptionsRead++;
     decisionsModelOptions = null;
     decisionsModelOptionsLoading = false;
@@ -446,6 +476,11 @@ class AppState extends ChangeNotifier {
       agentOnline = true;
       converseOnline = true;
       connected = true;
+      if (localSignInExchange != null ||
+          localSignInState == LocalHostSignInState.connecting) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+      }
     }
     connectionError = client == null
         ? 'Connection is not configured yet.'
@@ -457,6 +492,68 @@ class AppState extends ChangeNotifier {
       unawaited(_verifyConnection(generation));
       // Independent Decisions owner metadata never depends on other role health.
       unawaited(refreshDecisionsModelOptions());
+    }
+  }
+
+  /// Exchanges a trusted local handoff for an in-memory owner session without
+  /// requiring the user to type service URLs or an owner token. Preserves the
+  /// current inference disclosure selection (`BackendProfile.clean` by default).
+  Future<bool> attemptLocalSignIn({
+    LocalSignInExchange? exchange,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+  }) async {
+    final runner = exchange ?? localSignInExchange;
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+    if (runner == null) {
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      final result = await runner();
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ?? 'Local automatic sign-in unavailable.';
+      notifyListeners();
+      return false;
+    } catch (_) {
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      notifyListeners();
+      return false;
     }
   }
 
@@ -616,6 +713,9 @@ class AppState extends ChangeNotifier {
           sessionAuthenticated &&
           (agentInferenceAllowed || converseInferenceAllowed);
       if (!connected) {
+        if (localSignInState == LocalHostSignInState.connecting) {
+          localSignInState = LocalHostSignInState.unavailable;
+        }
         if (agentOnline || converseOnline) {
           // At least one service answered but no role earned consent:
           // disclosure, malformed, or missing provider metadata.
@@ -623,21 +723,29 @@ class AppState extends ChangeNotifier {
               'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
         } else {
           connectionError =
-              'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse unavailable.';
+              'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';
         }
       } else {
+        if (localSignInExchange != null ||
+            localSignInState == LocalHostSignInState.connecting) {
+          localSignInState = LocalHostSignInState.connected;
+          localSignInError = null;
+        }
         final agentLabel = !agentOnline
-            ? 'unavailable'
+            ? 'unavailable (Agent host unreachable)'
             : agentInferenceAllowed
             ? 'ready'
             : 'blocked (check disclosure consent)';
         final converseLabel = !converseOnline
-            ? 'unavailable'
+            ? 'optional / not enabled'
             : converseInferenceAllowed
             ? (converseEnabled ? 'ready' : 'off')
             : 'blocked (check disclosure consent)';
+        final prefix = agentOnline && !converseOnline
+            ? 'Connected (Agent-only) — '
+            : '';
         connectionError =
-            'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
+            '${prefix}Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
       }
       _noticesPoll?.cancel();
       _resourcesPoll?.cancel();
@@ -663,6 +771,9 @@ class AppState extends ChangeNotifier {
       converseProvider = null;
       streamingWindows = false;
       connected = false;
+      if (localSignInState == LocalHostSignInState.connecting) {
+        localSignInState = LocalHostSignInState.unavailable;
+      }
       connectionError =
           'Session authentication or connection failed. Check setup.';
     }

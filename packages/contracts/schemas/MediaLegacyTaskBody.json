@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "canonical_utf8_b64": {
+      "maxLength": 87384,
+      "minLength": 1,
+      "title": "Canonical Utf8 B64",
+      "type": "string"
+    },
+    "contract": {
+      "const": "TaskRequest",
+      "title": "Contract",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contract",
+    "canonical_utf8_b64",
+    "sha256"
+  ],
+  "title": "MediaLegacyTaskBody",
+  "type": "object"
+}

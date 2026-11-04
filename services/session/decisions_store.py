@@ -462,6 +462,31 @@ class DecisionsInspectionStore:
                 "rows": output,
             }
 
+    def calls(self, source_event_id, *, session_id=None, thread_id=None, epoch=None):
+        if not isinstance(source_event_id, str) or not 1 <= len(source_event_id) <= 128:
+            raise ValueError("Invalid Decisions call source identifier")
+        with self.store.lock:
+            source = self.store.entry(source_event_id)
+            if source.kind not in CONVERSATION:
+                raise ValueError("Only native conversation sources can invoke Decisions")
+            if session_id is not None and source.session_id != session_id:
+                raise ValueError("Decisions call lookup session mismatch")
+            if thread_id is not None and source.thread_id != thread_id:
+                raise ValueError("Decisions call lookup thread mismatch")
+            if epoch is not None and source.epoch != epoch:
+                raise ValueError("Decisions call lookup epoch mismatch")
+            rows = self.store.db.execute(
+                "SELECT value FROM decisions_calls WHERE source_event_id=? ORDER BY call_sequence ASC",
+                (source_event_id,),
+            ).fetchall()
+            calls, size = [], 0
+            for row in rows:
+                size += len(row[0].encode())
+                if size > DETAIL_CALL_BYTES:
+                    raise ValueError("Decisions call recovery exceeds byte bound")
+                calls.append(json.loads(row[0]))
+            return calls
+
     def detail(
         self, source_event_id, *, through_call_sequence=None, before_call_sequence=None, limit=5
     ):
