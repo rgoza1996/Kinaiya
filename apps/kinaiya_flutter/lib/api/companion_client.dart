@@ -126,11 +126,20 @@ class OwnerCompanionApi {
     );
   }
 
+  /// Reads one page with exact binding and optional exact device validation.
   Future<OwnerCompanionCallPage> listCallsPage(
     OwnerCompanionBinding binding, {
     String? deviceId,
     int after = 0,
     int limit = ownerCompanionMaxCallPageRows,
+  }) => _readCallsPage(binding, deviceId: deviceId, after: after, limit: limit);
+
+  Future<OwnerCompanionCallPage> _readCallsPage(
+    OwnerCompanionBinding binding, {
+    String? deviceId,
+    int after = 0,
+    int limit = ownerCompanionMaxCallPageRows,
+    bool includePriorEpochs = false,
   }) {
     _cursor(after);
     if (limit < 1 || limit > ownerCompanionMaxCallPageRows) {
@@ -149,13 +158,19 @@ class OwnerCompanionApi {
       decode: OwnerCompanionCallPage.fromJson,
       valid: (page) => page.calls.every(
         (call) =>
-            call.binding == binding &&
+            (call.binding == binding ||
+                (includePriorEpochs &&
+                    call.binding.sessionId == binding.sessionId &&
+                    call.binding.threadId == binding.threadId &&
+                    call.binding.epoch < binding.epoch)) &&
             call.sequence > after &&
             (validDevice == null || call.deviceId == validDevice),
       ),
     );
   }
 
+  /// Validates the complete retained inventory before returning this binding.
+  /// Prior epochs remain countable history; they are never action candidates.
   Future<List<OwnerCompanionCall>> listCalls(
     OwnerCompanionBinding binding, {
     String? deviceId,
@@ -172,10 +187,11 @@ class OwnerCompanionApi {
     final perDeviceCounts = <String, int>{};
     var after = 0;
     for (var pageIndex = 0; pageIndex < effectiveMaxPages; pageIndex++) {
-      final page = await listCallsPage(
+      final page = await _readCallsPage(
         binding,
         deviceId: validDevice,
         after: after,
+        includePriorEpochs: true,
       );
       for (final call in page.calls) {
         if (call.sequence <= after || !seen.add(call.callId)) {
@@ -184,16 +200,16 @@ class OwnerCompanionApi {
           );
         }
         final count = (perDeviceCounts[call.deviceId] ?? 0) + 1;
+        perDeviceCounts[call.deviceId] = count;
         if (count > ownerCompanionMaxCallsPerDevice ||
-            perDeviceCounts.length > ownerCompanionMaxDevices ||
-            calls.length >=
-                ownerCompanionMaxDevices * ownerCompanionMaxCallsPerDevice) {
+            perDeviceCounts.length > ownerCompanionMaxDevices) {
           throw const OwnerCompanionFailure(
             'The host exceeded the retained companion call limit.',
           );
         }
-        perDeviceCounts[call.deviceId] = count;
-        calls.add(call);
+        // Reset retains prior epochs in this same session/thread. Validate and
+        // count that inventory before projecting the current binding for UI use.
+        if (call.binding == binding) calls.add(call);
         after = call.sequence;
       }
       if (page.nextAfter == null) {

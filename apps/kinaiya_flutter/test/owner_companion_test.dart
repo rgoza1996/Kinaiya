@@ -351,6 +351,95 @@ void main() {
     },
   );
 
+  test(
+    'owner inventory validates history before projecting current epoch',
+    () async {
+      final binding = OwnerCompanionBinding('session-1', 'thread-1', 2);
+      final api = OwnerCompanionApi(
+        sessionBase: 'https://host.invalid',
+        ownerToken: 'o' * 32,
+        clientFactory: () => MockClient((req) async {
+          final after = int.parse(req.url.queryParameters['after']!);
+          final end = after + 20 < 101 ? after + 20 : 101;
+          return _jsonRes(<String, Object?>{
+            'schema_version': '1.0',
+            'calls': <Object?>[
+              for (var index = after; index < end; index++)
+                _callJson(
+                  id: 'call-${index + 1}',
+                  sequence: index + 1,
+                  deviceId: index < 100 ? 'old-device' : 'current-device',
+                  epoch: index < 100 ? 1 : 2,
+                  state: index < 100 ? 'ended' : 'ringing',
+                  endReason: index < 100 ? 'session_invalidated' : null,
+                ),
+            ],
+            'next_after': end < 101 ? end : null,
+          });
+        }),
+      );
+      addTearDown(api.close);
+      final calls = await api.listCalls(binding);
+      expect(calls.single.callId, 'call-101');
+      // The public page method continues to require the exact requested binding.
+      await expectLater(
+        api.listCallsPage(binding),
+        throwsA(isA<OwnerCompanionFailure>()),
+      );
+    },
+  );
+
+  test(
+    'owner inventory refuses foreign rows and native capacity violations',
+    () async {
+      final binding = OwnerCompanionBinding('session-1', 'thread-1', 2);
+      final invalidInventories = <List<Map<String, Object?>>>[
+        <Map<String, Object?>>[_callJson(sessionId: 'other-session')],
+        <Map<String, Object?>>[_callJson(threadId: 'other-thread')],
+        <Map<String, Object?>>[_callJson(epoch: 3)],
+        <Map<String, Object?>>[_callJson(deviceId: 'other-device', epoch: 2)],
+        List<Map<String, Object?>>.generate(
+          101,
+          (index) => _callJson(id: 'call-$index', sequence: index + 1),
+        ),
+        List<Map<String, Object?>>.generate(
+          33,
+          (index) => _callJson(
+            id: 'call-$index',
+            sequence: index + 1,
+            deviceId: 'device-$index',
+          ),
+        ),
+      ];
+      for (
+        var caseIndex = 0;
+        caseIndex < invalidInventories.length;
+        caseIndex++
+      ) {
+        final rows = invalidInventories[caseIndex];
+        final api = OwnerCompanionApi(
+          sessionBase: 'https://host.invalid',
+          ownerToken: 'o' * 32,
+          clientFactory: () => MockClient((req) async {
+            final after = int.parse(req.url.queryParameters['after']!);
+            final end = after + 20 < rows.length ? after + 20 : rows.length;
+            return _jsonRes(<String, Object?>{
+              'schema_version': '1.0',
+              'calls': rows.sublist(after, end),
+              'next_after': end < rows.length ? end : null,
+            });
+          }),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.listCalls(binding, deviceId: caseIndex == 3 ? 'device-1' : null),
+          throwsA(isA<OwnerCompanionFailure>()),
+          reason: 'invalid inventory case $caseIndex',
+        );
+      }
+    },
+  );
+
   testWidgets(
     'Companions panel opens read-only, pairs, invites, updates note, ends, revokes, and preserves drafts',
     (tester) async {
@@ -946,14 +1035,13 @@ void main() {
       await tester.pump();
 
       await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      await tester.pumpWidget(buildDialog('inflight-3'));
+      await tester.pumpAndSettle();
       pendingNote.complete(
         _jsonRes(<String, Object?>{'detail': 'error'}, status: 503),
       );
       pendingNote = null;
       await tester.pump();
-
-      await tester.pumpWidget(buildDialog('inflight-3'));
-      await tester.pumpAndSettle();
       expect(
         tester
             .widget<FilledButton>(
@@ -1013,6 +1101,151 @@ void main() {
       state.dispose();
     },
   );
+
+  testWidgets('inspecting another call cannot reconcile an uncertain note', (
+    tester,
+  ) async {
+    final calls = <Map<String, Object?>>[
+      _callJson(),
+      _callJson(
+        id: 'call-2',
+        sequence: 2,
+        state: 'ended',
+        endReason: 'owner_ended',
+      ),
+    ];
+    final inspected = <String>[];
+    final state = _connectedState((req) {
+      if (req.method == 'POST') {
+        return _jsonRes(<String, Object?>{}, status: 503);
+      }
+      if (req.url.path == '/v1/companion/devices') {
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'devices': <Object?>[_deviceJson()],
+        });
+      }
+      if (req.url.path == '/v1/companion/calls') {
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'calls': calls,
+          'next_after': null,
+        });
+      }
+      inspected.add(req.url.path);
+      return _jsonRes(
+        calls.firstWhere(
+          (call) => req.url.path.endsWith('/${call['call_id']}'),
+        ),
+      );
+    });
+    addTearDown(state.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConverseCompanionsDialog(
+            state: state,
+            pollInterval: Duration.zero,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> tap(String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+      'Uncertain A',
+    );
+    await tap('companion-save-note-call-1');
+    await tap('companion-inspect-call-2');
+    final saveA = find.byKey(const ValueKey('companion-save-note-call-1'));
+    expect(tester.widget<FilledButton>(saveA).onPressed, isNull);
+    expect(inspected, <String>['/v1/companion/calls/call-2']);
+    await tap('companion-inspect-call-1');
+    expect(tester.widget<FilledButton>(saveA).onPressed, isNotNull);
+  });
+
+  testWidgets('a GET started before note settlement cannot release its fence', (
+    tester,
+  ) async {
+    final write = Completer<http.Response>();
+    final oldRead = Completer<http.Response>();
+    var listReads = 0;
+    final oldCall = _callJson();
+    http.Response page() => _jsonRes(<String, Object?>{
+      'schema_version': '1.0',
+      'calls': <Object?>[oldCall],
+      'next_after': null,
+    });
+    final state = _connectedState((req) async {
+      if (req.method == 'POST') return write.future;
+      if (req.url.path == '/v1/companion/devices') {
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'devices': <Object?>[_deviceJson()],
+        });
+      }
+      if (req.url.path == '/v1/companion/calls') {
+        listReads++;
+        return listReads == 2 ? oldRead.future : page();
+      }
+      return _jsonRes(oldCall);
+    });
+    addTearDown(() {
+      if (!write.isCompleted) {
+        write.complete(_jsonRes(<String, Object?>{}, status: 503));
+      }
+      if (!oldRead.isCompleted) oldRead.complete(page());
+      state.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConverseCompanionsDialog(
+            state: state,
+            pollInterval: Duration.zero,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> tap(String key) async {
+      final finder = find.byKey(ValueKey(key));
+      await tester.ensureVisible(finder);
+      await tester.tap(finder);
+      await tester.pump();
+    }
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('companion-note-input-call-1')),
+      'Pending note',
+    );
+    await tap('companion-save-note-call-1');
+    await tap('companion-refresh');
+    expect(listReads, 2);
+    write.complete(_jsonRes(<String, Object?>{}, status: 503));
+    await tester.pump();
+    await tester.pump();
+    oldRead.complete(page());
+    await tester.pumpAndSettle();
+    final save = find.byKey(const ValueKey('companion-save-note-call-1'));
+    expect(tester.widget<FilledButton>(save).onPressed, isNull);
+    await tap('companion-inspect-call-1');
+    await tester.pumpAndSettle();
+    expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+  });
 
   testWidgets(
     '320px short screen at 2x text keeps stop and revoke controls reachable without overflow',

@@ -22,6 +22,7 @@ import 'design_tokens.dart';
 
 const int companionUnresolvedScopeBound = 32;
 const _uuid = Uuid();
+int _companionObservationSerial = 0;
 
 class _UncertainInvite {
   _UncertainInvite({
@@ -72,6 +73,7 @@ class _UncertainNote {
   final String draftNote;
   bool inFlight;
   int? reconciledRevision;
+  int? reconcileAfterObservation;
   bool get needsGetReconciliation => inFlight || reconciledRevision == null;
 }
 
@@ -91,6 +93,7 @@ final ValueNotifier<int> _uncertaintyRevision = ValueNotifier<int>(0);
 @visibleForTesting
 void resetCompanionUncertaintyForTest() {
   _unresolvedScopes.clear();
+  _companionObservationSerial = 0;
   _uncertaintyRevision.value = 0;
 }
 
@@ -434,6 +437,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     }
     _pollTimer?.cancel();
     final token = ++_readToken;
+    final observation = ++_companionObservationSerial;
     setState(() {
       _refreshing = true;
     });
@@ -469,7 +473,11 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         }
         if (binding != null) {
           if (loadedCalls != null) {
-            _mergeCalls(loadedCalls);
+            _mergeCalls(
+              loadedCalls,
+              reconcileNotes: true,
+              observation: observation,
+            );
             _callsLoaded = true;
             _callsError = null;
           } else {
@@ -494,11 +502,13 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
   void _mergeCalls(
     Iterable<OwnerCompanionCall> incoming, {
     bool reconcileNotes = false,
+    int? observation,
   }) {
+    final authoritative = incoming.toList();
     final byId = <String, OwnerCompanionCall>{
       for (final call in _calls) call.callId: call,
     };
-    for (final call in incoming) {
+    for (final call in authoritative) {
       final previous = byId[call.callId];
       if (previous == null || previous.revision <= call.revision) {
         byId[call.callId] = call;
@@ -524,7 +534,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
 
     final pendingInvite = uncertainty.invite;
     if (pendingInvite != null && !pendingInvite.inFlight) {
-      final observed = sorted.any(
+      final observed = authoritative.any(
         (call) =>
             call.deviceId == pendingInvite.deviceId &&
             (!pendingInvite.baselineCallIds.contains(call.callId) ||
@@ -535,7 +545,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       }
     }
 
-    for (final call in sorted) {
+    for (final call in authoritative) {
       final pendingEnd = uncertainty.ends[call.callId];
       if (pendingEnd != null &&
           !pendingEnd.inFlight &&
@@ -544,7 +554,12 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         uncertainty.ends.remove(call.callId);
       }
       final pendingNote = uncertainty.notes[call.callId];
-      if (pendingNote != null && !pendingNote.inFlight) {
+      if (pendingNote != null &&
+          !pendingNote.inFlight &&
+          call.revision >= byId[call.callId]!.revision &&
+          observation != null &&
+          pendingNote.reconcileAfterObservation != null &&
+          observation > pendingNote.reconcileAfterObservation!) {
         if (call.note == pendingNote.draftNote &&
             call.revision > pendingNote.expectedRevision) {
           uncertainty.notes.remove(call.callId);
@@ -779,6 +794,7 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final client = _client!;
     final binding = _binding!;
     final token = ++_actionToken;
+    final observation = ++_companionObservationSerial;
     setState(() {
       _acting = true;
       _notice = null;
@@ -791,7 +807,11 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       );
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       setState(() {
-        _mergeCalls(<OwnerCompanionCall>[inspected], reconcileNotes: true);
+        _mergeCalls(
+          <OwnerCompanionCall>[inspected],
+          reconcileNotes: true,
+          observation: observation,
+        );
         _notice =
             'Reconciled invitation ${inspected.title} (revision ${inspected.revision}).';
       });
@@ -1048,6 +1068,9 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       _uncertaintyRevision.value++;
       rethrow;
     } finally {
+      // Reads already pending when this write settled cannot establish a new
+      // CAS baseline, even if their old snapshot arrives after the failure.
+      attempt.reconcileAfterObservation = ++_companionObservationSerial;
       if (mounted && token == _actionToken && _scopeMatches()) {
         setState(() {
           _acting = false;
