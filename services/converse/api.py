@@ -9,9 +9,11 @@ from contextlib import aclosing
 from typing import Annotated
 
 from anyio import CancelScope
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field
 
 from packages.contracts.converse_setup import ConverseSetup
@@ -24,6 +26,7 @@ from services.converse.embedding import (
     runtime_model_settings,
     runtime_provider_info,
 )
+from services.converse.native_audio import MAX_BASE64, NativeClipRequest
 from services.converse.stt_operations import stt_operation
 
 _STT_CLOSE_OWNERS = set()
@@ -211,6 +214,51 @@ class AudioWindow(SpeechWindow):
     audio_base64: str = Field(min_length=1, max_length=14_000_000)
 
 
+class IncrementalStreamBeginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    session_id: str = Field(min_length=1, max_length=128)
+    thread_id: str = Field(min_length=1, max_length=128)
+    epoch: int = Field(ge=1, strict=True)
+    utterance_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    content_scope: ContentScope = "local_only"
+
+
+class IncrementalStreamPcmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    stream_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    worker_incarnation: str = Field(pattern=r"^[0-9a-f]{64}$")
+    session_id: str = Field(min_length=1, max_length=128)
+    thread_id: str = Field(min_length=1, max_length=128)
+    epoch: int = Field(ge=1, strict=True)
+    utterance_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    content_scope: ContentScope = "local_only"
+    sequence: int = Field(ge=1, le=100000, strict=True)
+    sample_offset: int = Field(ge=0, le=960000, strict=True)
+    user_speaking: bool = Field(strict=True)
+    pcm16_base64: str = Field(min_length=1, max_length=64000)
+
+
+class IncrementalStreamFinishRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    stream_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    worker_incarnation: str = Field(pattern=r"^[0-9a-f]{64}$")
+    session_id: str = Field(min_length=1, max_length=128)
+    thread_id: str = Field(min_length=1, max_length=128)
+    epoch: int = Field(ge=1, strict=True)
+    utterance_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    content_scope: ContentScope = "local_only"
+    sequence: int = Field(ge=1, le=100000, strict=True)
+    sample_offset: int = Field(ge=0, le=960000, strict=True)
+    user_speaking: bool = Field(default=False, strict=True)
+    capture_ended: bool = Field(default=False, strict=True)
+
+
+class IncrementalStreamCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    stream_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    worker_incarnation: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
 class TypedTurnResponse(StreamingResponse):
     async def __call__(self, scope, receive, send):
         try:
@@ -238,6 +286,10 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
 
     def model_operation_extras():
         return {
+            "native_audio": int(
+                getattr(runtime, "native_audio", None) is not None
+                and runtime.native_audio.status().get("pending", False)
+            ),
             "windows": (
                 sum(
                     not window_controller._reclaimable(p)
@@ -304,6 +356,17 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             "speech_operations": runtime.speech_status(),
             "text_operations": runtime.text_status(),
             "streaming_windows": window_controller is not None,
+            "native_audio": (
+                runtime.native_audio.status()
+                if getattr(runtime, "native_audio", None) is not None
+                else {
+                    "configured": False,
+                    "available": False,
+                    "mode": "buffered_native_audio",
+                    "input_sample_rate": 16000,
+                    "max_seconds": 30,
+                }
+            ),
             "context_history": (
                 "measured" if getattr(runtime, "context_budgeted", False) else "legacy_embedded"
             ),
@@ -696,40 +759,449 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                 503, "STT selection or operation ownership is unavailable"
             ) from None
 
+    active_whistle_streams: dict[str, dict] = {}
+
+    async def _verify_stream_session(session_id: str, thread_id: str, epoch: int) -> None:
+        if not runtime.enabled:
+            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+        try:
+            session = await runtime.journal.session(session_id)
+            if session.thread_id != thread_id or session.epoch != epoch:
+                raise ValueError("Wrong window thread")
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(409, "Unknown or obsolete audio-window scope") from exc
+
+    async def _cancel_broker_stream(stream_id: str, incarnation: str | None = None) -> None:
+        active_whistle_streams.pop(stream_id, None)
+        if speech is not None and getattr(speech, "whistle_stream_cancel", None) is not None:
+            try:
+                await speech.whistle_stream_cancel(
+                    {"stream_id": stream_id, "worker_incarnation": incarnation}
+                )
+            except Exception:
+                pass
+
+    def _compose_hypothesis(committed_text: str, pending_text: str) -> str:
+        committed = committed_text.strip()
+        pending = pending_text.strip()
+        if committed and pending:
+            return f"{committed} {pending}"
+        return committed or pending
+
+    async def _persist_incremental_hypothesis(
+        state: dict,
+        update: dict,
+        *,
+        user_speaking: bool,
+        capture_ended: bool,
+        audio_sha256: str | None,
+    ):
+        # Re-verify session and owner state before persisting any window
+        try:
+            await _verify_stream_session(state["session_id"], state["thread_id"], state["epoch"])
+        except HTTPException:
+            await _cancel_broker_stream(state["stream_id"], state["worker_incarnation"])
+            raise
+        hypothesis = _compose_hypothesis(update["committed_text"], update["pending_text"])
+        state["recognizer_updates"] += 1
+        if state["window_index"] is None:
+            next_window_index = 0
+            next_revision = 1
+        elif (
+            user_speaking != state["last_speaking"]
+            or capture_ended
+            or (bool(update["delta_text"].strip()) and hypothesis != state["last_text"])
+        ):
+            next_window_index = state["window_index"] + 1
+            next_revision = 1
+        else:
+            next_window_index = state["window_index"]
+            next_revision = state["revision"] + 1
+
+        end_ms = min(60000, int(round((update["received_samples"] / 16000.0) * 1000.0)))
+        captured_window = SpeechWindow(
+            session_id=state["session_id"],
+            thread_id=state["thread_id"],
+            epoch=state["epoch"],
+            utterance_id=state["utterance_id"],
+            window_index=next_window_index,
+            revision=next_revision,
+            text=hypothesis,
+            start_ms=0,
+            end_ms=end_ms,
+            user_speaking=False if capture_ended else user_speaking,
+            capture_ended=capture_ended,
+            audio_sha256=audio_sha256,
+            content_scope=state["content_scope"],
+        )
+        entry = await window_controller.ingest(captured_window)
+        state["window_index"] = next_window_index
+        state["revision"] = next_revision
+        state["last_text"] = hypothesis
+        state["last_speaking"] = False if capture_ended else user_speaking
+        return entry
+
+    @app.post("/v1/converse/audio/stream/begin", dependencies=owner)
+    async def incremental_stream_begin(
+        request: IncrementalStreamBeginRequest, http_request: Request
+    ):
+        _reserve_api_model(runtime, http_request)
+        if window_controller is None or speech is None or getattr(speech, "stt", None) is None:
+            raise HTTPException(503, "Configure streaming conversation control and Whistle STT")
+        await _verify_stream_session(request.session_id, request.thread_id, request.epoch)
+        started = await _transcribe_connected(
+            http_request,
+            lambda: speech.whistle_stream_begin(request.model_dump(mode="json")),
+        )
+        try:
+            await _verify_stream_session(request.session_id, request.thread_id, request.epoch)
+        except HTTPException:
+            await _cancel_broker_stream(started["stream_id"], started["worker_incarnation"])
+            raise
+        active_whistle_streams[started["stream_id"]] = {
+            "stream_id": started["stream_id"],
+            "worker_incarnation": started["worker_incarnation"],
+            "session_id": request.session_id,
+            "thread_id": request.thread_id,
+            "epoch": request.epoch,
+            "utterance_id": request.utterance_id,
+            "content_scope": request.content_scope,
+            "sequence": 0,
+            "sample_offset": 0,
+            "recognizer_updates": 0,
+            "window_index": None,
+            "revision": 0,
+            "last_text": None,
+            "last_speaking": None,
+            "last_pcm_sha256": None,
+            "last_ack": None,
+        }
+        return started
+
+    @app.post("/v1/converse/audio/stream/pcm", dependencies=owner)
+    async def incremental_stream_pcm(request: IncrementalStreamPcmRequest, http_request: Request):
+        _reserve_api_model(runtime, http_request)
+        if window_controller is None or speech is None or getattr(speech, "stt", None) is None:
+            raise HTTPException(503, "Configure streaming conversation control and Whistle STT")
+        state = active_whistle_streams.get(request.stream_id)
+        if state is None:
+            raise HTTPException(409, "Unknown or closed Whistle incremental stream")
+        if (
+            request.worker_incarnation != state["worker_incarnation"]
+            or request.session_id != state["session_id"]
+            or request.thread_id != state["thread_id"]
+            or request.epoch != state["epoch"]
+            or request.utterance_id != state["utterance_id"]
+            or request.content_scope != state["content_scope"]
+        ):
+            raise HTTPException(409, "Incremental Whistle stream scope mismatch")
+        try:
+            await _verify_stream_session(request.session_id, request.thread_id, request.epoch)
+        except HTTPException:
+            await _cancel_broker_stream(request.stream_id, request.worker_incarnation)
+            raise
+        try:
+            pcm16 = base64.b64decode(request.pcm16_base64, validate=True)
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid incremental PCM16 payload") from exc
+        if len(pcm16) == 0 or len(pcm16) % 2 != 0 or len(pcm16) > 32000:
+            raise HTTPException(400, "Incremental PCM16 chunk must contain 1..16000 samples")
+        pcm_sha256 = hashlib.sha256(pcm16).hexdigest()
+        samples = len(pcm16) // 2
+        if (
+            request.sequence == state["sequence"]
+            and request.sample_offset + samples == state["sample_offset"]
+            and pcm_sha256 == state["last_pcm_sha256"]
+            and state["last_ack"] is not None
+        ):
+            return {**state["last_ack"], "replay": True}
+        headers = {
+            "x-kinaiya-stream-id": request.stream_id,
+            "x-kinaiya-worker-incarnation": request.worker_incarnation,
+            "x-kinaiya-session-id": request.session_id,
+            "x-kinaiya-thread-id": request.thread_id,
+            "x-kinaiya-epoch": str(request.epoch),
+            "x-kinaiya-utterance-id": request.utterance_id,
+            "x-kinaiya-content-scope": request.content_scope,
+            "x-kinaiya-sequence": str(request.sequence),
+            "x-kinaiya-sample-offset": str(request.sample_offset),
+            "x-kinaiya-pcm-sha256": pcm_sha256,
+        }
+        try:
+            update = await _transcribe_connected(
+                http_request,
+                lambda: speech.whistle_stream_pcm(pcm16, headers),
+            )
+        except HTTPException:
+            active_whistle_streams.pop(request.stream_id, None)
+            raise
+        entry = await _persist_incremental_hypothesis(
+            state,
+            update,
+            user_speaking=request.user_speaking,
+            capture_ended=False,
+            audio_sha256=pcm_sha256,
+        )
+        state["sequence"] = request.sequence
+        state["sample_offset"] = update["received_samples"]
+        state["last_pcm_sha256"] = pcm_sha256
+        ack = {
+            "stream_id": request.stream_id,
+            "worker_incarnation": request.worker_incarnation,
+            "pcm_sequence": request.sequence,
+            "recognizer_updates": state["recognizer_updates"],
+            "window_index": state["window_index"],
+            "window_revision": state["revision"],
+            "journal_sequence": entry.sequence,
+            "received_samples": update["received_samples"],
+            "delta_text": update["delta_text"],
+            "committed_text": update["committed_text"],
+            "pending_text": update["pending_text"],
+            "final": False,
+            "capture_ended": False,
+            "entry": entry.model_dump(mode="json"),
+        }
+        state["last_ack"] = ack
+        return ack
+
+    @app.post("/v1/converse/audio/stream/finish", dependencies=owner)
+    async def incremental_stream_finish(
+        request: IncrementalStreamFinishRequest, http_request: Request
+    ):
+        _reserve_api_model(runtime, http_request)
+        if window_controller is None or speech is None or getattr(speech, "stt", None) is None:
+            raise HTTPException(503, "Configure streaming conversation control and Whistle STT")
+        state = active_whistle_streams.get(request.stream_id)
+        if state is None:
+            raise HTTPException(409, "Unknown or closed Whistle incremental stream")
+        if (
+            request.worker_incarnation != state["worker_incarnation"]
+            or request.session_id != state["session_id"]
+            or request.thread_id != state["thread_id"]
+            or request.epoch != state["epoch"]
+            or request.utterance_id != state["utterance_id"]
+            or request.content_scope != state["content_scope"]
+        ):
+            raise HTTPException(409, "Incremental Whistle stream scope mismatch")
+        try:
+            await _verify_stream_session(request.session_id, request.thread_id, request.epoch)
+        except HTTPException:
+            await _cancel_broker_stream(request.stream_id, request.worker_incarnation)
+            raise
+        finish_payload = {
+            "stream_id": request.stream_id,
+            "worker_incarnation": request.worker_incarnation,
+            "session_id": request.session_id,
+            "thread_id": request.thread_id,
+            "epoch": request.epoch,
+            "utterance_id": request.utterance_id,
+            "content_scope": request.content_scope,
+            "sequence": request.sequence,
+            "sample_offset": request.sample_offset,
+        }
+        try:
+            update = await _transcribe_connected(
+                http_request,
+                lambda: speech.whistle_stream_finish(finish_payload),
+            )
+        finally:
+            active_whistle_streams.pop(request.stream_id, None)
+        # Decoder finalization (update["final"] == True) NEVER silently forces capture_ended!
+        entry = await _persist_incremental_hypothesis(
+            state,
+            update,
+            user_speaking=False if request.capture_ended else request.user_speaking,
+            capture_ended=request.capture_ended,
+            audio_sha256=state["last_pcm_sha256"],
+        )
+        return {
+            "stream_id": request.stream_id,
+            "worker_incarnation": request.worker_incarnation,
+            "pcm_sequence": request.sequence,
+            "recognizer_updates": state["recognizer_updates"],
+            "window_index": state["window_index"],
+            "window_revision": state["revision"],
+            "journal_sequence": entry.sequence,
+            "received_samples": update["received_samples"],
+            "delta_text": update["delta_text"],
+            "committed_text": update["committed_text"],
+            "pending_text": update["pending_text"],
+            "final": True,
+            "capture_ended": request.capture_ended,
+            "entry": entry.model_dump(mode="json"),
+        }
+
+    @app.post("/v1/converse/audio/stream/cancel", dependencies=owner)
+    async def incremental_stream_cancel(
+        request: IncrementalStreamCancelRequest, http_request: Request
+    ):
+        _reserve_api_model(runtime, http_request)
+        active_whistle_streams.pop(request.stream_id, None)
+        if speech is not None and getattr(speech, "whistle_stream_cancel", None) is not None:
+            return await _transcribe_connected(
+                http_request,
+                lambda: speech.whistle_stream_cancel(
+                    {
+                        "stream_id": request.stream_id,
+                        "worker_incarnation": request.worker_incarnation,
+                    }
+                ),
+            )
+        return {"cancelled": False, "cleanup_confirmed": True}
+
+    class NativeClipRoute(APIRoute):
+        """Authenticate and bound this PCM envelope before FastAPI parses it."""
+
+        def get_route_handler(self):
+            original = super().get_route_handler()
+            authorize = auth.require("owner")
+
+            async def handle(request: Request):
+                try:
+                    if any(
+                        len(request.headers.getlist(name)) > 1
+                        for name in ("authorization", "origin")
+                    ):
+                        raise HTTPException(401)
+                    await authorize(request, request.headers.get("authorization", ""))
+                    if any(
+                        len(request.headers.getlist(name)) > 1
+                        for name in ("content-type", "content-length", "content-encoding")
+                    ):
+                        raise HTTPException(400)
+                    if request.headers.get("content-encoding", "identity").strip().lower() not in {
+                        "",
+                        "identity",
+                    }:
+                        raise HTTPException(415)
+                    if request.query_params:
+                        raise HTTPException(400)
+                    if (
+                        request.headers.get("content-type", "").split(";")[0].strip().lower()
+                        != "application/json"
+                    ):
+                        raise HTTPException(415)
+                    raw = bytearray()
+                    async for chunk in request.stream():
+                        if len(raw) + len(chunk) > MAX_BASE64 + 4096:
+                            raise HTTPException(413)
+                        raw.extend(chunk)
+
+                    def pairs(items):
+                        value = {}
+                        for key, item in items:
+                            if key in value:
+                                raise ValueError("Duplicate native audio field")
+                            value[key] = item
+                        return value
+
+                    def constant(_):
+                        raise ValueError("Invalid native audio number")
+
+                    try:
+                        request._json = json.loads(
+                            raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=constant
+                        )
+                        # The JSON parser accepts escaped lone surrogates.
+                        json.dumps(request._json, ensure_ascii=False).encode("utf-8")
+                    except (ValueError, RecursionError):
+                        raise HTTPException(400) from None
+                    request._body = bytes(raw)
+                    response = await original(request)
+                    response.headers["Cache-Control"] = "no-store"
+                    return response
+                except HTTPException as exc:
+                    status = exc.status_code
+                except RequestValidationError:
+                    status = 400
+                except Exception:
+                    status = 503
+                detail = {
+                    400: "Invalid native audio request",
+                    401: "Native audio authentication was refused",
+                    403: "Native audio authorization was refused",
+                    409: "Native audio scope or request changed",
+                    413: "Native audio request exceeds its bound",
+                    415: "Native audio requires uncompressed JSON",
+                    499: "Native audio request disconnected",
+                    503: "Native audio is unavailable",
+                }.get(status)
+                if detail is None:
+                    status, detail = 503, "Native audio is unavailable"
+                return JSONResponse(
+                    {"detail": detail}, status_code=status, headers={"Cache-Control": "no-store"}
+                )
+
+            return handle
+
+    native_clip_router = APIRouter(route_class=NativeClipRoute)
+
+    @native_clip_router.post("/v1/converse/native-audio/clips", dependencies=owner)
+    async def native_clip(request: NativeClipRequest, http_request: Request):
+        _reserve_api_model(runtime, http_request)
+        native = getattr(runtime, "native_audio", None)
+        if native is None or window_controller is None:
+            raise HTTPException(503, "Native buffered audio is not configured")
+        return await _transcribe_connected(
+            http_request, lambda: native.admit(request, window_controller)
+        )
+
+    app.include_router(native_clip_router)
+
     @app.post("/v1/converse/speech", dependencies=owner)
     async def audio(request: SpeechRequest, http_request: Request):
         _reserve_api_model(runtime, http_request)
-        if speech is None and not getattr(runtime, "_tts_options_configured", False):
+        native = getattr(runtime, "native_audio", None)
+        if (
+            native is None
+            and speech is None
+            and not getattr(runtime, "_tts_options_configured", False)
+        ):
             raise HTTPException(503, "Configure a TTS provider in settings")
         try:
             runtime.check_speech_ready()
             event = await runtime.validate_speech(request.event_id, request.generation_epoch)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
-        from services.converse.tts_operations import capture_tts_turn
+        if "native_audio" in event.payload:
+            if native is None or event.payload["native_audio"] is not True:
+                raise HTTPException(409, "Native audio is unavailable for this reply")
+            try:
+                synthesize, current = native.speech_source(event, request.generation_epoch)
+            except SpeechProviderError as exc:
+                raise HTTPException(exc.status_code, str(exc)) from None
+            # This is retrieval of the exact generated native PCM, not a new
+            # synthesis or TTS role/model admission. SpeechOperation still owns
+            # cancellation, stale generation checks and delivery acknowledgments.
+            scoped = tts_turn = None
+        else:
+            if speech is None and not getattr(runtime, "_tts_options_configured", False):
+                raise HTTPException(503, "Configure a TTS provider in settings")
+            from services.converse.tts_operations import capture_tts_turn
 
-        try:
-            tts_turn = capture_tts_turn(runtime, event, request.generation_epoch, http_request)
-        except ValueError:
-            raise HTTPException(
-                409, "TTS selection, prior attempt or disclosure was refused"
-            ) from None
-        except RuntimeError:
-            raise HTTPException(503, "TTS model ownership is unavailable") from None
-        target = speech if tts_turn is None else tts_turn.lease.provider
-        scoped = getattr(target, "synthesize_scoped", None)
-        if tts_turn is not None and tts_turn.exact_openrouter:
-            scoped = tts_turn.scoped_synthesis
-        current = (
-            _cloud_tts_current(target, event, scoped) if tts_turn is None else tts_turn.current
-        )
+            try:
+                tts_turn = capture_tts_turn(runtime, event, request.generation_epoch, http_request)
+            except ValueError:
+                raise HTTPException(
+                    409, "TTS selection, prior attempt or disclosure was refused"
+                ) from None
+            except RuntimeError:
+                raise HTTPException(503, "TTS model ownership is unavailable") from None
+            target = speech if tts_turn is None else tts_turn.lease.provider
+            synthesize = target.synthesize
+            scoped = getattr(target, "synthesize_scoped", None)
+            if tts_turn is not None and tts_turn.exact_openrouter:
+                scoped = tts_turn.scoped_synthesis
+            current = (
+                _cloud_tts_current(target, event, scoped) if tts_turn is None else tts_turn.current
+            )
 
         async def generate():
             async with aclosing(
                 runtime.speech_frames(
                     event,
                     request.generation_epoch,
-                    target.synthesize,
+                    synthesize,
                     synthesize_scoped=scoped,
                     current=current,
                     **({"tts_turn": tts_turn} if tts_turn is not None else {}),

@@ -87,11 +87,28 @@ remain separate from preparing these options.
 | Option family | Type/default policy | Scope, persistence and authority | Status |
 | --- | --- | --- | --- |
 | `voice.capture_mode`, `end_silence` | Explicit Call/live listening or Tell/one message; no automatic microphone arming. Fallback clip silence choices above; live window timing is Decisions-controlled, not a silence timer. | Current Converse/audio owner; retain drafts and actual capture/playback state. | App. |
-| `voice.input_device`, `output_device`, `volume`, `language` | Device/model capability choices with an explicit default-device option; unavailable devices do not appear connected. | App/platform audio permission and current stream ownership. | Unified editors planned. |
+| `voice.input_device`, `output_device`, `volume`, `language` | Device/model capability choices with an explicit default-device option; unavailable devices do not appear connected. | App/platform audio permission and current stream ownership. | Web output selection is optional for the current audio owner; input, volume and language editors remain planned. |
 | `voice.tts_voice`, `rate`, `prosody` | Supported voice/style controls only; provider-specific ranges and preview cost disclosed before a preview. | Converse TTS profile; no automatic test synthesis on open. | Host/provider-specific configuration; app controls planned. |
 | `voice.interruption`, `vad`, `window_limits` | Supported interruption/VAD and retained-window bounds; preserve trusted cancellation and delivery evidence. | Native Converse/speech pipeline. A stop request is not proof playback/capture ended. | Existing runtime behavior; advanced app editor planned. |
 | `converse.personality`, `instructions` | Character/personality and owner instructions, separate from task execution policy. | Converse only; editable text cannot change protected authorization or completion criteria. | Personality exists in Converse; unified editor planned. |
 | `conversation.followups`, `routing_preferences` | Explicit queue/steer/interrupt preferences where native contracts support them. | Decisions routing plus trusted Agent acceptance; no permission or success authority. | Runtime routing exists; preference editor planned. |
+
+Web Voice options can offer an explicit audio output when the browser exposes
+`AudioContext.setSinkId` and output-device discovery. A browser picker is used
+only where available and only from an owner gesture. Discovery never requests
+microphone access. Device IDs and labels stay in the local browser/Dart audio
+owner; they are not saved in host settings, sent to providers or journalled.
+At most 128 discovered devices and 4,096 characters per ID/label are accepted.
+
+Selecting an output blocks new PCM until the original browser operation settles
+and the same context confirms that sink. An active playback source prevents a
+device change. Stop/dispose fence pending playback; an observing timeout is not
+permission to start another selection. A failed explicit selection, sink change
+or device-topology change requires another explicit choice or **Use system
+default**, rather than silent fallback. Without an explicit choice, existing
+system-default playback remains unchanged. Permission denial, embedding policy
+or a missing browser API is reported as unavailable; this feature does not
+change system defaults, configure recording, or establish audible delivery.
 
 ### Agent execution, workspaces and permissions
 

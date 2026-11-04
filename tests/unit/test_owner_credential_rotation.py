@@ -321,3 +321,19 @@ def test_interrupted_staging_recovery_and_permission_enforcement(tmp_path: Path)
         with pytest.raises(CredentialRotationError, match="Active services are listening"):
             rotate_owner_token(tmp_path, active_ports=(busy_port,))
     assert load_or_create_tokens(tmp_path).owner_epoch == 2
+
+
+def test_store_rotation_fences_native_media_identity(tmp_path: Path):
+    initial = load_or_create_tokens(tmp_path)
+    auth = Auth(initial)
+    identity = auth.media_identity()
+    assert auth.media_identity() is identity
+
+    rotate_owner_token(tmp_path, expected_owner_epoch=1)
+    with pytest.raises(ValueError, match="^Native authentication identity is unavailable$"):
+        auth.media_identity()
+    rotated = load_or_create_tokens(tmp_path)
+    assert auth.authenticate(rotated["owner"]) == "owner"
+    with pytest.raises(ValueError, match="^Native authentication identity is unavailable$"):
+        auth.media_identity()
+    assert Auth(rotated).media_identity().instance_id != identity.instance_id

@@ -12,6 +12,7 @@ import stat
 import uuid
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -407,6 +408,14 @@ class ServiceTokenStore:
             }
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class NativeAuthIdentity:
+    """Private native identity; neither a credential nor a public role claim."""
+
+    instance_id: str
+    credential_fingerprint: bytes
+
+
 class Auth:
     def __init__(
         self,
@@ -439,6 +448,8 @@ class Auth:
             self._stat_sig = None
             self._sha256 = None
 
+        # The caller's mutable configuration must not replace an admitted
+        # native identity behind the authentication owner's back.
         self.tokens: dict[str, str] = dict(role_tokens)
         self.owner_epoch: int = epoch
         self.rotated_at: str | None = rotated_at
@@ -446,6 +457,52 @@ class Auth:
         self.token_store_path: Path | None = (
             Path(token_store_path) if token_store_path is not None else None
         )
+        self._media_snapshot = tuple(self.tokens.items())
+        self._media_instance = secrets.token_hex(16)
+        self._media_identity = None
+        self._media_invalidated = False
+
+    def media_identity(self) -> NativeAuthIdentity:
+        """Return this actual Auth incarnation while its credentials are intact.
+
+        Media startup HMACs the private fingerprint before durable storage.
+        A detected credential replacement permanently fences this identity;
+        registering a new native Auth/app is a separate operation. Ordinary
+        authenticate/require behavior remains independent of this media gate.
+        """
+
+        def exact(items):
+            return type(items) is tuple and all(
+                type(role) is str
+                and 0 < len(role) <= 128
+                and type(token) is str
+                and 24 <= len(token) <= 4096
+                for role, token in items
+            )
+
+        try:
+            if self.token_store_path is not None:
+                self._refresh_from_store()
+            current = tuple(self.tokens.items()) if type(self.tokens) is dict else None
+            # Reject non-builtin values before equality can invoke a replaced
+            # credential's comparator, including when identity was cached.
+            valid = (
+                exact(current) and exact(self._media_snapshot) and current == self._media_snapshot
+            )
+        except (HTTPException, RuntimeError, TypeError, ValueError):
+            valid = False
+        if self._media_invalidated or not valid:
+            self._media_invalidated = True
+            raise ValueError("Native authentication identity is unavailable")
+        if self._media_identity is None:
+            raw = json.dumps(
+                sorted(self._media_snapshot), ensure_ascii=True, separators=(",", ":")
+            ).encode("ascii")
+            fingerprint = hashlib.sha256(
+                b"kinaiya.auth.media-credential-snapshot.v1\0" + raw
+            ).digest()
+            self._media_identity = NativeAuthIdentity(self._media_instance, fingerprint)
+        return self._media_identity
 
     def _refresh_from_store(self) -> None:
         if self.token_store_path is None:

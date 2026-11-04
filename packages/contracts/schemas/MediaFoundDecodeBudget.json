@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "MediaDecodeBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "child_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "cpu_baseline_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cpu Baseline Ms",
+          "type": "integer"
+        },
+        "cpu_spent_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Cpu Spent Ms",
+          "type": "integer"
+        },
+        "previous": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MediaNativeRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "segment_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "running",
+            "ended",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        },
+        "wall_baseline_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Wall Baseline Ms",
+          "type": "integer"
+        },
+        "wall_spent_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Wall Spent Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "segment_id",
+        "child_owner",
+        "previous",
+        "cpu_baseline_ms",
+        "wall_baseline_ms",
+        "cpu_spent_ms",
+        "wall_spent_ms",
+        "state"
+      ],
+      "title": "MediaDecodeBudget",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_MediaDecodeBudget_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaDecodeBudget"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaDecodeBudget]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaDecodeBudget_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaDecodeBudget]",
+  "type": "object"
+}

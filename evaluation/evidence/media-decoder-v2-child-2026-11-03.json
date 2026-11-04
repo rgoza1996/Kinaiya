@@ -1,0 +1,951 @@
+{
+  "authorship": {
+    "B": "Child author and source-aware multitrack oracle author; evidence generator is not independent source/test-design approval.",
+    "D": "Initial child oracles were authored without prospective child bodies; later root corrections/formatting and two prefix cases have separate provenance.",
+    "actual_source_authoring_cli": {
+      "exit_code": 0,
+      "metadata_sha256": {
+        "selected-seal-amendment.json": "695761c0498fea464344b75b786cd9d4b45604090825ae2fd117adb65c47a58c",
+        "selection.json": "f9ca1bc536f8506352ba41875f3fb8605395768a2d11cc1f3bfb2648d50c2ce3",
+        "terminal.json": "e89df0eae5ec7db81135aed16463968955c578bcc4f2ec43172eff351f080c17"
+      },
+      "model": "muse-spark-1.3-contributor",
+      "reasoning": "xhigh",
+      "scope": "Supplied public production-source authoring only; not a media-model, endpoint or demo qualification."
+    },
+    "root": "Selected/corrected required Seal binding and removed unjustified initial1/1/start0 restriction; serialized actual executions and integration/formatting."
+  },
+  "case_overlap": [
+    {
+      "case_id_intersection": 458,
+      "left": "v2_handshake458",
+      "right": "merged_contract_provider638"
+    },
+    {
+      "case_id_intersection": 0,
+      "left": "native_regression367",
+      "right": "merged_contract_provider638"
+    },
+    {
+      "case_id_intersection": 27,
+      "left": "original_child27_negative",
+      "right": "corrected_child27"
+    },
+    {
+      "case_id_intersection": 0,
+      "left": "corrected_child27",
+      "right": "actual_multitrack1"
+    },
+    {
+      "case_id_intersection": 27,
+      "left": "corrected_child27",
+      "right": "final_child30"
+    },
+    {
+      "case_id_intersection": 1,
+      "left": "actual_multitrack1",
+      "right": "final_child30"
+    }
+  ],
+  "count_rule": "Run counts are not additive across overlapping cases or source revisions; no single current-tree run of all historical passes is claimed.",
+  "feature": "Explicit v2 native decoder handshake and bounded PyAV17 FD3/FD4 child",
+  "final_execution": {
+    "head": "abeb079fa9b73662a94b782815c075e86997a152",
+    "run": "final_child30",
+    "status": "completed_pass"
+  },
+  "generator_sha256": "8d743426d610e2c23829f8124eb054aa2606a3a4bce1bac6289b3ed02d27459f",
+  "independent_reviews": [
+    {
+      "artifact_id": "204-decoder-v2-independent-source-gate-v1",
+      "report_sha256": "516343584163c6c03440dd31d5195cefafb2988e145564881b45c8330257c3b1",
+      "scope": "Source or bounded raw/test-scope review as stated in sealed report; not native deployment or demo approval."
+    },
+    {
+      "artifact_id": "204-decoder-child-corrected-source-gate-v1",
+      "report_sha256": "58004456b55680d8437062cf915fec4586b94227dbab41c84eb92cc06d882d3a",
+      "scope": "Source or bounded raw/test-scope review as stated in sealed report; not native deployment or demo approval."
+    },
+    {
+      "artifact_id": "204-initial-cursor-contract-review-v1",
+      "report_sha256": "e581458d5c899cf23d0771c2b0a11075579b1e43d0e8f04426ea443a7850d394",
+      "scope": "Source or bounded raw/test-scope review as stated in sealed report; not native deployment or demo approval."
+    },
+    {
+      "artifact_id": "204-initial-cursor-correction-source-gate-v1",
+      "report_sha256": "ef240903202f0769c36dd859f6e8c87ab83e0b49e875f9c4f55ab35c403a49cf",
+      "scope": "Source or bounded raw/test-scope review as stated in sealed report; not native deployment or demo approval."
+    },
+    {
+      "artifact_id": "204-child-native27-independent-raw-v1",
+      "report_sha256": "2bf51217b6348b2a16cdb1e0dd54237abc4dcd5eed6582a67f68f6c97e619b88",
+      "scope": "Source or bounded raw/test-scope review as stated in sealed report; not native deployment or demo approval."
+    },
+    {
+      "artifact_id": "204-child-native30-independent-raw-v1",
+      "report_sha256": "2b8f495dffd82300ad024c533b609bd1bb2def1160feb45b51606b44ba2bd7f6",
+      "scope": "Source or bounded raw/test-scope review as stated in sealed report; not native deployment or demo approval."
+    }
+  ],
+  "intended_public_path": "evaluation/evidence/media-decoder-v2-child-2026-11-03.json",
+  "limits": [
+    "All child media is synthetic CPU fixture data; execution uses an actual selected PyAV17 interpreter, not a qualified sealed decoder runtime/profile.",
+    "JUnit has no native cleanup properties here; process/FD/data checks are frozen test assertions plus actual pass, not separately reconstructable native cleanup receipts.",
+    "Protocol references and dependency callbacks in child fixtures do not establish native Session decoder start, charged budget resolution, permission/currentness, publication or remote liability settlement.",
+    "Controlled HTTPX/protocol-provider fixtures do not qualify an actual model/provider endpoint, GPU/device, Converse/Decisions/Agent end-to-end path, live duplex or news-video/sign-language demonstration.",
+    "The initial27 negative result remains failed; later changed-source passes do not erase it or establish a timing/performance cause.",
+    "Schema export, independent final raw-review seals and current-main publication gates are separate root evidence; this generator records no outcome for those gates.",
+    "The small CPU fixtures do not dynamically saturate CPU/wall/address/aggregate-wire limits or establish all rates/channels/codecs/transforms, all eight tracks, replay schedules or arbitrary process cleanup."
+  ],
+  "local_date": "2026-11-03",
+  "observed_external_runtime": {
+    "av": "17.1.0",
+    "av_distribution_files_hashed": 258,
+    "libraries": {
+      "libavcodec": [
+        62,
+        28,
+        101
+      ],
+      "libavdevice": [
+        62,
+        3,
+        101
+      ],
+      "libavfilter": [
+        11,
+        14,
+        101
+      ],
+      "libavformat": [
+        62,
+        12,
+        101
+      ],
+      "libavutil": [
+        60,
+        26,
+        101
+      ],
+      "libswresample": [
+        6,
+        3,
+        101
+      ],
+      "libswscale": [
+        9,
+        5,
+        101
+      ]
+    },
+    "native_profile_qualified": false,
+    "numpy": "2.3.3",
+    "pydantic": "2.14.1",
+    "python": "3.12.3",
+    "runtime_probe_sha256": "66eb043a723e8cb644a7fdaf9278364bb97f4e090efdff676a0f1185a6230325"
+  },
+  "preservation": {
+    "all_packages_services_pins_638_to_final30_exact": 704,
+    "final30_added_case_ids": [
+      "tests.integration.test_media_decoder_child::test_first_index_zero_open_honors_nonzero_logical_start_and_native_cursors",
+      "tests.integration.test_media_decoder_child::test_one_segment_replacement_reconstructs_prefix_like_separate_retained_reference",
+      "tests.integration.test_media_decoder_multitrack::test_two_actual_audio_tracks_keep_reversed_native_mapping_and_exact_pcm"
+    ],
+    "old_child_test_function_ASTs_exact": 8,
+    "original_corrected27_ordered_ids_exact": true
+  },
+  "reproduction_commands_not_additional_results": [
+    [
+      "python",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "tests/integration/test_media_decoder_child.py",
+      "tests/integration/test_media_decoder_multitrack.py"
+    ],
+    [
+      "python",
+      "scripts/export_contracts.py"
+    ]
+  ],
+  "reproduction_environment": "Use the composed pinned development lock, which includes the reviewed meta-speech/whistle codec pins, as unchanged CI does. For a separate already installed trusted PyAV17.1.0 interpreter, set KINAIYA_TEST_MEDIA_DECODER_PYTHON to its absolute path. A missing-runtime skip is not a qualification pass.",
+  "root_publication_amendments": {
+    "added_case_id_correction": "Final30 adds prefix2 AND the separately reported same-kind multitrack1 relative to corrected27. No new test was run for this metadata correction.",
+    "draft_sha256": "e7afe5cb2aba0679a4f36e441d31fa55c0310f3c729918321f06f5cdfe424d76",
+    "post_test_changes": "Qualification docs/evidence and development dependency wiring only. Public workflow matches main byte-for-byte; no packages/services/tests changes from actual abeb qualification.",
+    "publication_history": "A separate publication branch preserves immutable local qualified commits. The first push was rejected for missing workflow scope; publication uses unchanged CI with pinned dev dependencies, and source/test hashes match the actual qualification cuts.",
+    "source_and_test_files_match_qualified_abeb": true
+  },
+  "runs": [
+    {
+      "artifact_id": "204-v2-contract-wire-plan-v1-i3hnzdx7",
+      "artifacts_sha256": {
+        "junit.xml": "da92c50f36436cd4a1e94685be6baccf0a0143e4275a36164dccdc9bbce37680",
+        "post-pins.json": "2ba8f01fc4f1fbea00a74b24b9fe7b81deb76e8c0ce5b7c0d8781e35e0bf9dad",
+        "pre-pins.json": "2ba8f01fc4f1fbea00a74b24b9fe7b81deb76e8c0ce5b7c0d8781e35e0bf9dad",
+        "pytest.log": "1ffba7ce8487c840ab55a5a09b084861b82c06d3863e5962afba29e889f54317",
+        "receipt.json": "0aaa83f5edf38f1eb40b7e0007c51bd3b0c1cec33534d08d9b11720278bac74e",
+        "runner.py": "1fbe5d9842a82b6104d4f9d75dd15c27a3d09bf8e5718c931731ddb123425b71",
+        "start.json": "12b89cbbb5c6cf4d3768aa613d5a6ab82fa6716ff7e028ae0d1eb50722cd185c"
+      },
+      "case_id_set_sha256": "34f99e0f2230dce3ecd0ec294d7da8c7c17ed094c782cb827e5ea700bacbb9a4",
+      "errors": 0,
+      "exact_recorded_command_sha256": "504d90deca1cc0766678330299db77f32cab5bffdaf9c9718e7846906692ab15",
+      "exit_code": 0,
+      "failed_case_ids": [],
+      "failures": 0,
+      "head": "4e03ac81c859889e3ec2c54ab4621ac62c958542",
+      "id": "v2_handshake458",
+      "junit_property_count": 0,
+      "junit_seconds": "11.319",
+      "manifest_sha256": "05d0d4aec4df6060f47a45bd284fab3aeec18b3980026a853bb3443b49dd3d4c",
+      "module_counts": {
+        "tests.unit.test_media_contracts": 29,
+        "tests.unit.test_media_decode_plan": 23,
+        "tests.unit.test_media_decoder_contracts": 221,
+        "tests.unit.test_media_decoder_v2": 126,
+        "tests.unit.test_media_decoder_wire": 59
+      },
+      "ordered_case_ids_sha256": "cd1b5a0331d19531708a4369aaa10662348bdf66a86f456536769c54d24c6d05",
+      "passed": 458,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "Closed v2/v1 DTOs, decoder framing and initial native plan validation; no child execution.",
+      "selected_external_decoder_interpreter": false,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/unit/test_media_contracts.py": "1fb1f43c8f6a999e5b24368119f1e14e5cc40b8f45f1711b9791f09d6d21a737",
+        "tests/unit/test_media_decode_plan.py": "ff228f05df274cc634cc18b5f9993f502eed44df4ec8defb35e697a0f598a93f",
+        "tests/unit/test_media_decoder_contracts.py": "a7cd695bf3cf9c3f5af2e2f3307413c574d21d9e35367be88dfa3660d1a8d293",
+        "tests/unit/test_media_decoder_v2.py": "224aab689dfff971e6144aff63c4b56ddc102949a4f282308504ac03eac6526a",
+        "tests/unit/test_media_decoder_wire.py": "723e7daa17703a5813ef712f2f8aa575ef4228a1cc20c9bcef5cb9045d612613"
+      },
+      "started_utc": "2026-11-04T00:05:54.766374+00:00",
+      "targets": [
+        "tests/unit/test_media_decoder_v2.py",
+        "tests/unit/test_media_decoder_wire.py",
+        "tests/unit/test_media_decode_plan.py",
+        "tests/unit/test_media_decoder_contracts.py",
+        "tests/unit/test_media_contracts.py"
+      ],
+      "tests": 458,
+      "tracked_inputs": 1840,
+      "tree": "b8f8ae952cc7e457f771a6f6430216833cc9efd0",
+      "wall_seconds": 11.825378854000519,
+      "warning_summary_lines": []
+    },
+    {
+      "artifact_id": "204-v2-native-regression-v1-_xugnhik",
+      "artifacts_sha256": {
+        "junit.xml": "987c5e47632c2cd92722ab74d00c1f1afa32143d06109dc4fbf4ca7b357eebfc",
+        "post-pins.json": "2ba8f01fc4f1fbea00a74b24b9fe7b81deb76e8c0ce5b7c0d8781e35e0bf9dad",
+        "pre-pins.json": "2ba8f01fc4f1fbea00a74b24b9fe7b81deb76e8c0ce5b7c0d8781e35e0bf9dad",
+        "pytest.log": "38dec3933988ee94ff82c05649d7ecf7997a79553fbb670cecd84823eab2b926",
+        "receipt.json": "85d3f6ea70d9283f0dba93026a2fb90d8e4bf2e9a8edfa7c093a09f07d862df6",
+        "runner.py": "b8be0679fd44c418b01507f72bec7ba6fe51b47c9bb00cc67bc9f2ed635263aa",
+        "start.json": "8f38b4fb6afe8c726cdd243840314cebee8edda7cdb2b8271200d5766cbc1613"
+      },
+      "case_id_set_sha256": "23baab246910fe0f898200ac87541ec79eaf401eb45b5d52fd015796e62ce7eb",
+      "errors": 0,
+      "exact_recorded_command_sha256": "a7e8487763b5c44d82c1a7215304de6ee9a09530ae122419af0e11c78bf4349e",
+      "exit_code": 0,
+      "failed_case_ids": [],
+      "failures": 0,
+      "head": "4e03ac81c859889e3ec2c54ab4621ac62c958542",
+      "id": "native_regression367",
+      "junit_property_count": 0,
+      "junit_seconds": "305.748",
+      "manifest_sha256": "1187a45049ec8ebd09cdb9c5f50e0a13087c403a850cbb537d4427ef11fcdb9b",
+      "module_counts": {
+        "tests.integration.test_media_connection_retirement_join": 4,
+        "tests.integration.test_session_media_audit_scope": 2,
+        "tests.integration.test_session_media_fresh_parse_audit": 16,
+        "tests.integration.test_session_media_lifecycle_guards": 16,
+        "tests.integration.test_session_media_missing_runtime": 14,
+        "tests.integration.test_session_media_owner": 51,
+        "tests.unit.test_legacy_events": 13,
+        "tests.unit.test_media_owner_receipts": 96,
+        "tests.unit.test_media_processes": 44,
+        "tests.unit.test_media_spool": 53,
+        "tests.unit.test_media_wire": 58
+      },
+      "ordered_case_ids_sha256": "850ea04aa02149c77369e9c5914447870966b50b0d0424b351603843730cc49c",
+      "passed": 367,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "Existing native Session/Auth/ASGI/SQLite/spool/process/wire regressions; no new decoder child execution.",
+      "selected_external_decoder_interpreter": false,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/integration/test_media_connection_retirement_join.py": "872450d6c934467884782d5bb4d570ebf1bbf6c793261e45c580822859951425",
+        "tests/integration/test_session_media_audit_scope.py": "5230868afbedaa5532c165d17117a4c515b31142bfadce4d93886d3725ea8d35",
+        "tests/integration/test_session_media_fresh_parse_audit.py": "c944f9b89b1438eac62c7ef0167192bcaf7e12fdc4f1bbbc85e12cd69771003e",
+        "tests/integration/test_session_media_lifecycle_guards.py": "7bc4d156d999f31c6651439c02a23990d5d20e6b1bb033db7aa03f22011c31e0",
+        "tests/integration/test_session_media_missing_runtime.py": "fe388ef7adc04c284a3fdb36e529ac1655940b85b37adf8a363de710c6a049a0",
+        "tests/integration/test_session_media_owner.py": "41ae879ac138620a367eb6f8f488c217b93898c2e5b39c6979115537936aa08b",
+        "tests/unit/test_legacy_events.py": "e6039e4c04ed9be33373b50cc4cd5e134df0d3a56f6a5ad606368c8d7b3f5433",
+        "tests/unit/test_media_owner_receipts.py": "9146dbb4281a4f4cb9c095d00cd2097575b133760bc92b484a0f3b50d1ff048e",
+        "tests/unit/test_media_processes.py": "afe5f9465868c00d69b97cc3e7e7aad007b6e83ce2d0c5da3d72201ff65b8ee1",
+        "tests/unit/test_media_spool.py": "2b51459ce508da23ffa698e1e4849f44fa7b9168a9e262cf98061cbca2049799",
+        "tests/unit/test_media_wire.py": "56bc59b26e71e3095e2dfcc236c8a15af9e4c613897e8853aff198f5d554d495"
+      },
+      "started_utc": "2026-11-04T00:07:26.790460+00:00",
+      "targets": [
+        "tests/integration/test_session_media_audit_scope.py",
+        "tests/integration/test_session_media_fresh_parse_audit.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/integration/test_session_media_owner.py",
+        "tests/integration/test_media_connection_retirement_join.py",
+        "tests/integration/test_session_media_missing_runtime.py",
+        "tests/unit/test_legacy_events.py",
+        "tests/unit/test_media_owner_receipts.py",
+        "tests/unit/test_media_processes.py",
+        "tests/unit/test_media_spool.py",
+        "tests/unit/test_media_wire.py"
+      ],
+      "tests": 367,
+      "tracked_inputs": 1840,
+      "tree": "b8f8ae952cc7e457f771a6f6430216833cc9efd0",
+      "wall_seconds": 307.3553435550002,
+      "warning_summary_lines": []
+    },
+    {
+      "artifact_id": "204-child-original-cursor-integration-v1-qsbgak6j",
+      "artifacts_sha256": {
+        "junit.xml": "974cf46fe59735344db73f964403fa9f07596053985658d3fa305f8621efc60d",
+        "post-pins.json": "e5b676caad313fb6e12734869b30b7b81a5005b962e24c36dd71428e201c474c",
+        "pre-pins.json": "e5b676caad313fb6e12734869b30b7b81a5005b962e24c36dd71428e201c474c",
+        "pytest.log": "22dac3428de9a3f6869deb866d1ca9e7a3b028ae9eff6476c9e2f029dbb35108",
+        "receipt.json": "4eec99b8d060ba86b93adbd3057f59a634c9d39b6036ace78f0768130903c2fe",
+        "runner.py": "f0147124f0c6a295e3d5d2d6014d497a6ea670808ad8c094a21a8db3f4aea6c6",
+        "start.json": "0ebe1e5084115f1012d3033f0b92a762658b86d8df43e940bfd21b41595e1327"
+      },
+      "case_id_set_sha256": "fde331b5e0106fe895570fb77f2cd0a7000b5c69c202b96ed07faa7b346508fc",
+      "errors": 0,
+      "exact_recorded_command_sha256": "ff009a23ed75241a8edb307ab38b049a1b916b98554ec16d8f603b83662002e8",
+      "exit_code": 1,
+      "failed_case_ids": [
+        "tests.integration.test_media_decoder_child::test_actual_child_wav_probe_and_all_selected_pcm_output_bytes[raw-pcm16]",
+        "tests.integration.test_media_decoder_child::test_actual_child_wav_probe_and_all_selected_pcm_output_bytes[raw-pcm24]",
+        "tests.integration.test_media_decoder_child::test_actual_child_wav_probe_and_all_selected_pcm_output_bytes[raw-pcm32]",
+        "tests.integration.test_media_decoder_child::test_actual_child_wav_probe_and_all_selected_pcm_output_bytes[wav-pcm16]",
+        "tests.integration.test_media_decoder_child::test_actual_child_wav_probe_and_all_selected_pcm_output_bytes[wav-pcm24]",
+        "tests.integration.test_media_decoder_child::test_actual_child_wav_probe_and_all_selected_pcm_output_bytes[wav-pcm32]",
+        "tests.integration.test_media_decoder_child::test_actual_retained_child_continues_original_samples_after_early_segment_boundary",
+        "tests.integration.test_media_decoder_child::test_actual_still_image_point_body_and_real_eof[point-png]",
+        "tests.integration.test_media_decoder_child::test_actual_still_image_point_body_and_real_eof[point-jpeg]",
+        "tests.integration.test_media_decoder_child::test_actual_still_image_point_body_and_real_eof[positive-png]",
+        "tests.integration.test_media_decoder_child::test_actual_still_image_point_body_and_real_eof[positive-jpeg]",
+        "tests.integration.test_media_decoder_child::test_actual_mp4_frame_clocks_bytes_and_retained_interval_continuation[png]",
+        "tests.integration.test_media_decoder_child::test_actual_mp4_frame_clocks_bytes_and_retained_interval_continuation[jpeg]",
+        "tests.integration.test_media_decoder_child::test_offgrid_adjacent_segments_own_sample_starts_without_loss_or_duplication[cut0]",
+        "tests.integration.test_media_decoder_child::test_offgrid_adjacent_segments_own_sample_starts_without_loss_or_duplication[cut1]",
+        "tests.integration.test_media_decoder_child::test_actual_aac_forward_pts_gap_preserves_samples_clocks_and_global_pcm_indices"
+      ],
+      "failures": 16,
+      "head": "3fc3d90e91f963a198c902eb4117a32c3eff83af",
+      "id": "original_child27_negative",
+      "junit_property_count": 0,
+      "junit_seconds": "21.366",
+      "manifest_sha256": "2806b5a36c18361be3f2394351fec349f638077e453db099aaed5c06d486c173",
+      "module_counts": {
+        "tests.integration.test_media_decoder_child": 27
+      },
+      "ordered_case_ids_sha256": "dec45ebed1f0571f2cb0526eda898d261a23f155097d11a6b5aecdea4a81403b",
+      "passed": 11,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "Actual synthetic PyAV child qualification failed; retained original negative outcome.",
+      "selected_external_decoder_interpreter": true,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/providers/llama_media.py": "86852f91ab917f3a99af98031f38d451ace27422912ff2aef86378594b00cd15",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_decoder.py": "ce1b0d63a922408905038d839d14b5eed913f69057a6ac27fb4ebb6c71dc7d45",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/decisions/media_classifier.py": "a3749cc648b9cfb86ba5fd3f7cc09573f651cce6e54fb4152f66b1e7ce35dd74",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/integration/test_media_decoder_child.py": "c9dcf5f52023bc8c54d6226958d93d9d570254031eb6f074689c4246959fb19e"
+      },
+      "started_utc": "2026-11-04T00:46:31.825474+00:00",
+      "targets": [
+        "tests/integration/test_media_decoder_child.py"
+      ],
+      "tests": 27,
+      "tracked_inputs": 1850,
+      "tree": "0687e27d3463beddce1ed4430e6d504abeb35d02",
+      "wall_seconds": 21.8623109379987,
+      "warning_summary_lines": []
+    },
+    {
+      "artifact_id": "204-child-cursor-corrected-integration-v1-1u_rbb8t",
+      "artifacts_sha256": {
+        "junit.xml": "e3b3e00063eaa63fff660f0996cd3b4c01587b75fcd17e829643885ad959f035",
+        "post-pins.json": "ddb91cad4c16d191a3b9ec015fa24b01a32a2185cefad317e3fecb8977dca118",
+        "pre-pins.json": "ddb91cad4c16d191a3b9ec015fa24b01a32a2185cefad317e3fecb8977dca118",
+        "pytest.log": "5933e76767a8b2c47203881ed59d89057b84be733bc73b287155b524c718cfa0",
+        "receipt.json": "eef5cd6219e44e7c18afebd5d7e7d6263359ac50cb000fef84980c12962d5414",
+        "runner.py": "f0147124f0c6a295e3d5d2d6014d497a6ea670808ad8c094a21a8db3f4aea6c6",
+        "start.json": "df5010f7736dfaa2b844fb2c81031f884a63dff5c9e3200e9c2ee778777c2903"
+      },
+      "case_id_set_sha256": "fde331b5e0106fe895570fb77f2cd0a7000b5c69c202b96ed07faa7b346508fc",
+      "errors": 0,
+      "exact_recorded_command_sha256": "d2edcdc1a3efe620b652b186736b84d22c84ade072d7246d6fbcc9a7b0718ceb",
+      "exit_code": 0,
+      "failed_case_ids": [],
+      "failures": 0,
+      "head": "962ac1697d78d8611a4feffa4aee859aff735700",
+      "id": "corrected_child27",
+      "junit_property_count": 0,
+      "junit_seconds": "24.042",
+      "manifest_sha256": "83ecd715cd3958603d2ed9a4ae59cd4850b98839cdbce1789ea0692f3f3cb974",
+      "module_counts": {
+        "tests.integration.test_media_decoder_child": 27
+      },
+      "ordered_case_ids_sha256": "dec45ebed1f0571f2cb0526eda898d261a23f155097d11a6b5aecdea4a81403b",
+      "passed": 27,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "Actual synthetic WAV/still/MP4 child data, original clocks, finite boundaries, gap and process/error/cancel cases.",
+      "selected_external_decoder_interpreter": true,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/providers/llama_media.py": "86852f91ab917f3a99af98031f38d451ace27422912ff2aef86378594b00cd15",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_decoder.py": "6d912ded8f08b569b2e646b96e409c6d6adbff15585539cdfd2875edda546649",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/decisions/media_classifier.py": "a3749cc648b9cfb86ba5fd3f7cc09573f651cce6e54fb4152f66b1e7ce35dd74",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/integration/test_media_decoder_child.py": "c9dcf5f52023bc8c54d6226958d93d9d570254031eb6f074689c4246959fb19e"
+      },
+      "started_utc": "2026-11-04T00:48:18.562350+00:00",
+      "targets": [
+        "tests/integration/test_media_decoder_child.py"
+      ],
+      "tests": 27,
+      "tracked_inputs": 1850,
+      "tree": "b5b90cebe40b00d91d138645fa7adad7271db011",
+      "wall_seconds": 24.492910865999875,
+      "warning_summary_lines": []
+    },
+    {
+      "artifact_id": "204-v2-merged-provider-integration-v1-y8sv31xt",
+      "artifacts_sha256": {
+        "junit.xml": "02811a9a9b3e11af27b9bdc5fe359f55a5a864bf57d7ecfb8017c5be8129aa92",
+        "post-pins.json": "ddb91cad4c16d191a3b9ec015fa24b01a32a2185cefad317e3fecb8977dca118",
+        "pre-pins.json": "ddb91cad4c16d191a3b9ec015fa24b01a32a2185cefad317e3fecb8977dca118",
+        "pytest.log": "35f6a808f624a02de2e77b6891a0e60ccafde32641ef3cd144a2d3a059aab660",
+        "receipt.json": "5f45a4bbf3c52bc474541f619b8b2eee28b2ea141e3d30fb515ff8409c4fde78",
+        "runner.py": "1f356d4f16a35a191670a56897a8db610f5b2b9dcbf4b512429ffb2bdd352655",
+        "start.json": "36646cd92e60eed3744113ed73c1620af3c46ca5cb80ed04c81d90968d90e756"
+      },
+      "case_id_set_sha256": "4cb977968b032a8a2522328b9c2eb4c4c5cab278bf93c64fa510d41492360763",
+      "errors": 0,
+      "exact_recorded_command_sha256": "d54729087adc920926b2d3d86a60ad7eb7177594c816e4d5839c8807e47e9468",
+      "exit_code": 0,
+      "failed_case_ids": [],
+      "failures": 0,
+      "head": "962ac1697d78d8611a4feffa4aee859aff735700",
+      "id": "merged_contract_provider638",
+      "junit_property_count": 0,
+      "junit_seconds": "22.468",
+      "manifest_sha256": "fceaf1cc891683d05bc6557599eda28750cc02193d8604b7e25ffc4d7b8f62ac",
+      "module_counts": {
+        "tests.unit.test_decisions_media_classifier": 22,
+        "tests.unit.test_llama_media": 33,
+        "tests.unit.test_llama_media_final_fence": 14,
+        "tests.unit.test_media_contracts": 29,
+        "tests.unit.test_media_decode_plan": 23,
+        "tests.unit.test_media_decoder_contracts": 221,
+        "tests.unit.test_media_decoder_v2": 126,
+        "tests.unit.test_media_decoder_wire": 59,
+        "tests.unit.test_media_preallocation_guards": 16,
+        "tests.unit.test_native_d1_provider": 95
+      },
+      "ordered_case_ids_sha256": "5c51394567fddfefd578df11bf1b789bedc7516924d5eccb87ae52c7635a6cab",
+      "passed": 638,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "Contracts/planner/wire plus controlled HTTPX/provider/Decisions protocol fixtures; no actual endpoint/model or new child execution.",
+      "selected_external_decoder_interpreter": false,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/providers/llama_media.py": "86852f91ab917f3a99af98031f38d451ace27422912ff2aef86378594b00cd15",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_decoder.py": "6d912ded8f08b569b2e646b96e409c6d6adbff15585539cdfd2875edda546649",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/decisions/media_classifier.py": "a3749cc648b9cfb86ba5fd3f7cc09573f651cce6e54fb4152f66b1e7ce35dd74",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/unit/test_decisions_media_classifier.py": "3a25b7c40dd516f6a7995252555ad2fe2f7568073a9edd4dad31fceee84168fe",
+        "tests/unit/test_llama_media.py": "536a68aee4cc56944b7158236d33f79725a6b8c3253cbe37bb8b296fd28527e3",
+        "tests/unit/test_llama_media_final_fence.py": "85ac1fce59f44d6952ea56783911a9449482c6784f5c4e84fc23784007df03fb",
+        "tests/unit/test_media_contracts.py": "1fb1f43c8f6a999e5b24368119f1e14e5cc40b8f45f1711b9791f09d6d21a737",
+        "tests/unit/test_media_decode_plan.py": "ff228f05df274cc634cc18b5f9993f502eed44df4ec8defb35e697a0f598a93f",
+        "tests/unit/test_media_decoder_contracts.py": "a7cd695bf3cf9c3f5af2e2f3307413c574d21d9e35367be88dfa3660d1a8d293",
+        "tests/unit/test_media_decoder_v2.py": "224aab689dfff971e6144aff63c4b56ddc102949a4f282308504ac03eac6526a",
+        "tests/unit/test_media_decoder_wire.py": "723e7daa17703a5813ef712f2f8aa575ef4228a1cc20c9bcef5cb9045d612613",
+        "tests/unit/test_media_preallocation_guards.py": "86c51687bd7d509a66d53a9139e2b3b5b394af4c827756418ee4ea72ff1915a6",
+        "tests/unit/test_native_d1_provider.py": "8821393ccc9760803a5dc81a6cb8cb987fe5e2c6631d12565e16da8b9a17b86e"
+      },
+      "started_utc": "2026-11-04T00:51:00.127755+00:00",
+      "targets": [
+        "tests/unit/test_media_decoder_v2.py",
+        "tests/unit/test_media_decoder_wire.py",
+        "tests/unit/test_media_decode_plan.py",
+        "tests/unit/test_media_decoder_contracts.py",
+        "tests/unit/test_media_contracts.py",
+        "tests/unit/test_llama_media.py",
+        "tests/unit/test_llama_media_final_fence.py",
+        "tests/unit/test_media_preallocation_guards.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_native_d1_provider.py"
+      ],
+      "tests": 638,
+      "tracked_inputs": 1850,
+      "tree": "b5b90cebe40b00d91d138645fa7adad7271db011",
+      "wall_seconds": 23.011131535997265,
+      "warning_summary_lines": []
+    },
+    {
+      "artifact_id": "204-child-actual-multitrack-v1-og1z1j2p",
+      "artifacts_sha256": {
+        "junit.xml": "ad9d14dbb68606b78e14188c71ff7e009f125bcd65ac3de85df2b26e2fe8ca1a",
+        "post-pins.json": "9a1851ac0d1933c8ee420bde3223ae54ee22458e4efe4fb7793d4ba4d4611061",
+        "pre-pins.json": "9a1851ac0d1933c8ee420bde3223ae54ee22458e4efe4fb7793d4ba4d4611061",
+        "pytest.log": "7b0ddc0b4048defd352f92b4341837f207c70d0027eba8f89af2aee50355f0fb",
+        "receipt.json": "77c823e4cbd7005a44db0ba9d135f0d3a5e8851cfaa048919885cb241a99b39b",
+        "runner.py": "f0147124f0c6a295e3d5d2d6014d497a6ea670808ad8c094a21a8db3f4aea6c6",
+        "start.json": "7d9e32571303af0d9aa11b6f573f674b0b2161cfeebc8a2155f465d8eacc45fa"
+      },
+      "case_id_set_sha256": "f436c70404de53c67ea30310add2f7948b084a30ee9b187310255430ae3ba64c",
+      "errors": 0,
+      "exact_recorded_command_sha256": "70b0d0622fdbc08a903ee51ac2074a7fe6b0d3e9ab58a5d140cb37ef732489f3",
+      "exit_code": 0,
+      "failed_case_ids": [],
+      "failures": 0,
+      "head": "84fd43bac72e5ef462858951ba13590073f11002",
+      "id": "actual_multitrack1",
+      "junit_property_count": 0,
+      "junit_seconds": "1.496",
+      "manifest_sha256": "88a9e247c33c79fa81c895b9855b1db4c30e20d50529b3d3ec7069528eb31e3c",
+      "module_counts": {
+        "tests.integration.test_media_decoder_multitrack": 1
+      },
+      "ordered_case_ids_sha256": "f436c70404de53c67ea30310add2f7948b084a30ee9b187310255430ae3ba64c",
+      "passed": 1,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "Actual two-AAC-stream MP4, reversed raw/WAV native mapping, exact postmux PCM/clocks and original process custody.",
+      "selected_external_decoder_interpreter": true,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/providers/llama_media.py": "86852f91ab917f3a99af98031f38d451ace27422912ff2aef86378594b00cd15",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_decoder.py": "6d912ded8f08b569b2e646b96e409c6d6adbff15585539cdfd2875edda546649",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/decisions/media_classifier.py": "a3749cc648b9cfb86ba5fd3f7cc09573f651cce6e54fb4152f66b1e7ce35dd74",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/integration/test_media_decoder_multitrack.py": "e8460adf687c7db515db082d29198ae4ad84ec21beab8886c62fad726080911b"
+      },
+      "started_utc": "2026-11-04T00:52:39.658940+00:00",
+      "targets": [
+        "tests/integration/test_media_decoder_multitrack.py"
+      ],
+      "tests": 1,
+      "tracked_inputs": 1851,
+      "tree": "e0a977ccafdcc0f40a85f403f2e61f0255b4b6c5",
+      "wall_seconds": 1.964183640000556,
+      "warning_summary_lines": []
+    },
+    {
+      "artifact_id": "204-child-composed-native30-v1-pfhfafku",
+      "artifacts_sha256": {
+        "junit.xml": "cd24bb112e21aa2f0eda933dd7f98629dcafbc9df4b4f21bb71c6acea9fa2df9",
+        "post-pins.json": "b635486968f7636623e03b672e6ed294a60cf6721d48bd60869867c9b156b4b2",
+        "pre-pins.json": "b635486968f7636623e03b672e6ed294a60cf6721d48bd60869867c9b156b4b2",
+        "pytest.log": "574222103f202ffa64913618f8a8a3d0415c3f04289c7f9100fcd8c181c871f5",
+        "receipt.json": "6a1b7ded6850be33e3ba3820e4d8bf38703cbd50f6348c695f53b82bc61e3eaa",
+        "runner.py": "f0147124f0c6a295e3d5d2d6014d497a6ea670808ad8c094a21a8db3f4aea6c6",
+        "start.json": "71b6e0f285efc91feeab280373387a96d0837ec91d573f592cb89ad2ad6189ce"
+      },
+      "case_id_set_sha256": "1e7000672d72f620d631e302bcaeac0e6481bf20625c7f005f02c0a3d8b91352",
+      "errors": 0,
+      "exact_recorded_command_sha256": "1650f92a5d553ddc1a11093ccc07db9f375283a9f86e0ebeae4a0e062da95d29",
+      "exit_code": 0,
+      "failed_case_ids": [],
+      "failures": 0,
+      "head": "abeb079fa9b73662a94b782815c075e86997a152",
+      "id": "final_child30",
+      "junit_property_count": 0,
+      "junit_seconds": "29.601",
+      "manifest_sha256": "42313ff08eedd760b359b3fd5dd8c841c997fe3f8493b970c56ab7014b508e67",
+      "module_counts": {
+        "tests.integration.test_media_decoder_child": 29,
+        "tests.integration.test_media_decoder_multitrack": 1
+      },
+      "ordered_case_ids_sha256": "89883f821fb1e32e14879d5a578fdc8edf7fe400c3c0437ce937f796a1288552",
+      "passed": 30,
+      "pre_post_and_immutable_git_pins_verified": true,
+      "recorded_clean_status": true,
+      "scope": "29 child cases including two fresh-prefix continuation cases plus one actual multitrack case.",
+      "selected_external_decoder_interpreter": true,
+      "skipped": 0,
+      "source_and_target_sha256": {
+        "packages/contracts/media.py": "259dca5d9b3df7b5fd6d073bd1bfbb0a150ce82c699f5676d06536546a57f6ac",
+        "packages/providers/llama_media.py": "86852f91ab917f3a99af98031f38d451ace27422912ff2aef86378594b00cd15",
+        "packages/resources/_media_bootstrap.py": "d4e8b3db109262637ca25d38afe9e1448336338ff92a954cf2e0fb9fbbccbb05",
+        "packages/resources/media_decode_plan.py": "c42e1c4e3bc7f44a7553f0a5d38619d2e1c4cfc90f8e59dfcc7979e4dfbce56f",
+        "packages/resources/media_decoder.py": "6d912ded8f08b569b2e646b96e409c6d6adbff15585539cdfd2875edda546649",
+        "packages/resources/media_processes.py": "cf625fa3c6225f4294e566ff9792b945feba57037a0b18795cccbfc3765ea408",
+        "services/common/media_decoder_wire.py": "f0f23677f7c656d5a0d0cc5bcb11286ea481098a3936de558a005403e4ef0654",
+        "services/decisions/media_classifier.py": "a3749cc648b9cfb86ba5fd3f7cc09573f651cce6e54fb4152f66b1e7ce35dd74",
+        "services/session/media_spool.py": "b002eae4289efb6f5e046eafaeb28410e96893354aaf37eef2d985d1a68ce838",
+        "tests/integration/test_media_decoder_child.py": "2c993bbba975b306e3ec798c7c79dc0f5d4ce2dbedcb6ac4d140f4aee6819754",
+        "tests/integration/test_media_decoder_multitrack.py": "e8460adf687c7db515db082d29198ae4ad84ec21beab8886c62fad726080911b"
+      },
+      "started_utc": "2026-11-04T00:55:18.362429+00:00",
+      "targets": [
+        "tests/integration/test_media_decoder_child.py",
+        "tests/integration/test_media_decoder_multitrack.py"
+      ],
+      "tests": 30,
+      "tracked_inputs": 1851,
+      "tree": "e9a824feb4c3525025b7e737a70204fc0f611433",
+      "wall_seconds": 30.053336922999733,
+      "warning_summary_lines": []
+    }
+  ],
+  "schema_compatibility_repair": {
+    "count_rule": "560P1F and126P stay distinct with126-case overlap. Actual30 passed in first selection on production6849412, unchanged by fixture-only180fae8. No summed or complete561-pass/CI claim.",
+    "exact_additive_v2_schema_count": 27,
+    "independent_source_gate": {
+      "manifest_sha256": "f80cfe0e728d6b5c60832b019cc13a9e8f4cae0ca4eed22798f14c0c44029813",
+      "report_sha256": "a4db7581aaa35ce3ca00d68cc18899331e5bbdc9e99a35da2932efe29e969106",
+      "scope": "Source-only, new source-aware schema test body unread",
+      "seal_sha256": "00bc956a0beacf402ce65a53e09aeaaaf5a81e873f38f96b06aaa5713555b7c6"
+    },
+    "limits": [
+      "Native Session V2 catalog/controller/start/resume/history/budgets remain pending",
+      "No native CPU/descendant or sealed-runtime qualification",
+      "No actual model inference/device/news-video/sign-language/full demo proof",
+      "Changed-head full CI remains required before merge"
+    ],
+    "metadata_defect_preserved": "Second raw receipt inherits the first runner broad scope sentence mentioning actual30. Its command, targets and126 JUnit identities prove only the one V2-unit module. Raw artifacts remain unchanged; this record and independent review explicitly correct interpretation. No actual30 or561-pass rerun is claimed.",
+    "negative_fixture_correction": {
+      "change": "Only helper preparation: V2 defaults retained; V1 negative constructs a genuinely valid V1 DTO using its original digest domain and passes it to the unchanged V2 planner rejection. Same seven faults, test signatures/decorators,27 asserts and final raises block retained. Production byte-identical to6849412.",
+      "head": "180fae80ea63e0c7a0f74648cceb96e6a07cc71d",
+      "independent_static_quality": "GO before rerun",
+      "proof": {
+        "after_sha256": "b0c8b44792461f2067c18e84b3a457cfbc8dc7b72d2d51d93b51eb947ea8d594",
+        "assertions_exact": 27,
+        "before_sha256": "d66193c9d91517d6ddf6ae35b95ab8935139689883b6d6cafa38bedb8a9355c5",
+        "scope": "Fixture preparation only, full original planner raises block retained; no production edits or rerun yet.",
+        "test_signatures_and_decorators_exact": true
+      }
+    },
+    "original_ci": {
+      "failures": [
+        "Original69 decoder schema byte pin: six old Profile/Protocol files had widened closed literals",
+        "Resource original184 inventory counted21 newly additive schema files"
+      ],
+      "head": "f0230ec523a8294d54ab714499ea86260c8ac9c2",
+      "platforms": "Flutter/web,Android,iOS passed",
+      "python311": "12411 passed,2 failed,2 deselected,1warning",
+      "python312": "cancelled",
+      "raw_log_sha256": "c859867d06894b1c8f73955c69f7c25d16090e7bdca6f55f474786081f6ee0f2",
+      "run_id": 41752858879
+    },
+    "original_main_schemas_byte_mode_exact": 423,
+    "root_export_quality": {
+      "ast_exact_after_format": true,
+      "baseline": "cf546a221c8d48fcc899ebf04adcb7fc57ec44b9",
+      "exact_additive_schema_names": [
+        "packages/contracts/schemas/MediaDecodeOpenPlan.json",
+        "packages/contracts/schemas/MediaDecodeRequestV2.json",
+        "packages/contracts/schemas/MediaDecodeResponseV2.json",
+        "packages/contracts/schemas/MediaDecodeSelection.json",
+        "packages/contracts/schemas/MediaDecodeTrackCursor.json",
+        "packages/contracts/schemas/MediaDecoderProfileV2.json",
+        "packages/contracts/schemas/MediaDecoderProtocolV2.json",
+        "packages/contracts/schemas/MediaFoundDecodeOpenPlan.json",
+        "packages/contracts/schemas/MediaFoundDecodeRequestV2.json",
+        "packages/contracts/schemas/MediaFoundDecodeResponseV2.json",
+        "packages/contracts/schemas/MediaFoundDecodeSelection.json",
+        "packages/contracts/schemas/MediaFoundDecodeTrackCursor.json",
+        "packages/contracts/schemas/MediaFoundDecoderProfileV2.json",
+        "packages/contracts/schemas/MediaFoundDecoderProtocolV2.json",
+        "packages/contracts/schemas/MediaFoundProbeClock.json",
+        "packages/contracts/schemas/MediaFoundProbeObservation.json",
+        "packages/contracts/schemas/MediaProbeClock.json",
+        "packages/contracts/schemas/MediaProbeObservation.json",
+        "packages/contracts/schemas/MediaReceiptDecodeOpenPlan.json",
+        "packages/contracts/schemas/MediaReceiptDecodeRequestV2.json",
+        "packages/contracts/schemas/MediaReceiptDecodeResponseV2.json",
+        "packages/contracts/schemas/MediaReceiptDecodeSelection.json",
+        "packages/contracts/schemas/MediaReceiptDecodeTrackCursor.json",
+        "packages/contracts/schemas/MediaReceiptDecoderProfileV2.json",
+        "packages/contracts/schemas/MediaReceiptDecoderProtocolV2.json",
+        "packages/contracts/schemas/MediaReceiptProbeClock.json",
+        "packages/contracts/schemas/MediaReceiptProbeObservation.json"
+      ],
+      "format_changed_files": [
+        "tests/unit/test_media_decoder_v2_schema_exports.py"
+      ],
+      "old_schemas_byte_mode_exact": 423,
+      "scope": "Export and static checks only; no pytest, native Session/media/demo qualification yet.",
+      "source_gate": "GO reviewed before execution",
+      "steps": [
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-m",
+            "ruff",
+            "format",
+            "packages/contracts/media.py",
+            "packages/resources/media_decode_plan.py",
+            "tests/unit/test_media_decoder_v2.py",
+            "tests/integration/test_media_decoder_child.py",
+            "tests/unit/test_standing_resource_finalization_contracts.py",
+            "tests/unit/test_media_decoder_v2_schema_exports.py"
+          ],
+          "exit": 0,
+          "name": "format"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-m",
+            "ruff",
+            "check",
+            "."
+          ],
+          "exit": 0,
+          "name": "ruff-check"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "-m",
+            "ruff",
+            "format",
+            "--check",
+            "."
+          ],
+          "exit": 0,
+          "name": "ruff-format-check"
+        },
+        {
+          "command": [
+            "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+            "scripts/export_contracts.py"
+          ],
+          "exit": 0,
+          "name": "export"
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit": 0,
+          "name": "diff-check"
+        }
+      ],
+      "total_schemas": 450
+    },
+    "runs": [
+      {
+        "actual_scope": "Ten explicit modules: original schema pins/new V2 contracts/wire/planner/actual30. Historical result remains560passed1failed; V1-negative fixture failed before planner entry.",
+        "exit_code": 1,
+        "head": "6849412e4c078795eb1dca22d9b1cfc32a1c382e",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "1",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "561",
+            "time": "40.097",
+            "timestamp": "2026-11-03T18:24:50.433370-08:00"
+          }
+        ],
+        "manifest_sha256": "8f453e391eedf4979ed26a417c95cb97242eedc2bc577550b0b6f08ca8f96c7f",
+        "module_cases": {
+          "tests/integration/test_media_decoder_child.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 29
+          },
+          "tests/integration/test_media_decoder_multitrack.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 1
+          },
+          "tests/unit/test_media_contracts.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 29
+          },
+          "tests/unit/test_media_decode_plan.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 23
+          },
+          "tests/unit/test_media_decoder_contracts.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 221
+          },
+          "tests/unit/test_media_decoder_v2.py": {
+            "errors": 0,
+            "failures": 1,
+            "skips": 0,
+            "tests": 126
+          },
+          "tests/unit/test_media_decoder_v2_schema_exports.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 4
+          },
+          "tests/unit/test_media_decoder_wire.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 59
+          },
+          "tests/unit/test_media_schema_exports.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 6
+          },
+          "tests/unit/test_standing_resource_finalization_contracts.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 63
+          }
+        },
+        "payload_sha256": {
+          "junit.xml": "e5d6d5c9a511fcfd6eb648ef2a028fccb4094484db8dd84717f62b4ec13f2679",
+          "post-pins.json": "1256363c0300febbd5aaf25a0e90c78254beb686e26013512cadeb811802dd3f",
+          "pre-pins.json": "1256363c0300febbd5aaf25a0e90c78254beb686e26013512cadeb811802dd3f",
+          "pytest.log": "d4f156dffca7d484b8693c5396a77e382dfdbe83bc00207352cb47b9fd274061",
+          "receipt.json": "cb25fb8a9e789fd5fb0fa1585f904eef67ecf726b65c0b2a4ef5f0128fd5503b",
+          "runner.py": "0d6b2089e182eb82923ea73347b1bc9c02e6df48a9215ba2a2e1d6e82205bbdc",
+          "start.json": "ad337c5b09b29e7a8d093d65e7698f44e7238a43d46e3652a062895f1c8e7d4b"
+        },
+        "raw_directory_relative_to_publication_checkout": ".dev-run/441-schema-v2-repair-qualified-v1-cu6tarww",
+        "stable_tracked_inputs": 1859,
+        "targets": [
+          "tests/unit/test_media_schema_exports.py",
+          "tests/unit/test_standing_resource_finalization_contracts.py",
+          "tests/unit/test_media_decoder_v2_schema_exports.py",
+          "tests/unit/test_media_decoder_v2.py",
+          "tests/unit/test_media_decoder_contracts.py",
+          "tests/unit/test_media_contracts.py",
+          "tests/unit/test_media_decoder_wire.py",
+          "tests/unit/test_media_decode_plan.py",
+          "tests/integration/test_media_decoder_child.py",
+          "tests/integration/test_media_decoder_multitrack.py"
+        ],
+        "tree": "ab3ae9a14ad9f5b542e0fda10f4ec02d8c59cff9",
+        "wall_s": 40.98690144699867
+      },
+      {
+        "actual_scope": "Only126 V2-unit cases, including corrected valid-V1 negative input. No actual child/other schema module rerun on this follow-up.",
+        "exit_code": 0,
+        "head": "180fae80ea63e0c7a0f74648cceb96e6a07cc71d",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "126",
+            "time": "6.332",
+            "timestamp": "2026-11-03T18:28:31.818212-08:00"
+          }
+        ],
+        "manifest_sha256": "e5d32cada5cae84e4b06cfb1dad7974cd6f4e02472d6812782ec784f051abfc4",
+        "module_cases": {
+          "tests/unit/test_media_decoder_v2.py": {
+            "errors": 0,
+            "failures": 0,
+            "skips": 0,
+            "tests": 126
+          }
+        },
+        "payload_sha256": {
+          "junit.xml": "68beda0ecde5ebc4071168cbf2045c3957aef1d92f5c278f19db5a07268b98d2",
+          "post-pins.json": "659e52c07a540fd9f2225c81ae7dc2ded054ed975062f82ecc80955b607768c4",
+          "pre-pins.json": "659e52c07a540fd9f2225c81ae7dc2ded054ed975062f82ecc80955b607768c4",
+          "pytest.log": "4e981336465340780c0eb37a5b73c39b728667a8ac8299a2076ac80221450a3c",
+          "receipt.json": "7401422a3c37e4ca6753019067cda81d1c89d4aa091e9aa5a375faa8fe15a602",
+          "runner.py": "0d6b2089e182eb82923ea73347b1bc9c02e6df48a9215ba2a2e1d6e82205bbdc",
+          "start.json": "0379b6a6763076c4529d61d7310751749e07f9eeb3c30f47a93a1b78275c60b9"
+        },
+        "raw_directory_relative_to_publication_checkout": ".dev-run/441-v1-negative-fixture-qualified-v1-kq753rpz",
+        "stable_tracked_inputs": 1859,
+        "targets": [
+          "tests/unit/test_media_decoder_v2.py"
+        ],
+        "tree": "56acc32879cb18e731d6ad7e83a0f2ce8520d2f0",
+        "wall_s": 6.773566002997541
+      }
+    ],
+    "selected_contract": "Restore original V1 profile/protocol byte-exact; independent closed ProfileV2/ProtocolV2 metadata v1 with separate canonical domains. Exact V2 request field and full planner checks. Explicit9x3 new schemas, unchanged original69/184 expected pins.",
+    "source_repair_head": "6849412e4c078795eb1dca22d9b1cfc32a1c382e",
+    "total_schema_count": 450
+  },
+  "static_checks": {
+    "changed_head_ci": "pending",
+    "development_codec_dependencies": "dev extra declares exact PyAV17.1.0/NumPy2.3.3; development lock composes existing reviewed meta-speech/whistle locks, so unchanged CI installs/audits them. Fresh CI remains pending.",
+    "git_diff_check": "passed",
+    "ruff": "whole tree passed",
+    "ruff_format": "853 files passed",
+    "schema_export": "executed; tracked generated schemas byte-identical"
+  },
+  "status": "Bounded local qualification; changed-head CI and native owner integration pending",
+  "version": 1
+}

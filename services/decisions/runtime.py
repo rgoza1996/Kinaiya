@@ -3,7 +3,9 @@
 import asyncio
 import json
 import math
+import re
 from contextlib import nullcontext
+from types import SimpleNamespace
 
 from packages.contracts.models import (
     AppendRequest,
@@ -17,8 +19,14 @@ from packages.providers.decision_capture import (
     capture_sources,
     decision_attempt,
 )
-from packages.providers.disclosure import combine_scopes, entry_allowed, source_scope
-from packages.providers.text import ProviderRefusal
+from packages.providers.disclosure import (
+    combine_scopes,
+    entry_allowed,
+    scope_allowed,
+    source_scope,
+)
+from packages.providers.text import ProviderError, ProviderRefusal
+from services.decisions.model_settings import DecisionsModelUnavailable
 from services.decisions.window_routing import acknowledged_task, dispatch_failure
 
 DISPATCH_TIMEOUT = 15  # Match the existing Agent HTTP client's admission bound.
@@ -113,6 +121,8 @@ def validate_classification_dict(data, *, source=None) -> dict:
     if expected_revision is not None and (
         type(expected_revision) is not int or expected_revision < 1
     ):
+        raise InvalidClassificationError("invalid_target_fields")
+    if route in {"steer", "interrupt"} and (target_task_id is None or expected_revision is None):
         raise InvalidClassificationError("invalid_target_fields")
     if "reason_code" in data:
         reason_code = data["reason_code"]
@@ -214,6 +224,108 @@ class ModelClassifier:
         )
 
 
+def _is_budget_error(exc: BaseException) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 402:
+        return True
+    if isinstance(exc, ProviderError):
+        lowered = str(exc).lower()
+        if "token budget" in lowered or "exhausted budget" in lowered:
+            return True
+        if re.search(r"\bhttp\s+402\b", lowered) is not None:
+            return True
+    return False
+
+
+def _extract_raw_classification_text(raw: str, request_format: str | None) -> str | None:
+    if request_format in {"laya_systemone", "native_d1_systemone"}:
+        return None
+    try:
+        envelope = json.loads(raw)
+    except Exception:
+        return raw
+    if not isinstance(envelope, dict):
+        return raw
+    if (
+        isinstance(envelope.get("choices"), list)
+        and envelope["choices"]
+        and isinstance(envelope["choices"][0], dict)
+        and isinstance(envelope["choices"][0].get("message"), dict)
+        and isinstance(envelope["choices"][0]["message"].get("content"), str)
+    ):
+        return envelope["choices"][0]["message"]["content"]
+    if request_format == "responses" and isinstance(envelope.get("output"), list):
+        parts = []
+        for item in envelope["output"]:
+            if isinstance(item, dict) and item.get("type") == "message":
+                for block in item.get("content") or []:
+                    if (
+                        isinstance(block, dict)
+                        and block.get("type") == "output_text"
+                        and isinstance(block.get("text"), str)
+                    ):
+                        parts.append(block["text"])
+        return "".join(parts) if parts else None
+    return raw
+
+
+def _recover_validated_output(call: dict, source) -> dict:
+    raw = call.get("raw_response")
+    validated = call.get("validated_output")
+    request_format = call.get("request_format")
+    raw_parsed = None
+    if isinstance(raw, str):
+        text = _extract_raw_classification_text(raw, request_format)
+        if text is not None:
+            raw_parsed = validate_classification_dict(
+                parse_finalized_classification(text), source=source
+            )
+    validated_parsed = None
+    if validated is not None:
+        validated_parsed = validate_classification_dict(validated, source=source)
+    if raw_parsed is not None and validated_parsed is not None:
+        if raw_parsed != validated_parsed:
+            raise InvalidClassificationError("invalid_shape")
+        return raw_parsed
+    if raw_parsed is not None:
+        return raw_parsed
+    if validated_parsed is not None:
+        return validated_parsed
+    raise InvalidClassificationError("invalid_shape")
+
+
+class PersistedCallState:
+    """Durable call-history recovery state for a finalized Decisions source."""
+
+    __slots__ = ("state", "prior_attempts", "output", "refusal")
+
+    def __init__(
+        self,
+        state: str,
+        prior_attempts: int,
+        output: dict | None = None,
+        refusal: tuple[str, str] | None = None,
+    ) -> None:
+        self.state = state
+        self.prior_attempts = prior_attempts
+        self.output = output
+        self.refusal = refusal
+
+    def __iter__(self):
+        yield self.prior_attempts
+        yield self.output
+        yield self.refusal
+
+    def __repr__(self) -> str:
+        return (
+            f"PersistedCallState(state={self.state!r}, "
+            f"prior_attempts={self.prior_attempts!r}, "
+            f"output={self.output!r}, refusal={self.refusal!r})"
+        )
+
+
 def validated_classification(source, result):
     # Inspection is observational: native stale-target/feedback overrides must
     # still run even when the original labels cannot form a valid Decision.
@@ -254,6 +366,50 @@ class DecisionsWorker:
         self._pending_refusals = {}
         self._pending_decisions = {}
         self._transport_attempts = {}
+        self._lookup_failures = {}
+
+    def _active_provider_info(self):
+        if self.model_settings is not None:
+            state = self.model_settings._state()
+            info, _ = self.model_settings._selection_info(state[2])
+            return info
+        provider = getattr(self.classifier, "provider", None)
+        return getattr(provider, "info", None)
+
+    def _call_binding_refusal(
+        self, call: dict, source, scoped_source, info
+    ) -> tuple[str, str] | None:
+        expected_revision = source.payload.get("revision", 1)
+        if (
+            call.get("source_event_id") != source.event_id
+            or call.get("source_sequence") not in (None, source.sequence)
+            or call.get("source_revision") != expected_revision
+            or call.get("session_id") != source.session_id
+            or call.get("thread_id") != source.thread_id
+            or call.get("epoch") != source.epoch
+        ):
+            return ("invalid_call_binding", "InvalidClassificationError")
+        scope = scoped_source.payload.get("content_scope", "local_only")
+        if info is not None and not entry_allowed(info, scoped_source):
+            return ("provider_refused", "ProviderRefusal")
+        model_pin = call.get("model_pin")
+        if isinstance(model_pin, dict):
+            pin_local = model_pin.get("local")
+            if type(pin_local) is not bool or not scope_allowed(
+                SimpleNamespace(local=pin_local), scope
+            ):
+                return ("provider_refused", "ProviderRefusal")
+        if info is not None:
+            if call.get("model") != info.model or call.get("provider") != info.provider:
+                return ("invalid_call_binding", "InvalidClassificationError")
+            if isinstance(model_pin, dict) and (
+                model_pin.get("model") != info.model or model_pin.get("provider") != info.provider
+            ):
+                return ("invalid_call_binding", "InvalidClassificationError")
+        else:
+            if call.get("model") is not None or call.get("provider") is not None:
+                return ("invalid_call_binding", "InvalidClassificationError")
+        return None
 
     async def _scoped_source(self, entry):
         if entry.kind not in {"conversation.user", "conversation.revision"}:
@@ -335,78 +491,142 @@ class DecisionsWorker:
         ):
             return await self._process(source)
 
-    async def _persisted_call_state(self, source):
+    async def _persisted_call_state(self, source, *, scoped_source=None) -> PersistedCallState:
         calls = None
+        lookup_supported = False
+        lookup_failed = False
         if hasattr(self.journal, "decisions_calls"):
+            lookup_supported = True
             try:
-                calls = await self.journal.decisions_calls(
-                    session_id=source.session_id,
-                    source_event_id=source.event_id,
-                )
+                try:
+                    calls = await self.journal.decisions_calls(
+                        session_id=source.session_id,
+                        thread_id=source.thread_id,
+                        epoch=source.epoch,
+                        source_event_id=source.event_id,
+                    )
+                except TypeError:
+                    calls = await self.journal.decisions_calls(
+                        session_id=source.session_id,
+                        source_event_id=source.event_id,
+                    )
+                if not isinstance(calls, list):
+                    lookup_failed = True
+                    calls = None
             except Exception:
+                lookup_failed = True
                 calls = None
-        if calls is None:
-            decisions_store = getattr(getattr(self.journal, "store", None), "decisions", None)
-            if decisions_store is not None and hasattr(decisions_store, "detail"):
+        elif getattr(getattr(self.journal, "store", None), "decisions", None) is not None:
+            decisions_store = self.journal.store.decisions
+            if hasattr(decisions_store, "calls"):
+                lookup_supported = True
+                try:
+                    calls = decisions_store.calls(
+                        source.event_id,
+                        session_id=source.session_id,
+                        thread_id=source.thread_id,
+                        epoch=source.epoch,
+                    )
+                    if not isinstance(calls, list):
+                        lookup_failed = True
+                        calls = None
+                except Exception:
+                    lookup_failed = True
+                    calls = None
+            elif hasattr(decisions_store, "detail"):
+                lookup_supported = True
                 try:
                     detail = decisions_store.detail(source.event_id)
-                    calls = detail.get("calls", [])
+                    raw_calls = detail.get("calls") if isinstance(detail, dict) else None
+                    if not isinstance(raw_calls, list):
+                        lookup_failed = True
+                        calls = None
+                    else:
+                        calls = list(reversed(raw_calls))
                 except Exception:
+                    lookup_failed = True
                     calls = None
+        if not lookup_supported or lookup_failed or calls is None:
+            return PersistedCallState("unavailable", self.max_attempts, None, None)
         if not calls:
-            return 0, None, None
-        failed_attempts = 0
+            return PersistedCallState("known_absent", 0, None, None)
+        if any(not isinstance(c, dict) for c in calls):
+            return PersistedCallState("unavailable", self.max_attempts, None, None)
+        ordered_calls = sorted(
+            calls,
+            key=lambda c: c["call_sequence"] if type(c.get("call_sequence")) is int else 0,
+        )
+        scoped = scoped_source if scoped_source is not None else await self._scoped_source(source)
+        info = self._active_provider_info()
+        prior_attempts = 0
         last_error_type = "ProviderError"
-        for call in calls:
+        has_pending_uncertain = False
+        for call in ordered_calls:
             status = call.get("status")
-            validated = call.get("validated_output")
-            if status in {"completed", "succeeded"} and isinstance(validated, dict):
-                return failed_attempts, dict(validated), None
+            error_type = call.get("error_type")
+            call_attempt = call.get("attempt")
+            if not (status in {"error", "failed"} and error_type == "CaptureNativeUnavailable"):
+                prior_attempts += 1
+                if type(call_attempt) is int and 1 <= call_attempt <= self.max_attempts:
+                    prior_attempts = max(prior_attempts, call_attempt)
+                elif call_attempt is not None:
+                    prior_attempts = max(prior_attempts, self.max_attempts)
+            if status in {"completed", "succeeded"}:
+                binding_refusal = self._call_binding_refusal(call, source, scoped, info)
+                if binding_refusal is not None:
+                    return PersistedCallState("refused", prior_attempts, None, binding_refusal)
+                try:
+                    validated = _recover_validated_output(call, source)
+                except InvalidClassificationError as exc:
+                    return PersistedCallState(
+                        "refused",
+                        prior_attempts,
+                        None,
+                        (exc.reason_code, "InvalidClassificationError"),
+                    )
+                return PersistedCallState("completed", prior_attempts, validated, None)
             if status == "refused":
-                err_type = call.get("error_type") or "ProviderRefusal"
+                err_type = error_type or "ProviderRefusal"
                 if err_type == "InvalidClassificationError":
                     raw = call.get("raw_response")
                     reason = "invalid_classification"
                     if isinstance(raw, str):
-                        content = raw
-                        try:
-                            envelope = json.loads(raw)
-                            if (
-                                isinstance(envelope, dict)
-                                and isinstance(envelope.get("choices"), list)
-                                and envelope["choices"]
-                                and isinstance(envelope["choices"][0], dict)
-                                and isinstance(envelope["choices"][0].get("message"), dict)
-                                and isinstance(
-                                    envelope["choices"][0]["message"].get("content"), str
-                                )
-                            ):
-                                content = envelope["choices"][0]["message"]["content"]
-                        except Exception:
-                            pass
-                        try:
-                            data = parse_finalized_classification(content)
-                            validate_classification_dict(data, source=source)
-                        except InvalidClassificationError as exc:
-                            reason = exc.reason_code
-                    return failed_attempts, None, (reason, err_type)
-                return failed_attempts, None, ("provider_refused", err_type)
-            if (
-                status in {"error", "failed"}
-                and call.get("error_type") != "CaptureNativeUnavailable"
-            ):
-                failed_attempts += 1
-                if call.get("error_type"):
-                    last_error_type = call["error_type"]
-        if failed_attempts >= self.max_attempts:
-            return failed_attempts, None, ("provider_failed", last_error_type)
-        return failed_attempts, None, None
+                        content = _extract_raw_classification_text(raw, call.get("request_format"))
+                        if isinstance(content, str):
+                            try:
+                                data = parse_finalized_classification(content)
+                                validate_classification_dict(data, source=source)
+                            except InvalidClassificationError as exc:
+                                reason = exc.reason_code
+                    return PersistedCallState("refused", prior_attempts, None, (reason, err_type))
+                return PersistedCallState(
+                    "refused", prior_attempts, None, ("provider_refused", err_type)
+                )
+            if status == "started":
+                has_pending_uncertain = True
+                last_error_type = error_type or "UncertainCallAttempt"
+            elif status in {"error", "failed", "cancelled"}:
+                if error_type != "CaptureNativeUnavailable" and error_type:
+                    last_error_type = error_type
+            else:
+                has_pending_uncertain = True
+                prior_attempts = max(prior_attempts, self.max_attempts)
+        if prior_attempts >= self.max_attempts:
+            return PersistedCallState(
+                "refused", prior_attempts, None, ("provider_failed", last_error_type)
+            )
+        if has_pending_uncertain:
+            return PersistedCallState("pending_uncertain", prior_attempts, None, None)
+        if prior_attempts > 0:
+            return PersistedCallState("retryable_error", prior_attempts, None, None)
+        return PersistedCallState("known_absent", 0, None, None)
 
     async def _append_refusal(self, source, reason: str, error_type: str) -> None:
         current = await self.journal.session(source.session_id)
         if (current.thread_id, current.epoch) != (source.thread_id, source.epoch):
             self._pending_refusals.pop(source.event_id, None)
             self._transport_attempts.pop(source.event_id, None)
+            self._lookup_failures.pop(source.event_id, None)
             return
         self._pending_refusals[source.event_id] = (reason, error_type)
         # A truncated or invalid result is not an ignore decision.
@@ -430,6 +650,7 @@ class DecisionsWorker:
         )
         self._pending_refusals.pop(source.event_id, None)
         self._transport_attempts.pop(source.event_id, None)
+        self._lookup_failures.pop(source.event_id, None)
 
     async def _run_classifier(
         self,
@@ -452,6 +673,7 @@ class DecisionsWorker:
             current=current,
         ) as capture:
             result = await classifier.classify(source, context, tasks)
+            result = validate_classification_dict(result, source=source)
             capture.validated_output = validated_classification(source, result)
             return result
 
@@ -508,11 +730,13 @@ class DecisionsWorker:
             self._pending_refusals.pop(source.event_id, None)
             self._pending_decisions.pop(source.event_id, None)
             self._transport_attempts.pop(source.event_id, None)
+            self._lookup_failures.pop(source.event_id, None)
             return None
         if recorded:
             self._pending_refusals.pop(source.event_id, None)
             self._pending_decisions.pop(source.event_id, None)
             self._transport_attempts.pop(source.event_id, None)
+            self._lookup_failures.pop(source.event_id, None)
             decision = Decision.model_validate(recorded.payload)
         else:
             if source.event_id in self._pending_refusals:
@@ -522,15 +746,6 @@ class DecisionsWorker:
             if source.event_id in self._pending_decisions:
                 decision = self._pending_decisions[source.event_id]
             else:
-                (
-                    persisted_failures,
-                    persisted_output,
-                    persisted_refusal,
-                ) = await self._persisted_call_state(source)
-                if persisted_refusal is not None:
-                    reason, error_type = persisted_refusal
-                    await self._append_refusal(source, reason, error_type)
-                    return None
                 recent = (
                     await self.journal.recent(session_id=source.session_id, limit=100)
                     if hasattr(self.journal, "recent")
@@ -557,53 +772,81 @@ class DecisionsWorker:
                     result = {"route": "ignore", "reason_code": "agent_disabled_no_replay"}
                 elif source.kind == "conversation.converse":
                     result = {"route": "ignore", "reason_code": "assistant_has_no_user_authority"}
-                elif persisted_output is not None:
-                    result = persisted_output
                 else:
-                    prior_attempts = max(
-                        self._transport_attempts.get(source.event_id, 0), persisted_failures
+                    scoped_source = await self._scoped_source(source)
+                    persisted = await self._persisted_call_state(
+                        source, scoped_source=scoped_source
                     )
-                    if prior_attempts >= self.max_attempts:
-                        await self._append_refusal(source, "provider_failed", "ProviderError")
+                    if persisted.state == "unavailable":
+                        failures = self._lookup_failures.get(source.event_id, 0) + 1
+                        self._lookup_failures[source.event_id] = failures
+                        if failures >= max(2, self.max_attempts):
+                            await self._append_refusal(
+                                source,
+                                "call_history_unavailable",
+                                "CaptureNativeUnavailable",
+                            )
+                            return None
+                        raise CaptureNativeUnavailable("Decisions call history is unavailable")
+                    self._lookup_failures.pop(source.event_id, None)
+                    if persisted.refusal is not None:
+                        reason, error_type = persisted.refusal
+                        await self._append_refusal(source, reason, error_type)
                         return None
-                    attempt = prior_attempts + 1
-                    try:
-                        result = await self._classify(
-                            await self._scoped_source(source),
-                            [await self._scoped_source(entry) for entry in context],
-                            tasks,
-                            attempt=attempt,
-                        )
+                    if persisted.output is not None:
                         try:
-                            result = validate_classification_dict(result, source=source)
+                            result = validate_classification_dict(persisted.output, source=source)
                         except InvalidClassificationError as exc:
                             await self._append_refusal(source, exc.reason_code, type(exc).__name__)
                             return None
-                    except CaptureNativeUnavailable:
-                        raise
-                    except InvalidClassificationError as exc:
-                        await self._append_refusal(source, exc.reason_code, type(exc).__name__)
-                        return None
-                    except ProviderRefusal as exc:
-                        await self._append_refusal(source, "provider_refused", type(exc).__name__)
-                        return None
-                    except Exception as exc:
-                        self._transport_attempts[source.event_id] = attempt
-                        status_code = getattr(getattr(exc, "response", None), "status_code", None)
-                        is_budget_error = (
-                            status_code == 402
-                            or "token budget" in str(exc).lower()
-                            or "402" in str(exc)
+                    else:
+                        prior_attempts = max(
+                            self._transport_attempts.get(source.event_id, 0),
+                            persisted.prior_attempts,
                         )
-                        if is_budget_error or attempt >= self.max_attempts:
+                        if prior_attempts >= self.max_attempts:
+                            await self._append_refusal(source, "provider_failed", "ProviderError")
+                            return None
+                        scoped_context = [await self._scoped_source(entry) for entry in context]
+                        attempt = prior_attempts + 1
+                        try:
+                            result = await self._classify(
+                                scoped_source,
+                                scoped_context,
+                                tasks,
+                                attempt=attempt,
+                            )
+                            try:
+                                result = validate_classification_dict(result, source=source)
+                            except InvalidClassificationError as exc:
+                                await self._append_refusal(
+                                    source, exc.reason_code, type(exc).__name__
+                                )
+                                return None
+                        except (CaptureNativeUnavailable, DecisionsModelUnavailable):
+                            raise
+                        except InvalidClassificationError as exc:
+                            await self._append_refusal(source, exc.reason_code, type(exc).__name__)
+                            return None
+                        except ProviderRefusal as exc:
                             await self._append_refusal(
-                                source,
-                                "token_budget_exceeded" if is_budget_error else "provider_failed",
-                                type(exc).__name__,
+                                source, "provider_refused", type(exc).__name__
                             )
                             return None
-                        raise
-                    self._transport_attempts.pop(source.event_id, None)
+                        except Exception as exc:
+                            self._transport_attempts[source.event_id] = attempt
+                            is_budget_error = _is_budget_error(exc)
+                            if is_budget_error or attempt >= self.max_attempts:
+                                await self._append_refusal(
+                                    source,
+                                    "token_budget_exceeded"
+                                    if is_budget_error
+                                    else "provider_failed",
+                                    type(exc).__name__,
+                                )
+                                return None
+                            raise
+                        self._transport_attempts.pop(source.event_id, None)
                 if source.payload.get("outcome_event_id"):
                     result = {"route": "ignore", "reason_code": "outcome_feedback_loop_prevented"}
                 target = next((t for t in tasks if t.task_id == result.get("target_task_id")), None)
