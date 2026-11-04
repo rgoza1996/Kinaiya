@@ -4,10 +4,10 @@
   "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
   "page_id": "1521d820-51cc-4a49-a496-12d9c823c47e",
   "archive": {
-    "bytes": 232727891,
-    "sha256": "ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7",
-    "revision": 58,
-    "modified_at": "2026-11-03T23:10:00.000000Z"
+    "bytes": 244442723,
+    "sha256": "a1a9c6f91c57978874407ea6166dbdbd7669cfb6ebd23edc528fae55aaf4390c",
+    "revision": 59,
+    "modified_at": "2026-11-03T23:45:00.000000Z"
   },
   "checks": {
     "same_14_page_ids": true,
@@ -21,6 +21,7 @@
     "28_cli_installer_prototype_boards_added": true,
     "cli_installer_boards_use_standalone_terminal_without_gui_chrome": true,
     "cli_installer_mascot_uses_deterministic_68x14_ascii_home_moon": true,
+    "cli_installer_terminal_and_moon_use_truecolor_ansi_palette": true,
     "20_uiux_review_text_layers_synchronized": true,
     "all_100_uploaded_media_paths_byte_exact": true,
     "repair_kept_every_shape_id": true,

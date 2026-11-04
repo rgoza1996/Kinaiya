@@ -360,14 +360,23 @@ def test_tty_wizard_requires_confirmation_and_keeps_agent_only(tmp_path, monkeyp
     assert not layout.config.exists()
 
 
-def test_mascot_falls_back_for_narrow_and_noninteractive_output():
+def test_mascot_falls_back_for_narrow_and_noninteractive_output(monkeypatch):
     try:
         wizard = importlib.import_module("services.distribution.wizard")
     except ModuleNotFoundError:
         pytest.fail("terminal mascot is not implemented")
     full = wizard.mascot(width=80, interactive=True)
-    assert "(" in full and "~" in full and "*" in full
+    assert "(" in full and "~" in full and "*" in full and "@" in full
     assert "\x1b" not in full
+    assert len(full.splitlines()) == 15
+    assert max(map(len, full.splitlines())) == 68
+    assert wizard.render_moon_ascii_from_image() == wizard.MASCOT
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    colored = wizard.mascot(width=80, interactive=True, color=True)
+    assert "\x1b[38;2;" in colored
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert "\x1b" not in wizard.mascot(width=80, interactive=True, color=True)
     assert wizard.mascot(width=80, interactive=False) == "Kinaiya"
     assert max(map(len, wizard.mascot(width=12, interactive=True).splitlines())) <= 12
 

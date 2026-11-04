@@ -182,20 +182,21 @@ status indicators distinguishable from the behavior of the running product.
 ## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-58, modified `2026-11-03T23:10:00.000000Z`. It contains fourteen pages and 369
+59, modified `2026-11-03T23:45:00.000000Z`. It contains fourteen pages and 369
 real top-level boards (291 on the current page), excluding root sentinels.
-Archive size: **232,727,891 bytes**; SHA-256:
-`ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7`.
+Archive size: **244,442,723 bytes**; SHA-256:
+`a1a9c6f91c57978874407ea6166dbdbd7669cfb6ebd23edc528fae55aaf4390c`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
 motion detail/state boards were added in revision 53, revision 54 synchronized
 twenty editable text layers across the Home, Converse, Agent and Options
 Overview/Models boards (`#286–#310`), revisions 55–56 updated the Provider,
 Models, and Home/Character boards (`#352–#353`) and added twelve paired Custom API
-prototype boards (`#352`), and revisions 57–58 add twenty-eight paired standalone
+prototype boards (`#352`), and revisions 57–59 add twenty-eight paired standalone
 OS terminal CLI Installer & Setup Wizard prototype boards (`#261`, `#335`, `#336`,
-`#381–#402`: 14 motion-on and 14 motion-off standalone terminal screens with the
-deterministic 68×14 ASCII Moon from the Moonlit Home screen, linking every choice
+`#381–#402`: 14 motion-on and 14 motion-off standalone terminal screens with
+multi-color ANSI terminal syntax highlighting and the multi-tone deterministic
+68×14 ASCII Moon from the Moonlit Home screen, linking every choice
 and branch in `install.sh`, `kinaiya setup`, `kinaiya start`, `kinaiya doctor`,
 `kinaiya auth rotate-owner`, `kinaiya update`, `kinaiya recover`, `kinaiya rollback`,
 and `kinaiya uninstall`).
