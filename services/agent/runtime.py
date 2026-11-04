@@ -487,6 +487,7 @@ class AgentRuntime:
         plugin_service: Any | None = None,
         mcp_controller: Any | None = None,
         artifact_store: Any | None = None,
+        task_preworker_hook: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -517,6 +518,9 @@ class AgentRuntime:
         self.plugin_service = plugin_service
         # Native owner injection only; generated programs never receive it.
         self.task_harness_broker_factory = None
+        # Optional native enrollment, after confirmed submit and before work.
+        # It receives no authority to revise the authenticated objective.
+        self.task_preworker_hook = task_preworker_hook
         # Native presentation storage is optional for direct/test runtimes.
         # The actual launcher supplies a protected operator data path.
         self.artifact_store = artifact_store
@@ -1589,6 +1593,24 @@ class AgentRuntime:
             pending.authority_deadline = time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
             authority = self._start_submit_operation(lambda: self._fresh_submit_authority(pending))
             await self._await_submit_operation(authority, AGENT_SUBMIT_LOOKUP_TIMEOUT_S, pending)
+            if self.task_preworker_hook is not None:
+                enrollment = self._start_submit_operation(
+                    lambda: self._enroll_before_worker(pending)
+                )
+                try:
+                    await self._await_submit_operation(
+                        enrollment, AGENT_SUBMIT_LOOKUP_TIMEOUT_S, pending
+                    )
+                except Exception:
+                    pending.suppress()
+                    # The submit is already committed. Retain its native
+                    # identity and refuse execution rather than losing it or
+                    # admitting a replacement on the next idempotent request.
+                    failure = self._start_submit_operation(
+                        lambda: self._fail(rec, "Native task enrollment refused before execution")
+                    )
+                    await self._await_submit_operation(failure, AGENT_SUBMIT_LOOKUP_TIMEOUT_S)
+                    return rec.task.model_copy(deep=True)
             if not pending.launch_open or self._closed or rec.closing or rec.cancel_requested:
                 pending.suppress()
                 return rec.task.model_copy(deep=True)
@@ -1604,6 +1626,17 @@ class AgentRuntime:
             raise
         finally:
             self._release_submit(pending, rec)
+
+    async def _enroll_before_worker(self, pending) -> None:
+        hook = self.task_preworker_hook
+        self._submit_open(pending=pending, deadline=pending.authority_deadline)
+        if not callable(hook) or await hook(self, pending.record) is not True:
+            raise PolicyDenied("Native task enrollment was not confirmed")
+        if self.task_preworker_hook is not hook:
+            raise PolicyDenied("Native task enrollment owner changed")
+        # Enrollment read native source/route receipts asynchronously. Recheck
+        # ordinary submit authority before its sole launch opportunity.
+        await self._fresh_submit_authority(pending)
 
     @staticmethod
     def _native_task_identity(entry):
