@@ -1,0 +1,79 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "audio_packet_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Audio Packet Ms",
+      "type": "integer"
+    },
+    "body_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Body Bytes",
+      "type": "integer"
+    },
+    "clip_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Clip Bytes",
+      "type": "integer"
+    },
+    "clip_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Clip Ms",
+      "type": "integer"
+    },
+    "consumer_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Consumer Bytes",
+      "type": "integer"
+    },
+    "consumer_packets": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Consumer Packets",
+      "type": "integer"
+    },
+    "control_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Control Bytes",
+      "type": "integer"
+    },
+    "image_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Image Bytes",
+      "type": "integer"
+    },
+    "live_backlog_ms": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Live Backlog Ms",
+      "type": "integer"
+    },
+    "total_pending_bytes": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Total Pending Bytes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "control_bytes",
+    "body_bytes",
+    "audio_packet_ms",
+    "image_bytes",
+    "clip_bytes",
+    "clip_ms",
+    "consumer_packets",
+    "consumer_bytes",
+    "total_pending_bytes",
+    "live_backlog_ms"
+  ],
+  "title": "MediaWireLimits",
+  "type": "object"
+}

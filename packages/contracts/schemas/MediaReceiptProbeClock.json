@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "MediaProbeClock": {
+      "additionalProperties": false,
+      "properties": {
+        "first_pts": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "title": "First Pts",
+          "type": "integer"
+        },
+        "probe_index": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Probe Index",
+          "type": "integer"
+        },
+        "provenance": {
+          "enum": [
+            "container",
+            "untimed_image"
+          ],
+          "title": "Provenance",
+          "type": "string"
+        },
+        "timebase": {
+          "$ref": "#/$defs/MediaQ"
+        }
+      },
+      "required": [
+        "probe_index",
+        "first_pts",
+        "timebase",
+        "provenance"
+      ],
+      "title": "MediaProbeClock",
+      "type": "object"
+    },
+    "MediaQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaQ",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaProbeClock"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaProbeClock]",
+  "type": "object"
+}

@@ -108,14 +108,15 @@ enum OptionsPage {
     'Appearance',
     description:
         'Customize interface theme colors, stage background, and Converse view visibility.',
-    keywords: 'theme color palette dark light background stage layout visual',
+    keywords:
+        'theme color palette dark light background stage layout visual converse hide unhide show page view navigation',
   ),
   character(
     'Character',
     description:
         'Change character pack, mascot visibility, or import and export character packages.',
     keywords:
-        'change character mascot avatar sprite pack bundle import export hide show portrait',
+        'change character mascot avatar sprite pack bundle import export hide show portrait converse page view',
   ),
   connection(
     'Connection',

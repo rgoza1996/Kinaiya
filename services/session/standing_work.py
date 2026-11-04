@@ -21,6 +21,7 @@ from packages.contracts.standing_work import (
     StandingResponsibilityPage,
     StandingResponsibilitySnapshot,
     StandingUnavailable,
+    _encode,
     authorization_digest,
     canonical_bytes,
     record_digest,
@@ -312,7 +313,7 @@ class StandingOwner:
         if type(text) is not str:
             raise StandingUnavailable
         value = kind.from_json(text.encode("utf-8"))
-        if canonical_bytes(value).decode("utf-8") != text:
+        if _encode(value).decode("utf-8") != text:
             raise StandingUnavailable
         return value
 

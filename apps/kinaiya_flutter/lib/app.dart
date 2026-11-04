@@ -189,6 +189,7 @@ class _HomeShellState extends State<HomeShell> {
   final _agentControls = AgentViewControls();
   int _optionsNavigation = 0;
   OptionsPage _optionsInitial = OptionsPage.overview;
+  bool _startNewProvider = false;
   _ShellPage? _beforeOptions;
   _ShellPage? _beforeAgent;
   bool _modelSetupOpen = false;
@@ -225,6 +226,11 @@ class _HomeShellState extends State<HomeShell> {
     _converseVisible = widget.presentation.preferences.showConverseView;
     widget.presentation.addListener(_presentationChanged);
     widget.state.addListener(_viewChanged);
+    if (widget.state.localSignInExchange != null &&
+        widget.state.localSignInState == LocalHostSignInState.idle &&
+        !widget.state.connected) {
+      unawaited(widget.state.attemptLocalSignIn());
+    }
   }
 
   @override
@@ -378,12 +384,16 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  void _settings([OptionsPage initial = OptionsPage.overview]) {
+  void _settings([
+    OptionsPage initial = OptionsPage.overview,
+    bool startNewProvider = false,
+  ]) {
     if (_closing) return;
     _scaffoldKey.currentState?.closeDrawer();
     setState(() {
       if (_workspacePage != _ShellPage.options) _beforeOptions = _workspacePage;
       _optionsInitial = initial;
+      _startNewProvider = startNewProvider;
       _optionsNavigation++;
       _workspacePage = _ShellPage.options;
     });
@@ -733,6 +743,12 @@ class _HomeShellState extends State<HomeShell> {
                                             : CharacterSurface.home,
                                         onModelSettings: _modelSetup,
                                         onConnectionSetup: _setup,
+                                        onOpenModelOptions: () =>
+                                            _settings(OptionsPage.models),
+                                        onAddModel: () => _settings(
+                                          OptionsPage.providers,
+                                          true,
+                                        ),
                                         setupOpen: _modelSetupOpen,
                                         animateTransitions:
                                             widget
@@ -892,6 +908,7 @@ class _HomeShellState extends State<HomeShell> {
           presentation: widget.presentation,
           converseControls: _converseControls,
           initialPage: _optionsInitial,
+          startNewProvider: _startNewProvider,
           onClose: _closeOptions,
         ),
       );

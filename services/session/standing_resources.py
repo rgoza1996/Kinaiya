@@ -20,6 +20,7 @@ from packages.contracts.standing_resources import (
 from packages.contracts.standing_work import (
     StandingConflict,
     StandingUnavailable,
+    _encode,
     canonical_bytes,
 )
 from services.session.standing_closure import _sql_identity
@@ -208,9 +209,9 @@ class StandingResourceOwner:
         reservation = StandingResourceReservation.from_json(row["request"].encode("utf-8"))
         if (
             row["claim_id"] != claim.claim_id
-            or canonical_bytes(reservation).decode("utf-8") != row["request"]
+            or _encode(reservation).decode("utf-8") != row["request"]
             or reservation.context.backend_id != meta["backend_id"]
-            or canonical_bytes(reservation.context.standing) != canonical_bytes(initial)
+            or _encode(reservation.context.standing) != _encode(initial)
         ):
             raise StandingUnavailable
         return coverage, reservation

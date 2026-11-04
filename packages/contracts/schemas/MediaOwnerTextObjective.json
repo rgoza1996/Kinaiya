@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "event_ref": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Event Ref",
+      "type": "string"
+    },
+    "kind": {
+      "const": "owner_text",
+      "title": "Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "event_ref"
+  ],
+  "title": "MediaOwnerTextObjective",
+  "type": "object"
+}
