@@ -1112,7 +1112,23 @@ async def test_delete_final_claim_refusal_preserves_committed_fence_and_history(
                 "SELECT value FROM entries WHERE event_id=?", (env.owner_event["event_id"],)
             ).fetchone()[0]
             change = env.owner.begin_session_change(env.session["session_id"], "deleted")
+            upload_close_returned = asyncio.Event()
+            close_results = []
+            loop = asyncio.get_running_loop()
+            original_close = upload.close
+
+            def observe_original_close():
+                result = original_close()
+                close_results.append(result)
+                # Native retirement runs after the original event-channel join.
+                # Observe this exact upload's real close, not incidental progress
+                # from status/lookup requests or a fabricated cleanup result.
+                loop.call_soon_threadsafe(upload_close_returned.set)
+                return result
+
+            close_observer = patch.object(upload, "close", observe_original_close)
             try:
+                close_observer.start()
                 assert reader.read(3) == b"abc"
                 with upload._spool._mutex:
                     assert reader in upload._readers
@@ -1133,6 +1149,8 @@ async def test_delete_final_claim_refusal_preserves_committed_fence_and_history(
                     == original_entry
                 )
                 assert (await env.lookup("source", source)).json()["value"] == source
+                await asyncio.wait_for(upload_close_returned.wait(), _WAIT)
+                assert close_results[0] is False
                 assert env.spool.reserved_bytes == 6 and upload.deleted is False
                 with upload._spool._mutex:
                     assert reader in upload._readers and reader._fd == reader_fd
@@ -1159,7 +1177,10 @@ async def test_delete_final_claim_refusal_preserves_committed_fence_and_history(
                     "fence"
                 ]
             finally:
-                reader.close()
+                try:
+                    reader.close()
+                finally:
+                    close_observer.stop()
 
 
 @pytest.mark.asyncio
