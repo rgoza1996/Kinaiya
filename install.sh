@@ -1138,6 +1138,18 @@ def open_terminal():
             yield terminal
 
 
+def is_yes_response(value):
+    return isinstance(value, str) and value.strip().lower() in ("y", "yes")
+
+
+def confirm_yn(tty, prompt="Review the plan. Download and install? (y/n) [n]: ", *, pre_consented=False):
+    tty.write(prompt)
+    if hasattr(tty, "flush"):
+        tty.flush()
+    line = tty.readline()
+    return is_yes_response(line) or (pre_consented and line == "")
+
+
 def run(argv=None, *, invoking_dir=None):
     if invoking_dir is None:
         env_pwd = os.environ.get("KINAIYA_INVOKING_PWD", "").strip()
@@ -1201,10 +1213,8 @@ def run(argv=None, *, invoking_dir=None):
                     "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
                 )
             print(json.dumps(plan_summary), flush=True)
-            tty.write("Review the plan. Type yes to download and install: ")
-            confirm_line = tty.readline()
             require(
-                confirm_line.strip() == "yes" or (pre_consented and confirm_line == ""),
+                confirm_yn(tty, pre_consented=pre_consented),
                 "Installation cancelled; no files changed",
             )
     else:

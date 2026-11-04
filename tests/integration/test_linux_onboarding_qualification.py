@@ -518,7 +518,7 @@ async def test_layout_and_configuration_matrix_spaces_idempotency_and_bootstrap_
     ):
         bootstrap.run(["--channel", "nightly"], invoking_dir=tmp_path)
     assert "Choose install location [1]: " in decline_tty.output
-    assert "Review the plan. Type yes to download and install: " in decline_tty.output
+    assert "Review the plan. Download and install? (y/n) [n]: " in decline_tty.output
     assert not list(bootstrap_home.iterdir())
     plan_json = json.loads(plan_stdout.getvalue().strip())
     assert plan_json["channel"] == "nightly"
