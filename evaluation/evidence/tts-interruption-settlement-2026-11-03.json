@@ -1,0 +1,300 @@
+{
+  "behavior": [
+    "Bind complete strict worker proof to original worker operation, immutable synthesis request, source/model/session/generation and canonical request digest.",
+    "Re-read the complete retained binding after asynchronous owner lookup and before native compare-and-delete; retain uncertainty on mismatched/stale/unsupported proof. Only monotonic audio exposure can advance during reconciliation.",
+    "Distinguish normal producer completion from cancellation; transport EOF alone cannot establish kernel/producer or playback settlement.",
+    "Allow ordinary confirmed single-write or already-covered generation stop to reach exact TTS reconciliation; unsupported cloud/legacy/unobservable native work remains unknown."
+  ],
+  "date": "2026-11-03",
+  "fixture_changes": {
+    "final_reread_scope_limit": "This dynamically isolates the final post-await full-binding reread before DELETE; it does not isolate the SQL DELETE predicate itself. That predicate is covered by bounded source review.",
+    "hung_batch_scope": "Retain all6 prior assertions and both0.3s observations. Keep20ms only for the deliberately hung first batch; restore the captured native1s for the next healthy batch. One shared timeout per batch and batch2 remain unchanged. Add0/50ms first-real-healthy-read variants with actual Task and cancellation/completion witnesses. No production deadline changes.",
+    "original_final_reread_seam": "The old lookup test could mutate too early. The corrected real-SQLite barrier runs only on the actual reconciliation Task after original worker lookup, pauses the final delivery await, commits a changed full binding and verifies rejection/retention before a positive recovery. All71 old assertion ASTs retained plus6.",
+    "unchanged_case_comparison": "The566 unaffected old568 cases have the same exact case-ID set and empty children:486 non-time attributes match directly,80 source line attributes shift exactly20 lines mapped to actual old/new AST. Eight pre-existing frozenset-derived official-voice rows permute order. The two target variants expand to four. All13 focused IDs/non-time attributes/empty children match broader570; their recorded durations are separate."
+  },
+  "implementation": {
+    "author_source_head": "fa63b3e3861a14aca4529594547f53a7e34a7843",
+    "five_production_and_ADR_files_exact_to_reviewed_author_head": {
+      "docs/adr/0101-independent-tts-model-settings.md": "c5dd0b121431dfe64220f7265e57b2927e89eed372b4a3d5e7883cdc491d23d4",
+      "packages/providers/speech.py": "81097689f707104a109aeed5820b91a682de68f9c03876a87c40758389b77ace",
+      "packages/providers/voice_worker.py": "ae9d3adc777fdbdb05d39df424558b7dd6e004d3229bf10fa2e6ad9b9ed9e478",
+      "services/converse/runtime.py": "73157705ef8698fe2497071a9a328450bf65b52f69bce08d1fab164eb535e91e",
+      "services/converse/tts_model_settings.py": "83d73c08762d6feb8866367d171888058bb00561d3cb2f51072c2c9b185eb042"
+    },
+    "hung_batch_fixture_commit": "cecb0407f8950f95ccfc67a8be05340d1a0048aa",
+    "integrated_main": "7384dbb907a6fc67121a12c88a77208a331c5986",
+    "original_test_seam_correction_commit": "a66a7075c9665b15122d87ea35b629f142524f27",
+    "tested_head": "d7743379758b0481c0104451775b8ef884387c96"
+  },
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/340",
+  "kind": "bounded native TTS interruption-settlement qualification",
+  "limits": [
+    "Synthetic offline CPU/ASGI/SQLite/native-worker qualification; no real model, audio device, GPU kernel, acoustic playback, voice quality, latency or demo-readiness claim.",
+    "Positive proof is specific to the supported local voice-worker protocol. Remote/unobservable/legacy-null bindings stay unknown; no generic reset, inferred cleanup or erased reservation.",
+    "A row, Task completion, timeout, response EOF or stop acknowledgement alone is not physical cleanup proof.",
+    "Raw bundles/reviews remain local ignored artifacts identified by hashes. Public commands use normalized paths; no private/live credentials, private transcripts, private video or live owner settings were used.",
+    "Independent static/source/raw review is not an independent second execution or certification."
+  ],
+  "publication": "Record/docs-only follow-up to tested d774; source/fixture bytes remain pinned there. Changed-head CI still required; neither issue closure nor demo readiness is asserted.",
+  "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/406",
+  "retained_negatives": {
+    "earlier_CI534": "All five jobs passed on originalfa63/base62 before root fixture corrections and main integration; historical only, not qualification of this changed head.",
+    "lost_temporary_checkout": "Old observed9/568 terminal results lived in a temporary checkout later found absent. They are secondary observations, not retained raw qualification. Committed code was recovered to a persistent worktree; the four recorded runs above have actual retained raw files and independent mirrors.",
+    "recovered568": "567 passed/1 failed/0errors/skips. Inherited test_stop_tick_budget_rotates_past_a_hanging_session[http] expected5 session-read entries, observed4 after two stop rows. The20ms whole-batch fault budget applied to healthy HTTP work; exact failing await was not instrumented. This is not a demonstrated TTS producer regression."
+  },
+  "reviews": {
+    "actual_muse_source_review": {
+      "calls": 1,
+      "model": "muse-spark-1.3-contributor",
+      "prompt_sha256": "4b466ca05d68065a24392976802865ac9595bbf42d811fa4f2ce1d0fd5098588",
+      "public_production_context_only": true,
+      "reasoning_effort": "xhigh",
+      "review_sha256": "a25bb1f123a0cb46da415bc9b8d0289f5611ffbaa9cfd991b01ffd61f648e7b1",
+      "scope": "Static supplied-source analysis, no tools or test execution. Root independently assessed claims; generated local links are not source provenance.",
+      "terminal_exit": 0
+    },
+    "completed_raw_review": {
+      "arithmetic_erratum_sha256": "f9b9221bff212f4cd6edec330de288342403c54cd010dee4b62f3572a4a4179f",
+      "manifest_sha256": "983e6ede151b991e3edc76caab0a108ab14ab12c6464c0bb37d457fd711b113a",
+      "receipt_sha256": "358ddd67036cb76233576720060ef53c503757f759b56a2dfaeec8efa7d65178",
+      "review_sha256": "8bd0e3217079094ff56a4e92a112ec8302b04c111e4eafcacab8abecd0fa0f25",
+      "scope": "Independent of runtime/root fixture authorship; source-aware prior production/fixture reviewer and probe suggestions disclosed. All4rawruns/28manifestmembers and1790/1795Git+latestcurrent inputs verified; no independent second execution. Report480directmatches typo corrected to486 by immutable erratum; machine proof/raw unchanged.",
+      "seal_sha256": "01971b849f9d687383d2779665f8778e7bd22a5a11e24b4a228458d9c04715a2"
+    },
+    "final_reread_fixture_gate": {
+      "review_sha256": "db23ef4291bfc4273f31e3cae898debd5d59c3057d7ae43629b09d06e537d57a",
+      "scope": "Independent of root fixture authorship, source-aware; candidate reviewed before execution."
+    },
+    "hung_batch_fixture_gate": {
+      "receipt_sha256": "20041e4577972dcfd3794696b765597fdc670483f25f1b68b35d326721e6790d",
+      "review_sha256": "fc5f26aa66874fe1316dd77066a822abae52f9b1c494831ce293e3e2c01196bd",
+      "scope": "Root-authored fixture; reviewer suggested Task/cancellation observations and independently reviewed exact candidate before execution."
+    },
+    "independent_production_source": {
+      "receipt_sha256": "828cf8c2edd48ee75bee4f9c7ad2bfb5fb0dab23e4c71e71dd0645ac7956db11",
+      "review_sha256": "33e80cba6db2e57bc850e90b6bb780691930b036b8e9897d5d10971b4720598d",
+      "scope": "Source opinion sealed before new test bodies; source-aware independent reviewer. Root verified all manifest/source pins."
+    }
+  },
+  "runs": {
+    "changed_broader570": {
+      "bundle": "340-tts-broader570-after-budget-scope-v1-2ia203tm",
+      "command": [
+        "<workspace-python>",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_tts_interruption_settlement.py",
+        "tests/integration/test_converse_text_cleanup.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_converse_cloud_tts.py",
+        "tests/integration/test_converse_delivery_context.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_converse_tts_text.py",
+        "tests/unit/test_cloud_speech_composition.py",
+        "tests/unit/test_openrouter_speech.py",
+        "tests/unit/test_tts_backends.py",
+        "--basetemp=<checkout>/.dev-run/340-tts-broader570-after-budget-scope-v1-2ia203tm/pytest-tmp",
+        "--junitxml=<checkout>/.dev-run/340-tts-broader570-after-budget-scope-v1-2ia203tm/junit.xml"
+      ],
+      "counts": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 570
+      },
+      "elapsed_wall_seconds": 160.23525114899985,
+      "exit_code": 0,
+      "inputs_stable": true,
+      "junit_seconds": 159.632,
+      "manifest_sha256": "4cd165199b30da3bf5051eda2c56ccfc8b866750390e97b62b2486f1aba13858",
+      "module_cases": {
+        "tests.integration.test_converse_cloud_tts": 21,
+        "tests.integration.test_converse_delivery_context": 113,
+        "tests.integration.test_converse_speech_cancel": 34,
+        "tests.integration.test_converse_text_cleanup": 75,
+        "tests.integration.test_converse_tts_text": 6,
+        "tests.integration.test_converse_window_recovery": 160,
+        "tests.integration.test_speech_boundary": 11,
+        "tests.integration.test_tts_interruption_settlement": 9,
+        "tests.unit.test_cloud_speech_composition": 3,
+        "tests.unit.test_openrouter_speech": 73,
+        "tests.unit.test_tts_backends": 65
+      },
+      "passed": 570,
+      "receipt_sha256": "561cd6248e3b8a5bcd116adc2370a7d04a154e0b14e12d87006ab6da3e67887a",
+      "source_head": "d7743379758b0481c0104451775b8ef884387c96",
+      "started_at": "2026-11-03T20:15:19.448788+00:00",
+      "tracked_input_count": 1795
+    },
+    "changed_focused13": {
+      "bundle": "340-tts-focused13-after-budget-scope-v1-osn1783w",
+      "command": [
+        "<workspace-python>",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_tts_interruption_settlement.py",
+        "tests/integration/test_converse_window_recovery.py::test_stop_tick_budget_rotates_past_a_hanging_session",
+        "--basetemp=<checkout>/.dev-run/340-tts-focused13-after-budget-scope-v1-osn1783w/pytest-tmp",
+        "--junitxml=<checkout>/.dev-run/340-tts-focused13-after-budget-scope-v1-osn1783w/junit.xml"
+      ],
+      "counts": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 13
+      },
+      "elapsed_wall_seconds": 5.630433982999875,
+      "exit_code": 0,
+      "inputs_stable": true,
+      "junit_seconds": 5.208,
+      "manifest_sha256": "b7573b5bed34e9fbac6626832e54248506c96060da9e7b796eb92d8a66e2b905",
+      "module_cases": {
+        "tests.integration.test_converse_window_recovery": 4,
+        "tests.integration.test_tts_interruption_settlement": 9
+      },
+      "passed": 13,
+      "receipt_sha256": "1c06ed01fd3acd8597e3a354f9040b354124b55970376bde7c6dd6e5da5346ee",
+      "source_head": "d7743379758b0481c0104451775b8ef884387c96",
+      "started_at": "2026-11-03T20:14:21.980201+00:00",
+      "tracked_input_count": 1795
+    },
+    "recovered_focused9": {
+      "bundle": "340-tts-interruption-focused9-recovery-v1-q8mx1otn",
+      "command": [
+        "<workspace-python>",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_tts_interruption_settlement.py",
+        "--basetemp=<checkout>/.dev-run/340-tts-interruption-focused9-recovery-v1-q8mx1otn/pytest-tmp",
+        "--junitxml=<checkout>/.dev-run/340-tts-interruption-focused9-recovery-v1-q8mx1otn/junit.xml"
+      ],
+      "counts": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 9
+      },
+      "elapsed_wall_seconds": 4.302046646000008,
+      "exit_code": 0,
+      "inputs_stable": true,
+      "junit_seconds": 3.812,
+      "manifest_sha256": "63bf7bdc9dc0efe6e92b654fc6ff2c2537c2e630dc57a2f06e2f516d392e7c6a",
+      "module_cases": {
+        "tests.integration.test_tts_interruption_settlement": 9
+      },
+      "passed": 9,
+      "receipt_sha256": "43ea87c45f68a5d1f545f2daac851a3005f458951f359d58c5db59ef28e993ba",
+      "source_head": "cdc3cfdf4f5acdfab0b9a31fbc476dfbbe7b1e16",
+      "started_at": "2026-11-03T19:56:47.887414+00:00",
+      "tracked_input_count": 1790
+    },
+    "recovered_negative568": {
+      "bundle": "340-tts-interruption-broader-recovery-v1-0d8tf8h2",
+      "command": [
+        "<workspace-python>",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_tts_interruption_settlement.py",
+        "tests/integration/test_converse_text_cleanup.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_converse_cloud_tts.py",
+        "tests/integration/test_converse_delivery_context.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_converse_tts_text.py",
+        "tests/unit/test_cloud_speech_composition.py",
+        "tests/unit/test_openrouter_speech.py",
+        "tests/unit/test_tts_backends.py",
+        "--basetemp=<checkout>/.dev-run/340-tts-interruption-broader-recovery-v1-0d8tf8h2/pytest-tmp",
+        "--junitxml=<checkout>/.dev-run/340-tts-interruption-broader-recovery-v1-0d8tf8h2/junit.xml"
+      ],
+      "counts": {
+        "errors": 0,
+        "failures": 1,
+        "skipped": 0,
+        "tests": 568
+      },
+      "elapsed_wall_seconds": 162.81794362300002,
+      "exit_code": 1,
+      "inputs_stable": true,
+      "junit_seconds": 162.192,
+      "manifest_sha256": "760c418adff42ce3bbf78f1cc2b3f98be7a43718874ba9ea4aa6848cb70662bb",
+      "module_cases": {
+        "tests.integration.test_converse_cloud_tts": 21,
+        "tests.integration.test_converse_delivery_context": 113,
+        "tests.integration.test_converse_speech_cancel": 34,
+        "tests.integration.test_converse_text_cleanup": 75,
+        "tests.integration.test_converse_tts_text": 6,
+        "tests.integration.test_converse_window_recovery": 158,
+        "tests.integration.test_speech_boundary": 11,
+        "tests.integration.test_tts_interruption_settlement": 9,
+        "tests.unit.test_cloud_speech_composition": 3,
+        "tests.unit.test_openrouter_speech": 73,
+        "tests.unit.test_tts_backends": 65
+      },
+      "passed": 567,
+      "receipt_sha256": "b8129e738e20afc3868f60401cb1895aba6bb46096b2bd48a319505f263e5ba4",
+      "source_head": "cdc3cfdf4f5acdfab0b9a31fbc476dfbbe7b1e16",
+      "started_at": "2026-11-03T20:01:17.701824+00:00",
+      "tracked_input_count": 1790
+    }
+  },
+  "supported_boundary": "native_tts_settlement_v1 local voice worker only; exact original operation/proof, real producer-thread exit/join and required CUDA synchronization, actual transport cleanup, and exposed-audio playback/stop publication settlement remain required. This offline qualification uses synthetic CPU speech.",
+  "verification": {
+    "CI": "Changed-head all applicable CI jobs remain required before merge/issue closure.",
+    "counts_overlap": "Focused9 and13 are subsets of corresponding broader runs; counts are not additive.",
+    "lint": {
+      "git_diff_check": "passed",
+      "receipt_sha256": "d24d6a1908dc05e2865d9713ffdd56795973ae6a405ef3ab4283c08dae78262e",
+      "ruff_check": "passed",
+      "ruff_format_check": "826 files already formatted",
+      "source_head": "d7743379758b0481c0104451775b8ef884387c96"
+    },
+    "root_raw": "All7 manifest members and all1790 or1795 tracked Git/pre/post/current pins verified for each actual run; completed process exit statuses and JUnit inspected."
+  }
+}

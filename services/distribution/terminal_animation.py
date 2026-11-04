@@ -18,44 +18,68 @@ CLEAR_LINE = "\x1b[2K\r"
 
 MOON_FRAMES: tuple[str, ...] = ("☾", "◓", "◑", "◒")
 
-MASCOT = r"""          .-.( * ).
-     ~~~ / ~   .-`\
-   ~ *  (____  / - )
-    ~~~~~   \/\_ /
-       __.-'/ /\\
-   ___/   / /  \\___
-        /_/ /\_\
-       / / /  \ \
-     _/ /_/    \_\
-   ~~~(____)~~(____)~~~
-       ~~~ Kinaiya ~~~"""
+MASCOT = "\n".join(
+    [
+        "%@@@@@ .      :  %++#:*#++++#@%@@%@@@@@@@@@@@@@@@@+@@%=    =    +@%%",
+        "-@%*@@#=.      #*@*=%*.      .*@@@@@@@@@@@@@@@@@@@@--.  =:+=   =@@%=",
+        " #@@@%@+%-+=   *= #@@          -@@@@@@@@@@@@@@@@@@@+#  *#*@+ .#@#+%",
+        "  @@@+###@@@*=+***%##           =@-#@@@@@@@@@@@@%@%+#%%@@@@+#*@@#@.",
+        "  .@@%+@@@@@@@@@*-.=*#          -*=%%@@%@=@@@@@@%=  :%@@@@#@%*#+@:",
+        "   .@*%=.+#@@@@@%*  -=%=       :#+:%@%%=::-*+%@@%. :+#@@@@@@%+-#:",
+        "     #%%: .*@*@@@@==  ..-=+==+-=:.+@@%      #:%@@@#@@*%##%#@++%",
+        "      =%@*. +%#@@@#=#= .  :  -    +%*@-   .=%@@@@@@##-..*%%*@+",
+        "        *@@%*@@#@@@@@%%#-.    :::. #@@@%%*%+-%@@@@%.  :*@@%*",
+        "          *@@%%+*%#@@@*. :::    :#@#+**##@@#@%%@@@::-##%@*",
+        "            -%@@+:=#@@@%*==%#+:-+%@+.:-%@%*=:=%@@%%#%@%=",
+        "               -#@@@#%@@@@@@@#=--+%+%@@@@#@%@@%@@@@#=",
+        "                  .=*%@@@@@@@@@@@@@@@@@@@@@@@@%*=.",
+        "                        :-+*#%%@@@@@@%%#*+=:.",
+        "                        ( ~~~ Kinaiya ~~~ )",
+    ]
+)
 
-_SHIMMER_FRAME_1 = r"""          .-.( ☾ ).
-     ·~~ / ~   .-`\
-   · ~  (____  / - )
-    ~~~~~   \/\_ /
-       __.-'/ /\\
-   ___/   / /  \\___
-        /_/ /\_\
-       / / /  \ \
-     _/ /_/    \_\
-   ·~~(____)~~(____)~~·
-       ·~~ Kinaiya ~~·"""
+_SHIMMER_FRAME_1 = "\n".join(
+    [
+        "%@@@@@ ☾      ·  %++#:*#++++#@%@@%@@@@@@@@@@@@@@@@+@@%=    =    +@%%",
+        "-@%*@@#=.      #*@*=%*.      .*@@@@@@@@@@@@@@@@@@@@--.  =:+=   =@@%=",
+        " #@@@%@+%-+=   *= #@@          -@@@@@@@@@@@@@@@@@@@+#  *#*@+ .#@#+%",
+        "  @@@+###@@@*=+***%##           =@-#@@@@@@@@@@@@%@%+#%%@@@@+#*@@#@.",
+        "  .@@%+@@@@@@@@@*-.=*#          -*=%%@@%@=@@@@@@%=  :%@@@@#@%*#+@:",
+        "   .@*%=.+#@@@@@%*  -=%=       :#+:%@%%=::-*+%@@%. :+#@@@@@@%+-#:",
+        "     #%%: .*@*@@@@==  ..-=+==+-=:.+@@%      #:%@@@#@@*%##%#@++%",
+        "      =%@*. +%#@@@#=#= .  :  -    +%*@-   .=%@@@@@@##-..*%%*@+",
+        "        *@@%*@@#@@@@@%%#-.    :::. #@@@%%*%+-%@@@@%.  :*@@%*",
+        "          *@@%%+*%#@@@*. :::    :#@#+**##@@#@%%@@@::-##%@*",
+        "            -%@@+:=#@@@%*==%#+:-+%@+.:-%@%*=:=%@@%%#%@%=",
+        "               -#@@@#%@@@@@@@#=--+%+%@@@@#@%@@%@@@@#=",
+        "                  .=*%@@@@@@@@@@@@@@@@@@@@@@@@%*=.",
+        "                        :-+*#%%@@@@@@%%#*+=:.",
+        "                        ( ☾~~ Kinaiya ~~☾ )",
+    ]
+)
 
-_SHIMMER_FRAME_2 = r"""          .-.( ✧ ).
-     ~~~ / ~   .-`\
-   ~ ·  (____  / - )
-    ~~~~~   \/\_ /
-       __.-'/ /\\
-   ___/   / /  \\___
-        /_/ /\_\
-       / / /  \ \
-     _/ /_/    \_\
-   ~~~(____)~~(____)~~~
-       ~~~ Kinaiya ~~~"""
+_SHIMMER_FRAME_2 = "\n".join(
+    [
+        "%@@@@@ .      ✧  %++#:*#++++#@%@@%@@@@@@@@@@@@@@@@+@@%=    =    +@%%",
+        "-@%*@@#=.      #*@*=%*.      .*@@@@@@@@@@@@@@@@@@@@--.  =:+=   =@@%=",
+        " #@@@%@+%-+=   *= #@@          -@@@@@@@@@@@@@@@@@@@+#  *#*@+ .#@#+%",
+        "  @@@+###@@@*=+***%##           =@-#@@@@@@@@@@@@%@%+#%%@@@@+#*@@#@.",
+        "  .@@%+@@@@@@@@@*-.=*#          -*=%%@@%@=@@@@@@%=  :%@@@@#@%*#+@:",
+        "   .@*%=.+#@@@@@%*  -=%=       :#+:%@%%=::-*+%@@%. :+#@@@@@@%+-#:",
+        "     #%%: .*@*@@@@==  ..-=+==+-=:.+@@%      #:%@@@#@@*%##%#@++%",
+        "      =%@*. +%#@@@#=#= .  :  -    +%*@-   .=%@@@@@@##-..*%%*@+",
+        "        *@@%*@@#@@@@@%%#-.    :::. #@@@%%*%+-%@@@@%.  :*@@%*",
+        "          *@@%%+*%#@@@*. :::    :#@#+**##@@#@%%@@@::-##%@*",
+        "            -%@@+:=#@@@%*==%#+:-+%@+.:-%@%*=:=%@@%%#%@%=",
+        "               -#@@@#%@@@@@@@#=--+%+%@@@@#@%@@%@@@@#=",
+        "                  .=*%@@@@@@@@@@@@@@@@@@@@@@@@%*=.",
+        "                        :-+*#%%@@@@@@%%#*+=:.",
+        "                        ( ✧~~ Kinaiya ~~✧ )",
+    ]
+)
 
 INTRO_FRAMES: tuple[str, ...] = (_SHIMMER_FRAME_1, _SHIMMER_FRAME_2, MASCOT)
-MIN_ANIMATION_WIDTH = 60
+MIN_ANIMATION_WIDTH = 68
 
 
 def _is_truthy(value: str | None) -> bool:
@@ -121,13 +145,16 @@ def render_intro_sequence(
     sleep_fn: Callable[[float], None] = time.sleep,
     clock_fn: Callable[[], float] = time.monotonic,
     max_duration_s: float = 0.18,
+    colorize_fn: Callable[[str], str] | None = None,
 ) -> str:
     """Render the Kinaiya intro sequence and always leave a clean static final frame."""
     is_tty = _stream_is_tty(stream)
+    paint = colorize_fn if colorize_fn is not None else (lambda text: text)
     if not should_animate(stream, env=env, width=width):
         static_text = static_mascot_frame(width=width, interactive=is_tty)
+        rendered_static = paint(static_text) if static_text == MASCOT else static_text
         if stream is not None:
-            stream.write(static_text + "\n")
+            stream.write(rendered_static + "\n")
             if hasattr(stream, "flush"):
                 stream.flush()
         return static_text
@@ -138,6 +165,7 @@ def render_intro_sequence(
     started = clock_fn()
     drew_frame = False
     completed_final = False
+    final_painted = paint(MASCOT)
 
     try:
         stream.write(CURSOR_HIDE)
@@ -148,7 +176,7 @@ def render_intro_sequence(
                 break
             if drew_frame:
                 stream.write(f"\x1b[{line_count}A\r")
-            stream.write(frame + "\n")
+            stream.write(paint(frame) + "\n")
             if hasattr(stream, "flush"):
                 stream.flush()
             drew_frame = True
@@ -159,13 +187,13 @@ def render_intro_sequence(
 
         if drew_frame:
             stream.write(f"\x1b[{line_count}A\r")
-        stream.write(MASCOT + "\n")
+        stream.write(final_painted + "\n")
         completed_final = True
     finally:
         if not completed_final:
             if drew_frame:
                 stream.write(f"\x1b[{line_count}A\r")
-            stream.write(MASCOT + "\n")
+            stream.write(final_painted + "\n")
         stream.write(CURSOR_SHOW)
         if hasattr(stream, "flush"):
             stream.flush()

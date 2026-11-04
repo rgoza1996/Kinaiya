@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "MediaReceipt_MediaSourceLimits_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaSourceLimits"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaSourceLimits]",
+      "type": "object"
+    },
+    "MediaSourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "file_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "File Bytes",
+          "type": "integer"
+        },
+        "file_duration_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "File Duration Ms",
+          "type": "integer"
+        },
+        "global_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Global Spool Bytes",
+          "type": "integer"
+        },
+        "live_buffer_target_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Live Buffer Target Ms",
+          "type": "integer"
+        },
+        "live_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Live Spool Bytes",
+          "type": "integer"
+        },
+        "operations_global": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Operations Global",
+          "type": "integer"
+        },
+        "owner_spool_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Owner Spool Bytes",
+          "type": "integer"
+        },
+        "sealed_unstarted_ms": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Sealed Unstarted Ms",
+          "type": "integer"
+        },
+        "unsealed_uploads_per_owner": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Unsealed Uploads Per Owner",
+          "type": "integer"
+        },
+        "upload_chunk_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Upload Chunk Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "file_bytes",
+        "file_duration_ms",
+        "upload_chunk_bytes",
+        "owner_spool_bytes",
+        "global_spool_bytes",
+        "unsealed_uploads_per_owner",
+        "operations_global",
+        "live_spool_bytes",
+        "live_buffer_target_ms",
+        "sealed_unstarted_ms"
+      ],
+      "title": "MediaSourceLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaSourceLimits_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaSourceLimits]",
+  "type": "object"
+}

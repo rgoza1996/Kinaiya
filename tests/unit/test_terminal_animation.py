@@ -211,3 +211,74 @@ def test_narrow_terminal_uses_compact_static_fallback_without_wrapping_or_escape
     assert len(lines) == 1
     assert len(lines[0]) <= narrow_width
     assert final == "Kinaiya"[:narrow_width]
+
+
+def test_intro_uses_approved_moon_renderer_and_wizard_wires_bounded_activity_indicator(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from services import launcher
+    from services.distribution import installation, wizard
+
+    assert MASCOT == wizard.render_moon_ascii_from_image()
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+
+    class _WizardTTY:
+        def __init__(self, answers: list[str]) -> None:
+            self._answers = iter(answers)
+            self.output = ""
+
+        def isatty(self) -> bool:
+            return False
+
+        def write(self, text: str) -> None:
+            self.output += text
+
+        def flush(self) -> None:
+            pass
+
+        def readline(self) -> str:
+            try:
+                return next(self._answers) + "\n"
+            except StopIteration:
+                return ""
+
+    class _FakeResp:
+        def __init__(self, body: bytes) -> None:
+            self._body = body
+
+        def read(self, n: int = -1) -> bytes:
+            return self._body[:n] if n >= 0 else self._body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    layout = installation.Layout.for_home(tmp_path)
+    tty = _WizardTTY(
+        [
+            "",
+            "",
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder-7b",
+            "no",
+            "",
+            "no",
+            "yes",
+            "metadata",
+        ]
+    )
+    res = wizard.run_wizard(
+        layout,
+        tty=tty,
+        check_connection=True,
+        opener=lambda req, timeout=5.0: _FakeResp(b'{"data": [{"id": "qwen2.5-coder-7b"}]}'),
+    )
+    assert res["provider_connection"] == "metadata_verified"
+    assert "[...] Checking agent provider connection" in tty.output
+    assert "[PASS] Checking agent provider connection: metadata_verified" in tty.output

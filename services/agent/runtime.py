@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, ApprovalReceiptUnavailable, PolicyDenied, ToolPolicy
@@ -104,7 +105,12 @@ from packages.providers.disclosure import (
     source_scope,
 )
 from packages.providers.prompt_budget import PromptCountUnavailable
-from packages.providers.text import ActionDecodeError, ProviderCleanupError, ProviderRefusal
+from packages.providers.text import (
+    ActionDecodeError,
+    MetaResponseError,
+    ProviderCleanupError,
+    ProviderRefusal,
+)
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.completion import append_completion
 from services.agent.history_budget import select_history
@@ -150,6 +156,69 @@ class _InferenceRevised(Exception):
     def __init__(self, response: str | None = None):
         self.response = response
         super().__init__("Agent inference superseded by steering")
+
+
+class _InferenceProviderFailure(Exception):
+    """An optional response projection bound by this exact native inference."""
+
+    def __init__(self, rec, generation_id, request_sha256, error):
+        from packages.providers.response_diagnostics import (
+            meta_failure_message,
+            validate_meta_diagnostic,
+        )
+
+        self.task_id, self.revision = rec.task.task_id, rec.task.objective_revision
+        self.generation_id, self.diagnostic = generation_id, None
+        self.request_sha256 = request_sha256
+        message = "Meta response did not complete"
+        try:
+            diagnostic = validate_meta_diagnostic(error.diagnostic)
+            message = meta_failure_message(diagnostic)
+            if diagnostic["request_sha256"] == request_sha256:
+                self.diagnostic = diagnostic
+        except Exception:
+            pass  # Invalid optional metadata cannot replace the actual terminal failure.
+        super().__init__(message)
+
+    def for_record(self, rec):
+        from packages.providers.response_diagnostics import (
+            MAX_DIAGNOSTIC_BYTES,
+            MAX_TOKEN_COUNT,
+            validate_meta_diagnostic,
+        )
+
+        # Validate before _fail changes RUNNING to FAILED. Native identity is
+        # supplied here, never copied from upstream IDs or a shared provider.
+        if (
+            rec.task.state != TaskState.RUNNING
+            or rec.cancel_requested
+            or rec.closing
+            or rec.pending_steer is not None
+            or type(self.task_id) is not str
+            or len(self.task_id) != 36
+            or str(UUID(self.task_id)) != self.task_id
+            or self.task_id != rec.task.task_id
+            or type(self.revision) is not int
+            or not 1 <= self.revision <= MAX_TOKEN_COUNT
+            or self.revision != rec.task.objective_revision
+            or type(self.generation_id) is not str
+            or len(self.generation_id) != 32
+            or UUID(self.generation_id).hex != self.generation_id
+        ):
+            raise ValueError("Obsolete provider response diagnostic")
+        result = {
+            **validate_meta_diagnostic(self.diagnostic),
+            "task_id": self.task_id,
+            "objective_revision": self.revision,
+            "generation_id": self.generation_id,
+        }
+        if result["request_sha256"] != self.request_sha256:
+            raise ValueError("Provider response request binding changed")
+        if len(json.dumps(result, separators=(",", ":"), allow_nan=False).encode("utf-8")) > (
+            MAX_DIAGNOSTIC_BYTES
+        ):
+            raise ValueError("Invalid provider response diagnostic")
+        return result
 
 
 class _PublicationUncertain(ToolFailure):
@@ -3474,16 +3543,33 @@ class AgentRuntime:
         )
 
     async def _fail(
-        self, rec: _Record, error: str, *, decode_error: ActionDecodeError | None = None
+        self,
+        rec: _Record,
+        error: str,
+        *,
+        decode_error: ActionDecodeError | None = None,
+        response_error: _InferenceProviderFailure | None = None,
     ) -> None:
         if rec.completion_pending:
             self._pause_completion(rec)
             return
         if rec.task.state in TERMINAL:
             return
+        response_diagnostic = None
+        if (
+            response_error is not None
+            and not self._closed
+            and self._tasks.get(rec.task.task_id) is rec
+        ):
+            try:
+                response_diagnostic = response_error.for_record(rec)
+            except Exception:
+                pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
         rec.task.state = TaskState.FAILED
         rec.task.error = error
         extra: dict[str, Any] = {"error": error}
+        if response_diagnostic is not None:
+            extra["provider_response_diagnostic"] = response_diagnostic
         if decode_error is not None:
             # Copy only a freshly validated constant pair. Parser exceptions
             # can retain raw documents, keys and positions; none enter the
@@ -3805,7 +3891,22 @@ class AgentRuntime:
                     )
                 # Stay in this Task and exact tool scope. A child task would
                 # invalidate the provider's request-local admission binding.
-                text = await prepared.complete()
+                try:
+                    text = await prepared.complete()
+                except MetaResponseError as exc:
+                    # Preserve steering/cancellation/disclosure authority and
+                    # bind only this consumed prepared generation's request.
+                    # Original HTTP close completes before this provider error;
+                    # cleanup/cancellation exceptions are not wrapped here.
+                    current()
+                    raise _InferenceProviderFailure(
+                        rec,
+                        observation_operation,
+                        None
+                        if prepared.measurement is None
+                        else prepared.measurement.request_sha256,
+                        exc,
+                    ) from None
                 await check()
                 return text
         except ProviderCleanupError:
@@ -3882,6 +3983,9 @@ class AgentRuntime:
                     continue
                 except ActionDecodeError as exc:
                     await self._fail(rec, f"provider error: {exc}", decode_error=exc)
+                    return
+                except _InferenceProviderFailure as exc:
+                    await self._fail(rec, f"provider error: {exc}", response_error=exc)
                     return
                 except Exception as exc:  # provider failure is terminal, honest
                     if isinstance(exc, ProviderCleanupError):
