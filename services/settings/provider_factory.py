@@ -83,9 +83,9 @@ def declaration_info(config):
             "openrouter_tts": "openrouter",
         }.get(kind, kind),
         model=config["model"],
-        local=kind not in {"meta", "meta_stt", "openrouter_tts"}
+        local=kind not in {"meta", "meta_stt", "openrouter_tts", "openrouter_decisions"}
         and urlsplit(config["base_url"]).hostname in {"localhost", "127.0.0.1", "::1"},
-        streaming=kind not in {"laya", "native_d1", "meta_stt"},
+        streaming=kind not in {"laya", "native_d1", "openrouter_decisions", "meta_stt"},
     )
 
 

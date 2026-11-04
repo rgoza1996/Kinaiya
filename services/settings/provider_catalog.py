@@ -214,6 +214,34 @@ class NativeD1Profile(TextProfile):
         return self
 
 
+class OpenRouterDecisionsProfile(TextProfile):
+    kind: Literal["openrouter_decisions"]
+    allow_cloud: Literal[True]
+    credential: CredentialBinding
+    timeout_s: int = Field(default=15, ge=1, le=120)
+    min_confidence_bps: int = Field(default=0, ge=0, le=10000)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def explicit_cloud(cls, value):
+        if type(value) is not bool or value is not True:
+            raise ValueError("OpenRouter decisions requires explicit cloud authorization")
+        return value
+
+    @model_validator(mode="after")
+    def decisions_origin(self):
+        self.base_url = _origin(self.base_url, cloud=True)
+        from packages.providers.openrouter_decisions import (
+            OPENROUTER_DECISIONS_MODELS,
+            _validate_origin,
+        )
+
+        _validate_origin(self.base_url, self.timeout_s)
+        if self.model not in OPENROUTER_DECISIONS_MODELS:
+            raise ValueError("OpenRouter decisions requires a registered catalog model")
+        return self
+
+
 class MetaSTTProfile(StrictSettings):
     kind: Literal["meta_stt"]
     base_url: str = Field(min_length=1, max_length=2048)
@@ -269,6 +297,7 @@ ProfileConfig = Annotated[
     | LMStudioProfile
     | LayaProfile
     | NativeD1Profile
+    | OpenRouterDecisionsProfile
     | MetaSTTProfile
     | OpenRouterTTSProfile,
     Field(discriminator="kind"),
@@ -632,7 +661,7 @@ class ProviderCatalog:
                     else ["stt"]
                     if kind == "meta_stt"
                     else ["decisions"]
-                    if kind in {"laya", "native_d1"}
+                    if kind in {"laya", "native_d1", "openrouter_decisions"}
                     else ["agent", "converse", "auxiliary"]
                     if kind == "lmstudio"
                     else ["agent", "converse", "decisions", "auxiliary"],

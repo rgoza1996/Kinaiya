@@ -145,11 +145,13 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
         # must not share the primary Agent's active operation/cleanup state.
         # Its constructor permits only reasoning_effort="none".
         result = LMStudioProvider(**profile)
-    elif kind in {"compatible", "laya", "native_d1"}:
+    elif kind in {"compatible", "laya", "native_d1", "openrouter_decisions"}:
         if kind == "laya" and role != "decisions":
             raise SystemExit("Laya is a typed Decisions provider, not an Agent or Converse model")
         if kind == "native_d1" and role != "decisions":
             raise SystemExit("Native d1 is a typed Decisions provider only")
+        if kind == "openrouter_decisions" and role != "decisions":
+            raise SystemExit("OpenRouter decisions is a typed Decisions provider only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
             profile["api_key"] = os.environ.get(key_ref, "")
@@ -157,6 +159,10 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             from packages.providers.native_d1 import NativeD1RoutingProvider
 
             result = NativeD1RoutingProvider(**profile)
+        elif kind == "openrouter_decisions":
+            from packages.providers.openrouter_decisions import OpenRouterDecisionsProvider
+
+            result = OpenRouterDecisionsProvider(**profile)
         elif kind == "laya":
             from packages.providers.laya import LayaRoutingProvider
 
@@ -285,10 +291,10 @@ def validate_setup_provider(role, profile):
                 "'compatible', or 'meta'"
             )
     elif role == "decisions":
-        if kind not in {"compatible", "laya", "native_d1", "meta"}:
+        if kind not in {"compatible", "laya", "native_d1", "openrouter_decisions", "meta"}:
             raise ValueError(
                 f"Unsupported Decisions setup adapter kind {kind!r}; select 'compatible', "
-                "'laya', 'native_d1', or 'meta'"
+                "'laya', 'native_d1', 'openrouter_decisions', or 'meta'"
             )
     else:
         raise ValueError(f"Unsupported setup provider role {role!r}")
