@@ -55,12 +55,19 @@ _PROTOCOL_RULES = tuple(line for line in _PROTOCOL_LINES if line.startswith(("Ru
 
 def _system_prompt(snapshot: NativeToolSnapshot) -> str:
     tools = "|".join(json.dumps(name) for name in snapshot.available_tools)
+    hints = []
+    for name in snapshot.available_tools:
+        hint = _TOOL_ARGUMENT_HINTS[name]
+        if name == "publish_ui" and snapshot.supports("run_task_harness"):
+            hint = hint.replace('"select"|"ask"', '"select"|"ask"|"media"')
+            hint += ' Native media: at most one media component, data exactly {"asset_id":"<actual media_32hex native receipt ID>"}. Use only an observed same-task/revision/scope asset receipt; never supply paths, URLs, bytes or register assets. The native UI shows the source and highlighted video. Keep the transcript in a text component.'
+        hints.append(hint)
     return "\n".join(
         (
             _PROTOCOL_LINES[0],
             f'Schema: {{"tool": {tools}, "arguments": {{...}}}}.',
             "Arguments:",
-            *(_TOOL_ARGUMENT_HINTS[name] for name in snapshot.available_tools),
+            *hints,
             *_PROTOCOL_RULES,
         )
     )

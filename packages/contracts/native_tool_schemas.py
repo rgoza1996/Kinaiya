@@ -81,7 +81,7 @@ def _schema(body):
     return {"$schema": _DRAFT, **body}
 
 
-def _publication_schema():
+def _publication_schema(*, media_available=False):
     # Local references keep selected inspection complete without repeating the
     # nine data definitions in every component and update alternative.
     data = {
@@ -153,6 +153,10 @@ def _publication_schema():
             ("label", "message"),
         ),
     }
+    if media_available:
+        data["media"] = _object(
+            {"asset_id": _string(38, 38, pattern=r"^media_[0-9a-f]{32}$")}, ("asset_id",)
+        )
     definitions = {
         "cell": {
             "anyOf": [
@@ -718,21 +722,31 @@ def _known_name(name):
     return name
 
 
-def native_tool_schema(name) -> dict:
+def native_tool_schema(name, *, media_available=False) -> dict:
     """Return a fresh complete canonical logical input JSON Schema."""
-    return deepcopy(_SCHEMAS[_known_name(name)])
+    checked = _known_name(name)
+    if type(media_available) is not bool:
+        raise NativeToolSchemaError()
+    if checked == "publish_ui" and media_available:
+        return _publication_schema(media_available=True)
+    return deepcopy(_SCHEMAS[checked])
 
 
-def native_tool_definition(name) -> dict:
+def native_tool_definition(name, *, media_available=False) -> dict:
     """Return fresh trusted schema/provenance/requirements inspection metadata.
 
     The digest covers only the schema's compact sorted ASCII JSON. Static
     requirements describe checks, not current grants or execution readiness.
     """
     checked = _known_name(name)
-    schema = native_tool_schema(checked)
+    schema = native_tool_schema(checked, media_available=media_available)
     encoded = json.dumps(schema, sort_keys=True, separators=(",", ":"), allow_nan=False)
     metadata = deepcopy(_METADATA[checked])
+    if checked == "publish_ui" and media_available:
+        metadata["requirements"].append("native_media_asset_task_revision_scope_binding")
+        metadata["constraints"].append(
+            "At most one media component; data is exactly an opaque native asset_id. Paths, URLs, bytes and registration authority are forbidden."
+        )
     return {
         **metadata,
         "input_schema": schema,

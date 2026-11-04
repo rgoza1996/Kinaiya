@@ -70,6 +70,16 @@ typed Meta wire uses `harness_input_json` to encode the logical `input` object;
 the provider adapter restores that object before native validation. Existing
 default snapshots and provider schemas omit the new branch.
 
+For an admitted task whose snapshot includes `run_task_harness`, the seed,
+selected native catalog and typed Meta publication schema also expose the media
+component `{"type":"media","data":{"asset_id":"<actual media_32hex receipt>"}}`.
+Only an observed native asset for the same task, revision and scope can publish;
+at most one media component is accepted. The model cannot supply a media path,
+URL, bytes or registration request. Legacy snapshots retain the original nine
+component alternatives and their schema bytes. Preserve the native SAM receipt
+in generated state while consulting transcription, then return its actual
+asset ID alongside the transcript for ordinary native publication.
+
 ## Generated program
 
 A source file defines synchronous `run(payload)`. Each isolated phase receives

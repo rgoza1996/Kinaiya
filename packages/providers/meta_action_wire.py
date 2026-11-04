@@ -136,6 +136,33 @@ _UPDATE = _object(
     expected_revision=Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)],
     updates=_array(_object("UiPatch", id=_COMPONENT_ID, data=reduce(or_, _DATA.values())), 1, 24),
 )
+_MEDIA_DATA = _object("UiNativeMedia", asset_id=_string(38, 38, r"^media_[0-9a-f]{32}$"))
+_MEDIA_COMPONENT = _object(
+    "ComponentNativeMedia",
+    id=_COMPONENT_ID,
+    type=Literal["media"],
+    title=_string(0, 160) | None,
+    data=_MEDIA_DATA,
+)
+_MEDIA_CREATE = _object(
+    "UiCreateWithNativeMedia",
+    title=_string(1, 160),
+    summary=_string(1, 2000),
+    components=_array(reduce(or_, (*_COMPONENTS, _MEDIA_COMPONENT)), 1, 24),
+    layout=Literal["stack", "grid"] | None,
+)
+_MEDIA_UPDATE = _object(
+    "UiUpdateWithNativeMedia",
+    artifact_id=_string(1, 128),
+    expected_revision=Annotated[StrictInt, Field(ge=1, le=9_007_199_254_740_991)],
+    updates=_array(
+        _object(
+            "UiNativeMediaPatch", id=_COMPONENT_ID, data=reduce(or_, (*_DATA.values(), _MEDIA_DATA))
+        ),
+        1,
+        24,
+    ),
+)
 _ARGUMENTS = {
     "read_file": _object("ReadFile", path=StrictStr, max_bytes=StrictInt | None),
     "write_file": _object(
@@ -192,6 +219,11 @@ _ACTIONS = {
     name: _object("Action" + name.title().replace("_", ""), tool=Literal[name], arguments=args)
     for name, args in _ARGUMENTS.items()
 }
+_MEDIA_ACTION = _object(
+    "ActionPublishUiWithNativeMedia",
+    tool=Literal["publish_ui"],
+    arguments=_MEDIA_CREATE | _MEDIA_UPDATE,
+)
 
 
 def _selection(tools):
@@ -218,7 +250,17 @@ def _selection(tools):
 
 @lru_cache(maxsize=32)
 def _adapter(tools):
-    return TypeAdapter(reduce(or_, (_ACTIONS[name] for name in tools)))
+    return TypeAdapter(
+        reduce(
+            or_,
+            (
+                _MEDIA_ACTION
+                if name == "publish_ui" and "run_task_harness" in tools
+                else _ACTIONS[name]
+                for name in tools
+            ),
+        )
+    )
 
 
 def action_schema(tools: tuple[str, ...]) -> dict:
@@ -325,7 +367,7 @@ def _fill_value(annotation, value):
     return value
 
 
-def encode_action(flat_wire_action: dict) -> dict:
+def encode_action(flat_wire_action: dict, *, tools: tuple[str, ...] | None = None) -> dict:
     """Fill declared missing optional nulls, never missing required arguments."""
     if (
         type(flat_wire_action) is not dict
@@ -336,7 +378,17 @@ def encode_action(flat_wire_action: dict) -> dict:
     ):
         raise TypedWireError()
     try:
-        model = _ACTIONS[flat_wire_action["tool"]]
+        snapshot = current_agent_tools()
+        media_available = (
+            "run_task_harness" in _selection(tools)
+            if tools is not None
+            else snapshot is not None and snapshot.supports("run_task_harness")
+        )
+        model = (
+            _MEDIA_ACTION
+            if flat_wire_action["tool"] == "publish_ui" and media_available
+            else _ACTIONS[flat_wire_action["tool"]]
+        )
         filled = _fill_model(model, flat_wire_action)
         return {"action": model.model_validate(filled, strict=True).model_dump(mode="python")}
     except (ValidationError, ValueError, TypeError, RecursionError):

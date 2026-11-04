@@ -1122,7 +1122,7 @@ class MetaResponsesProvider:
                     }
                 elif action["tool"] == "publish_ui":
                     _ui_spec_object(json.dumps(args, ensure_ascii=False, allow_nan=False))
-                message["content"] = json.dumps(encode_action(action))
+                message["content"] = json.dumps(encode_action(action, tools=tools))
             except (ValueError, KeyError, TypeError, ProviderError):
                 # A historical clipped/refused action remains opaque history;
                 # never invent missing arguments or a successful tool result.
