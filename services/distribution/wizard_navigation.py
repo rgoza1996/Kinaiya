@@ -93,9 +93,13 @@ def load_existing_setup_defaults(layout: Layout) -> dict[str, Any]:
         "converse_adapter": "compatible",
         "converse_endpoint": "",
         "converse_model": "",
+        "converse_allow_cloud": "no",
+        "converse_credential_env": "",
         "decisions_adapter": "compatible",
         "decisions_endpoint": "",
         "decisions_model": "",
+        "decisions_allow_cloud": "no",
+        "decisions_credential_env": "",
     }
     if not layout.config.exists() or layout.config.is_symlink():
         return defaults
@@ -144,6 +148,10 @@ def load_existing_setup_defaults(layout: Layout) -> dict[str, Any]:
             c_model = converse_cfg.get("model")
             if isinstance(c_model, str) and c_model and c_model != "configure-your-local-model":
                 defaults["converse_model"] = c_model
+            if isinstance(converse_cfg.get("allow_cloud"), bool):
+                defaults["converse_allow_cloud"] = "yes" if converse_cfg["allow_cloud"] else "no"
+            if isinstance(converse_cfg.get("api_key_env"), str):
+                defaults["converse_credential_env"] = converse_cfg["api_key_env"]
 
         decisions_cfg = providers.get("decisions")
         if isinstance(decisions_cfg, dict):
@@ -154,6 +162,10 @@ def load_existing_setup_defaults(layout: Layout) -> dict[str, Any]:
             d_model = decisions_cfg.get("model")
             if isinstance(d_model, str) and d_model and d_model != "configure-your-local-model":
                 defaults["decisions_model"] = d_model
+            if isinstance(decisions_cfg.get("allow_cloud"), bool):
+                defaults["decisions_allow_cloud"] = "yes" if decisions_cfg["allow_cloud"] else "no"
+            if isinstance(decisions_cfg.get("api_key_env"), str):
+                defaults["decisions_credential_env"] = decisions_cfg["api_key_env"]
 
     return defaults
 
@@ -193,21 +205,45 @@ _ALL_STEPS: tuple[_PromptStep, ...] = (
     _PromptStep("converse_endpoint", "Converse provider endpoint", "converse"),
     _PromptStep("converse_model", "Exact Converse model name", "converse"),
     _PromptStep(
+        "converse_allow_cloud",
+        "Allow disclosure of authorized content to this Converse provider?",
+        "converse",
+    ),
+    _PromptStep(
+        "converse_credential_env",
+        "Converse credential environment variable NAME only; never paste a key",
+        "converse",
+    ),
+    _PromptStep(
         "decisions_adapter",
         "Decisions provider adapter (compatible/laya/native_d1/meta)",
         "converse",
     ),
     _PromptStep("decisions_endpoint", "Decisions provider endpoint", "converse"),
     _PromptStep("decisions_model", "Exact Decisions model name", "converse"),
+    _PromptStep(
+        "decisions_allow_cloud",
+        "Allow disclosure of authorized content to this Decisions provider?",
+        "converse",
+    ),
+    _PromptStep(
+        "decisions_credential_env",
+        "Decisions credential environment variable NAME only; never paste a key",
+        "converse",
+    ),
 )
 
 _CONVERSE_DEPENDENT_KEYS: tuple[str, ...] = (
     "converse_adapter",
     "converse_endpoint",
     "converse_model",
+    "converse_allow_cloud",
+    "converse_credential_env",
     "decisions_adapter",
     "decisions_endpoint",
     "decisions_model",
+    "decisions_allow_cloud",
+    "decisions_credential_env",
 )
 
 
@@ -436,7 +472,12 @@ class WizardNavigator:
             while index < len(steps):
                 step = steps[index]
                 default = self._default_for(step.key)
-                if step.key in {"allow_cloud", "converse"}:
+                if step.key in {
+                    "allow_cloud",
+                    "converse",
+                    "converse_allow_cloud",
+                    "decisions_allow_cloud",
+                }:
                     raw = self._raw_yn_prompt(step.label, default)
                     if is_back_command(raw, at_confirm=False):
                         if index > 0:
@@ -660,11 +701,17 @@ class WizardNavigator:
             )
             converse_model = self.answers.get("converse_model", self._default_for("converse_model"))
             converse_cloud = (
-                False
-                if (_is_local_endpoint(converse_endpoint) and converse_adapter != "meta")
-                else allow_cloud
+                self.answers.get("converse_allow_cloud", self.defaults["converse_allow_cloud"])
+                .strip()
+                .lower()
+                == "yes"
             )
-            converse_cred = None if converse_adapter == "lmstudio" else credential_env
+            converse_cred = (
+                self.answers.get(
+                    "converse_credential_env", self.defaults["converse_credential_env"]
+                ).strip()
+                or None
+            )
             converse_profile = {
                 "kind": converse_adapter,
                 "endpoint": converse_endpoint,
@@ -682,19 +729,23 @@ class WizardNavigator:
                 "decisions_model", self._default_for("decisions_model")
             )
             decisions_cloud = (
-                False
-                if (
-                    decisions_adapter in {"laya", "native_d1"}
-                    or (_is_local_endpoint(decisions_endpoint) and decisions_adapter != "meta")
-                )
-                else allow_cloud
+                self.answers.get("decisions_allow_cloud", self.defaults["decisions_allow_cloud"])
+                .strip()
+                .lower()
+                == "yes"
+            )
+            decisions_cred = (
+                self.answers.get(
+                    "decisions_credential_env", self.defaults["decisions_credential_env"]
+                ).strip()
+                or None
             )
             decisions_profile = {
                 "kind": decisions_adapter,
                 "endpoint": decisions_endpoint,
                 "model": decisions_model,
                 "allow_cloud": decisions_cloud,
-                "credential_env": credential_env,
+                "credential_env": decisions_cred,
             }
 
         if self.section is not None:
