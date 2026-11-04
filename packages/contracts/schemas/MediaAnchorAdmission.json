@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "MediaLegacyTaskBody": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_utf8_b64": {
+          "maxLength": 87384,
+          "minLength": 1,
+          "title": "Canonical Utf8 B64",
+          "type": "string"
+        },
+        "contract": {
+          "const": "TaskRequest",
+          "title": "Contract",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract",
+        "canonical_utf8_b64",
+        "sha256"
+      ],
+      "title": "MediaLegacyTaskBody",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaOwnerMediaObjective": {
+      "additionalProperties": false,
+      "properties": {
+        "intent": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "kind": {
+          "const": "owner_media",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "intent"
+      ],
+      "title": "MediaOwnerMediaObjective",
+      "type": "object"
+    },
+    "MediaOwnerTextObjective": {
+      "additionalProperties": false,
+      "properties": {
+        "event_ref": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Event Ref",
+          "type": "string"
+        },
+        "kind": {
+          "const": "owner_text",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "event_ref"
+      ],
+      "title": "MediaOwnerTextObjective",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "owner_objective": {
+      "discriminator": {
+        "mapping": {
+          "owner_media": "#/$defs/MediaOwnerMediaObjective",
+          "owner_text": "#/$defs/MediaOwnerTextObjective"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MediaOwnerTextObjective"
+        },
+        {
+          "$ref": "#/$defs/MediaOwnerMediaObjective"
+        }
+      ],
+      "title": "Owner Objective"
+    },
+    "scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "submit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaLegacyTaskBody"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "task_admission": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "key",
+    "owner_objective",
+    "scope",
+    "submit",
+    "task_admission"
+  ],
+  "title": "MediaAnchorAdmission",
+  "type": "object"
+}

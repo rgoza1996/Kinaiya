@@ -1,0 +1,202 @@
+{
+  "authorship": {
+    "memo": "root",
+    "muse_diagnostic_design": "Actual Contributor xhigh CLI supplied diagnostic design; root refined the committed diagnostic.",
+    "muse_memo_attempt": "One actual Contributor xhigh CLI call terminated0 with zero output and no patch; retained without unchanged retry. No Muse implementation credit for root memo.",
+    "preservation_cases": "source-aware oracle author, candidate body unread before fixture design"
+  },
+  "date": "2026-11-03",
+  "implementation": {
+    "composed_source": "b709e56fd76d0b51328f754c420ea492ad6f15ca",
+    "integrated_main": "1a5a4b79f9c1ab1f3812e5568d76dbf40c22c846",
+    "memo_contract": {
+      "entry_limit": 64,
+      "estimated_key_content_limit_bytes": 4194304,
+      "insertion": "only after complete fresh strict parse/canonical/persisted-field validation",
+      "key": "exact values and exact types of all seven immutable row fields read by _read_receipt",
+      "miss_or_unsupported_or_oversized": "original fresh parsing; no public quota or retained-history eviction",
+      "scope": "one synchronous locked audit; pre/post calls instantiate separately",
+      "total_python_heap_bound": false,
+      "unchanged": "every SQL/reference/history/request/fence/link/poison check and existing deadline; private models never exposed"
+    },
+    "production_and_test_sha256": {
+      "services/session/api.py": "75d19f6ba20ca87e58745cfccb151035032fe23f5d07d8f806ec122c45968ad2",
+      "services/session/legacy_events.py": "da0336fd643866becae1bbda9d69167366efdc1aa43f60d0a72146cd465de138",
+      "services/session/media_api.py": "6f3860d0545d8103016b61fa2fe1fe6c7fb2623f8f3851f8bc76a4248e8b02ee",
+      "services/session/media_clients.py": "32bf60f7215febeb58785da6c1b7121e34c33a74c76925f4dec1e9306dc401e7",
+      "services/session/media_owner.py": "68a89e238d0f94f07e587349537c881a2c3c72a17db8204733a6fe14595dd4b0",
+      "services/session/store.py": "b08702abbbb2d1bc7b6dee6294fada6b6a8d57071ce04dc4538827371f066fea",
+      "tests/integration/test_media_connection_retirement_join.py": "872450d6c934467884782d5bb4d570ebf1bbf6c793261e45c580822859951425",
+      "tests/integration/test_session_media_audit_scope.py": "5230868afbedaa5532c165d17117a4c515b31142bfadce4d93886d3725ea8d35",
+      "tests/integration/test_session_media_fresh_parse_audit.py": "c944f9b89b1438eac62c7ef0167192bcaf7e12fdc4f1bbbc85e12cd69771003e",
+      "tests/integration/test_session_media_lifecycle_guards.py": "7bc4d156d999f31c6651439c02a23990d5d20e6b1bb033db7aa03f22011c31e0",
+      "tests/integration/test_session_media_missing_runtime.py": "fe388ef7adc04c284a3fdb36e529ac1655940b85b37adf8a363de710c6a049a0",
+      "tests/integration/test_session_media_owner.py": "41ae879ac138620a367eb6f8f488c217b93898c2e5b39c6979115537936aa08b",
+      "tests/unit/test_legacy_events.py": "e6039e4c04ed9be33373b50cc4cd5e134df0d3a56f6a5ad606368c8d7b3f5433",
+      "tests/unit/test_media_owner_receipts.py": "9146dbb4281a4f4cb9c095d00cd2097575b133760bc92b484a0f3b50d1ff048e"
+    },
+    "tested_source": "dd4132408b7f00f09ff0701cf3f4ccdebca9ac38"
+  },
+  "kind": "Native media single-audit receipt parse reuse preservation",
+  "limits": [
+    "Offline synthetic native Auth/ASGI/SQLite/spool checks; no model,GPU,physicalaudio/video,accuracy,latency or demo qualification.",
+    "The local broader198 run preserves the prior196 case IDs/non-time metadata and per-module order; overall target order differs.",
+    "Poisoned/unknown custody remains unknown; SQL rollback and fixture wrapper joins do not create physical cleanup proof.",
+    "No performance benchmark, CI579 timing cause or deadline guarantee follows from elapsed test durations.",
+    "No changed-head CI pass, full native H64, decoder execution, native model-exchange producer, AT64-AT66, complete Omni pipeline or roadmap completion is claimed.",
+    "No secrets,private conversation,private video or machine-specific absolute paths are published."
+  ],
+  "overlap": {
+    "counts_are_not_additive": true,
+    "narrow18_inside_broader198": 18,
+    "new_cases": 2,
+    "prior196_preserved": 196
+  },
+  "publication": "Docs/evidence-only child of composed source; production/test pins remain exact. Changed-head CI remains required.",
+  "pull_request": "https://github.com/rgoza1996/Kinaiya/pull/378",
+  "retained_failure": {
+    "cause": "unproved; local diagnostic is not causal CI evidence",
+    "ci_run": 41715054223,
+    "counts": {
+      "deselected": 2,
+      "failed": 1,
+      "passed": 12111,
+      "skipped": 6,
+      "warning": 1
+    },
+    "failure": "Python3.11 native history fixture teardown: Original media shutdown is unconfirmed",
+    "head": "07a2157d2f0d66ce95a4a6afe12daf13c16a0474",
+    "other_jobs": "Python3.12,Flutter,Android,iOS passed",
+    "wrong_selector": "First optimized command selected a nonexistent file; exit4/zero collected is not a test pass."
+  },
+  "reviews": {
+    "independence": "Raw reviewer authored new and prior fixtures; independence is from execution/collection, not test-design. Independent source/test-quality review is separate.",
+    "raw_broader_receipt_sha256": "20a02b144f4f198639cc0c3dfa7ab33cfbd31d09fe467247fe07496ad9bfecbe",
+    "raw_broader_review_sha256": "1b49ac4836ff41e899750082f1ae12f6917c40e2cbdecfedf1bba6676e5705e6",
+    "source": "Independent exact-source review before new test reads; reviewed sourceSHA68a89e238d0f94f07e587349537c881a2c3c72a17db8204733a6fe14595dd4b0, no blocking finding; AST comparison preserves all original guards outside selected memo delta.",
+    "test_quality": "Separate reviewer caught invalid backend fixture ID before execution; corrected to a different valid32hex ID. All27 assertions preserved."
+  },
+  "runs": {
+    "current_main_composed35": {
+      "elapsed_wall_s": 38.4789002030011,
+      "exit_code": 0,
+      "head": "b709e56fd76d0b51328f754c420ea492ad6f15ca",
+      "inputs_stable": true,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "35",
+          "time": "37.673"
+        }
+      ],
+      "junit_sha256": "6b3136cc40305e3ec33d1100c9ed5beb11d38300d3548e5a02b5d760ef28f65c",
+      "manifest_sha256": "e637426310344ff88f28cdaeada8cfb8eea8225fd60c14b993f266e2342b4932",
+      "receipt_sha256": "5698a6014804500a52e0ff0840daddcaf43342435ef54230871650498144534d",
+      "targets": [
+        "tests/integration/test_session_media_audit_scope.py",
+        "tests/integration/test_session_media_fresh_parse_audit.py",
+        "tests/integration/test_window_bound_refusal.py",
+        "tests/integration/test_window_cache_identity.py"
+      ],
+      "tracked_inputs": 1816
+    },
+    "optimized_broader198": {
+      "elapsed_wall_s": 291.07485730400003,
+      "exit_code": 0,
+      "head": "dd4132408b7f00f09ff0701cf3f4ccdebca9ac38",
+      "inputs_stable": true,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "198",
+          "time": "289.453"
+        }
+      ],
+      "junit_sha256": "7da598e80e778c768ae81966902458d4894ddb2b357d230530d969abc9ae884d",
+      "manifest_sha256": "d6cc07503b2f50d3026bd710ab56d98707cc159c83c8a6edfab736d3eda61cc8",
+      "receipt_sha256": "6ed8be8d32822b33609fef3405dd7937adb96af63f99dce2edcdcfcd88cc7146",
+      "targets": [
+        "tests/integration/test_session_media_audit_scope.py",
+        "tests/integration/test_session_media_fresh_parse_audit.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/integration/test_session_media_owner.py",
+        "tests/integration/test_media_connection_retirement_join.py",
+        "tests/unit/test_legacy_events.py",
+        "tests/unit/test_media_owner_receipts.py"
+      ],
+      "tracked_inputs": 1814
+    },
+    "optimized_focused18": {
+      "elapsed_wall_s": 31.808786278999833,
+      "exit_code": 0,
+      "head": "dd4132408b7f00f09ff0701cf3f4ccdebca9ac38",
+      "inputs_stable": true,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "18",
+          "time": "30.976"
+        }
+      ],
+      "junit_sha256": "d538b87816f3b979793f7afc9c3bdeeae794741db39a4aad74baf4be44c921c2",
+      "manifest_sha256": "c612101864a2cc155b7ae33aee83d6cc0a015b6f7be155f178a91516f47d2493",
+      "receipt_sha256": "461b601fe15028555b7c107ae16beb71260d80129585e0ec4ca0210ab178af6e",
+      "targets": [
+        "tests/integration/test_session_media_audit_scope.py",
+        "tests/integration/test_session_media_fresh_parse_audit.py"
+      ],
+      "tracked_inputs": 1814
+    },
+    "original_two_preservation_cases": {
+      "elapsed_wall_s": 4.761381034000806,
+      "exit_code": 0,
+      "head": "9236a4e22ec99bec31ed44aedc0265827b58725f",
+      "inputs_stable": true,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "2",
+          "time": "4.265"
+        }
+      ],
+      "junit_sha256": "55709b0ab0d96729dca5be4df97947143128dcd1f4a8e7013739db6726abedc7",
+      "manifest_sha256": "c2bab8d47d6ff96a01a17a5772e1a3cae6b17649311b562b94177d7a6564a629",
+      "receipt_sha256": "7f1fcbb73fe45e27ddf518f9f920dbf038172d1ab6fd58b8f67445eec8fd3143",
+      "targets": [
+        "tests/integration/test_session_media_audit_scope.py"
+      ],
+      "tracked_inputs": 1814
+    },
+    "wrong_selector_zero_collected": {
+      "elapsed_wall_s": 0.3462646499992843,
+      "exit_code": 4,
+      "head": "dd4132408b7f00f09ff0701cf3f4ccdebca9ac38",
+      "inputs_stable": true,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "skipped": "0",
+          "tests": "0",
+          "time": "0.002"
+        }
+      ],
+      "junit_sha256": "9d732276f0c3a17efb162fb849320999d6ef1704108667267538b0e310969a79",
+      "manifest_sha256": "99aae58533f150f03a2c3c4289853d786ae11b270ba8ad5ab28315058d770484",
+      "receipt_sha256": "03659e98a3e57abbb3e716927031f2452b5694dbed53c0c979412533341f3a91",
+      "targets": [
+        "tests/integration/test_session_media_audit_scope.py",
+        "tests/integration/test_session_media_parse_preservation.py"
+      ],
+      "tracked_inputs": 1814
+    }
+  }
+}

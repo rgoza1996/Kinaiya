@@ -123,6 +123,65 @@ def converse_speech(config, token, *, resource_state=None):
     return local
 
 
+def converse_native_audio(config, runtime, data_dir, workspace):
+    """Explicit paired host capability, never inferred from a model name.
+
+    The owner supplies and runs the external engine. This first buffered mode
+    supports the host selection only; catalog/resource-managed native audio
+    requires its own admission interface rather than borrowing a text lease.
+    """
+    declared = config.get("native_audio")
+    if declared is None:
+        return None
+    from packages.providers.realtime_audio import RealtimeAudioProvider
+    from services.converse.native_audio import NativeAudioOwner
+
+    if (
+        type(declared) is not dict
+        or set(declared)
+        - {"kind", "base_url", "model", "api_key_env", "max_output_tokens", "timeout"}
+        or declared.get("kind") != "realtime_v1"
+        or config.get("resources", {}).get("enabled") is True
+    ):
+        raise ValueError("Native buffered audio declaration is unavailable")
+    host = config.get("providers", {}).get("converse", {})
+
+    def origin(value):
+        if type(value) is not str:
+            raise ValueError("Native audio host pairing is invalid")
+        normalized = value.rstrip("/")
+        return normalized[:-3] if normalized.endswith("/v1") else normalized
+
+    if (
+        host.get("kind") not in {"compatible", "measured_chat"}
+        or host.get("allow_cloud", False) is not False
+        or origin(host.get("base_url")) != origin(declared.get("base_url"))
+        or host.get("model") != declared.get("model")
+        or host.get("api_key_env") != declared.get("api_key_env")
+        or host.get("api_key")
+    ):
+        raise ValueError("Native audio requires the exact explicit local host pair")
+    reference = declared.get("api_key_env")
+    if reference is not None and (
+        type(reference) is not str
+        or not reference.isascii()
+        or not reference.isidentifier()
+        or len(reference) > 128
+        or not os.environ.get(reference)
+    ):
+        raise ValueError("Native audio credential declaration is unavailable")
+    adapter = RealtimeAudioProvider(
+        declared["base_url"],
+        declared["model"],
+        api_key=os.environ.get(reference, "") if reference is not None else "",
+        max_output_tokens=declared.get("max_output_tokens", 512),
+        timeout=declared.get("timeout", 90),
+    )
+    return NativeAudioOwner(
+        runtime, adapter, path=data_dir / "native-audio.sqlite", workspace=workspace
+    )
+
+
 def provider(config, role, *, resource_state=None, service_token=None, workspace=None):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
@@ -135,6 +194,17 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
         if key_ref and not profile.get("api_key"):
             profile["api_key"] = os.environ.get(key_ref, "")
         result = MetaResponsesProvider(**profile)
+    elif kind == "measured_chat":
+        if role != "converse":
+            raise SystemExit("Measured chat supports Converse text only")
+        from packages.providers.measured_chat import MeasuredChatProvider
+
+        if profile.pop("allow_cloud", False) is not False:
+            raise ValueError("Measured chat is local only")
+        key_ref = profile.pop("api_key_env", None)
+        if key_ref:
+            profile["api_key"] = os.environ.get(key_ref, "")
+        result = MeasuredChatProvider(**profile)
     elif kind == "lmstudio":
         if role not in {"converse", "agent", "auxiliary"}:
             raise SystemExit("Native LM Studio supports Converse, Agent and auxiliary text only")
@@ -145,11 +215,13 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
         # must not share the primary Agent's active operation/cleanup state.
         # Its constructor permits only reasoning_effort="none".
         result = LMStudioProvider(**profile)
-    elif kind in {"compatible", "laya", "native_d1"}:
+    elif kind in {"compatible", "laya", "native_d1", "openrouter_decisions"}:
         if kind == "laya" and role != "decisions":
             raise SystemExit("Laya is a typed Decisions provider, not an Agent or Converse model")
         if kind == "native_d1" and role != "decisions":
             raise SystemExit("Native d1 is a typed Decisions provider only")
+        if kind == "openrouter_decisions" and role != "decisions":
+            raise SystemExit("OpenRouter decisions is a typed Decisions provider only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
             profile["api_key"] = os.environ.get(key_ref, "")
@@ -157,6 +229,10 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             from packages.providers.native_d1 import NativeD1RoutingProvider
 
             result = NativeD1RoutingProvider(**profile)
+        elif kind == "openrouter_decisions":
+            from packages.providers.openrouter_decisions import OpenRouterDecisionsProvider
+
+            result = OpenRouterDecisionsProvider(**profile)
         elif kind == "laya":
             from packages.providers.laya import LayaRoutingProvider
 
@@ -279,16 +355,16 @@ def validate_setup_provider(role, profile):
                 "('lmstudio' or 'meta') that implements prepare_complete"
             )
     elif role == "converse":
-        if kind not in {"lmstudio", "compatible", "meta"}:
+        if kind not in {"lmstudio", "compatible", "measured_chat", "meta"}:
             raise ValueError(
                 f"Unsupported Converse setup adapter kind {kind!r}; select 'lmstudio', "
-                "'compatible', or 'meta'"
+                "'compatible', 'measured_chat', or 'meta'"
             )
     elif role == "decisions":
-        if kind not in {"compatible", "laya", "native_d1", "meta"}:
+        if kind not in {"compatible", "laya", "native_d1", "openrouter_decisions", "meta"}:
             raise ValueError(
                 f"Unsupported Decisions setup adapter kind {kind!r}; select 'compatible', "
-                "'laya', 'native_d1', or 'meta'"
+                "'laya', 'native_d1', 'openrouter_decisions', or 'meta'"
             )
     else:
         raise ValueError(f"Unsupported setup provider role {role!r}")
@@ -966,6 +1042,13 @@ def serve(args):
             if config.get("streaming_windows", {}).get("enabled", True)
             else None
         )
+        # A malformed explicit declaration must not silently run the legacy
+        # transcript-to-text/TTS path under a native-audio configuration.
+        runtime.native_audio = converse_native_audio(
+            config, runtime, args.data_dir.resolve(), args.workspace.resolve()
+        )
+        if runtime.native_audio is not None and windows is None:
+            raise ValueError("Native buffered audio requires Decisions window routing")
         app = create_app(runtime, auth, speech, windows, setup=setup)
 
         @asynccontextmanager
@@ -988,6 +1071,8 @@ def serve(args):
                 observer, *([window_observer] if window_observer else []), return_exceptions=True
             )
             await runtime.close()
+            if runtime.native_audio is not None:
+                await runtime.native_audio.close()
             if runtime.model_settings is not None:
                 await runtime.model_settings.close()
             from services.converse.stt_operations import retire_converse_shared
@@ -1104,15 +1189,21 @@ def owner_login(args):
     """Export only the owner credential to a new private file, never stdout."""
     tokens = load_or_create_tokens(args.data_dir)
     destination = args.output or args.data_dir / "owner-login.txt"
+    if os.path.islink(destination) or os.path.islink(destination.parent):
+        raise PermissionError("Owner login export path cannot be a symlink")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(descriptor, "w") as stream:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(destination, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         stream.write(tokens["owner"])
+        stream.flush()
+        os.fsync(stream.fileno())
     print(
         json.dumps(
             {
                 "path": str(destination.resolve()),
                 "mode": "0600",
+                "owner_epoch": getattr(tokens, "owner_epoch", 1),
                 "scope": "owner-only browser sign-in",
             }
         )
@@ -1217,21 +1308,24 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command in {
+        "auth",
         "install",
         "setup",
+        "start",
         "update",
         "version",
+        "doctor",
         "recover",
         "rollback",
         "uninstall",
         "web",
     }:
         from packages.distribution.releases import ReleaseError
-        from services.distribution.cli import dispatch
+        from services.distribution.cli import dispatch, print_command_result
         from services.distribution.installation import InstallError
 
         try:
-            print(json.dumps(dispatch(args), indent=2))
+            print_command_result(args, dispatch(args))
         except (InstallError, ReleaseError) as exc:
             parser.exit(1, f"kinaiya: {exc}\n")
         except (OSError, ValueError):

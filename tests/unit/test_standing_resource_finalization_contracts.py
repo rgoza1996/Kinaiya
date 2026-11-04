@@ -304,6 +304,140 @@ def schema_pin():
     # Preserve the original184 pin plus the exact approved two-schema evolution.
     # Six finalization and two later #255 schemas are additive families.
     additive = set(CAPS) | {"TranscriptScanPage", "TranscriptScanRequest"}
+    # The first media intake family is additive too. Exclude only these exact
+    # 75 names; test_media_schema_exports separately pins their complete bytes.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "Q",
+            "SignedQ",
+            "Session",
+            "NativeRef",
+            "ConsumerRef",
+            "Fence",
+            "Reservation",
+            "SourceLimits",
+            "DecodeLimits",
+            "WireLimits",
+            "Limits",
+            "Admit",
+            "SourceAdmission",
+            "UploadPut",
+            "UploadAck",
+            "SealRequest",
+            "Seal",
+            "SourcePTS",
+            "CapturePut",
+            "CaptureAck",
+            "PacketHeader",
+            "ASRSession",
+            "ASRFeed",
+            "ASRFinish",
+            "Error",
+        )
+    }
+    # Decoder descriptions are another exact additive family. Their separate
+    # 69-schema pin must not change which original184 bytes are verified here.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "CodePin",
+            "AssetPin",
+            "Runtime",
+            "AudioFormat",
+            "ImageFormat",
+            "ClipFormat",
+            "Transform",
+            "ProbeTrack",
+            "ProbeResult",
+            "DecoderProtocol",
+            "DecoderProfile",
+            "Track",
+            "CaptureOffer",
+            "CaptureReady",
+            "DecodeReady",
+            "Segment",
+            "DecodeRequest",
+            "TrackEnd",
+            "DecodeEnd",
+            "DecodeResponse",
+            "InputEnd",
+            "DecodeBudget",
+            "Format",
+        )
+    }
+    # Session ownership/auth schemas are an exact additive 87-schema family.
+    # Preserve the original184 aggregate; the reviewed manifest is 29 x 3 names.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "AnalyzeTaskAnchor",
+            "AnchorAdmission",
+            "Child",
+            "ChildOwner",
+            "ChildOwnerAppend",
+            "CleanupReceipt",
+            "ClientPlaybackPeer",
+            "Control",
+            "DeleteReceipt",
+            "DeleteRequest",
+            "ExternalTransportPeer",
+            "KeyLookup",
+            "LegacyTaskBody",
+            "LocalExchangeCleanup",
+            "LocalProcessPeer",
+            "Lookup",
+            "NativeTaskPeer",
+            "OwnedWorkerPeer",
+            "OwnerMediaObjective",
+            "OwnerObjective",
+            "OwnerTextObjective",
+            "Peer",
+            "ProcessIdentity",
+            "Status",
+            "StatusAppend",
+            "TaskProof",
+            "TaskProofRequest",
+            "WorkerCleanup",
+            "WorkerCleanupAppend",
+        )
+    }
+    # The versioned decoder handshake is an exact additive nine-record family.
+    # Keep the old69 byte pin and this original184 aggregate unchanged.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "DecoderProtocolV2",
+            "DecoderProfileV2",
+            "ProbeClock",
+            "ProbeObservation",
+            "DecodeSelection",
+            "DecodeTrackCursor",
+            "DecodeOpenPlan",
+            "DecodeRequestV2",
+            "DecodeResponseV2",
+        )
+    }
+    # These seven history records and the explicitly named MediaRange family
+    # are additive; keep every original184 schema byte in its pinned aggregate.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "Disclosure",
+            "Consumer",
+            "Blob",
+            "TrackRange",
+            "Unit",
+            "ManifestPage",
+            "ManifestSeal",
+        )
+    }
+    additive |= {"MediaRange", "MediaReceiptMediaRange", "MediaFoundMediaRange"}
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:
