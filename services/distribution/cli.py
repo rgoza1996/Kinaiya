@@ -154,6 +154,29 @@ def configure(commands):
     uninstall.add_argument(
         "--confirm-data-deletion", help="Must be DELETE to authorize data/config/cache deletion"
     )
+    auth_parser = commands.add_parser(
+        "auth", help="Manage owner credentials without exposing secret values"
+    )
+    auth_subcommands = auth_parser.add_subparsers(dest="auth_command", required=True)
+    rotate_owner = auth_subcommands.add_parser(
+        "rotate-owner",
+        help="Atomically rotate the owner bearer credential and revoke prior owner sessions",
+    )
+    rotate_owner.add_argument(
+        "--yes", action="store_true", help="Confirm owner credential rotation and revocation"
+    )
+    rotate_owner.add_argument(
+        "--data-dir",
+        dest="auth_data_dir",
+        type=Path,
+        help="Private data directory containing service-tokens.json",
+    )
+    rotate_owner.add_argument(
+        "--expected-epoch",
+        dest="expected_owner_epoch",
+        type=int,
+        help="Require current owner_epoch to match before rotating",
+    )
 
 
 def chosen_layout(home: Path | None = None):
@@ -245,6 +268,22 @@ def confirm(yes, message, *, pre_consented=False):
     raise InstallError("Cancelled; use --yes only after reviewing the plan")
 
 
+def confirm_owner_rotation(yes, target_dir):
+    if yes:
+        return
+    try:
+        with open_terminal() as tty:
+            tty.write(
+                f"Rotate owner credential in {target_dir} and revoke active owner sessions? (y/n) [n]: "
+            )
+            tty.flush()
+            if tty.readline().strip().lower() in {"y", "yes"}:
+                return
+    except OSError:
+        pass
+    raise InstallError("Cancelled; use --yes to confirm owner credential rotation")
+
+
 def _invoking_directory() -> Path | None:
     env_pwd = os.environ.get("KINAIYA_INVOKING_PWD", "").strip()
     if env_pwd:
@@ -300,6 +339,28 @@ def print_command_result(args, result):
 
 
 def dispatch(args):
+    if args.command == "auth":
+        if getattr(args, "auth_command", None) != "rotate-owner":
+            raise InstallError("Unsupported auth command")
+        from services.common.auth import CredentialRotationError, rotate_owner_token
+
+        target_dir = getattr(args, "auth_data_dir", None)
+        if target_dir is None:
+            launcher_data_dir = getattr(args, "data_dir", None)
+            if launcher_data_dir is not None and (
+                not os.environ.get("KINAIYA_INSTALL_ROOT") or launcher_data_dir != Path("data")
+            ):
+                target_dir = launcher_data_dir
+            else:
+                target_dir = chosen_layout().data
+        confirm_owner_rotation(getattr(args, "yes", False), target_dir)
+        try:
+            return rotate_owner_token(
+                target_dir,
+                expected_owner_epoch=getattr(args, "expected_owner_epoch", None),
+            )
+        except (CredentialRotationError, PermissionError, FileNotFoundError, ValueError) as exc:
+            raise InstallError(str(exc)) from None
     if args.command == "doctor":
         from services.distribution.doctor import run_doctor
 

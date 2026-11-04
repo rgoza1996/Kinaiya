@@ -870,7 +870,9 @@ def create_app(
             hello = await asyncio.wait_for(ws.receive_json(), timeout=5)
             if type(hello) is not dict:
                 raise ValueError("Invalid event handshake")
-            auth.authenticate(hello.get("token", ""))
+            token = hello.get("token", "")
+            role = auth.authenticate(token)
+            initial_epoch = getattr(auth, "owner_epoch", 1)
             if "media" in hello:
                 if media_owner is None or not media_initialized:
                     await ws.close(code=1008)
@@ -881,7 +883,20 @@ def create_app(
                 return
             after = int(hello.get("after", 0))
             session_id = hello.get("session_id")
-            await serve_legacy_events(ws, store, after=after, session_id=session_id)
+
+            def _check_owner_epoch():
+                if role == "owner":
+                    auth.authenticate(token)
+                    if getattr(auth, "owner_epoch", 1) != initial_epoch:
+                        raise HTTPException(401, "Owner credential rotated")
+
+            await serve_legacy_events(
+                ws,
+                store,
+                after=after,
+                session_id=session_id,
+                before_poll=_check_owner_epoch,
+            )
         except (WebSocketDisconnect, TimeoutError, HTTPException, ValueError):
             await ws.close(code=1008)
 
