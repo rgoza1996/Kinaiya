@@ -1,6 +1,5 @@
 """Local Ming 3 Tiny buffered GPU TTS adapter with pinned asset and runtime verification."""
 
-from contextlib import contextmanager
 import errno
 import hashlib
 import inspect
@@ -11,6 +10,7 @@ import os
 import stat
 import struct
 import wave
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -212,9 +212,7 @@ def verify_ming3_assets(model_dir: str | Path | None, manifest: dict[str, Any] =
         _verify_file(root / legal_file, legal_sha256)
 
     allowed_shards = {
-        asset["path"]
-        for asset in manifest["assets"]
-        if str(asset["path"]).endswith(".safetensors")
+        asset["path"] for asset in manifest["assets"] if str(asset["path"]).endswith(".safetensors")
     }
     raw_index_bytes: bytes | None = None
 
@@ -261,11 +259,11 @@ def validate_ming3_request(
 
 
 def _extract_ming3_raw_model(runtime: Any) -> Any:
-    if hasattr(runtime, "model") and getattr(runtime, "model") is not None:
-        return getattr(runtime, "model")
+    if hasattr(runtime, "model") and runtime.model is not None:
+        return runtime.model
     engine = getattr(runtime, "engine", None)
     if engine is not None and getattr(engine, "model", None) is not None:
-        return getattr(engine, "model")
+        return engine.model
     return runtime
 
 
@@ -494,9 +492,7 @@ class Ming3TinyBackend:
         try:
             sig = inspect.signature(generate_fn)
             params = sig.parameters
-            accepts_var_kw = any(
-                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
-            )
+            accepts_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
         except (TypeError, ValueError):
             params = {}
             accepts_var_kw = True

@@ -1,16 +1,16 @@
 """Deterministic unit and worker integration tests for Ming 3 Tiny TTS (#72)."""
 
 import copy
-from dataclasses import dataclass
 import hashlib
 import io
 import json
 import struct
 import sys
 import threading
-from types import SimpleNamespace
 import wave
+from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
