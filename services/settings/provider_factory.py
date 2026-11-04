@@ -79,6 +79,7 @@ def declaration_info(config):
     return ProviderInfo(
         provider={
             "compatible": "openai-compatible",
+            "measured_chat": "openai-compatible",
             "meta_stt": "meta",
             "openrouter_tts": "openrouter",
         }.get(kind, kind),
@@ -102,6 +103,10 @@ def _recipe(catalog, binding, reasoning, role="agent"):
         if reasoning not in {None, "none"}:
             raise ValueError("LM Studio measured text supports reasoning none only")
         effort = "none"
+    elif kind == "measured_chat":
+        if role != "converse" or reasoning not in {None, *EFFORTS}:
+            raise ValueError("Measured chat is available only for Converse text")
+        effort = config["reasoning_effort"] if reasoning is None else reasoning
     elif kind == "meta":
         if config["context_tokens"] is None or reasoning not in {None, *EFFORTS}:
             label = "Agent" if role == "agent" else "Converse"
@@ -198,6 +203,20 @@ def open_captured_recipe(
             reasoning_effort="none",
             pin_complete_identity=True,
             **({"pre_generation_proofs": True} if pre_generation_proofs else {}),
+        )
+    elif config["kind"] == "measured_chat":
+        if role != "converse" or auxiliary or pre_generation_proofs:
+            raise ValueError("Measured chat is available only for Converse text")
+        from packages.providers.measured_chat import MeasuredChatProvider
+
+        provider = MeasuredChatProvider(
+            config["base_url"],
+            config["model"],
+            context_tokens=config["context_tokens"],
+            api_key=key or "",
+            max_tokens=config["max_tokens"],
+            reasoning_effort=recipe.reasoning,
+            timeout=config["timeout_s"],
         )
     else:
         from packages.providers.text import MetaResponsesProvider
