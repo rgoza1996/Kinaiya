@@ -597,3 +597,4 @@ require('./presentation_bridge.cases.js');
 
 // Keep independent import-activation checks in the existing CI entry point.
 require('./audio_import_activation.test.js');
+require('./audio_output_selection.test.js');

@@ -239,7 +239,12 @@ class ConverseRuntime:
         self.model_settings = None
         self._model_options_unavailable = False
         self._model_preparing = set()
-        self._model_operations_extra = lambda: {"windows": 0, "stt": 0, "stt_cleanup": 0}
+        self._model_operations_extra = lambda: {
+            "windows": 0,
+            "stt": 0,
+            "stt_cleanup": 0,
+            "native_audio": 0,
+        }
         self.stt_model_settings = None
         self._stt_options_configured = False
         self._stt_options_unavailable = False

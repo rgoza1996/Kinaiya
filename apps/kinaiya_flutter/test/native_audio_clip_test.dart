@@ -103,6 +103,7 @@ JournalEntry output({String sourceId = 'source-one', bool native = true}) =>
 
 NativeAudioClipOwner owner(Object client) => NativeAudioClipOwner(
   client: client,
+  contentScope: ContentScope.publicSynthetic,
   connectionGeneration: 2,
   sourceGeneration: 7,
   session: session(),

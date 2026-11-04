@@ -23,7 +23,8 @@ class _WebSpeechAudio
         SpeechAudio,
         WindowSpeechAudio,
         SpeechMouthAudio,
-        AdaptiveVadAudio {
+        AdaptiveVadAudio,
+        AudioOutputSelection {
   bool get _ready => _bridge != null;
 
   @override
@@ -85,6 +86,108 @@ class _WebSpeechAudio
 
   Future<String> _str0(String name) async => _strOf(_call0(name));
   Future<String> _str1(String name, JSAny a) async => _strOf(_call1(name, a));
+
+  bool _hasMethod(String name) {
+    final method = _bridge?.getProperty<JSAny?>(name.toJS);
+    return method != null && method.isA<JSFunction>();
+  }
+
+  @override
+  Future<List<AudioOutputDevice>> audioOutputs() async {
+    if (!_ready || !_hasMethod('outputDevices')) {
+      throw StateError('Audio output selection unavailable');
+    }
+    try {
+      final raw = jsonDecode(await _str0('outputDevices'));
+      if (raw is! Map ||
+          raw['supported'] != true ||
+          raw['status'] != 'ready' ||
+          raw['pending'] != false ||
+          raw['failed'] != false) {
+        throw StateError('Audio output selection unavailable');
+      }
+      final devices = raw['devices'];
+      if (devices is! List || devices.length > 128) {
+        throw StateError('Audio output selection unavailable');
+      }
+      final result = <AudioOutputDevice>[];
+      final ids = <String>{};
+      for (final device in devices) {
+        if (device is! Map ||
+            device['id'] is! String ||
+            (device['id'] as String).isEmpty ||
+            (device['id'] as String).length > 4096 ||
+            device['label'] is! String ||
+            (device['label'] as String).length > 4096 ||
+            device['selected'] is! bool ||
+            !ids.add(device['id'] as String)) {
+          throw StateError('Audio output selection unavailable');
+        }
+        result.add(
+          AudioOutputDevice(
+            opaqueId: device['id'] as String,
+            label: device['label'] as String,
+            selected: device['selected'] as bool,
+          ),
+        );
+      }
+      return List<AudioOutputDevice>.unmodifiable(result);
+    } catch (_) {
+      throw StateError('Audio output selection unavailable');
+    }
+  }
+
+  Future<String> _outputResult(Future<String> original) async {
+    try {
+      final raw = jsonDecode(await original);
+      const statuses = {
+        'selected',
+        'default',
+        'cancelled',
+        'busy',
+        'unavailable',
+        'invalid',
+        'stopped',
+        'failed',
+      };
+      if (raw is Map && raw.length == 1 && statuses.contains(raw['status'])) {
+        return raw['status'] as String;
+      }
+    } catch (_) {}
+    return 'unavailable';
+  }
+
+  @override
+  Future<String> selectAudioOutput(String opaqueId) {
+    if (!_ready || !_hasMethod('selectOutput')) {
+      return Future.value('unavailable');
+    }
+    if (opaqueId.isEmpty || opaqueId.length > 4096) {
+      return Future.value('invalid');
+    }
+    return _outputResult(_str1('selectOutput', opaqueId.toJS));
+  }
+
+  @override
+  Future<String> chooseAudioOutput() {
+    if (!_ready || !_hasMethod('chooseOutput')) {
+      return Future.value('unavailable');
+    }
+    // Dispatch the picker directly in this non-async owner gesture handler.
+    try {
+      return _outputResult(_strOf(_call0('chooseOutput')));
+    } catch (_) {
+      return Future.value('unavailable');
+    }
+  }
+
+  @override
+  Future<String> useDefaultAudioOutput() {
+    if (!_ready || !_hasMethod('defaultOutput')) {
+      return Future.value('unavailable');
+    }
+    return _outputResult(_str0('defaultOutput'));
+  }
 
   @override
   Future<bool> get availableMic async {

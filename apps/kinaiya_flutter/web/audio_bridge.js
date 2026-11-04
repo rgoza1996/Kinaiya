@@ -43,6 +43,7 @@
     events: [],
     micGeneration: 0,
     generation: 0, // bumped by stopAudio/dispose; invalidates pending queuePcm.
+    output: { revision: 0, listing: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
     waiters: [], // pending awaitPlayback resolvers.
     armed: false,
     clip: { recording: false, startMs: 0 },
@@ -163,20 +164,195 @@
     return '';
   }
 
-  function ensureContext(sampleRate) {
+  function audioContext(sampleRate) {
     if (!state.ctx) {
       var AC =
         typeof window !== 'undefined' &&
         (window.AudioContext || window.webkitAudioContext);
-      if (!AC) return Promise.reject(new Error('Web audio unavailable'));
+      if (!AC) throw new Error('Web audio unavailable');
       state.ctx = new AC({ sampleRate: sampleRate || 24000 });
+      var original = state.ctx;
+      if (typeof original.addEventListener === 'function') {
+        original.addEventListener('sinkchange', function () {
+          if (state.ctx === original && !state.output.pending && !outputMatches(original)) {
+            failOutput();
+          }
+        });
+      }
     }
+    return state.ctx;
+  }
+
+  function ensureContext(sampleRate) {
+    try { audioContext(sampleRate); }
+    catch (e) { return Promise.reject(e); }
     if (state.ctx.state === 'suspended') {
       return state.ctx.resume().then(function () {
         return state.ctx;
       });
     }
     return Promise.resolve(state.ctx);
+  }
+
+  function outputEnvironment() {
+    var nav = typeof navigator !== 'undefined' ? navigator : window && window.navigator;
+    var AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
+    var sink = state.ctx ? typeof state.ctx.setSinkId === 'function' :
+      !!(AC && AC.prototype && typeof AC.prototype.setSinkId === 'function');
+    return { media: nav && nav.mediaDevices,
+      supported: !!(sink && nav && nav.mediaDevices &&
+        typeof nav.mediaDevices.enumerateDevices === 'function' && window.isSecureContext !== false),
+      picker: !!(nav && nav.mediaDevices && typeof nav.mediaDevices.selectAudioOutput === 'function') };
+  }
+
+  function explicitOutput() {
+    return state.output.selected !== null && state.output.selected !== '';
+  }
+
+  function outputMatches(ctx) {
+    if (state.output.failed) return false;
+    return state.output.selected === null ||
+      (typeof ctx.sinkId === 'string' && ctx.sinkId === state.output.selected);
+  }
+
+  function failOutput() {
+    state.output.failed = true;
+    // This is a playback stop request, not a physical delivery acknowledgment.
+    api.stopAudio();
+    pushEvent({ type: 'audio_output', status: 'unavailable' });
+  }
+
+  function watchOutputs(media) {
+    if (state.output.watching || !media || typeof media.addEventListener !== 'function') return;
+    state.output.watching = true;
+    media.addEventListener('devicechange', function () {
+      // A topology change needs a fresh explicit choice. Never silently fall
+      // back from an explicitly selected recording/speaker device.
+      if (explicitOutput() || state.output.pending) failOutput();
+      state.output.devices = [];
+    });
+  }
+
+  function checkedOutputs(raw) {
+    if (!Array.isArray(raw) || raw.length > 128) throw new Error('Output devices unavailable');
+    var result = [], ids = new Set();
+    for (var i = 0; i < raw.length; i++) {
+      var device = raw[i];
+      if (!device || device.kind !== 'audiooutput') continue;
+      if (typeof device.deviceId !== 'string' || !device.deviceId.length || device.deviceId.length > 4096 ||
+          typeof device.label !== 'string' || device.label.length > 4096 || ids.has(device.deviceId)) {
+        throw new Error('Output devices unavailable');
+      }
+      ids.add(device.deviceId);
+      result.push({ id: device.deviceId, label: device.label || 'Audio output' });
+    }
+    return result;
+  }
+
+  function outputListing(status) {
+    var env = outputEnvironment(), out = state.output;
+    return JSON.stringify({ status: status, supported: env.supported, picker: env.supported && env.picker,
+      pending: !!out.pending, explicit: explicitOutput(), failed: out.failed,
+      devices: out.devices.map(function (device) {
+        return { id: device.id, label: device.label,
+          selected: !out.failed && !!state.ctx && outputMatches(state.ctx) && out.selected === device.id };
+      }) });
+  }
+
+  function listOutputs() {
+    var env = outputEnvironment(), out = state.output;
+    if (!env.supported) {
+      out.devices = [];
+      if (explicitOutput()) failOutput();
+      return Promise.resolve(outputListing('unavailable'));
+    }
+    watchOutputs(env.media);
+    var listing = ++out.listing, revision = out.revision;
+    return Promise.resolve().then(function () { return env.media.enumerateDevices(); }).then(function (raw) {
+      var devices = checkedOutputs(raw);
+      if (listing !== out.listing || revision !== out.revision) return outputListing('stopped');
+      out.devices = devices;
+      if (!out.pending && explicitOutput() && (!devices.some(function (d) { return d.id === out.selected; }) ||
+          !state.ctx || !outputMatches(state.ctx))) failOutput();
+      return outputListing('ready');
+    }).catch(function () {
+      if (listing === out.listing && revision === out.revision) {
+        out.devices = [];
+        if (explicitOutput()) failOutput();
+      }
+      return outputListing('unavailable');
+    });
+  }
+
+  function outputResult(status) { return JSON.stringify({ status: status }); }
+
+  function changeOutput(kind, id) {
+    var out = state.output, env = outputEnvironment();
+    if (out.pending || state.sources.length) return Promise.resolve(outputResult('busy'));
+    if (!env.supported || (kind === 'choose' && !env.picker)) return Promise.resolve(outputResult('unavailable'));
+    if (kind === 'select' && (typeof id !== 'string' || !id.length || id.length > 4096)) return Promise.resolve(outputResult('invalid'));
+    var ctx;
+    try { ctx = audioContext(24000); }
+    catch (e) { return Promise.resolve(outputResult('unavailable')); }
+    if (typeof ctx.setSinkId !== 'function' || typeof ctx.sinkId !== 'string') return Promise.resolve(outputResult('unavailable'));
+    watchOutputs(env.media);
+    var op = { revision: ++out.revision, generation: state.generation, ctx: ctx,
+      dispatched: false, promise: null };
+    out.pending = op;
+    ++out.listing; // Older enumeration cannot replace this choice's snapshot.
+    function current() {
+      return out.pending === op && out.revision === op.revision && state.generation === op.generation && state.ctx === ctx;
+    }
+    var chosen;
+    try {
+      // Invoke the browser picker in the owner's original gesture, before an
+      // await. Device IDs are never accepted from a server or persisted.
+      chosen = kind === 'choose' ? env.media.selectAudioOutput() : Promise.resolve(null);
+    } catch (e) { chosen = Promise.reject(e); }
+    op.promise = Promise.resolve(chosen).then(function (device) {
+      if (!current()) return 'stopped';
+      if (kind === 'default') return '';
+      if (kind === 'choose') {
+        if (!device || device.kind !== 'audiooutput' || typeof device.deviceId !== 'string' ||
+            !device.deviceId.length || device.deviceId.length > 4096) return null;
+        id = device.deviceId;
+      }
+      return Promise.resolve(env.media.enumerateDevices()).then(function (raw) {
+        var devices = checkedOutputs(raw);
+        if (!current()) return null;
+        out.devices = devices;
+        return devices.some(function (d) { return d.id === id; }) ? id : null;
+      });
+    }).then(function (target) {
+      if (!current()) return 'stopped';
+      if (target === null) return 'invalid';
+      // Fresh native discovery established this intent. A failed/mismatched
+      // setSinkId must retain it as failed, never fall back to the old route.
+      out.selected = target;
+      op.dispatched = true;
+      return Promise.resolve(ctx.setSinkId(target)).then(function () {
+        if (!current()) {
+          if (state.ctx === ctx) out.failed = true;
+          return 'stopped';
+        }
+        if (ctx.sinkId !== target) { out.failed = true; return 'failed'; }
+        out.selected = target;
+        out.failed = false;
+        return target === '' ? 'default' : 'selected';
+      });
+    }).catch(function (error) {
+      if (state.ctx === ctx && op.dispatched) out.failed = true;
+      if (!current()) return 'stopped';
+      if (!op.dispatched && kind === 'choose' && error &&
+          (error.name === 'AbortError' || error.name === 'NotAllowedError')) return 'cancelled';
+      return op.dispatched ? 'failed' : 'unavailable';
+    }).then(function (status) {
+      // A held browser operation retains its slot through stop/dispose. A
+      // timeout in an observing UI cannot authorize a replacement operation.
+      if (out.pending === op) out.pending = null;
+      return outputResult(status);
+    });
+    return op.promise;
   }
 
   function pushEvent(e) {
@@ -521,6 +697,10 @@
   }
 
   var api = {
+    outputDevices: listOutputs,
+    selectOutput: function (id) { return changeOutput('select', id); },
+    chooseOutput: function () { return changeOutput('choose'); },
+    defaultOutput: function () { return changeOutput('default'); },
     chooseRecording: function () {
       // Resume playback in the import gesture, before the file picker and
       // asynchronous upload consume browser activation. This opens no mic or
@@ -631,8 +811,10 @@
       // so a stop issued while suspended invalidates this entry and no
       // stale source is ever started.
       var gen = state.generation;
+      var outputRevision = state.output.revision;
+      if (state.output.pending || state.output.failed) return Promise.resolve('stopped');
       return ensureContext(sampleRate || 24000).then(function (ctx) {
-        if (gen !== state.generation || ctx.state !== 'running') return 'stopped';
+        if (gen !== state.generation || outputRevision !== state.output.revision || ctx.state !== 'running' || state.output.pending || !outputMatches(ctx)) return 'stopped';
         var bin;
         try {
           bin =
@@ -654,11 +836,15 @@
         }
         // Re-check after every await: a stop may have landed while the
         // context was resuming or the buffer was decoded.
-        if (gen !== state.generation) return 'stopped';
+        if (gen !== state.generation || outputRevision !== state.output.revision || state.ctx !== ctx || state.output.pending || !outputMatches(ctx)) return 'stopped';
         var src = ctx.createBufferSource();
         src.buffer = buf;
         src.connect(ctx.destination);
         var start = Math.max(ctx.currentTime, state.queueTime);
+        if (gen !== state.generation || outputRevision !== state.output.revision || state.ctx !== ctx || state.output.pending || !outputMatches(ctx)) {
+          try { src.disconnect(); } catch (e) { /* Never started. */ }
+          return 'stopped';
+        }
         try {
           src.start(start);
         } catch (e) {
@@ -782,6 +968,11 @@
     },
 
     dispose: function () {
+      state.output.revision++;
+      state.output.listing++;
+      state.output.devices = [];
+      state.output.selected = null;
+      state.output.failed = false;
       try {
         api.cancelMic();
       } catch (e) {

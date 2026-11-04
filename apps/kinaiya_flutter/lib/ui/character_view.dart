@@ -457,6 +457,104 @@ class _CharacterViewState extends State<CharacterView> {
   String? _vadNotice;
   int _vadChange = 0;
   final _voiceOptionsUpdates = ValueNotifier<int>(0);
+  Future<void>? _audioOutputOperation;
+  List<AudioOutputDevice>? _audioOutputs = const [];
+  String? _audioOutputNotice;
+  Timer? _audioOutputTimer;
+
+  AudioOutputSelection? get _outputAudio =>
+      _audio is AudioOutputSelection ? _audio as AudioOutputSelection : null;
+
+  Future<void> _changeAudioOutput({
+    String? id,
+    bool choose = false,
+    bool useDefault = false,
+  }) {
+    final adapter = _outputAudio;
+    if (adapter == null || _audioOutputOperation != null || !mounted) {
+      return Future.value();
+    }
+    // Dispatch the genuine browser picker directly in the owner's gesture.
+    // No capability query or await may consume activation first.
+    Future<String>? selection;
+    try {
+      if (choose) {
+        selection = adapter.chooseAudioOutput();
+      } else if (useDefault) {
+        selection = adapter.useDefaultAudioOutput();
+      } else if (id != null) {
+        selection = adapter.selectAudioOutput(id);
+      }
+    } catch (_) {
+      selection = Future.value('unavailable');
+    }
+    // Attach the error observer before yielding: an immediately rejected
+    // adapter future must not escape into the UI's uncaught-error handler.
+    final original = selection?.then<String>(
+      (status) => status,
+      onError: (Object error, StackTrace stack) => 'unavailable',
+    );
+    late final Future<void> operation;
+    operation = () async {
+      // This first yield lets the owner retain the operation before settlement.
+      await Future<void>.value();
+      try {
+        final status = original == null ? null : await original;
+        if (!mounted) return;
+        if (status != null) {
+          _audioOutputNotice = switch (status) {
+            'selected' => 'Audio output selected for this session.',
+            'default' => 'This session uses the system default audio output.',
+            'cancelled' => 'Audio output selection cancelled.',
+            'busy' => 'Finish playback or the pending output change first.',
+            'stopped' => 'Audio output selection was not confirmed.',
+            _ =>
+              'Audio output selection is unavailable. Refresh devices or choose an output.',
+          };
+          if (status != 'selected' && status != 'default') {
+            if (status != 'busy' && status != 'cancelled') {
+              _audioOutputs = const [];
+            }
+            return;
+          }
+          if (status == 'selected' || status == 'default') {
+            _audioOutputTimer?.cancel();
+            _audioOutputTimer = status == 'selected'
+                ? Timer.periodic(const Duration(seconds: 1), (_) {
+                    if (mounted && _audioOutputOperation == null) {
+                      unawaited(_changeAudioOutput());
+                    }
+                  })
+                : null;
+          }
+        }
+        // Keep the same slot through discovery. An observer never times out
+        // an original browser future and starts another operation over it.
+        final devices = await adapter.audioOutputs();
+        if (!mounted) return;
+        _audioOutputs = devices;
+        if (status == null && _audioOutputNotice == null) {
+          _audioOutputNotice = 'Available audio outputs refreshed.';
+        }
+      } catch (_) {
+        if (mounted) {
+          _audioOutputs = null;
+          _audioOutputNotice =
+              'Audio output is unconfirmed. Refresh devices or choose an output.';
+          _audioOutputTimer?.cancel();
+          _audioOutputTimer = null;
+        }
+      } finally {
+        if (identical(_audioOutputOperation, operation)) {
+          _audioOutputOperation = null;
+          if (mounted) _voiceOptionsUpdates.value++;
+        }
+      }
+    }();
+    _audioOutputOperation = operation;
+    _voiceOptionsUpdates.value++;
+    return operation;
+  }
 
   AdaptiveVadAudio? get _adaptiveAudio =>
       _audio is AdaptiveVadAudio &&
@@ -537,6 +635,29 @@ class _CharacterViewState extends State<CharacterView> {
         vadSettings: _adaptiveAudio == null ? null : _vadSettings,
         busy: _vadBusy,
         notice: _vadNotice,
+        audioOutputs: _outputAudio == null ? null : _audioOutputs,
+        audioOutputBusy: _audioOutputOperation != null,
+        audioOutputNotice: _audioOutputNotice,
+        onChooseAudioOutput: _outputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioOutput(choose: true));
+              },
+        onDefaultAudioOutput: _outputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioOutput(useDefault: true));
+              },
+        onRefreshAudioOutputs: _outputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioOutput());
+              },
+        onAudioOutputSelected: _outputAudio == null
+            ? null
+            : (id) {
+                if (current()) unawaited(_changeAudioOutput(id: id));
+              },
         onVadChanged: (settings) {
           if (current()) unawaited(_changeVad(settings: settings));
         },
@@ -679,6 +800,7 @@ class _CharacterViewState extends State<CharacterView> {
     _dismissTextConversation();
     _detachSettingsControls();
     _pollTimer?.cancel();
+    _audioOutputTimer?.cancel();
     _mouthTimer?.cancel();
     _mouthGeneration++;
     _noticeSubscription?.cancel();
@@ -727,6 +849,7 @@ class _CharacterViewState extends State<CharacterView> {
       _s.nativeAudio.available &&
       _converseAvailable &&
       _s.converseCanInfer &&
+      _s.converseCanDisclose(owner.contentScope) &&
       owner.current(
         currentClient: _s.client,
         connection: _s.connectionGeneration,
@@ -737,6 +860,26 @@ class _CharacterViewState extends State<CharacterView> {
 
   bool _nativeOutputCurrent(JournalEntry entry, NativeAudioClipOwner? owner) =>
       owner != null && _nativeClipCurrent(owner) && owner.ownsReply(entry);
+
+  void _showNativeNotice(NativeAudioClipOwner owner, NativeAudioNotice notice) {
+    if (!_nativeClipCurrent(owner) || owner.hasReply) return;
+    if (notice.terminal) {
+      // This ends only this local reply wait, never backend work or Agent work.
+      setState(() {
+        _nativeClipOwner = null;
+        if (!_speaking) _mood = 'idle';
+      });
+      _s.busyConverse = false;
+    }
+    _s.appendHistory(
+      AppView.character,
+      ChatMsg(
+        role: 'system',
+        text: notice.message,
+        note: 'Native audio status',
+      ),
+    );
+  }
 
   void _clearWindows() {
     _pendingWindow = null;
@@ -762,6 +905,17 @@ class _CharacterViewState extends State<CharacterView> {
 
   Future<void> _onWindowEvent(JournalEntry entry) async {
     final nativeOwner = _nativeClipOwner;
+    if (nativeOwner != null &&
+        _nativeClipCurrent(nativeOwner) &&
+        nativeOwner.statusCandidate(entry)) {
+      if (!nativeOwner.admitted) {
+        nativeOwner.deferStatus(entry);
+        return;
+      }
+      final notice = nativeOwner.observeStatus(entry);
+      if (notice != null) _showNativeNotice(nativeOwner, notice);
+      return;
+    }
     var nativeOutput =
         nativeOwner != null &&
         _nativeClipCurrent(nativeOwner) &&
@@ -1795,6 +1949,7 @@ class _CharacterViewState extends State<CharacterView> {
         utteranceId: const Uuid().v4(),
         requestId: const Uuid().v4(),
         turnNonce: nonce,
+        contentScope: scope,
       );
       // Register before dispatch: polling may observe the response before POST returns.
       _nativeClipOwner = owner;
@@ -1833,13 +1988,33 @@ class _CharacterViewState extends State<CharacterView> {
           ),
         );
       }
-      for (final entry in owner.takePending()) {
+      final pending = owner.takePending();
+      // A newer exact reply wins over an earlier deferred terminal observation.
+      // Binding changes no playback state and remains behind exact admission.
+      for (final entry in pending) {
+        if (!_nativeClipCurrent(owner)) break;
+        if (owner.accepts(entry)) owner.bindReply(entry);
+      }
+      if (_nativeClipCurrent(owner) &&
+          owner.statusOverflowed &&
+          owner.markNotice(NativeAudioNotice.unconfirmed)) {
+        _showNativeNotice(owner, NativeAudioNotice.unconfirmed);
+      }
+      for (final entry in pending) {
         if (!_nativeClipCurrent(owner)) break;
         await _onWindowEvent(entry);
       }
       unawaited(_s.refreshNotices());
     } catch (_) {
       if (mounted && (owner == null ? current() : _nativeClipCurrent(owner))) {
+        if (owner != null && !owner.admitted) {
+          // A failed/lost ACK cannot prove that the original window was absent.
+          // Keep its non-playable quarantine until explicit local owner Stop.
+          if (owner.markNotice(NativeAudioNotice.admissionUnknown)) {
+            _showNativeNotice(owner, NativeAudioNotice.admissionUnknown);
+          }
+          return;
+        }
         _nativeClipOwner = null;
         await _stopLocalPlayback();
         if (mounted && _s.ownsConnection(connection, api)) {
