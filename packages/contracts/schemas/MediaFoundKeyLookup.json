@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "MediaKeyLookup": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "source",
+            "upload_ack",
+            "capture_ack",
+            "seal",
+            "capture_ready",
+            "decode_ready",
+            "decode_end",
+            "decode_budget",
+            "input_end",
+            "task_proof",
+            "anchor",
+            "owner_arming",
+            "arming_revocation",
+            "utterance_lineage",
+            "intent",
+            "consumer",
+            "range",
+            "blob",
+            "record",
+            "manifest_page",
+            "manifest_seal",
+            "word_page",
+            "alignment_page",
+            "speaker",
+            "derived_source",
+            "reply",
+            "native_duplex_timing",
+            "decision",
+            "evidence",
+            "text_bridge",
+            "admission_request",
+            "action",
+            "native_admission",
+            "dependency_head",
+            "delivery",
+            "apply_head",
+            "agent_owner",
+            "dispatcher_owner",
+            "agent_observation",
+            "dispatcher_observation",
+            "delivery_retirement",
+            "admission_retirement",
+            "supervisor",
+            "asr",
+            "asr_backend_state",
+            "stream_entry",
+            "producer_set_page",
+            "publication_plan",
+            "producer_watermark",
+            "watermark_page",
+            "stream_seal",
+            "stream_snapshot",
+            "local_exchange_owner",
+            "local_close_observation",
+            "remote_liability",
+            "child_owner",
+            "cleanup",
+            "status",
+            "delete",
+            "check",
+            "qualification_summary",
+            "artifact"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "kind",
+        "key",
+        "request_sha256"
+      ],
+      "title": "MediaKeyLookup",
+      "type": "object"
+    },
+    "MediaReceipt_MediaKeyLookup_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaKeyLookup"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaKeyLookup]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaKeyLookup_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaKeyLookup]",
+  "type": "object"
+}

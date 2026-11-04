@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "codec": {
+      "enum": [
+        "png",
+        "mjpeg"
+      ],
+      "title": "Codec",
+      "type": "string"
+    },
+    "container": {
+      "enum": [
+        "png",
+        "jpeg"
+      ],
+      "title": "Container",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "image",
+        "video_frame"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "pixel_format": {
+      "const": "rgb24",
+      "title": "Pixel Format",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "container",
+    "codec",
+    "pixel_format"
+  ],
+  "title": "MediaImageFormat",
+  "type": "object"
+}

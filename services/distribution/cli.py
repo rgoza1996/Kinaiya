@@ -15,8 +15,10 @@ from packages.distribution.releases import (
     verify_artifact,
 )
 from services.distribution.installation import (
+    SUPPORTED_ROLE_ADAPTERS,
     InstallError,
     Layout,
+    apt_simulation_command,
     current_receipt,
     dependency_install_command,
     install_missing_dependencies,
@@ -43,11 +45,37 @@ def configure(commands):
         "setup", help="Configure Agent without starting work or voice"
     )
     setup_parser.add_argument("--yes", action="store_true")
+    setup_mode = setup_parser.add_mutually_exclusive_group()
+    setup_mode.add_argument(
+        "--quick",
+        action="store_true",
+        help="Minimal first-run setup using safe default workspace and data paths",
+    )
+    setup_mode.add_argument(
+        "--advanced",
+        action="store_true",
+        help="Full setup including custom host paths and per-role adapters",
+    )
     setup_parser.add_argument("--endpoint")
     setup_parser.add_argument("--model")
+    setup_parser.add_argument("--adapter", choices=SUPPORTED_ROLE_ADAPTERS["agent"], default=None)
     setup_parser.add_argument("--credential-env")
     setup_parser.add_argument("--allow-cloud", action="store_true")
     setup_parser.add_argument("--converse", action="store_true")
+    setup_parser.add_argument(
+        "--converse-adapter", choices=SUPPORTED_ROLE_ADAPTERS["converse"], default=None
+    )
+    setup_parser.add_argument("--converse-endpoint", default=None)
+    setup_parser.add_argument("--converse-model", default=None)
+    setup_parser.add_argument("--converse-credential-env", default=None)
+    setup_parser.add_argument("--converse-allow-cloud", action="store_true")
+    setup_parser.add_argument(
+        "--decisions-adapter", choices=SUPPORTED_ROLE_ADAPTERS["decisions"], default=None
+    )
+    setup_parser.add_argument("--decisions-endpoint", default=None)
+    setup_parser.add_argument("--decisions-model", default=None)
+    setup_parser.add_argument("--decisions-credential-env", default=None)
+    setup_parser.add_argument("--decisions-allow-cloud", action="store_true")
     updater = commands.add_parser("update", help="Check or explicitly install a verified update")
     updater.add_argument("--channel", choices=("stable", "nightly"))
     updater.add_argument("--check", action="store_true")
@@ -56,6 +84,20 @@ def configure(commands):
     )
     updater.add_argument("--yes", action="store_true")
     commands.add_parser("version", help="Verify and show installed immutable provenance")
+    doctor = commands.add_parser(
+        "doctor",
+        help="Read-only local installation, configuration, and connection diagnostics",
+    )
+    doctor.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic JSON diagnostics without ANSI escape codes",
+    )
+    doctor.add_argument(
+        "--no-service-probe",
+        action="store_true",
+        help="Skip local loopback TCP listener probes",
+    )
     web_parser = commands.add_parser(
         "web", help="Serve matching prebuilt owner UI on loopback port 8780"
     )
@@ -187,7 +229,59 @@ def confirm(yes, message):
     raise InstallError("Cancelled; use --yes only after reviewing the plan")
 
 
+def _doctor_layout(args):
+    from dataclasses import replace
+
+    try:
+        layout = chosen_layout()
+    except InstallError:
+        root = os.environ.get("KINAIYA_INSTALL_ROOT")
+        layout = Layout.for_home(Path.home())
+        if root:
+            layout = replace(layout, install=Path(root))
+    data_arg = getattr(args, "data_dir", None)
+    config_arg = getattr(args, "config", None)
+    workspace_arg = getattr(args, "workspace", None)
+    if config_arg is not None:
+        layout = replace(layout, config=Path(config_arg).resolve())
+    if data_arg is not None and Path(data_arg) != Path("data"):
+        layout = replace(layout, data=Path(data_arg).resolve())
+    if workspace_arg is not None and Path(workspace_arg) != Path("workspace"):
+        layout = replace(layout, workspace=Path(workspace_arg).resolve())
+    return layout
+
+
+def print_command_result(args, result):
+    import shutil
+    import sys
+
+    if getattr(args, "command", None) == "start":
+        return
+    if getattr(args, "command", None) == "doctor":
+        from services.distribution.doctor import format_doctor_report
+
+        is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+        if getattr(args, "json", False) or not is_tty:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            no_color = bool(os.environ.get("NO_COLOR"))
+            width = shutil.get_terminal_size((80, 24)).columns
+            print(
+                format_doctor_report(result, no_color=no_color, is_tty=True, width=width),
+                end="",
+            )
+        return
+    print(json.dumps(result, indent=2))
+
+
 def dispatch(args):
+    if args.command == "doctor":
+        from services.distribution.doctor import run_doctor
+
+        return run_doctor(
+            _doctor_layout(args),
+            probe_services=not getattr(args, "no_service_probe", False),
+        )
     layout = chosen_layout()
     if args.command == "start":
         from services.distribution.start_supervisor import start_local
@@ -215,16 +309,74 @@ def dispatch(args):
         if not args.yes:
             from services.distribution.wizard import run_wizard
 
-            return run_wizard(layout)
+            mode = (
+                "quick"
+                if getattr(args, "quick", False)
+                else ("advanced" if getattr(args, "advanced", False) else None)
+            )
+            return run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
+        converse_adapter = getattr(args, "converse_adapter", None)
+        converse_endpoint = getattr(args, "converse_endpoint", None)
+        converse_model = getattr(args, "converse_model", None)
+        converse_credential_env = getattr(args, "converse_credential_env", None)
+        converse_allow_cloud = getattr(args, "converse_allow_cloud", False)
+        decisions_adapter = getattr(args, "decisions_adapter", None)
+        decisions_endpoint = getattr(args, "decisions_endpoint", None)
+        decisions_model = getattr(args, "decisions_model", None)
+        decisions_credential_env = getattr(args, "decisions_credential_env", None)
+        decisions_allow_cloud = getattr(args, "decisions_allow_cloud", False)
+        converse_profile = None
+        if (
+            converse_adapter is not None
+            or converse_endpoint is not None
+            or converse_model is not None
+            or converse_credential_env is not None
+            or converse_allow_cloud
+        ):
+            if not (converse_endpoint and converse_model):
+                raise InstallError(
+                    "Converse role requires both --converse-endpoint and --converse-model"
+                )
+            converse_profile = {
+                "endpoint": converse_endpoint,
+                "model": converse_model,
+                "allow_cloud": bool(converse_allow_cloud),
+                "credential_env": converse_credential_env,
+            }
+            if converse_adapter is not None:
+                converse_profile["adapter"] = converse_adapter
+        decisions_profile = None
+        if (
+            decisions_adapter is not None
+            or decisions_endpoint is not None
+            or decisions_model is not None
+            or decisions_credential_env is not None
+            or decisions_allow_cloud
+        ):
+            if not (decisions_endpoint and decisions_model):
+                raise InstallError(
+                    "Decisions role requires both --decisions-endpoint and --decisions-model"
+                )
+            decisions_profile = {
+                "endpoint": decisions_endpoint,
+                "model": decisions_model,
+                "allow_cloud": bool(decisions_allow_cloud),
+                "credential_env": decisions_credential_env,
+            }
+            if decisions_adapter is not None:
+                decisions_profile["adapter"] = decisions_adapter
         return setup(
             layout,
             endpoint=args.endpoint,
             model=args.model,
+            adapter=getattr(args, "adapter", None),
             credential_env=args.credential_env,
             allow_cloud=args.allow_cloud,
             converse=args.converse,
+            converse_profile=converse_profile,
+            decisions_profile=decisions_profile,
         )
     if args.command in {"recover", "rollback", "uninstall"}:
         from services.distribution.installation import recover, rollback, uninstall
@@ -257,7 +409,11 @@ def dispatch(args):
     confirmation_payload = {"host": host, "plan": plan, "install": str(layout.install)}
     if missing:
         confirmation_payload["missing_dependencies"] = missing
+        confirmation_payload["dependency_check"] = " ".join(apt_simulation_command(missing))
         confirmation_payload["dependency_command"] = " ".join(dependency_install_command(missing))
+        confirmation_payload["dependency_policy"] = (
+            "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+        )
     confirm(args.yes, json.dumps(confirmation_payload, indent=2))
     if missing:
         install_missing_dependencies(missing)
@@ -291,9 +447,7 @@ def main(argv=None):
     configure(commands)
     args = parser.parse_args(argv)
     try:
-        result = dispatch(args)
-        if args.command != "start":
-            print(json.dumps(result, indent=2))
+        print_command_result(args, dispatch(args))
     except (InstallError, ReleaseError) as exc:
         parser.exit(1, f"kinaiya: {exc}\n")
     except (OSError, ValueError):
