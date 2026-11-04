@@ -48,8 +48,11 @@ def test_monotonic_refresh_seq_guards_custom_provider_get_and_mutations() -> Non
     assert "int _refreshSeq = 0;" in source
     assert "final api = widget.api, seq = ++_refreshSeq;" in source
     assert "if (_current(api, active) && seq == _refreshSeq)" in source
+    assert "'expected_revision': expectedRevision," in source
+    assert "'client_operation_id': const Uuid().v4()," in source
 
-    # Every mutation/discovery increments _refreshSeq so older in-flight GET refreshes cannot clobber newer state
+    # Every mutation/discovery increments _refreshSeq (directly or via _beginCustom/_sendCustom)
+    # so older in-flight GET refreshes cannot clobber newer state
     for method_sig in (
         "Future<void> _saveCustomApi()",
         "Future<void> _setGlobalReasoningEffort(",
@@ -60,7 +63,7 @@ def test_monotonic_refresh_seq_guards_custom_provider_get_and_mutations() -> Non
     ):
         idx = source.index(method_sig)
         window = source[idx : idx + 3500]
-        assert "final seq = ++_refreshSeq;" in window
+        assert "final seq = ++_refreshSeq;" in window or "_beginCustom(" in window
 
 
 def test_editor_wire_payloads_and_role_status_match_backend_contract(tmp_path: Path) -> None:

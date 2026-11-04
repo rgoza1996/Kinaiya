@@ -1655,12 +1655,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         ),
       );
       if (approve != true || !mounted) return;
-      if (!_current(api, generation) ||
-          !_enabled ||
-          _customBusy ||
-          !_customCatalogLoaded) {
-        return;
-      }
+      if (!_current(api, generation) || !_enabled || _customBusy) return;
+      if (!_customCatalogLoaded) return;
       final currentProfile = _customCatalog.profiles
           .where((p) => p.profileId == capturedProfileId)
           .firstOrNull;
