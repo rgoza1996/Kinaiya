@@ -1,5 +1,13 @@
 # Kinaiya options: product and design handoff
 
+Conversation history includes **New conversation**. This explicit owner action
+creates and selects a fresh native Converse session; prior native sessions,
+journal history and Agent work remain intact. The current draft is preserved.
+Capture, speech, uncertain input admission and pending artifact actions must be
+settled first. While creation is pending, conversation sends and capture starts
+are blocked. A stale or unconfirmed response never replaces the selected session
+and is not automatically retried. Later sends retain the selected conversation.
+
 Prepared for #126 on 2026-10-29. This catalog complements Roadmap.md and
 clarification.md; it does not mark planned capabilities as implemented. The
 owner-supplied Penpot design now supplies visual language and composition

@@ -499,6 +499,55 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void>? _callStart;
   bool _nativeDraining = false;
   bool _nativeCallBlocked = false;
+  String? _newConversationNotice;
+
+  bool get _conversationIdle =>
+      !_armed &&
+      !_recording &&
+      !_nativeCallActive &&
+      !_micStopPending &&
+      !_micStopUnconfirmed &&
+      !_voiceBusy &&
+      !_transcribing &&
+      !_speaking &&
+      !_s.busyConverse &&
+      _callStart == null &&
+      _nativeAdmission == null &&
+      !_nativeDraining &&
+      _nativeCaptureStop == null &&
+      _pendingNativeClip == null &&
+      _pendingClip == null &&
+      _nativeClipOwner?.admitted != false &&
+      _nativeAdmissionResult?.outcome != _NativeAdmissionOutcome.unknown &&
+      !_s.artifactActionPending &&
+      !_s.artifactActionUncertain;
+
+  Future<void> _startNewConversation(BuildContext dialogContext) async {
+    if (!mounted || !_conversationIdle || _s.converseSessionCreating) return;
+    final owner = _s;
+    _newConversationNotice = null;
+    _voiceOptionsUpdates.value++;
+    try {
+      if (await _audio.isPlaying) throw StateError('Speech is active');
+      if (!mounted ||
+          !identical(_s, owner) ||
+          !_conversationIdle ||
+          owner.converseSessionCreating) {
+        return;
+      }
+      await owner.startNewConverseSession(
+        idle: () => mounted && identical(_s, owner) && _conversationIdle,
+      );
+      if (mounted && dialogContext.mounted) Navigator.of(dialogContext).pop();
+    } catch (_) {
+      if (mounted && identical(_s, owner)) {
+        _newConversationNotice =
+            'New conversation selection was not confirmed. Previous conversations remain available; check history before trying again.';
+        _voiceOptionsUpdates.value++;
+      }
+    }
+  }
+
   bool _transcribing = false;
   RecordedAudio? _pendingClip;
   ContentScope _pendingClipScope = ContentScope.localOnly;
@@ -1186,6 +1235,7 @@ class _CharacterViewState extends State<CharacterView> {
     String inputMode = 'text',
     ContentScope? contentScope,
   }) async {
+    if (_s.converseSessionCreating) return;
     final text = (overrideText ?? _input.text).trim();
     final scope =
         contentScope ??
@@ -1773,6 +1823,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
+    if (_s.converseSessionCreating) return;
     if (_nativeCallActive) {
       if (_nativeCallBlocked) {
         _nativeCallMessage(
@@ -2306,6 +2357,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _importRecording() async {
+    if (_s.converseSessionCreating) return;
     if (_nativeCallActive) {
       _nativeCallMessage('End the current Call before importing a recording.');
       return;
@@ -2589,6 +2641,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _toggleMic() async {
+    if (_s.converseSessionCreating) return;
     final api = _s.client;
     final generation = _s.connectionGeneration;
     if (_armed || _nativeCallActive) {
@@ -3284,28 +3337,45 @@ class _CharacterViewState extends State<CharacterView> {
     ),
   );
 
-  /// Full transcript dialog: every history entry with its delivery note, in
-  /// the same order as the inline transcript. Presentation only; opening or
-  /// closing it never touches capture, drafts, or sessions.
+  /// Opening history is passive. Only the explicit idle-only action creates
+  /// a fresh native session; previous durable history and Agent work remain.
   void _openHistory() {
     final count = _s.converseHistory.length;
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
         final size = MediaQuery.sizeOf(dialogContext);
-        return AlertDialog(
-          title: Text('Conversation history ($count)'),
-          content: SizedBox(
-            width: (size.width - 80).clamp(200.0, 560.0),
-            height: (size.height * 0.6).clamp(200.0, 520.0),
-            child: _transcript(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('CLOSE'),
+        return AnimatedBuilder(
+          animation: Listenable.merge([_s, _voiceOptionsUpdates]),
+          builder: (context, _) => AlertDialog(
+            title: Text('Conversation history ($count)'),
+            content: SizedBox(
+              width: (size.width - 80).clamp(200.0, 560.0),
+              height: (size.height * 0.6).clamp(200.0, 520.0),
+              child: _transcript(),
             ),
-          ],
+            actions: [
+              if (_newConversationNotice != null) Text(_newConversationNotice!),
+              TextButton(
+                key: const ValueKey('new-conversation'),
+                onPressed:
+                    _s.sessionAuthenticated &&
+                        _conversationIdle &&
+                        !_s.converseSessionCreating
+                    ? () => unawaited(_startNewConversation(dialogContext))
+                    : null,
+                child: Text(
+                  _s.converseSessionCreating
+                      ? 'Starting conversation…'
+                      : 'New conversation',
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('CLOSE'),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -3384,7 +3454,7 @@ class _CharacterViewState extends State<CharacterView> {
       ? _stopMicrophone
       : _armed || _nativeCallActive
       ? () => _setArmed(false)
-      : _callStart != null
+      : _callStart != null || _s.converseSessionCreating
       ? null
       : _micReady && _converseAvailable && _audioInputOperation == null
       ? _startCall
@@ -3392,7 +3462,8 @@ class _CharacterViewState extends State<CharacterView> {
 
   VoidCallback? get _tellAction => _recording
       ? _toggleMic
-      : _micReady &&
+      : !_s.converseSessionCreating &&
+            _micReady &&
             _converseAvailable &&
             !_armed &&
             !_nativeCallActive &&

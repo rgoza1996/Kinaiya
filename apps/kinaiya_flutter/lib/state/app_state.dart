@@ -176,6 +176,9 @@ class AppState extends ChangeNotifier {
   AppView view = AppView.character;
 
   SessionInfo? converseSession;
+  Future<SessionInfo>? _newConverseSession;
+  int _converseSessionSelection = 0;
+  bool get converseSessionCreating => _newConverseSession != null;
   SessionInfo? agentSession;
   final _agentWorkspace = _AgentWorkspaceData();
   final _artifacts = _ArtifactData();
@@ -2103,6 +2106,63 @@ class AppState extends ChangeNotifier {
     super.dispose();
   }
 
+  /// Explicit owner navigation creates a fresh identity; it never resets or
+  /// deletes the previous native session, history, or Agent work.
+  Future<SessionInfo> startNewConverseSession({required bool Function() idle}) {
+    final pending = _newConverseSession;
+    if (pending != null) return pending;
+    final api = client, previous = converseSession;
+    final generation = _connectionGeneration;
+    if (api == null || !sessionAuthenticated || busyConverse || !idle()) {
+      throw StateError('Conversation is not idle');
+    }
+    final selection = ++_converseSessionSelection;
+    bool current() =>
+        ownsConnection(generation, api) &&
+        selection == _converseSessionSelection &&
+        identical(converseSession, previous) &&
+        !busyConverse &&
+        idle();
+    late final Future<SessionInfo> original;
+    original = () async {
+      // Publish pending ownership before the only side-effecting request.
+      await Future<void>.value();
+      try {
+        if (!current()) throw StateError('Conversation changed');
+        final created = await api.createSession('converse', name: 'Converse');
+        if (!current() ||
+            created.channel != 'converse' ||
+            created.epoch < 1 ||
+            created.sessionId == previous?.sessionId) {
+          throw StateError('New conversation was not confirmed');
+        }
+        turnNonce++;
+        voiceNonce++;
+        speechEpoch = voiceEpoch = 0;
+        nativeAudioSourceGeneration++;
+        converseSession = created;
+        converseHistory.clear();
+        converseCursor = 0;
+        converseHistorySeededFor = null;
+        _noticeSession = created.sessionId;
+        _noticeCursor = 0;
+        _seenNotices.clear();
+        _handoffs.clear();
+        _resetArtifacts();
+        notifyListeners();
+        return created;
+      } finally {
+        if (identical(_newConverseSession, original)) {
+          _newConverseSession = null;
+          if (ownsConnection(generation, api)) notifyListeners();
+        }
+      }
+    }();
+    _newConverseSession = original;
+    notifyListeners();
+    return original;
+  }
+
   /// Reuses an existing named session for [channel] when the backend lists
   /// one, otherwise creates it. Explicit IDs persist across same-backend
   /// reconnect. A stale acquisition (old generation/client) never mutates
@@ -2112,6 +2172,12 @@ class AppState extends ChangeNotifier {
     final api = client;
     final generation = _connectionGeneration;
     if (api == null) throw StateError('Not connected');
+    if (channel == 'converse' && converseSessionCreating) {
+      throw StateError('New conversation is being created');
+    }
+    if (channel == 'converse' && converseSession != null) {
+      return converseSession!;
+    }
     if (channel == 'agent' && agentIdentitySelecting) {
       throw StateError('Agent session identity is being verified');
     }
@@ -2127,8 +2193,11 @@ class AppState extends ChangeNotifier {
       return created;
     }
     final selection = agentSelectionGeneration;
+    final converseSelection = _converseSessionSelection;
     bool current() =>
         ownsConnection(generation, api) &&
+        (channel != 'converse' ||
+            converseSelection == _converseSessionSelection) &&
         (channel != 'agent' || selection == agentSelectionGeneration);
     final listed = await api.listSessions();
     if (!current()) {
