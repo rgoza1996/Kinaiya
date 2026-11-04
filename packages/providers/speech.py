@@ -441,9 +441,12 @@ class SpeechClient:
             "/v1/audio/tts-operations/lookup",
             body=operation.model_dump(mode="json"),
         )
-        proof = TTSWorkerProof.model_validate(raw)
+        if type(raw) is not dict or set(raw) != set(TTSWorkerProof.model_fields):
+            raise ValueError("Native TTS proof does not bind its original operation")
+        proof = TTSWorkerProof.model_validate(raw, strict=True)
         if (
-            proof.worker_instance != operation.worker_instance
+            proof.protocol != operation.protocol
+            or proof.worker_instance != operation.worker_instance
             or proof.operation_id != operation.operation_id
             or proof.text_sha256 != operation.text_sha256
             or proof.profile != operation.profile
@@ -484,6 +487,54 @@ class SpeechClient:
         )
         response.raise_for_status()
         return response.json()
+
+    async def _whistle_stream_exchange(self, path, *, content=None, json_body=None, headers=None):
+        if self.stt is None:
+            raise SpeechProviderError(503)
+        req_headers = dict(headers or {})
+        if json_body is not None:
+            from packages.providers.whistle_ipc import MAX_CONTROL_BYTES, encode_json
+
+            content = encode_json(json_body, MAX_CONTROL_BYTES)
+            req_headers["Content-Type"] = "application/json"
+        async with self.stt.stream(
+            "POST",
+            path,
+            content=content,
+            headers=req_headers,
+        ) as response:
+            if not response.is_success:
+                raise SpeechProviderError(response.status_code)
+            raw = bytearray()
+            async for part in response.aiter_bytes():
+                if len(raw) + len(part) > 128 * 1024:
+                    raise ValueError("Whistle stream response exceeds its bound")
+                raw.extend(part)
+            from packages.providers.whistle_ipc import decode_json
+
+            return decode_json(bytes(raw), 128 * 1024)
+
+    async def whistle_stream_begin(self, payload: dict):
+        return await self._whistle_stream_exchange(
+            "/v1/audio/transcriptions/stream/begin", json_body=payload
+        )
+
+    async def whistle_stream_pcm(self, pcm16: bytes, headers: dict):
+        return await self._whistle_stream_exchange(
+            "/v1/audio/transcriptions/stream/pcm",
+            content=pcm16,
+            headers={"Content-Type": "application/octet-stream", **headers},
+        )
+
+    async def whistle_stream_finish(self, payload: dict):
+        return await self._whistle_stream_exchange(
+            "/v1/audio/transcriptions/stream/finish", json_body=payload
+        )
+
+    async def whistle_stream_cancel(self, payload: dict):
+        return await self._whistle_stream_exchange(
+            "/v1/audio/transcriptions/stream/cancel", json_body=payload
+        )
 
     async def synthesize(self, text, *, native_binding=None):
         headers = None
