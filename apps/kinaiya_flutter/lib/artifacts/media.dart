@@ -96,9 +96,7 @@ class _ArtifactMediaPlayerState extends State<ArtifactMediaPlayer> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const Text(
-        'Original video and native SAM hand highlights. Playback is muted initially.',
-      ),
+      const Text('Original video and SAM hand highlights'),
       if (surface.supported)
         Wrap(
           spacing: 8,
@@ -137,7 +135,6 @@ class _ArtifactMediaPlayerState extends State<ArtifactMediaPlayer> {
           child: surface.mediaSurface(_media!.bytes),
         ),
       ],
-      const Text('This presentation does not establish task success.'),
     ],
   );
 }

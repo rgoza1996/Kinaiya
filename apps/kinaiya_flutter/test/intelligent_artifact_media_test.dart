@@ -99,7 +99,7 @@ void main() {
       );
       expect(calls, 0);
       expect(
-        find.text('This presentation does not establish task success.'),
+        find.text('Original video and SAM hand highlights'),
         findsOneWidget,
       );
       await tester.pumpWidget(
