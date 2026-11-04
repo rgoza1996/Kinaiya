@@ -878,7 +878,10 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         idempotencyKey: attempt.idempotencyKey,
       );
       attempt.inFlight = false;
-      if (identical(_unresolvedScopes[scopeKey]?.ends[attempt.callId], attempt)) {
+      if (identical(
+        _unresolvedScopes[scopeKey]?.ends[attempt.callId],
+        attempt,
+      )) {
         _unresolvedScopes[scopeKey]?.ends.remove(attempt.callId);
         _pruneScopeUncertainty(scopeKey);
       }
