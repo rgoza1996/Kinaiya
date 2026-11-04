@@ -109,6 +109,8 @@ class _TTY(io.StringIO):
             return "yes\n" if self.converse else "\n"
         if "write" in prompt and ("configuration" in prompt or "tokens" in prompt):
             return "yes\n"
+        if "custom api profile" in prompt:
+            return "\n"
         for role in ("agent", "converse", "decisions"):
             if role in prompt:
                 self.role = role

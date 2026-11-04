@@ -69,6 +69,7 @@ def configure(commands):
         help="Optional section to reconfigure: workspace, model, or converse",
     )
     setup_parser.add_argument("--yes", action="store_true")
+    setup_parser.add_argument("--json", action="store_true")
     setup_mode = setup_parser.add_mutually_exclusive_group()
     setup_mode.add_argument(
         "--quick",
@@ -86,6 +87,11 @@ def configure(commands):
     setup_parser.add_argument("--credential-env")
     setup_parser.add_argument("--allow-cloud", action="store_true")
     setup_parser.add_argument("--converse", action="store_true")
+    setup_parser.add_argument(
+        "--check-connection",
+        action="store_true",
+        help="Offer an opt-in bounded provider connection check after configuration is saved",
+    )
     setup_parser.add_argument("--workspace", dest="setup_workspace", type=Path)
     setup_parser.add_argument("--data-dir", dest="setup_data_dir", type=Path)
     setup_parser.add_argument(
@@ -429,8 +435,15 @@ def dispatch(args):
                 if getattr(args, "quick", False)
                 else ("advanced" if getattr(args, "advanced", False) else None)
             )
+            check_connection = bool(getattr(args, "check_connection", False))
             if section is not None:
-                return run_wizard(layout, section=section)
+                return run_wizard(layout, section=section, check_connection=check_connection)
+            if check_connection:
+                return (
+                    run_wizard(layout, mode=mode, check_connection=True)
+                    if mode is not None
+                    else run_wizard(layout, check_connection=True)
+                )
             return run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
         if section is not None:
             from dataclasses import replace
@@ -456,6 +469,8 @@ def dispatch(args):
             )
         if not args.endpoint or not args.model:
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
+        from services.distribution.wizard_summary import sanitize_completion_receipt
+
         converse_adapter = getattr(args, "converse_adapter", None)
         converse_endpoint = getattr(args, "converse_endpoint", None)
         converse_model = getattr(args, "converse_model", None)
@@ -506,7 +521,7 @@ def dispatch(args):
             }
             if decisions_adapter is not None:
                 decisions_profile["adapter"] = decisions_adapter
-        return setup(
+        raw = setup(
             layout,
             endpoint=args.endpoint,
             model=args.model,
@@ -516,6 +531,23 @@ def dispatch(args):
             converse=args.converse,
             converse_profile=converse_profile,
             decisions_profile=decisions_profile,
+        )
+        return sanitize_completion_receipt(
+            {
+                **(raw if isinstance(raw, dict) else {}),
+                "install": str(layout.install),
+                "launcher": str(layout.bin / "kinaiya"),
+                "config": str(layout.config),
+                "data": str(layout.data),
+                "workspace": str(layout.workspace),
+                "adapter": getattr(args, "adapter", None),
+                "endpoint": args.endpoint,
+                "model": args.model,
+                "credential_env": args.credential_env,
+                "allow_cloud": args.allow_cloud,
+                "converse": bool(args.converse or converse_profile is not None),
+                "converse_profile": converse_profile,
+            }
         )
     if args.command in {"recover", "rollback", "uninstall"}:
         from services.distribution.installation import recover, rollback, uninstall
