@@ -632,6 +632,13 @@ class DecisionsWorker:
         # A truncated or invalid result is not an ignore decision.
         # Persist the refusal before advancing this consumer so an
         # unroutable entry cannot starve later messages/sessions.
+        source_event_id = (
+            source.payload.get("target_event_id")
+            if source.kind == "conversation.revision"
+            and isinstance(source.payload.get("target_event_id"), str)
+            and source.payload.get("target_event_id")
+            else source.event_id
+        )
         await self.journal.append(
             AppendRequest(
                 session_id=source.session_id,
@@ -639,7 +646,7 @@ class DecisionsWorker:
                 epoch=source.epoch,
                 kind="routing.classification_refused",
                 payload={
-                    "source_event_id": source.event_id,
+                    "source_event_id": source_event_id,
                     "source_revision": source.payload.get("revision", 1),
                     "reason": reason,
                     "error_type": error_type,

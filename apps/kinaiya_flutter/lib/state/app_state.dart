@@ -1438,11 +1438,43 @@ class AppState extends ChangeNotifier {
       if (sourceId is! String) continue;
       try {
         budget--;
-        final source = await api
+        final fetched = await api
             .handoffEntry(sourceId, resolve: true)
             .timeout(const Duration(seconds: 3));
         if (!current()) return;
-        if (source.eventId != sourceId ||
+        var canonicalSourceId = sourceId;
+        var source = fetched;
+        if (receipt.kind == 'routing.classification_refused' &&
+            fetched.kind == 'conversation.revision') {
+          final targetId = fetched.payload['target_event_id'];
+          if (fetched.eventId != sourceId ||
+              fetched.sessionId != session.sessionId ||
+              fetched.threadId != session.threadId ||
+              fetched.epoch != session.epoch ||
+              !const {'authenticated-user', 'converse'}.contains(
+                fetched.origin,
+              ) ||
+              targetId is! String ||
+              fetched.payload['revision'] !=
+                  receipt.payload['source_revision']) {
+            _handoffs.discardPending(receipt.eventId);
+            continue;
+          }
+          canonicalSourceId = targetId;
+          budget--;
+          source = await api
+              .handoffEntry(canonicalSourceId, resolve: true)
+              .timeout(const Duration(seconds: 3));
+          if (!current()) return;
+        }
+        final validSourceSequence =
+            receipt.kind == 'routing.classification_refused'
+            ? source.kind == 'conversation.user' &&
+                  source.sequence < receipt.sequence &&
+                  (receipt.payload['source_sequence'] == null ||
+                      source.sequence == receipt.payload['source_sequence'])
+            : source.sequence == receipt.payload['source_sequence'];
+        if (source.eventId != canonicalSourceId ||
             source.sessionId != session.sessionId ||
             source.threadId != session.threadId ||
             source.epoch != session.epoch ||
@@ -1451,17 +1483,23 @@ class AppState extends ChangeNotifier {
               'conversation.user',
               'conversation.window',
             }.contains(source.kind) ||
-            source.sequence != receipt.payload['source_sequence'] ||
+            !validSourceSequence ||
             (source.payload['revision'] ?? 1) !=
                 receipt.payload['source_revision']) {
           _handoffs.discardPending(receipt.eventId);
           continue;
         }
-        budget--;
-        final cause = await api
-            .handoffEntry(receipt.causes.single)
-            .timeout(const Duration(seconds: 3));
-        if (!current()) return;
+        final JournalEntry cause;
+        if (fetched.kind == 'conversation.revision' &&
+            receipt.causes.single == fetched.eventId) {
+          cause = fetched;
+        } else {
+          budget--;
+          cause = await api
+              .handoffEntry(receipt.causes.single)
+              .timeout(const Duration(seconds: 3));
+          if (!current()) return;
+        }
         if (cause.eventId != receipt.causes.single ||
             cause.sessionId != session.sessionId ||
             cause.threadId != session.threadId ||
@@ -1473,7 +1511,7 @@ class AppState extends ChangeNotifier {
 
         if (source.kind == 'conversation.window') {
           if (!((receipt.kind == 'routing.window_status' &&
-                  cause.eventId == sourceId &&
+                  cause.eventId == canonicalSourceId &&
                   cause.kind == 'conversation.window') ||
               (receipt.kind == 'routing.window_dispatch' &&
                   cause.kind == 'routing.window_decided' &&
@@ -1516,7 +1554,7 @@ class AppState extends ChangeNotifier {
         }
         if (source.kind != 'conversation.user' ||
             !((cause.kind == 'conversation.user' &&
-                    cause.eventId == sourceId &&
+                    cause.eventId == canonicalSourceId &&
                     cause.origin == 'authenticated-user' &&
                     receipt.payload['source_revision'] == 1) ||
                 (cause.kind == 'conversation.revision' &&
@@ -1524,13 +1562,19 @@ class AppState extends ChangeNotifier {
                       'authenticated-user',
                       'converse',
                     }.contains(cause.origin) &&
-                    cause.payload['target_event_id'] == sourceId &&
-                    cause.payload['revision'] == source.payload['revision']))) {
+                    cause.payload['target_event_id'] == canonicalSourceId &&
+                    cause.payload['revision'] == source.payload['revision'] &&
+                    cause.sequence > source.sequence))) {
           _handoffs.discardPending(receipt.eventId);
           continue;
         }
         _handoffs.observe(source, session);
         _handoffs.observe(cause, session);
+        if (receipt.kind == 'routing.classification_refused') {
+          final notice = _handoffs.observe(receipt, session);
+          if (notice != null) _applyHandoff(notice);
+          continue;
+        }
         var cursor = _handoffDecisionCursors[receipt.eventId] ?? cause.sequence;
         while (budget > 0 && current()) {
           budget--;

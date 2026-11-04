@@ -5,6 +5,7 @@ import '../api/models.dart';
 /// the presentation can announce any state. This owner never calls inference.
 class ConverseHandoffTracker {
   final Map<String, _Source> _sources = {};
+  final Map<String, String> _revisionTargets = {};
   final Map<(String, String, int, String), String> _windows = {};
   final Map<String, int> _sequences = {};
   final Set<String> _accepted = {};
@@ -37,6 +38,7 @@ class ConverseHandoffTracker {
 
   void clear() {
     _sources.clear();
+    _revisionTargets.clear();
     _windows.clear();
     _sequences.clear();
     _accepted.clear();
@@ -117,10 +119,14 @@ class ConverseHandoffTracker {
   void _bound() {
     while (_sources.length > 256) {
       final pinned = _pending.values
-          .map((entry) => entry.payload['source_event_id'])
+          .map((entry) {
+            final raw = entry.payload['source_event_id'];
+            return raw is String ? (_revisionTargets[raw] ?? raw) : raw;
+          })
           .toSet();
       final old = _sources.keys.firstWhere((id) => !pinned.contains(id));
       _sources.remove(old);
+      _revisionTargets.removeWhere((_, target) => target == old);
       _sequences.remove(old);
       _accepted.remove(old);
       _notices.remove(old);
@@ -199,18 +205,23 @@ class ConverseHandoffTracker {
       if (entry.origin != 'authenticated-user' && entry.origin != 'converse') {
         return null;
       }
-      final source = _sources[entry.payload['target_event_id']];
+      final targetId = entry.payload['target_event_id'];
+      final source = _sources[targetId];
       final revision = entry.payload['revision'];
       if (source != null &&
           source.matches(current) &&
+          targetId is String &&
+          _identifier(targetId) &&
+          _identifier(entry.eventId) &&
           revision is int &&
           revision >= source.revision &&
           entry.sequence > (source.sequence ?? 0)) {
+        _revisionTargets[entry.eventId] = targetId;
         if (revision > source.revision) {
           source.revision = revision;
           source.causeEventId = null;
-          _accepted.remove(entry.payload['target_event_id']);
-          _notices.remove(entry.payload['target_event_id']);
+          _accepted.remove(targetId);
+          _notices.remove(targetId);
         }
         if (source.causeEventId == null ||
             source.causeEventId == entry.eventId) {
@@ -235,6 +246,57 @@ class ConverseHandoffTracker {
         );
       }
       return null;
+    }
+    if (entry.kind == 'routing.classification_refused') {
+      _pending.remove(entry.eventId);
+      final rawId = entry.payload['source_event_id'];
+      final sourceRevision = entry.payload['source_revision'];
+      final rawSourceSequence = entry.payload['source_sequence'];
+      if (rawId is! String ||
+          !_identifier(rawId) ||
+          sourceRevision is! int ||
+          sourceRevision < 1 ||
+          !_identifier(entry.payload['reason']) ||
+          !_identifier(entry.payload['error_type']) ||
+          (rawSourceSequence != null &&
+              (rawSourceSequence is! int ||
+                  rawSourceSequence < 1 ||
+                  entry.sequence <= rawSourceSequence)) ||
+          entry.causes.length != 1 ||
+          !_identifier(entry.causes.single)) {
+        return null;
+      }
+      final id = _revisionTargets[rawId] ?? rawId;
+      final source = _sources[id];
+      if (source == null ||
+          source.sequence == null ||
+          sourceRevision > source.revision ||
+          source.causeEventId == null) {
+        return _defer(entry);
+      }
+      if (!source.matches(current) ||
+          source.utterance != null ||
+          (rawSourceSequence != null && rawSourceSequence != source.sequence) ||
+          sourceRevision != source.revision ||
+          entry.sequence <= (source.causeSequence ?? source.sequence!) ||
+          entry.sequence <= (_sequences[id] ?? 0) ||
+          !_singleCause(entry, source.causeEventId!) ||
+          _accepted.contains(id)) {
+        return null;
+      }
+      _sequences[id] = entry.sequence;
+      final notice = HandoffNotice(
+        id,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+        status: HandoffStatus.unavailable,
+        sourceRevision: source.revision,
+        sessionId: current.sessionId,
+        threadId: current.threadId,
+        epoch: current.epoch,
+        sourceText: source.text,
+      );
+      _notices[id] = notice;
+      return notice;
     }
     if (!const {
       'routing.dispatch',
