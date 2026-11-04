@@ -343,6 +343,7 @@ def run_wizard(
     )
     return coordinator.run()
 
+
 def run_section_wizard(layout, section: str, *, tty=None):
     """Run interactive reconfiguration for one section: workspace, model, or converse."""
     return run_wizard(layout, tty=tty, section=section)
