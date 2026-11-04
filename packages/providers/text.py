@@ -17,11 +17,13 @@ import httpx
 
 from packages.contracts.agent_tools import (
     LEGACY_NATIVE_TOOL_ORDER,
-    NATIVE_TOOL_ORDER,
     agent_export_permitted,
     capture_agent_export_admission,
     capture_agent_export_check,
     current_agent_tools,
+)
+from packages.contracts.agent_tools import (
+    SUPPORTED_NATIVE_TOOL_ORDER as NATIVE_TOOL_ORDER,
 )
 from packages.contracts.models import ProviderInfo
 
@@ -184,7 +186,22 @@ def _ui_spec_object(encoded):
 def _gateway_action_object(action):
     """Retain the existing foreign-gateway mapping for both Meta formats."""
     args = action["arguments"]
-    if action.get("tool") == "mcp_call":
+    if action.get("tool") == "run_task_harness":
+        encoded = args.get("harness_input_json")
+        if type(encoded) is not str or len(encoded.encode("utf-8")) > 65_536:
+            raise ProviderError("Harness input requires bounded JSON object text")
+        try:
+            decoded = json.loads(encoded)
+        except (ValueError, RecursionError) as exc:
+            raise ProviderError("Harness input is invalid JSON") from exc
+        if type(decoded) is not dict:
+            raise ProviderError("Harness input must decode to an object")
+        action["arguments"] = {
+            "source_path": args.get("source_path"),
+            "source_sha256": args.get("source_sha256"),
+            "input": decoded,
+        }
+    elif action.get("tool") == "mcp_call":
         encoded = args.get("mcp_arguments_json")
         if not isinstance(encoded, str) or len(encoded) > 65536:
             raise ProviderError("MCP arguments require bounded JSON object text")
@@ -1065,6 +1082,8 @@ class MetaResponsesProvider:
             )
         if "plugin_call" in tools:
             wire += " For plugin_call use plugin_id and JSON-encode input in plugin_arguments_json."
+        if "run_task_harness" in tools:
+            wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
         if messages and messages[0].get("role") == "system":
             messages[0]["content"] += wire
         else:
@@ -1075,7 +1094,13 @@ class MetaResponsesProvider:
             try:
                 action = json.loads(message["content"])
                 args = action["arguments"]
-                if action["tool"] == "mcp_call":
+                if action["tool"] == "run_task_harness":
+                    action["arguments"] = {
+                        "source_path": args["source_path"],
+                        "source_sha256": args["source_sha256"],
+                        "harness_input_json": json.dumps(args["input"], allow_nan=False),
+                    }
+                elif action["tool"] == "mcp_call":
                     if type(args) is not dict or set(args) != {"server_id", "tool", "arguments"}:
                         raise ValueError("Malformed historical MCP arguments")
                     action["arguments"] = {
@@ -1137,6 +1162,8 @@ class MetaResponsesProvider:
                     "\nFor plugin_call, put the approved id in plugin_id and JSON-encode "
                     "the input object in plugin_arguments_json."
                 )
+            if "run_task_harness" in tools:
+                wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
             if "publish_ui" in tools:
                 wire += (
                     "\nFor publish_ui, JSON-encode the complete logical publication argument object "
@@ -1168,7 +1195,13 @@ class MetaResponsesProvider:
                 try:
                     action = json.loads(message["content"])
                     args = action["arguments"]
-                    if action["tool"] == "mcp_call":
+                    if action["tool"] == "run_task_harness":
+                        action["arguments"] = {
+                            "source_path": args["source_path"],
+                            "source_sha256": args["source_sha256"],
+                            "harness_input_json": json.dumps(args["input"], allow_nan=False),
+                        }
+                    elif action["tool"] == "mcp_call":
                         action["arguments"] = {
                             "server_id": args["server_id"],
                             "mcp_tool": args["tool"],
@@ -1234,6 +1267,14 @@ class MetaResponsesProvider:
                 "maxLength": _UI_SPEC_MAX_BYTES,
                 "description": "For publish_ui only: JSON-encode its complete create or update argument object, at most 48 KiB UTF-8. All other argument fields must be null. Native storage validates the publication schema.",
             }
+            if "run_task_harness" in tools:
+                fields.update(
+                    {
+                        "source_path": {"type": ["string", "null"]},
+                        "source_sha256": {"type": ["string", "null"]},
+                        "harness_input_json": {"type": ["string", "null"], "maxLength": 65536},
+                    }
+                )
             for action, optional_fields in (
                 ("select_context", ("max_chars",)),
                 ("skill_load", ("skill_id", "resource")),

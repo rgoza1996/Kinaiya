@@ -366,6 +366,11 @@ class _Record:
     failed_work_effect: bool = False
     failed_artifact: bool = False
     failed_plugin: bool = False
+    failed_task_harness: bool = False
+    task_harness_execution: dict | None = None
+    task_harness_export_check: Any | None = None
+    task_harness_publication_scope: str = "public_synthetic"
+    task_harness_description: dict | None = None
     cancel_requested: bool = False
     closing: bool = False
     proc_slot: dict[str, Any] = field(default_factory=dict)
@@ -510,6 +515,8 @@ class AgentRuntime:
         self.resource_client = resource_client
         self.standing_resource_client = standing_resource_client
         self.plugin_service = plugin_service
+        # Native owner injection only; generated programs never receive it.
+        self.task_harness_broker_factory = None
         # Native presentation storage is optional for direct/test runtimes.
         # The actual launcher supplies a protected operator data path.
         self.artifact_store = artifact_store
@@ -851,7 +858,9 @@ class AgentRuntime:
             **payload,
             "plugin_versions": dict(rec.plugin_versions),
             "content_scope": combine_scopes(
-                rec.task.content_scope, payload.get("content_scope", "public_synthetic")
+                rec.task.content_scope,
+                rec.task_harness_publication_scope,
+                payload.get("content_scope", "public_synthetic"),
             ),
         }
         return AppendRequest(
@@ -877,6 +886,9 @@ class AgentRuntime:
 
     def _outcome_payload(self, rec: _Record, state: str, extra: dict[str, Any]) -> dict[str, Any]:
         """Complete task snapshot for a terminal/awaiting outcome entry."""
+        published_task = self._publication_task(rec)
+        task_payload = dict(extra.get("task", published_task.model_dump(mode="json")))
+        task_payload["content_scope"] = published_task.content_scope
         return {
             "task_id": rec.task.task_id,
             "session_id": rec.task.session_id,
@@ -886,12 +898,24 @@ class AgentRuntime:
             "objective_revision": rec.task.objective_revision,
             "idempotency_key": rec.task.idempotency_key,
             "source_event_ids": list(rec.task.source_event_ids),
-            "content_scope": rec.task.content_scope,
             "evidence": [e.model_dump(mode="json") for e in rec.task.evidence],
-            "task": rec.task.model_dump(mode="json"),
             **extra,
+            "content_scope": published_task.content_scope,
+            "task": task_payload,
             "state": state,
         }
+
+    @staticmethod
+    def _publication_task(rec: _Record) -> Task:
+        """Private derived results narrow publication, never primary authority."""
+        return rec.task.model_copy(
+            update={
+                "content_scope": combine_scopes(
+                    rec.task.content_scope,
+                    getattr(rec, "task_harness_publication_scope", "public_synthetic"),
+                )
+            }
+        )
 
     # -- actors -------------------------------------------------------
     @staticmethod
@@ -2386,6 +2410,7 @@ class AgentRuntime:
         rec.failed_work_effect = False
         rec.failed_artifact = False
         rec.failed_plugin = False
+        rec.failed_task_harness = False
         rec.history.append(
             {
                 "role": "user",
@@ -2578,6 +2603,7 @@ class AgentRuntime:
     ) -> None:
         """Publish terminal in-memory state only after verified cleanup."""
         rec.task.state = TaskState.CANCELLED
+        rec.task.content_scope = self._publication_task(rec).content_scope
         rec.task.error = "cancelled by owner"
         rec.task.summary = RETIRED_SUMMARY
         rec.cancel_requested = True
@@ -3384,6 +3410,10 @@ class AgentRuntime:
                 rec.task.state not in TERMINAL
                 or (rec.worker is not None and not rec.worker.done())
                 or rec.proc_slot.get("proc") is not None
+                or (
+                    rec.task_harness_execution is not None
+                    and not rec.task_harness_execution["settled"]
+                )
                 or rec.retire_lock.locked()
                 for rec in self._tasks.values()
             )
@@ -3391,6 +3421,8 @@ class AgentRuntime:
 
     def host_tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
         """Native gateways, independently of action approval/target readiness."""
+        from services.agent.task_harness import task_harness_available
+
         harness = (
             task.harness_version
             if task is not None
@@ -3416,6 +3448,7 @@ class AgentRuntime:
                 and self.model_settings.auxiliary_configured(harness)
             ),
             catalog_available=True,
+            task_harness_available=task_harness_available(self, task),
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
@@ -3464,7 +3497,12 @@ class AgentRuntime:
 
     @staticmethod
     def _catalog_export_current(rec: _Record, guards) -> bool:
-        if all(guard.disclosure_current() for guard in guards):
+        harness_check = getattr(rec, "task_harness_export_check", None)
+        try:
+            harness_current = harness_check is None or harness_check() is True
+        except Exception:
+            harness_current = False
+        if harness_current and all(guard.disclosure_current() for guard in guards):
             return True
         # Outcomes or later tools can contain metadata derived from the old
         # catalog. Preserve a sticky local floor when its disclosure is lost.
@@ -3512,6 +3550,8 @@ class AgentRuntime:
     def _effect_result(rec: _Record, tool: str, *, ok: bool) -> None:
         if tool == "publish_ui":
             rec.failed_artifact = not ok
+        elif tool == "run_task_harness":
+            rec.failed_task_harness = not ok
         elif tool in {"write_file", "shell", "mcp_call"}:
             rec.failed_work_effect = not ok
         rec.failed_effect = rec.failed_work_effect or rec.failed_artifact
@@ -3566,6 +3606,7 @@ class AgentRuntime:
             except Exception:
                 pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
         rec.task.state = TaskState.FAILED
+        rec.task.content_scope = self._publication_task(rec).content_scope
         rec.task.error = error
         extra: dict[str, Any] = {"error": error}
         if response_diagnostic is not None:
@@ -3592,7 +3633,13 @@ class AgentRuntime:
         # No await separates the final authority check in _finish from this
         # fence and frozen snapshot. The visible task is not successful yet.
         snapshot = rec.task.model_copy(
-            deep=True, update={"state": TaskState.SUCCEEDED, "summary": summary, "error": None}
+            deep=True,
+            update={
+                "state": TaskState.SUCCEEDED,
+                "summary": summary,
+                "error": None,
+                "content_scope": self._publication_task(rec).content_scope,
+            },
         )
         body = self._append_request(
             rec,
@@ -3625,6 +3672,7 @@ class AgentRuntime:
         if rec.task.state in TERMINAL:
             return
         rec.task.state = TaskState.CANCELLED
+        rec.task.content_scope = self._publication_task(rec).content_scope
         rec.task.error = "cancelled by owner"
         await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
         rec.done.set()
@@ -3658,6 +3706,7 @@ class AgentRuntime:
         services = (self.skill_service, self.plugin_service, self.mcp_host, self.artifact_store)
         provider_info = copy.deepcopy(provider.info)
         history = [dict(turn) for turn in rec.history]
+        harness_description = copy.deepcopy(rec.task_harness_description)
         guards = tuple(rec.catalog_guards.items())
         retained_guards = []
         if not standing and self.skill_service is not None:
@@ -3738,6 +3787,7 @@ class AgentRuntime:
                 )
                 or identity() != pinned
                 or rec.history != history
+                or rec.task_harness_description != harness_description
                 or tuple(rec.catalog_guards.items()) != guards
                 or self.tool_snapshot(rec.task) != tools
             ):
@@ -3856,6 +3906,7 @@ class AgentRuntime:
             not standing and self.plugin_service is not None,
             not standing and self.artifact_store is not None,
             tool_snapshot=tools,
+            task_harness_description=harness_description,
         )
         prepared = None
         try:
@@ -3934,6 +3985,10 @@ class AgentRuntime:
         if rec.task.state == TaskState.ACCEPTED:
             rec.task.state = TaskState.RUNNING
         try:
+            from services.agent.task_harness import task_harness_description
+
+            if rec.task_harness_description is None:
+                rec.task_harness_description = task_harness_description(self, rec.task)
             if rec.explicit_skill:
                 await self._dispatch(
                     rec, "skill_load", {"skill_id": rec.explicit_skill}, "", "", approval_id=None
@@ -3996,7 +4051,9 @@ class AgentRuntime:
                     await self._cancel(rec)
                     return
                 try:
-                    action = parse_action(text)
+                    action = parse_action(
+                        text, allow_task_harness=tools.supports("run_task_harness")
+                    )
                 except ValueError as exc:
                     rec.history.append({"role": "assistant", "content": text})
                     rec.history.append(
@@ -4010,7 +4067,14 @@ class AgentRuntime:
                     if await self._finish(rec, action.arguments, text):
                         return
                     continue
-                await self._execute(rec, action.tool, dict(action.arguments), text)
+                await self._execute(
+                    rec,
+                    action.tool,
+                    action.arguments.model_dump(mode="json")
+                    if action.tool == "run_task_harness"
+                    else dict(action.arguments),
+                    text,
+                )
                 if rec.task.state in TERMINAL:
                     return
             await self._fail(rec, f"step budget exhausted after {self.max_steps} steps")
@@ -4130,8 +4194,18 @@ class AgentRuntime:
                 latest[evidence.path] = evidence
         for evidence in latest.values():
             try:
+                publication_task = rec.task
+                if evidence.output.startswith('{"native_publication_scope":'):
+                    marker = json.loads(evidence.output)
+                    if set(marker) != {"native_publication_scope"} or marker[
+                        "native_publication_scope"
+                    ] not in {"local_only", "public_synthetic", "private_cloud_authorized"}:
+                        raise ValueError("Invalid native publication scope")
+                    publication_task = rec.task.model_copy(
+                        update={"content_scope": marker["native_publication_scope"]}
+                    )
                 if self.artifact_store is None or not self.artifact_store.verify(
-                    evidence, rec.task
+                    evidence, publication_task
                 ):
                     return (
                         "finish verification failed: UI publication no longer matches its receipt"
@@ -4192,6 +4266,9 @@ class AgentRuntime:
             return True
         if rec.failed_plugin:
             await self._fail(rec, "finish while a required plugin computation failed")
+            return True
+        if rec.failed_task_harness:
+            await self._fail(rec, "finish while required task harness execution failed")
             return True
         if rec.failed_effect:
             await self._fail(
@@ -4729,6 +4806,10 @@ class AgentRuntime:
                 from services.agent.auxiliary import consult_model
 
                 out, evidence = await consult_model(self, rec, args)
+            elif tool == "run_task_harness":
+                from services.agent.task_harness import run_task_harness
+
+                out, evidence = await run_task_harness(self, rec, args)
             elif tool == "tool_catalog":
                 from packages.contracts.tool_catalog import CatalogError, encode_catalog
                 from services.agent.tool_catalog import inspect_catalog
@@ -4919,7 +5000,8 @@ class AgentRuntime:
         ):
             raise ToolFailure("UI publication requires the current active task revision")
         try:
-            envelope = self.artifact_store.publish(rec.task, args)
+            publication_task = self._publication_task(rec)
+            envelope = self.artifact_store.publish(publication_task, args)
         except ArtifactConflict as exc:
             raise ToolFailure("UI publication conflicts with its task or content revision") from exc
         except ArtifactInvalid as exc:
@@ -4939,8 +5021,15 @@ class AgentRuntime:
                 path=f"artifact:{artifact_id}",
                 sha256=envelope["content_sha256"],
                 objective_revision=rec.task.objective_revision,
+                output=json.dumps(
+                    {"native_publication_scope": publication_task.content_scope},
+                    separators=(",", ":"),
+                )
+                if publication_task.content_scope != rec.task.content_scope
+                or self.host_tool_snapshot(rec.task).supports("run_task_harness")
+                else "",
             )
-            if not self.artifact_store.verify(evidence, rec.task):
+            if not self.artifact_store.verify(evidence, publication_task):
                 raise ValueError("Unverified native receipt")
             out = _ui_publication_receipt(envelope)
         except Exception as exc:

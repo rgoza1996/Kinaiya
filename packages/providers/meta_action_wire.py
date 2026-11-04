@@ -19,7 +19,9 @@ from pydantic import (
 )
 
 from packages.contracts.agent_tools import (
-    NATIVE_TOOL_ORDER,
+    SUPPORTED_NATIVE_TOOL_ORDER as NATIVE_TOOL_ORDER,
+)
+from packages.contracts.agent_tools import (
     NativeToolSnapshot,
     current_agent_tools,
 )
@@ -170,6 +172,12 @@ _ARGUMENTS = {
     ),
     "publish_ui": _CREATE | _UPDATE,
     "consult_model": _object("ConsultModel", purpose=AuxiliaryTask, prompt=_string(1, 8000)),
+    "run_task_harness": _object(
+        "RunTaskHarness",
+        source_path=_string(1, 1024),
+        source_sha256=_string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+        harness_input_json=_string(2, 65536),
+    ),
     "tool_catalog": _object(
         "ToolCatalog",
         kind=Literal["native", "mcp", "skill", "plugin"] | None,

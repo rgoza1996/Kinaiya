@@ -45,7 +45,10 @@ CATALOG_RECEIPT_LIMIT = 32768
 # observations never contribute names or argument descriptions to this table.
 _PROTOCOL_LINES = tuple(SYSTEM_PROMPT.splitlines())
 _TOOL_ARGUMENT_HINTS = MappingProxyType(
-    {line[2:].split(":", 1)[0]: line for line in _PROTOCOL_LINES if line.startswith("- ")}
+    {
+        **{line[2:].split(":", 1)[0]: line for line in _PROTOCOL_LINES if line.startswith("- ")},
+        "run_task_harness": '- run_task_harness: {"source_path":"<workspace Python file authored with write_file in this objective revision>","source_sha256":"<exact SHA-256 of source bytes>","input":{<bounded input>}}; task_orchestrator.v1 requires sync run(payload). Each isolated phase receives contract, native binding, source_sha256, input, state, observation. Return exactly {"op":"consult_media","request":{"operation":"sam_hands"|"transcribe_video","source_path":"<granted relative file>","source_sha256":"<exact media SHA>"},"state":<JSON>} or {"op":"finish","result":<JSON>}. The trusted host executes media requests through exact native grants; code cannot grant permission or choose model/keys. At most16 phases, source64KiB, state/result64KiB. Use observed media results, then publish_ui and finish through ordinary native controls. Execution is not promotion, independent quality evaluation or task success.',
+    }
 )
 _PROTOCOL_RULES = tuple(line for line in _PROTOCOL_LINES if line.startswith(("Rules:", "Grants ")))
 
@@ -75,6 +78,7 @@ def build_messages(
     artifacts_available: bool = False,
     *,
     tool_snapshot: NativeToolSnapshot | None = None,
+    task_harness_description: dict | None = None,
 ) -> list[dict[str, str]]:
     """Render complete native context; provider admission selects whole exchanges.
 
@@ -96,6 +100,10 @@ def build_messages(
             artifacts_available=artifacts_available,
         )
     )
+    if task_harness_description is not None and (
+        type(task_harness_description) is not dict or not snapshot.supports("run_task_harness")
+    ):
+        raise ValueError("Native task media description requires the configured tool")
     refs = ", ".join(source_event_ids) if source_event_ids else "none"
     servers = (
         ", ".join(sorted(mcp_servers))
@@ -112,7 +120,14 @@ def build_messages(
         f"Skills: {'configured; discover selected skills with skills_list' if snapshot.supports('skills_list') else 'not configured'}\n"
         f"Compute plugins: {'configured; discover with plugins_list' if snapshot.supports('plugins_list') else 'not configured'}\n"
         f"UI artifacts: {'configured; publish bounded results with publish_ui' if snapshot.supports('publish_ui') else 'not configured'}\n"
-        "Reply with exactly one JSON ToolAction now."
+        + (
+            "Task media source (native metadata, not permission): "
+            + json.dumps(task_harness_description, sort_keys=True, separators=(",", ":"))
+            + "\n"
+            if task_harness_description is not None
+            else ""
+        )
+        + "Reply with exactly one JSON ToolAction now."
     )
     messages: list[dict[str, str]] = [
         {"role": "system", "content": _system_prompt(snapshot)},
@@ -166,7 +181,7 @@ def history_exchanges(messages: list[dict[str, str]]) -> list[list[dict[str, str
     return exchanges
 
 
-def parse_action(text: str) -> ToolAction:
+def parse_action(text: str, *, allow_task_harness: bool = False):
     """Parse one JSON ToolAction; raises ValueError on any deviation."""
     try:
         data = json.loads(text)
@@ -174,6 +189,10 @@ def parse_action(text: str) -> ToolAction:
         raise ValueError(f"response is not JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError("response must be one JSON object")
+    if allow_task_harness and data.get("tool") == "run_task_harness":
+        from packages.contracts.task_harness import RunTaskHarnessAction
+
+        return RunTaskHarnessAction.model_validate(data, strict=True)
     return ToolAction.model_validate(data)
 
 

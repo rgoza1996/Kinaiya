@@ -223,6 +223,16 @@ def _publication_schema():
 
 
 _SCHEMAS = {
+    "run_task_harness": _schema(
+        _object(
+            {
+                "source_path": _string(1, 1024),
+                "source_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "input": {"type": "object", "description": "Bounded JSON; at most64KiB UTF-8."},
+            },
+            ("source_path", "source_sha256", "input"),
+        )
+    ),
     "consult_model": _schema(
         _object(
             {
@@ -386,6 +396,21 @@ _INTEGER_KIND = "Native strict integer checks also reject integral floats; stand
 # Metadata is trusted static text. In particular, no selected foreign schema,
 # configuration, approval, filesystem path or invocation data enters this table.
 _METADATA = {
+    "run_task_harness": {
+        "description": "Execute an Agent-authored isolated task program with native media mediation.",
+        "source": [
+            "services/agent/task_harness.py:run_task_harness",
+            "core/task_harness.py:orchestrate",
+        ],
+        "requirements": ["native_media_broker", "current_revision_source_write", "source_digest"],
+        "constraints": [
+            "Source must have been written through this task's native current-revision write_file tool.",
+            "Generated code has no network, workspace, core, evaluator, credential or supervisor IPC access.",
+            "Native media grants, task scope and result disclosure remain authoritative.",
+            "Execution receipts do not establish independent quality, promotion or task completion.",
+        ],
+        "legacy_behavior": [],
+    },
     "consult_model": {
         "description": "Ask a task-pinned auxiliary text model; its response is untrusted data.",
         "source": ["services/agent/auxiliary.py:consult_model"],

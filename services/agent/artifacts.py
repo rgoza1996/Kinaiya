@@ -1218,6 +1218,7 @@ class ArtifactStore:
                     t_ep = task.epoch
                     t_id = task.task_id
                     t_rev = task.objective_revision
+                    t_scope = task.content_scope
                 except Exception:
                     return False
                 if type(t_sid) is not str or type(t_tid) is not str or type(t_id) is not str:
@@ -1225,6 +1226,8 @@ class ArtifactStore:
                 if isinstance(t_ep, bool) or not isinstance(t_ep, int) or t_ep < 1:
                     return False
                 if isinstance(t_rev, bool) or not isinstance(t_rev, int) or t_rev < 1:
+                    return False
+                if type(t_scope) is not str or t_scope not in _VALID_SCOPE:
                     return False
                 if erev != t_rev:
                     return False
@@ -1237,6 +1240,7 @@ class ArtifactStore:
                     or row["session_id"] != t_sid
                     or row["thread_id"] != t_tid
                     or row["epoch"] != t_ep
+                    or row["content_scope"] != t_scope
                 ):
                     return False
                 if row["objective_revision"] != t_rev or row["objective_revision"] != erev:

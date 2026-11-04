@@ -12,7 +12,7 @@ import copy
 import hashlib
 import json
 
-from packages.contracts.agent_tools import NATIVE_TOOL_ORDER
+from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, SUPPORTED_NATIVE_TOOL_ORDER
 from packages.contracts.native_tool_schemas import native_tool_definition, native_tool_schema
 from packages.contracts.tool_catalog import (
     CATALOG_KINDS,
@@ -217,10 +217,13 @@ def _permissions(runtime, task, tool, target=None):
 
 def _native(runtime, task, query):
     snapshot = runtime.tool_snapshot(task)
-    names = (query.name,) if query.selected else NATIVE_TOOL_ORDER
+    order = (
+        SUPPORTED_NATIVE_TOOL_ORDER if snapshot.supports("run_task_harness") else NATIVE_TOOL_ORDER
+    )
+    names = (query.name,) if query.selected else order
     rows = []
     for name in names:
-        if name not in NATIVE_TOOL_ORDER:
+        if name not in SUPPORTED_NATIVE_TOOL_ORDER:
             continue
         definition = native_tool_definition(name)
         configured = snapshot.supports(name)
