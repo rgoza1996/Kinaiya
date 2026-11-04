@@ -21,6 +21,7 @@ import '../api/decisions_model_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/artifact_client.dart';
 import '../artifacts/models.dart';
+import '../artifacts/media.dart';
 import '../config/connection.dart';
 import 'converse_handoff.dart';
 import 'native_audio_clip.dart';
