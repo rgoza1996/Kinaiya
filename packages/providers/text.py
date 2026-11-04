@@ -3,11 +3,12 @@
 import asyncio
 import copy
 import json
+import math
 import os
 import stat
 from collections import deque
 from collections.abc import AsyncIterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,37 @@ from packages.contracts.models import ProviderInfo
 
 class ProviderError(RuntimeError):
     pass
+
+
+class MetaTransportError(ProviderError):
+    """Closed transport labels; never echo an exception, URL or credential."""
+
+    _LABELS = {
+        "connect_timeout": "connect timeout",
+        "read_timeout": "read timeout",
+        "write_timeout": "write timeout",
+        "pool_timeout": "connection pool timeout",
+        "total_timeout": "total request timeout",
+        "transport_timeout": "transport timeout",
+        "transport_error": "transport error",
+    }
+
+    def __init__(self, reason):
+        if type(reason) is not str or reason not in self._LABELS:
+            raise ValueError("Unknown Meta transport diagnostic")
+        self._reason = reason
+        super().__init__(
+            f"Meta generation {self._LABELS[reason]}; provider completion is unknown; "
+            "no automatic retry"
+        )
+
+    @property
+    def reason(self):
+        return self._reason
+
+    @property
+    def diagnostic(self):
+        return {"stage": "generation_transport", "reason": self.reason, "completion": "unknown"}
 
 
 _ACTION_JSON_REASONS = (
@@ -754,6 +786,7 @@ class MetaResponsesProvider:
         structured_actions=False,
         action_format="flat-v1",
         context_tokens=None,
+        timeout=600,
         transport=None,
         pre_generation_proofs=False,
     ):
@@ -761,6 +794,13 @@ class MetaResponsesProvider:
 
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
+        if (
+            type(timeout) not in (int, float)
+            or not 1 <= timeout <= 1800
+            or not math.isfinite(timeout)
+        ):
+            raise ProviderError("Meta timeout must be between 1 and 1800 seconds")
+        self._request_timeout_s = float(timeout)
         if type(pre_generation_proofs) is not bool:
             raise ProviderError("Invalid native pre-generation proof configuration")
         if type(action_format) is not str or action_format not in {"flat-v1", "typed-v2"}:
@@ -804,7 +844,12 @@ class MetaResponsesProvider:
             del headers["x-tbh-contributor-mode"]
         self.http = RequestBoundAsyncClient(
             base_url=base_url.rstrip("/") + "/",
-            timeout=120,
+            timeout=httpx.Timeout(
+                self._request_timeout_s,
+                connect=min(10.0, self._request_timeout_s),
+                pool=min(10.0, self._request_timeout_s),
+                write=min(60.0, self._request_timeout_s),
+            ),
             headers=headers,
             transport=transport,
             trust_env=False,
@@ -826,8 +871,58 @@ class MetaResponsesProvider:
             self.structured_actions,
             self.action_format,
             self.context_tokens,
+            self._request_timeout_s,
             request_digest(self.info.model_dump()),
         ) + (("pre-generation-proofs-v1",) if self._pre_generation_proofs else ())
+
+    @asynccontextmanager
+    async def _generation_deadline(self):
+        # A logical deadline does not release an owned HTTP close. The existing
+        # stream owner still settles actual close before this error escapes.
+        owner = asyncio.current_task()
+        cancellations = owner.cancelling()
+        deadline = asyncio.timeout(self._request_timeout_s)
+        try:
+            async with deadline:
+                yield
+        except httpx.TimeoutException as exc:
+            if owner.cancelling() > cancellations:
+                raise asyncio.CancelledError from None
+            reason = (
+                "total_timeout"
+                if deadline.expired()
+                else next(
+                    (
+                        label
+                        for kind, label in (
+                            (httpx.ConnectTimeout, "connect_timeout"),
+                            (httpx.ReadTimeout, "read_timeout"),
+                            (httpx.WriteTimeout, "write_timeout"),
+                            (httpx.PoolTimeout, "pool_timeout"),
+                        )
+                        if isinstance(exc, kind)
+                    ),
+                    "transport_timeout",
+                )
+            )
+            raise MetaTransportError(reason) from None
+        except TimeoutError:
+            if owner.cancelling() > cancellations:
+                raise asyncio.CancelledError from None
+            reason = "total_timeout" if deadline.expired() else "transport_timeout"
+            raise MetaTransportError(reason) from None
+        except httpx.HTTPError:
+            if owner.cancelling() > cancellations:
+                raise asyncio.CancelledError from None
+            reason = "total_timeout" if deadline.expired() else "transport_error"
+            raise MetaTransportError(reason) from None
+        # A transport may suppress cancellation while settling its real work.
+        # The original close settles first; no canceled/expired success escapes.
+        # A raised cleanup failure bypasses these success fences and stays sticky.
+        if owner.cancelling() > cancellations:
+            raise asyncio.CancelledError
+        if deadline.expired():
+            raise MetaTransportError("total_timeout")
 
     async def _input_tokens(self, client, body, check=None, admission=None):
         """One actual count response, owned through EOF and real HTTP close."""
@@ -1427,16 +1522,17 @@ class MetaResponsesProvider:
             or str(client.base_url) != origin
         ):
             raise ProviderRefusal("Meta capture transport binding changed")
-        if check is None:
-            response = await client.post("responses", json=body)
-            raw = response.content
-        else:
-            check(body)
+        async with self._generation_deadline():
+            if check is not None:
+                check(body)
+            # Both measured and legacy complete requests use the same original
+            # stream owner, including response-hook waits and EOF close. A new
+            # total deadline must not interrupt an unowned legacy close.
             async with complete_stream(
                 client,
                 "responses",
                 body,
-                lambda: check(body),
+                (lambda: check(body)) if check is not None else (lambda: None),
                 _OwnedHTTPStream,
                 admission=admission,
                 purpose="complete_generation",
@@ -1453,7 +1549,8 @@ class MetaResponsesProvider:
                         raise ProviderError("Meta complete response exceeds its native byte bound")
                     collected.extend(chunk)
                 raw = bytes(collected)
-            check(body)
+            if check is not None:
+                check(body)
         capture_response(raw)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")

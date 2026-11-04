@@ -20,7 +20,15 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from services.settings.credentials import CredentialVault, valid_key
 
@@ -115,6 +123,17 @@ class MetaProfile(TextProfile):
     max_tokens: int = Field(default=2048, ge=16, le=65536)
     context_tokens: int | None = Field(default=None, ge=64, le=MAX_REVISION)
     reasoning_effort: MetaEffort = "xhigh"
+    timeout_s: int = Field(default=600, ge=1, le=1800)
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_timeout_shape(self, handler):
+        result = handler(self)
+        # Existing immutable generations never stored this additive field.
+        # Preserve their exact canonical bytes/digest; an explicit new timeout
+        # remains part of its new generation's configuration identity.
+        if "timeout_s" not in self.model_fields_set:
+            result.pop("timeout_s", None)
+        return result
 
     @model_validator(mode="after")
     def bounds(self):

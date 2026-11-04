@@ -234,6 +234,7 @@ def open_captured_recipe(
             max_tokens=config["max_tokens"],
             context_tokens=config["context_tokens"],
             reasoning_effort=recipe.reasoning,
+            timeout=config.get("timeout_s", 600),
             structured_actions=role == "agent" and not auxiliary,
             **({"pre_generation_proofs": True} if pre_generation_proofs else {}),
         )
