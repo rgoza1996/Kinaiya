@@ -300,6 +300,29 @@ async def test_transient_final_window_failure_gets_one_bounded_retry(env):
     )
 
 
+def _fail_next_window_decision_append(worker):
+    """Fail the next routing.window_decided append once, after inference completed.
+
+    Distinct windows differ in provider-visible window_index/revision (#337), so RAM
+    reuse is exercised by retrying the SAME source after a native append outage.
+    """
+    from services.decisions.window_worker import JournalUnavailable
+
+    original = worker._native
+
+    async def native(operation, *args, **kwargs):
+        if (
+            operation == "append"
+            and args
+            and getattr(args[0], "kind", None) == "routing.window_decided"
+        ):
+            worker._native = original
+            raise JournalUnavailable("synthetic decision append outage")
+        return await original(operation, *args, **kwargs)
+
+    worker._native = native
+
+
 async def test_classification_cache_reuses_speech_only_while_task_binding_matches(env):
     class Agent:
         tasks = []
@@ -317,11 +340,20 @@ async def test_classification_cache_reuses_speech_only_while_task_binding_matche
                 "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
             }
 
+    from services.decisions.window_worker import JournalUnavailable
+
     agent, classifier = Agent(), Classifier()
     worker = WindowDecisionsWorker(LocalJournal(env.store, "decisions"), agent, classifier)
-    await worker.classify(await window(env))
-    await worker.classify(await window(env, index=1))
+    first = await window(env)
+    _fail_next_window_decision_append(worker)
+    with pytest.raises(JournalUnavailable):
+        await worker.classify(first, attempt=1)
+    # Same source, unchanged admissible input and task binding: reuse.
+    await worker.classify(first, attempt=2)
     assert classifier.calls == 1
+    # A different window index is provider-visible input (#337): classify again.
+    await worker.classify(await window(env, index=1))
+    assert classifier.calls == 2
     agent.tasks = [
         SimpleNamespace(
             task_id="new-task",
@@ -331,8 +363,15 @@ async def test_classification_cache_reuses_speech_only_while_task_binding_matche
             state="running",
         )
     ]
-    await worker.classify(await window(env, index=2))
-    assert classifier.calls == 2
+    second = await window(env, index=2)
+    _fail_next_window_decision_append(worker)
+    with pytest.raises(JournalUnavailable):
+        await worker.classify(second, attempt=1)
+    assert classifier.calls == 3
+    agent.tasks = []
+    # Task binding changed between attempts: the retry cannot reuse.
+    await worker.classify(second, attempt=2)
+    assert classifier.calls == 4
 
 
 async def test_conversational_completion_words_are_preserved(env):

@@ -6,6 +6,47 @@ channel requires an explicitly approved release; an absent stable release is an
 error, never permission to install `main`, an alpha, or nightly. See
 [release policy](releases.md) for publication/signing gates.
 
+## First-use quickstart
+
+Every command below exists on the current `main` CLI. Items marked *planned* are
+in open pull requests and are **not shipped**; do not rely on them yet.
+
+```sh
+# 1. Bootstrap (prints the plan and asks before changing anything; never run as root):
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. Configure (the bootstrap normally launches this wizard for you):
+kinaiya setup
+
+# 3. Start the loopback host (Session + Agent; Converse/Decisions only if enabled):
+kinaiya serve host
+
+# 4. In a second terminal: export the owner sign-in file, then serve the web UI.
+kinaiya owner-login   # writes data/owner-login.txt with mode 0600; token is not printed
+kinaiya web           # http://127.0.0.1:8780
+```
+
+- **Location.** The default layout is described in [Locations and PATH](#locations-and-path).
+  Custom absolute `--workspace` / `--data-dir` paths (spaces allowed) must be
+  disjoint and symlink-free. *Planned:* choosing the invoking directory as the
+  install root (#383).
+- **Provider and API key.** Choose a measured Agent adapter and an explicit model.
+  For a cloud provider, setup records only an environment variable **name**
+  (`--credential-env MY_PROVIDER_KEY`) and your disclosure consent; export the key
+  from your protected secret mechanism before `serve host`. Never paste a key into
+  a command line or prompt. *Planned:* masked key entry saved to a private local
+  file (#389) and a searchable model picker (#390).
+- **Configured is not tested.** Setup reports `ready: false` and
+  `provider_connection: not_checked`; it does not contact the provider. Your first
+  real request is the first live inference. *Planned:* an explicit bounded
+  connection check (#391) and `kinaiya doctor` (#392).
+- **Owner credentials.** Internal service tokens in `data/service-tokens.json`
+  (mode 0600) are managed by Kinaiya; do not edit or share them. `owner-login`
+  exports only the owner credential for the local web UI. *Planned:* automatic
+  one-time local sign-in (#393, #396), owner-credential rotation (#394), and a
+  single `kinaiya start` command (#395).
+
 ## Candidate baseline and prerequisites
 
 - Native Ubuntu **22.04 or 24.04**, `x86_64` or `aarch64`.
@@ -28,24 +69,31 @@ error, never permission to install `main`, an alpha, or nightly. See
   backends are not qualified by this installer.
 
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
-upgrades existing system packages, never changes kernel policy, and never starts
-inference, captures a microphone, or submits an Agent task. It refuses to run as
-root. When required host packages (`bubblewrap`, `libseccomp2`, or
-`python3.<minor>-venv`) are missing, `install.sh` and `kinaiya install` include
-the exact `sudo apt-get install --no-upgrade -y <missing>` command in the
-confirmation plan and install only the missing packages after confirmation. If an
-existing system component (`Ubuntu` release `< 22.04`, `Python < 3.11`,
-`bubblewrap < 0.6.1`, `libseccomp2 < 2.5`, or an out-of-date local package index
-that prevents `--no-upgrade` installation) is out of date and blocks
-installation, the CLI and setup wizard warn the user to update that specific
+upgrades, downgrades, or removes existing system packages, never changes kernel
+policy, and never starts inference, captures a microphone, or submits an Agent
+task. It refuses to run as root. Because `apt-get --no-upgrade` alone only skips
+upgrades for packages explicitly named on the command line (and can still upgrade
+already-installed transitive dependencies), when required host packages
+(`bubblewrap`, `libseccomp2`, or `python3.<minor>-venv`) are missing, `install.sh`
+and `kinaiya install` first run a non-mutating `apt-get -s --no-upgrade --no-remove
+-o APT::Get::Upgrade=false -o APT::Get::Remove=false
+-o APT::Get::Allow-Downgrades=false -y install -- <missing>` simulation against the
+`dpkg` status snapshot, verify that every `Inst` record is a newly installed
+package with zero upgrades, removals, or downgrades, and bind the exact approved
+`package=version` pairs to `sudo apt-get install`. If an existing system component
+(`Ubuntu` release `< 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`,
+`libseccomp2 < 2.5`, a transitive dependency requiring an upgrade/removal/downgrade,
+or an out-of-date local package index) blocks installation, the CLI and setup
+wizard stop before any mutating command and warn the user to update that specific
 component first rather than updating the system automatically.
 
 ## Single-command install & shell entry point
 
 Run the standalone root `install.sh` in a single command (it handles prerequisite
-checks, missing dependency installation with `--no-upgrade`, verified release
-bundle download, isolated `.venv` creation, hash-locked runtime wheels, the
-`~/.local/bin/kinaiya` launcher, and interactive `kinaiya setup` via `/dev/tty`):
+checks, solver-verified missing dependency installation with pinned
+`package=version` pairs, verified release bundle download, isolated `.venv`
+creation, hash-locked runtime wheels, the `~/.local/bin/kinaiya` launcher, and
+interactive `kinaiya setup` via `/dev/tty`):
 
 ```sh
 # Single-command install (experimental nightly channel):
@@ -113,15 +161,52 @@ stale launcher. Keep the saved layout, or use a separately reviewed relocation.
 
 ## Setup and launch
 
+For a new configuration, choose one setup form:
+
 ```sh
 kinaiya setup
-# Noninteractive: credential references are environment VARIABLE NAMES, not keys.
-kinaiya setup --yes --endpoint http://127.0.0.1:8080/v1 --model explicit-local-model
-# Cloud requires affirmative disclosure consent and HTTPS:
-kinaiya setup --yes --endpoint https://provider.example/v1 --model explicit-model \
-  --allow-cloud --credential-env MY_PROVIDER_KEY
+# Or noninteractive Agent-only setup; credentials are VARIABLE NAMES, not keys:
+kinaiya setup --yes --adapter lmstudio \
+  --endpoint http://127.0.0.1:1234 --model explicit-local-agent
+# Or a cloud Agent, with its own explicit cloud setting and credential reference:
+kinaiya setup --yes --adapter meta \
+  --endpoint https://agent.example.invalid/v1 --model explicit-cloud-agent \
+  --allow-cloud --credential-env AGENT_API_KEY
+# Or independent providers for optional Converse text services and Decisions:
+kinaiya setup --yes --adapter lmstudio \
+  --endpoint http://127.0.0.1:1234 --model explicit-local-agent \
+  --converse-adapter compatible \
+  --converse-endpoint https://converse.example.invalid/v1 \
+  --converse-model explicit-converse --converse-credential-env CONVERSE_API_KEY \
+  --converse-allow-cloud \
+  --decisions-adapter compatible --decisions-endpoint http://127.0.0.1:8080/v1 \
+  --decisions-model explicit-decisions
+# After the chosen setup:
 kinaiya serve host
 ```
+
+Replace illustrative endpoints/model names with your selected provider settings.
+The setup adapter choices are:
+
+| Role | Adapter option | Supported values |
+| --- | --- | --- |
+| Agent | `--adapter` | `lmstudio`, `meta` |
+| Converse | `--converse-adapter` | `lmstudio`, `compatible`, `meta` |
+| Decisions | `--decisions-adapter` | `compatible`, `laya`, `native_d1`, `meta` |
+
+Supplying any `--converse-*` option requires its own `--converse-endpoint` and
+`--converse-model`; any `--decisions-*` option requires its own
+`--decisions-endpoint` and `--decisions-model`. Their `--converse-credential-env` / `--decisions-credential-env`
+and `--converse-allow-cloud` / `--decisions-allow-cloud` settings are independent
+of Agent settings. Explicit role profiles do not inherit Agent cloud permission
+or credential references. The wizard asks for each role separately, defaulting
+to no cloud permission and no credential reference.
+
+Bare `--converse` retains its existing implicit provider defaults. All effective
+enabled profiles, including those defaults, are validated before directories,
+private tokens or configuration are written. For example, a loopback WebSocket LM Studio Agent
+endpoint needs an explicit HTTP(S) Decisions profile when its implicit
+`compatible` profile would be invalid; refusal leaves a fresh setup untouched.
 
 Setup reuses native `kinaiya init`, creates private service credentials/config,
 and retains the native default policy: no general writes, shell, network or YOLO.
@@ -130,8 +215,10 @@ must not be pasted into prompts/arguments; only an environment variable referenc
 is written to config. Load credential values through your protected host secret
 mechanism, not into conversation or shell-history arguments.
 
-Agent-only `serve host` starts **session + Agent**. `setup --converse` or affirmative
-wizard selection adds Converse text + Decisions on the next `serve host`.
+Agent-only `serve host` starts **session + Agent**. `setup --converse`, an explicit
+Converse profile, or affirmative wizard selection adds Converse text + Decisions
+on the next `serve host`. A Decisions profile without a Converse profile or
+`--converse` does not enable Converse.
 No `voice`/`resources` declaration, model/voice download or license consent is
 inferred. Optional model/voice installation is a separate explicit developer path
 with its own license/download-size review; see [Converse setup](converse-setup.md).
@@ -141,7 +228,9 @@ Agent-only default.
 Setup reports `ready: false` and `provider_connection: not_checked`. It does not
 contact a provider or claim the selected model exists/is loaded. Validate the
 chosen provider/model and local service readiness explicitly before authorizing
-work. No automatic test task is submitted to make setup look successful.
+work. Saving a provider profile does not replace native content-scope and task
+permission checks. No automatic test task is
+submitted to make setup look successful.
 The embedded ASCII mascot has plain-text, narrow-terminal and noninteractive
 fallbacks. It is an original text adaptation of
 `assets/mascot/kinaiya-mascot.png` under the repository Apache-2.0 license, with
@@ -211,6 +300,24 @@ boundary and requires identical declared state-schema compatibility. It restores
 migrations and backup/restore are **not implemented and are refused**; retaining a
 Git SHA is not a database rollback promise. Backup and service-readiness
 qualification remain separate release acceptance gates.
+
+## Troubleshooting and small recovery paths
+
+Each path preserves your journal, configuration, workspace and owner credential.
+None of them requires editing JSON or `.env` files by hand.
+
+| Symptom | What to do |
+| --- | --- |
+| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04, install the narrow AppArmor profile described there; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
+| **Install destination inaccessible or protected** | Choose an absolute, user-owned, symlink-free path outside the Agent workspace and outside system directories, then rerun with `--workspace` / `--data-dir`. Nothing is written when preflight refuses. |
+| **Model endpoint unavailable** | Start or fix the provider (for local LM Studio, load the model and confirm the loopback endpoint), then restart `kinaiya serve host`. Setup's saved configuration stays valid; to change the endpoint or model, rerun `kinaiya setup`. |
+| **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |
+| **Missing web assets** (`kinaiya web` refuses) | The matching release has no prebuilt UI. Install a release that includes it (`kinaiya update --plan`, then `kinaiya update --yes`), or follow the developer path in [Owner web client](#owner-web-client) in a separate checkout. Kinaiya never downloads Flutter for you. |
+| **Interrupted install or update** | Stop managed services, then run `kinaiya recover --yes`. It reconciles the pending transaction without deleting the active generation or data. If a release is broken, `kinaiya rollback --generation <id> --yes` restores retained code/runtime only. |
+| **Lost owner sign-in file** | Run `kinaiya owner-login --output <new-path>`. It creates a new 0600 file and refuses to overwrite an existing one; internal service tokens are unchanged. Delete stale exports you no longer need. |
+
+Rerunning `install.sh` or `kinaiya setup` on an existing installation preserves
+existing configuration and refuses silent reinitialization.
 
 ## Uninstall
 

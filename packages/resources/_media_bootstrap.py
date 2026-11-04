@@ -115,16 +115,77 @@ def _control(fd: int) -> None:
         control.detach()
 
 
+def _enrollment_fd(value: str) -> int:
+    return _descriptor(value)
+
+
+def _validate_enrollment(fd: int) -> None:
+    # The outer bootstrap refusal handler also catches OS/ctypes failures.
+    # Keep these checks before any grant wait or target/config/source read.
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    if flags & os.O_ACCMODE != os.O_WRONLY or flags & getattr(os, "O_PATH", 0):
+        raise ValueError
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        raise ValueError
+    link = os.readlink(f"/proc/self/fd/{fd}")
+    if not link.endswith("/cgroup.procs"):
+        raise ValueError
+    import ctypes
+
+    class _Statfs(ctypes.Structure):
+        _fields_ = [("f_type", ctypes.c_long), ("_pad", ctypes.c_char * 512)]
+
+    buffer = _Statfs()
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.fstatfs(fd, ctypes.byref(buffer)) != 0 or buffer.f_type != 0x63677270:
+        raise ValueError
+
+
 def _run() -> int:
-    if len(sys.argv) != 6:
+    if len(sys.argv) not in (6, 8):
         raise ValueError
-    _, grant_s, config_s, nonce, control_s, source_s = sys.argv
-    grant_fd, config_fd, control_fd, source_fd = (
-        _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
-    )
-    originals = (grant_fd, config_fd, control_fd, source_fd)
-    if len(set(originals)) != 4 or _NONCE.fullmatch(nonce) is None:
-        raise ValueError
+    if len(sys.argv) == 8:
+        if sys.argv[6] != "--kinaiya-cgroup-v1":
+            raise ValueError
+        _, grant_s, config_s, nonce, control_s, source_s, _, enroll_s = sys.argv
+        grant_fd, config_fd, control_fd, source_fd = (
+            _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
+        )
+        enroll_fd = _enrollment_fd(enroll_s)
+        originals5 = (grant_fd, config_fd, control_fd, source_fd, enroll_fd)
+        if len(set(originals5)) != 5 or _NONCE.fullmatch(nonce) is None:
+            raise ValueError
+        # Validate owner-provided write-only cgroup2 cgroup.procs before grant.
+        _validate_enrollment(enroll_fd)
+        try:
+            if os.write(enroll_fd, b"0") != 1:
+                raise ValueError
+        except BaseException:
+            try:
+                os.close(enroll_fd)
+            except BaseException:
+                # Preserve the original enrollment failure. Process exit owns
+                # all remaining descriptors; never retry an ambiguous integer.
+                pass
+            raise
+        # A successful write still needs positive retirement before grant/exec.
+        # Any close error refuses execution; the possibly reused fd is not retried.
+        os.close(enroll_fd)
+        _, grant_s, config_s, nonce, control_s, source_s = sys.argv[0:6]
+        grant_fd, config_fd, control_fd, source_fd = (
+            _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
+        )
+        originals = (grant_fd, config_fd, control_fd, source_fd)
+        if len(set(originals)) != 4 or _NONCE.fullmatch(nonce) is None:
+            raise ValueError
+    else:
+        _, grant_s, config_s, nonce, control_s, source_s = sys.argv
+        grant_fd, config_fd, control_fd, source_fd = (
+            _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
+        )
+        originals = (grant_fd, config_fd, control_fd, source_fd)
+        if len(set(originals)) != 4 or _NONCE.fullmatch(nonce) is None:
+            raise ValueError
     parent = os.getppid()
     if not stat.S_ISFIFO(os.fstat(grant_fd).st_mode) or not _read_only(grant_fd):
         raise ValueError

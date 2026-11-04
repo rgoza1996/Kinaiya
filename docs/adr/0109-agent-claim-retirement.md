@@ -8,6 +8,17 @@ production bytes. Applicable exact-head CI remains required before merge.
 This increment joins actual Agent work before automatic Resources finalization;
 it does not settle native Tasks or release execution claims or active slots.
 
+*November 3, 2026 merge/CI note ([#341](https://github.com/rgoza1996/Kinaiya/issues/341)):*
+[PR #315](https://github.com/rgoza1996/Kinaiya/pull/315) subsequently merged into
+`main` at [`0db7b8044fed6879c3bdc0da63da05e9d4d49a57`](https://github.com/rgoza1996/Kinaiya/commit/0db7b8044fed6879c3bdc0da63da05e9d4d49a57)
+after PR head [`18c9185c8b7e07a66e418250ae32ea500df8e50e`](https://github.com/rgoza1996/Kinaiya/commit/18c9185c8b7e07a66e418250ae32ea500df8e50e)
+passed [CI run `41564065620`](https://github.com/rgoza1996/Kinaiya/actions/runs/41564065620),
+and [PR #374](https://github.com/rgoza1996/Kinaiya/pull/374) ([#356](https://github.com/rgoza1996/Kinaiya/issues/356))
+subsequently merged into `main` at [`0d64cb1498c3a41eb817669f1bb718593d223dca`](https://github.com/rgoza1996/Kinaiya/commit/0d64cb1498c3a41eb817669f1bb718593d223dca)
+with exact `main`-push [CI run `41625037919`](https://github.com/rgoza1996/Kinaiya/actions/runs/41625037919)
+passing all five jobs. The original November 2 source cutoffs and
+qualification/failure history below remain preserved as historical records.
+
 ## Original authority and bounded ownership
 
 Agent retains one current-process owner before its first standing preflight

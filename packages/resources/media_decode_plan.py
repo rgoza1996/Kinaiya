@@ -154,7 +154,7 @@ def build_decode_plan(
     seal_ref: media.MediaNativeRef,
     admission: media.MediaSourceAdmission,
     seal: media.MediaSeal,
-    profile: media.MediaDecoderProfile,
+    profile: media.MediaDecoderProfile | media.MediaDecoderProfileV2,
     probe: media.MediaProbeResult,
     ready: media.MediaDecodeReady,
     selections: tuple[TrackSelection, ...],
@@ -167,6 +167,12 @@ def build_decode_plan(
     separate required guards. A structurally valid plan grants none of them.
     """
     try:
+        profile_kind = type(profile)
+        if (
+            profile_kind is not media.MediaDecoderProfile
+            and profile_kind is not media.MediaDecoderProfileV2
+        ):
+            _refuse()
         pins = []
         values = []
         for value, kind in (
@@ -174,7 +180,7 @@ def build_decode_plan(
             (seal_ref, media.MediaNativeRef),
             (admission, media.MediaSourceAdmission),
             (seal, media.MediaSeal),
-            (profile, media.MediaDecoderProfile),
+            (profile, profile_kind),
             (probe, media.MediaProbeResult),
             (ready, media.MediaDecodeReady),
         ):
@@ -215,7 +221,11 @@ def build_decode_plan(
         ):
             _refuse("bound")
         if (
-            profile.driver != "pyav17_timed_fd_v1"
+            (type(profile), profile.driver, profile.protocol.kind)
+            not in (
+                (media.MediaDecoderProfile, "pyav17_timed_fd_v1", "decoder_fd_v1"),
+                (media.MediaDecoderProfileV2, "pyav17_timed_fd_v2", "decoder_fd_v2"),
+            )
             or profile.runtime is None
             or profile.implementation is None
             or profile.protocol.implementation is None
@@ -325,5 +335,91 @@ def build_decode_plan(
         ).encode("utf-8")
         digest.update(tail)
         return DecodePlan(*pins, pair, tuple(captured), digest.hexdigest())
+    except media.MediaContractError as error:
+        raise MediaDecodePlanError(error.code) from None
+
+
+def build_decode_plan_from_open(
+    *,
+    source_ref: media.MediaNativeRef,
+    seal_ref: media.MediaNativeRef,
+    admission: media.MediaSourceAdmission,
+    seal: media.MediaSeal,
+    profile: media.MediaDecoderProfileV2,
+    open_plan: media.MediaDecodeOpenPlan,
+) -> DecodePlan:
+    """Bind a v2 open plan to the existing full initial-plan checks.
+
+    The open plan is a strict fresh snapshot. Admission/seal contents, clocks
+    and common origin are checked by the delegated full build. Resolving native
+    references, charged budgets and currentness remains the native owner's work.
+    This function grants no charge, launch, quota or timeout authority.
+    """
+    try:
+        pins = []
+        values = []
+        for value, kind in (
+            (source_ref, media.MediaNativeRef),
+            (seal_ref, media.MediaNativeRef),
+            (admission, media.MediaSourceAdmission),
+            (seal, media.MediaSeal),
+            (profile, media.MediaDecoderProfileV2),
+            (open_plan, media.MediaDecodeOpenPlan),
+        ):
+            raw, fresh = _pin(value, kind)
+            pins.append(raw)
+            values.append(fresh)
+        source_ref, seal_ref, admission, seal, profile, open_plan = values
+        if profile.driver != "pyav17_timed_fd_v2" or profile.protocol.kind != "decoder_fd_v2":
+            _refuse("unavailable")
+        observation = open_plan.observation
+        ready = open_plan.ready
+        segment = open_plan.segment
+        if (
+            observation.source != source_ref
+            or observation.seal != seal_ref
+            or ready.source != source_ref
+            or ready.seal != seal_ref
+            or observation.profile_sha256 != profile.profile_sha256
+            or ready.decoder_profile_sha256 != profile.profile_sha256
+        ):
+            _refuse("conflict")
+        if (
+            segment.source != source_ref
+            or segment.source_revision != admission.source_revision
+            or segment.source_revision != admission.fence.source_revision
+            or segment.source_revision != seal.fence.source_revision
+            or segment.generation != admission.fence.generation
+            or segment.generation != seal.fence.generation
+            or segment.profile_sha256 != profile.profile_sha256
+            or segment.profile_sha256 != admission.decoder_profile_sha256
+            or segment.profile_sha256 != seal.decoder_profile_sha256
+        ):
+            _refuse("conflict")
+        selections = tuple(
+            TrackSelection(item.probe_index, item.track.track_id, item.format)
+            for item in open_plan.selections
+        )
+        clocks = tuple(
+            ProbeClock(
+                item.probe_index,
+                item.first_pts,
+                item.timebase.num,
+                item.timebase.den,
+                item.provenance,
+            )
+            for item in observation.clocks
+        )
+        return build_decode_plan(
+            source_ref=source_ref,
+            seal_ref=seal_ref,
+            admission=admission,
+            seal=seal,
+            profile=profile,
+            probe=observation.probe,
+            ready=ready,
+            selections=selections,
+            clocks=clocks,
+        )
     except media.MediaContractError as error:
         raise MediaDecodePlanError(error.code) from None

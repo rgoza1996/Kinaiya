@@ -23,6 +23,12 @@ from services.distribution.installation import (
     setup,
 )
 from services.distribution.terminal import open_terminal
+from services.distribution.terminal_ui import (
+    PALETTE,
+    RESET,
+    ColorMode,
+    detect_color_mode,
+)
 
 VALID_WIZARD_MODES = (None, "standard", "quick", "advanced")
 
@@ -73,9 +79,24 @@ class WizardFlowCoordinator:
         self.setup_fn = setup_fn
         self.profile_id = profile_id
         self.getpass_fn = getpass_fn
+        self.color_mode = detect_color_mode(tty)
+
+    def _paint(self, text: str, token_fg: str) -> str:
+        if self.color_mode == ColorMode.NONE or not token_fg:
+            return text
+        return f"{token_fg}{text}{RESET}"
 
     def ask(self, label: str, default: str = "") -> str:
-        self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+        if self.color_mode == ColorMode.NONE:
+            self.tty.write(f"{label}" + (f" [{default}]" if default else "") + ": ")
+        else:
+            c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+            c_def = PALETTE.amber.fg_sequence(self.color_mode)
+            prompt_str = f"{c_lbl}{label}{RESET}"
+            if default:
+                prompt_str += f" {c_def}[{default}]{RESET}"
+            prompt_str += f"{c_lbl}: {RESET}"
+            self.tty.write(prompt_str)
         self.tty.flush()
         answer = self.tty.readline()
         if not answer:
@@ -84,41 +105,79 @@ class WizardFlowCoordinator:
 
     def _write_header(self) -> None:
         if self.mascot_fn is not None:
-            self.tty.write(self.mascot_fn(width=shutil.get_terminal_size().columns) + "\n")
-        self.tty.write("Agent-only by default. No microphone capture or task execution.\n")
-        self.tty.write("No models, voice packs or optional UI tools will be downloaded.\n")
+            cols = shutil.get_terminal_size().columns
+            try:
+                banner = self.mascot_fn(width=cols, color=self.color_mode)
+            except TypeError:
+                banner = self.mascot_fn(width=cols)
+            self.tty.write(banner + "\n")
+        c_slate = PALETTE.slate.fg_sequence(self.color_mode)
+        self.tty.write(
+            self._paint(
+                "Agent-only by default. No microphone capture or task execution.",
+                c_slate,
+            )
+            + "\n"
+        )
+        self.tty.write(
+            self._paint(
+                "No models, voice packs or optional UI tools will be downloaded.",
+                c_slate,
+            )
+            + "\n"
+        )
 
     def _collect_role_profiles(
         self,
         *,
         endpoint: str,
         model: str,
-        allow_cloud: bool,
-        credential_env: str | None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         converse_adapter = self.ask(
             "Converse provider adapter (lmstudio/compatible/meta)", "compatible"
         )
         converse_endpoint = self.ask("Converse provider endpoint", endpoint)
         converse_model = self.ask("Exact Converse model name", model)
+        converse_allow_cloud = _parse_yes_no(
+            self.ask(
+                "Allow disclosure of authorized content to this Converse provider? yes/no",
+                "no",
+            ),
+            default=False,
+        )
+        converse_credential_env = (
+            self.ask("Converse credential environment variable NAME only; never paste a key")
+            or None
+        )
         converse_profile = {
             "kind": converse_adapter,
             "endpoint": converse_endpoint,
             "model": converse_model,
-            "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "allow_cloud": converse_allow_cloud,
+            "credential_env": converse_credential_env,
         }
         decisions_adapter = self.ask(
             "Decisions provider adapter (compatible/laya/native_d1/meta)", "compatible"
         )
         decisions_endpoint = self.ask("Decisions provider endpoint", converse_endpoint)
         decisions_model = self.ask("Exact Decisions model name", converse_model)
+        decisions_allow_cloud = _parse_yes_no(
+            self.ask(
+                "Allow disclosure of authorized content to this Decisions provider? yes/no",
+                "no",
+            ),
+            default=False,
+        )
+        decisions_credential_env = (
+            self.ask("Decisions credential environment variable NAME only; never paste a key")
+            or None
+        )
         decisions_profile = {
             "kind": decisions_adapter,
             "endpoint": decisions_endpoint,
             "model": decisions_model,
-            "allow_cloud": allow_cloud,
-            "credential_env": credential_env,
+            "allow_cloud": decisions_allow_cloud,
+            "credential_env": decisions_credential_env,
         }
         return converse_profile, decisions_profile
 
@@ -237,8 +296,6 @@ class WizardFlowCoordinator:
                 converse_profile, decisions_profile = self._collect_role_profiles(
                     endpoint=endpoint,
                     model=model,
-                    allow_cloud=allow_cloud,
-                    credential_env=credential_env,
                 )
 
         chosen = replace(
@@ -322,8 +379,6 @@ class WizardFlowCoordinator:
             converse_profile, decisions_profile = self._collect_role_profiles(
                 endpoint=endpoint,
                 model=model,
-                allow_cloud=allow_cloud,
-                credential_env=credential_env,
             )
         self._write_review_and_confirm(
             chosen,
