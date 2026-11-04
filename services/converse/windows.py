@@ -85,6 +85,7 @@ class PreparedReply:
     consumer_done: asyncio.Event = field(default_factory=asyncio.Event)
     memory_lease: object = None
     messages: object = None
+    native_audio_reply: object = None
 
 
 class WindowConverseController:
@@ -120,6 +121,14 @@ class WindowConverseController:
     def _local_current(self, prepared):
         if prepared.abandoned or not self.runtime.admission_current(prepared.admission):
             return False
+        native_audio = getattr(self.runtime, "native_audio", None)
+        if native_audio is not None:
+            try:
+                native_audio.clip_for(prepared.source)
+            except Exception:
+                # A native declaration never authorizes a text-only substitute
+                # when the original clip, host pair or source is unavailable.
+                return False
         published_cache = (
             prepared.model_lease is not None
             and prepared.model_cleanup is not None
@@ -451,6 +460,22 @@ class WindowConverseController:
                             "window_source_id": source.event_id,
                             "window_utterance_id": latest.utterance_id,
                             "window_behavior": prepared.behavior,
+                            **(
+                                {
+                                    "native_audio": text == prepared.native_audio_reply.text,
+                                    **(
+                                        {
+                                            "native_audio_sha256": hashlib.sha256(
+                                                prepared.native_audio_reply.pcm16
+                                            ).hexdigest()
+                                        }
+                                        if text == prepared.native_audio_reply.text
+                                        else {"native_audio_suppressed": "guard_replaced_text"}
+                                    ),
+                                }
+                                if prepared.native_audio_reply is not None
+                                else {}
+                            ),
                             **self.runtime.model_payload(prepared),
                             **(
                                 {"guard_reason": "ungrounded_runtime_state_claim"}
@@ -476,6 +501,13 @@ class WindowConverseController:
                     )
                 if await self.current(prepared) is None or not epoch.accepts(prepared.generation):
                     return False
+                if prepared.native_audio_reply is not None:
+                    self.runtime.native_audio.cache_reply(
+                        prepared,
+                        entry,
+                        prepared.native_audio_reply,
+                        text_unchanged=entry.payload.get("native_audio") is True,
+                    )
                 epoch.chunks[entry.event_id] = entry
                 prepared.published += 1
                 prepared.reply_request = None
@@ -496,6 +528,33 @@ class WindowConverseController:
                 **self.runtime.model_payload(prepared),
             )
         await self._native("append", prepared.prepare_request)
+        native_audio = getattr(self.runtime, "native_audio", None)
+        if native_audio is not None:
+            native_audio.clip_for(source)
+            # The current transcript in the last row is a routing sidechannel.
+            # RealtimeAudioProvider omits that row and sends ORIGINAL PCM as the
+            # new input. All preceding qualified history remains intact.
+            builder = ContextBudgetBuilder(
+                self.journal,
+                source,
+                prepared.provider,
+                personality=self.runtime.personality,
+                runtime_id=self.runtime._runtime_id,
+                current=lambda: self._local_current(prepared),
+                native=self._native,
+            )
+            projection = await builder.complete_unmeasured()
+            native_audio.clip_for(source)
+            prepared.content_scope = combine_scopes(
+                source.payload["content_scope"],
+                self.runtime.personality_scope,
+                *projection.consumed_scopes,
+            )
+            prepared.messages = projection.messages
+            if await self.current(prepared) is None:
+                self._abandon(prepared)
+                return None
+            return prepared.messages
         recent = (
             []
             if self.runtime.context_budgeted
@@ -589,6 +648,26 @@ class WindowConverseController:
                 or (datetime.now(UTC) - source.created_at).total_seconds() > 60
             ):
                 self._abandon(prepared)
+                return
+            native_audio = getattr(self.runtime, "native_audio", None)
+            if native_audio is not None:
+                self.runtime._active[source.session_id] = prepared.task
+                prepared.provider_started = True
+
+                async def native_current():
+                    return await self.current(prepared) is not None
+
+                reply = await native_audio.provider.respond(
+                    native_audio.clip_for(source), messages, current=native_current
+                )
+                if await self.current(prepared) is None:
+                    self._abandon(prepared)
+                    return
+                # Buffered native output is one atomic text/audio unit. Splitting
+                # text with SpeechChunker would break its PCM correspondence.
+                prepared.native_audio_reply = reply
+                prepared.chunks.append(reply.text)
+                await self.flush(prepared)
                 return
             chunker = SpeechChunker()
             size = 0

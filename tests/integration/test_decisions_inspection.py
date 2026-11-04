@@ -510,13 +510,15 @@ async def test_window_retry_and_reuse_keep_distinct_original_call_identity(env, 
         calls = env.store.decisions.detail(entry.event_id)["calls"]
         assert [c["status"] for c in calls] == ["completed", "error"]
         assert [c["attempt"] for c in calls] == [2, 1]
+        # A later window differs in provider-visible window_index (#337), so it gets its
+        # own original call rather than reusing the first source's answer.
         repeated = source(env, kind="conversation.window", index=1)
         await worker._job(repeated)
-        reuse = env.store.decisions.detail(repeated.event_id)["calls"][0]
-        assert len(seen) == 2 and reuse["status"] == "reused"
-        assert reuse["reused_from_call_id"] == calls[0]["call_id"]
-        assert reuse["reused_from_source_event_id"] == entry.event_id
-        assert reuse["request"] is None
+        fresh = env.store.decisions.detail(repeated.event_id)["calls"][0]
+        assert len(seen) == 3 and fresh["status"] == "completed"
+        assert fresh["call_id"] not in {c["call_id"] for c in calls}
+        assert fresh.get("reused_from_call_id") is None
+        assert fresh["request"] is not None
     finally:
         await provider.close()
 
@@ -653,7 +655,7 @@ async def test_unrepresentable_request_capture_is_not_relabelled_as_unsubmitted(
 
 @pytest.mark.parametrize("feedback", [False, True])
 async def test_inspection_validation_preserves_native_missing_target_overrides(env, feedback):
-    entry = env.store.append(
+    missing_entry = env.store.append(
         AppendRequest(
             session_id=env.session.session_id,
             thread_id=env.session.thread_id,
@@ -670,6 +672,29 @@ async def test_inspection_validation_preserves_native_missing_target_overrides(e
         ),
         "owner",
     )
+    stale_entry = env.store.append(
+        AppendRequest(
+            session_id=env.session.session_id,
+            thread_id=env.session.thread_id,
+            epoch=env.session.epoch,
+            kind="conversation.user",
+            idempotency_key="stale-target-fixture",
+            payload={
+                "text": "Public synthetic correction",
+                "final": True,
+                "revision": 1,
+                "content_scope": "public_synthetic",
+                **({"outcome_event_id": "synthetic-outcome"} if feedback else {}),
+            },
+        ),
+        "owner",
+    )
+    responses = iter(
+        [
+            '{"route":"interrupt"}',
+            '{"route":"interrupt","target_task_id":"stale-task","expected_objective_revision":1}',
+        ]
+    )
     provider = CompatibleTextProvider(
         "http://localhost/v1",
         "fixture",
@@ -679,7 +704,7 @@ async def test_inspection_validation_preserves_native_missing_target_overrides(e
                 json={
                     "choices": [
                         {
-                            "message": {"role": "assistant", "content": '{"route":"interrupt"}'},
+                            "message": {"role": "assistant", "content": next(responses)},
                             "finish_reason": "stop",
                         }
                     ]
@@ -688,15 +713,32 @@ async def test_inspection_validation_preserves_native_missing_target_overrides(e
         ),
     )
     try:
-        decision = await DecisionsWorker(
+        worker = DecisionsWorker(
             LocalJournal(env.store, "decisions"), Agent(), ModelClassifier(provider)
-        ).process(entry)
+        )
+        refused_decision = await worker.process(missing_entry)
+        assert refused_decision is None
+        missing_detail = env.store.decisions.detail(missing_entry.event_id)
+        assert missing_detail["calls"][0]["status"] == "refused"
+        assert missing_detail["calls"][0]["validated_output"] is None
+        assert "interrupt" in missing_detail["calls"][0]["raw_response"]
+        assert missing_detail["summary"]["disposition"] == "refused"
+        assert [receipt["kind"] for receipt in missing_detail["receipts"]] == [
+            "routing.classification_refused"
+        ]
+        assert missing_detail["receipts"][0]["payload"]["reason"] == "invalid_target_fields"
+
+        decision = await worker.process(stale_entry)
         assert decision.route == "ignore"
         assert decision.reason_code == (
             "outcome_feedback_loop_prevented" if feedback else "unknown_or_stale_target"
         )
-        detail = env.store.decisions.detail(entry.event_id)
-        assert detail["calls"][0]["validated_output"] is None
+        detail = env.store.decisions.detail(stale_entry.event_id)
+        assert detail["calls"][0]["validated_output"] == {
+            "route": "interrupt",
+            "target_task_id": "stale-task",
+            "expected_objective_revision": 1,
+        }
         assert "interrupt" in detail["calls"][0]["raw_response"]
         assert detail["summary"]["outcome"] == "ignore"
         assert [receipt["kind"] for receipt in detail["receipts"]] == ["routing.decided"]

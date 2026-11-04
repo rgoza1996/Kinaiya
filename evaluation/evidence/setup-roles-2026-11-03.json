@@ -1,0 +1,337 @@
+{
+  "base": "62ce2d8c3507d6eabcdcc7842e02226cbcf57dcb",
+  "checks": {
+    "git_diff_check": "pass",
+    "independent_completed_raw_review": "PASS within stated cold/fixed93 offline scope; source-aware reviewer, no independent execution",
+    "ruff_check": "pass",
+    "ruff_format_check": "822 files already formatted after main87 integration",
+    "ruff_format_check_before_parent_integration": "793 files already formatted",
+    "schemas": "unchanged"
+  },
+  "cold_failure_limits": "27 failures include old grammar refusing newly selected options and earlier parser exit codes; they do not all demonstrate a credential disclosure or a reached profile-validation guard. The implicit WebSocket Decisions case also exposes attempted native initialization and a created fresh home before rejection.",
+  "existing_test_change": "Four explicit no/empty role-consent/reference answers added to one prior TTY queue; all 46 original assertion ASTs preserved.",
+  "fixture_corrections_before_execution": [
+    "Unsupported Agent enum expects argparse exit2, not dispatch exit1.",
+    "Native d1 positive input uses its actual root-loopback endpoint grammar."
+  ],
+  "integration": {
+    "main": "87ecadebc20817005cc21b20cfa1faebe91bb4ff",
+    "main_ancestry_present": true,
+    "root_review": "All seven manifest members and all 1,792 tracked before/after/current/Git input hashes verified. All 93 case identities, non-time attributes and children match prior broader93; no JUnit properties, failures, errors or skips. Three product source hashes, new oracle hash and all 46 legacy assertion ASTs preserved. This is root verification, not a second independent execution.",
+    "tested_source_head": "d339abb43f63225ed544c7bf9cf0180d698b8dfc",
+    "tested_tree": "0e34c525d900223ed24542557a5c7fa2d03d4629"
+  },
+  "issue": 335,
+  "limits": [
+    "Focused33 is a subset of broader93; counts are not additive.",
+    "New33 uses scripted terminal IO and declaration-only provider factory controls; it cannot qualify real provider constructors, exact prompt measurement, connectivity, model readiness or actual cloud authorization.",
+    "Actual initialization/token/config writes are on disposable synthetic paths. Existing controlled-wire Agent interoperability and PTY tests retain their own bounded scopes.",
+    "No paid inference was used by these tests. A separate real Muse CLI author call generated the public prospective source patch.",
+    "No user settings, model stack, GPU/device, live service or preview was changed.",
+    "Raw evidence/reviews remain ignored local artifacts identified by hashes, not uploaded CI evidence.",
+    "Full changed-head CI remains required before merge; the recorded main87 integration has passed the same focused93 suite."
+  ],
+  "main7384_qualification": {
+    "actual_exit_code": 0,
+    "actual_muse_port": {
+      "calls": 1,
+      "integrated_wizard_flow_sha256": "8eb436764b2a2a840722fda6debfca04538654c3a99290ab0d6f869650b5f9f7",
+      "model": "muse-spark-1.3-contributor",
+      "public_source_only": true,
+      "raw_patch_sha256": "5ddbf622afe2a23ef4c2a436c0c8d1c8021c36d2eade40c4890e01ef461549a4",
+      "reasoning_effort": "xhigh",
+      "terminal_exit": 0,
+      "tools": "none; root applied supplied-source author patch exactly, formattingASTidentical"
+    },
+    "all_git_pre_post_current_inputs_verified": true,
+    "command": [
+      "<workspace-python>",
+      "-u",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/integration/test_setup_role_profile_inputs.py",
+      "tests/integration/test_setup_agent_interoperability.py",
+      "tests/unit/test_linux_distribution.py",
+      "tests/unit/test_linux_cli.py",
+      "tests/unit/test_linux_real_tty.py",
+      "tests/unit/test_wizard_masked_api_key.py",
+      "tests/unit/test_wizard_quick_first_run.py",
+      "--basetemp=<checkout>/.dev-run/335-main7384-broader-setup-v1-ctueivkn/pytest-tmp",
+      "--junitxml=<checkout>/.dev-run/335-main7384-broader-setup-v1-ctueivkn/junit.xml"
+    ],
+    "compatibility_fixture": {
+      "patch_sha256": "e04da349b11465b585be99c87530fa4118b0f7b80e6f3b378571ea6427527878",
+      "root_gate_receipt_sha256": "30bdf04e09f15960433b1185b7b03590d13caafc372cc5b9ffe7d9ec1ff0ca0c",
+      "scope": "Two files change only strict fresh Agent masked-prompt scripted input and four explicit no/empty per-role answers for existing local Quickadvanced test. All205 existing assertion ASTs preserved; two other files byte-exact. Source-aware candidate; root independent quality gate beforeexecution, explicitly postcommit after corrected metadata checker."
+    },
+    "elapsed_wall_seconds": 5.513098992999858,
+    "errors": 0,
+    "failed": 0,
+    "historical_ci560": "All5 jobs passed head618/base87 synthetic825df772 treebc22dd55. BothPython11912P6skip2deselect1warning; Android/iOS/web owner+companion builds passed. This does not qualify the newmain composition.",
+    "independence": "Raw reviewer authored compatibility candidate; independence is from root execution, not own-fixture quality or second execution. Root independently checked actual candidate205asserts/sourcepins.",
+    "independent_raw_receipt_sha256": "976d26ef1ace22dbf14c8b4318a24c9ad662646d4e39353bd8bb3da43bc4c027",
+    "independent_raw_review_sha256": "23e0fd4c763f593eb5fa059fbb151f7ce70a2d9eac375f4708d5bc23d0b86592",
+    "independent_raw_seal_sha256": "c84838030f079f5adcae47ba4b1e3b50478df20ca063ef70887e133671f5cf04",
+    "junit_seconds": 5.13,
+    "lint": "Ruff check/format-check827files and diffcheck passed during composition; same trackedPython bytes at testedmerge.",
+    "main": "7384dbb907a6fc67121a12c88a77208a331c5986",
+    "manifest_sha256": "83a2ff8442c9cd82f7b817fa1099d99c84f4f05fdd1a474319979275b40c2578",
+    "passed": 107,
+    "prior93_case_ids_order_preserved": "60non-timeattrs direct;33 source lines move8 as exact helper insertion;14 additional existingmain tests maskedkey6/Quick8. No extra93uniqueclaim.",
+    "production_source_gate_sha256": "ba07ee7b7c34ee8d5337521083bcc316c2b7a2eb2e92ca617a4feeb641aded52",
+    "publication": "Record-only follow-up; full changed-head CI remains required. No live provider/readiness/private credential/model/device claim; inherited masked-store lock/apply semantics are not a new atomic multi-file guarantee.",
+    "receipt_sha256": "d1b661e9387045b763bd7bcfea81d25793eb38abf101a5e57266b21ac3ad2931",
+    "scope": "Preserve current Quick/Advanced coordinator and masked Agent key flow; move independently selected role disclosure/reference questions into private role collector. CLIflags/prewriteprofilevalidation retained. Existing deferred Quick fallback is unchanged.",
+    "skipped": 0,
+    "tested_head": "8a152cb7f4dbca4aa27d7d0cbaac4aa35fa397e6",
+    "tested_tree": "3f90361a9450007abe59442a6c8959e6ba2c1d5e",
+    "tests": 107,
+    "tracked_inputs": 1797
+  },
+  "module_cases": {
+    "existing_agent_interoperability": 8,
+    "linux_cli": 11,
+    "linux_distribution": 38,
+    "linux_real_tty": 3,
+    "new_role_inputs": 33
+  },
+  "muse_author": {
+    "calls": 1,
+    "integrated_formatted_patch_sha256": "191ebedfe11d7627e99cef195ece7c264e514ea821434ae06cbab5b992890fb0",
+    "model": "muse-spark-1.3-contributor",
+    "public_supplied_source_only": true,
+    "raw_patch_sha256": "17bf59379e1570792521fe955c5c58f637fdd7c4e2faeaa61c434fc0599baa98",
+    "reasoning_effort": "xhigh",
+    "root_correction": "One malformed unchanged import context was corrected from slash to dotted module; initial apply failures retained, all resulting hunks exact and formatting AST-identical.",
+    "terminal_exit": 0
+  },
+  "reviews": {
+    "completed_raw": {
+      "bundle": "335-role-profiles-completed-independent-raw-v1",
+      "receipt_sha256": "6d75d1cb1db4b283bd64fbc8fe0869dd21a4559516f01e1b171b73ba0a2ab186",
+      "role": "Prospective source reviewer; not new33 oracle author. Read new fixture bodies only in this postexecution raw phase.",
+      "seal_sha256": "03535248b30bee67d72d5c700d3ab08f61574930bb952d1574dbc9dd26549089"
+    },
+    "existing_tty_compatibility": {
+      "bundle": "335-existing-tty-compatibility-v1",
+      "receipt_sha256": "51486a20f4d805a327d781275784e89249499694a0e77fefc29c97d472b5ac91",
+      "seal_sha256": "95e7f6e3c2f6a019f1b15ab8a1b8e9491ff9953c82c341d1358d35a4d5b25e52"
+    },
+    "independent_fixture_v1_blocked": {
+      "bundle": "335-independent-setup-fixture-review-v1",
+      "receipt_sha256": "fcbbefee6b9cda6885a5d3bb91a96aaa59730419c7f46dacabb099ee9d1c7717",
+      "seal_sha256": "dfc4faa3457d74b421232b56a3f30d50a9d8d7b9e58146de4eb1cad118f2def1"
+    },
+    "independent_fixture_v2": {
+      "bundle": "335-independent-setup-fixture-review-v2",
+      "receipt_sha256": "f3f75caf86d6b06d581e13a35b8e6a959df88d3cde081add920132eae0d3100a",
+      "seal_sha256": "5daa07b729be70ca7d875d7bb96328a4742dd144fd31ba0d6b6b5fc93be29b14"
+    },
+    "independent_source": {
+      "bundle": "335-independent-setup-source-review-v1",
+      "receipt_sha256": "979c93c79a8e2e9493aefffe08f67c6044e0d629bc845a6250e5d3a1d0508140",
+      "seal_sha256": "d986a326f88092c2fb9ca4097adfc2d3b4325d8c7baa0b55d7a43d11881fcd29"
+    }
+  },
+  "runs": {
+    "broader93": {
+      "bundle": "335-role-profiles-broader-v1-c86er6du",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_setup_role_profile_inputs.py",
+        "tests/integration/test_setup_agent_interoperability.py",
+        "tests/unit/test_linux_distribution.py",
+        "tests/unit/test_linux_cli.py",
+        "tests/unit/test_linux_real_tty.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-broader-v1-c86er6du/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-broader-v1-c86er6du/junit.xml"
+      ],
+      "elapsed_wall_s": 4.286266377006541,
+      "exit_code": 0,
+      "head": "2bca3a7e9366ac83203c49c310d0d56ff2d814cd",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "93",
+          "time": "3.935",
+          "timestamp": "2026-11-03T09:58:10.930899-08:00"
+        }
+      ],
+      "junit_sha256": "17ff777b859e8c721a6804227a9c6870926522215f98c22b2c5695aa04b40282",
+      "log_sha256": "54dad27f2a3f0e34e006bbed79c1220c4ccd57bf322ecc26bf84023b357ebe64",
+      "manifest_sha256": "88e51d365768eeec3515430acbc51ddb92ef8110658945f0e6ffd74a464cdf7c",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "4d3b2dceac7359ced53a47a110e01c23c638ae1941deea3901299a55ae42073c",
+      "tracked_input_count": 1527
+    },
+    "cold33": {
+      "bundle": "335-role-profiles-cold33-v1-8a5v_h01",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_setup_role_profile_inputs.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-cold33-v1-8a5v_h01/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-cold33-v1-8a5v_h01/junit.xml"
+      ],
+      "elapsed_wall_s": 1.673622477988829,
+      "exit_code": 1,
+      "head": "0c5adeb800fc97d122be80d9708325558b14de2a",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "27",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "33",
+          "time": "1.221",
+          "timestamp": "2026-11-03T09:56:31.450456-08:00"
+        }
+      ],
+      "junit_sha256": "45fc90c28ed6bde8d5081c31a451313f18996a63b125ec657d7f2dfc67d799d2",
+      "log_sha256": "16ed0882f4f1ea2ccf33ebeae46c6e3e0e1f87bd736e402100fb03580f17c235",
+      "manifest_sha256": "99ac30a63fd64226bd71f5a97d505984ae1e64ab9b287ebf0f6a9cbcb2169b0d",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "39173adefc47f56ae3b97d3192fdc7b06da3b880b4dc0e0c0e296dec09dbd1a7",
+      "tracked_input_count": 1527
+    },
+    "fixed33": {
+      "bundle": "335-role-profiles-fixed33-v1-0i2w55r0",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_setup_role_profile_inputs.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-fixed33-v1-0i2w55r0/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-fixed33-v1-0i2w55r0/junit.xml"
+      ],
+      "elapsed_wall_s": 0.796866125005181,
+      "exit_code": 0,
+      "head": "2bca3a7e9366ac83203c49c310d0d56ff2d814cd",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "33",
+          "time": "0.473",
+          "timestamp": "2026-11-03T09:57:50.283563-08:00"
+        }
+      ],
+      "junit_sha256": "aee12914c3e9e3d97711b127908c2d9924ff67ebabb9be914bf6f796aa58b681",
+      "log_sha256": "d568928a6595b251bbe07b3216871bc64fa35e4078e7ebe6e13ef2905b562335",
+      "manifest_sha256": "7aa7b515cdea477681bd788ca3b7ecda68ef6fad961d6f5d71dff0c6701af651",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "cce42525e23463b20fc778afa86e135a44946864fbc004330d2e7c58d4fd8e1a",
+      "tracked_input_count": 1527
+    },
+    "main87_broader93": {
+      "bundle": "335-role-profiles-main87-broader93-v1-9tlali2a",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-u",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_setup_role_profile_inputs.py",
+        "tests/integration/test_setup_agent_interoperability.py",
+        "tests/unit/test_linux_distribution.py",
+        "tests/unit/test_linux_cli.py",
+        "tests/unit/test_linux_real_tty.py",
+        "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-main87-broader93-v1-9tlali2a/pytest-tmp",
+        "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/335-role-setup-preflight/.dev-run/335-role-profiles-main87-broader93-v1-9tlali2a/junit.xml"
+      ],
+      "elapsed_wall_s": 4.2924135950015625,
+      "exit_code": 0,
+      "head": "d339abb43f63225ed544c7bf9cf0180d698b8dfc",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "93",
+          "time": "3.935",
+          "timestamp": "2026-11-03T10:14:08.613749-08:00"
+        }
+      ],
+      "junit_sha256": "2f39ba326acff36d73ab1414abb8cde0a7d1cdc8d3f59fe7e36c44cf2ad9a4c4",
+      "log_sha256": "54dad27f2a3f0e34e006bbed79c1220c4ccd57bf322ecc26bf84023b357ebe64",
+      "manifest_sha256": "c6f58b7c541fc73d3ef6fbf5695d46396d2c7afcec0b9fbce9c64b785cfbb814",
+      "qualified_inputs_stable": true,
+      "receipt_sha256": "0fbd32a542419e8f62a6c6a5bb3ff81531dc19bc998e8f6c7964db880d7231d9",
+      "tracked_input_count": 1792
+    }
+  },
+  "scope": "Independent setup role inputs and profile validation before setup filesystem effects",
+  "source_head": "2bca3a7e9366ac83203c49c310d0d56ff2d814cd",
+  "source_pins": {
+    "services/distribution/cli.py": "50ef30bb46661ac0046a82dbcb045c0a903838471eda37636403b106142cdd23",
+    "services/distribution/installation.py": "b7d5061a8e572b55851f2527d4bb29f20e74954ed379d9edf37c9cb03ca33e3b",
+    "services/distribution/wizard.py": "feea400c65ca1b5160c6241f44ae48eee7e2acfedcefc4c8b3c7ebdf0eb12ed9"
+  },
+  "source_tree": "ba874f686f62574a3ecde5e554bffeb0d0e79954",
+  "test_sha256": "027084033ee048920f9fd95ce803a10d68b08cb771c3fdaab91d0979026af369"
+}

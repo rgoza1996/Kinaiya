@@ -262,3 +262,39 @@ def test_cli_confirm_accepts_short_y_and_rejects_n(monkeypatch):
     monkeypatch.setattr(cli, "open_terminal", lambda: fake_tty("n\n"))
     with pytest.raises(cli.InstallError, match="Cancelled"):
         cli.confirm(False, "plan preview")
+
+
+@pytest.mark.parametrize(
+    "answer,pre_consented,accepted",
+    [
+        ("Y\n", False, True),
+        (" YeS \n", False, True),
+        ("N\n", False, False),
+        ("no\n", False, False),
+        ("maybe\n", False, False),
+        ("\n", False, False),
+        ("", False, False),
+        ("", True, True),
+        ("\n", True, False),
+        ("n\n", True, False),
+        ("maybe\n", True, False),
+    ],
+)
+def test_cli_confirmation_preserves_only_existing_eof_consent(
+    monkeypatch, answer, pre_consented, accepted
+):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    from services.distribution import cli
+
+    @contextmanager
+    def terminal():
+        yield SimpleNamespace(write=lambda text: None, flush=lambda: None, readline=lambda: answer)
+
+    monkeypatch.setattr(cli, "open_terminal", terminal)
+    if accepted:
+        cli.confirm(False, "plan preview", pre_consented=pre_consented)
+    else:
+        with pytest.raises(cli.InstallError, match="Cancelled"):
+            cli.confirm(False, "plan preview", pre_consented=pre_consented)

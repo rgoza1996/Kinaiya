@@ -410,7 +410,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         'max_tokens': int.tryParse(_max.text),
         'reasoning_effort': _effort,
       },
-      if (_kind == 'meta' || _kind == 'compatible')
+      if (_kind == 'meta' || _kind == 'compatible' || _kind == 'measured_chat')
         'context_tokens': _context.text.isEmpty
             ? null
             : int.tryParse(_context.text),
@@ -632,6 +632,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               child: Text('OpenAI-compatible endpoint'),
             ),
             DropdownMenuItem(
+              value: 'measured_chat',
+              child: Text('Measured local chat · Converse'),
+            ),
+            DropdownMenuItem(
               value: 'laya',
               child: Text('Laya · typed Decisions'),
             ),
@@ -660,7 +664,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                       }
                       _effort = kind == 'meta'
                           ? 'xhigh'
-                          : kind == 'lmstudio'
+                          : kind == 'lmstudio' || kind == 'measured_chat'
                           ? 'none'
                           : null;
                       _max.text = kind == 'lmstudio' ? '128' : '2048';
@@ -727,7 +731,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           const Text(
             'Meta is a cloud provider, including when reached through a local budget gateway. Contributor disclosure restrictions still apply.',
           ),
-        if (_kind != 'lmstudio' && _kind != 'native_d1')
+        if (_kind != 'lmstudio' &&
+            _kind != 'native_d1' &&
+            _kind != 'measured_chat')
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _cloud,
@@ -830,14 +836,22 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                 : null,
           ),
         ],
-        if (_kind == 'meta' || _kind == 'compatible')
+        if (_kind == 'meta' ||
+            _kind == 'compatible' ||
+            _kind == 'measured_chat')
           _field(
             _context,
-            'Declared context tokens · optional',
+            _kind == 'measured_chat'
+                ? 'Declared context tokens'
+                : 'Declared context tokens · optional',
             maxLength: 16,
             numeric: true,
-            validator: (v) =>
-                _number(v, 64, providerMaxRevision, optional: true),
+            validator: (v) => _number(
+              v,
+              64,
+              providerMaxRevision,
+              optional: _kind != 'measured_chat',
+            ),
             help:
                 'An explicit declaration is not an actual prompt count or model qualification.',
           ),
@@ -909,6 +923,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         if (_kind == 'compatible')
           const Text(
             'Compatible API shape alone does not provide native measured Agent/Converse admission. The role owner must report support; this profile is unqualified.',
+          ),
+        if (_kind == 'measured_chat')
+          const Text(
+            'Measured text chat for Converse. The local endpoint must support exact input-token counts. Audio and video are not enabled by this profile.',
           ),
         const Text('Connection and model readiness have not been checked.'),
         if (_formError != null) Text(_formError!),

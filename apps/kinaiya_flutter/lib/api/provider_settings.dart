@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 
 const providerMaxRevision = 9007199254740990;
@@ -10,6 +11,7 @@ const providerKinds = [
   'meta',
   'lmstudio',
   'compatible',
+  'measured_chat',
   'laya',
   'native_d1',
   'meta_stt',
@@ -90,6 +92,7 @@ Map<String, Object?> providerConfig(Object? value) {
   final raw = _map(value);
   final kind = raw['kind'];
   if (!providerKinds.contains(kind)) _bad();
+  if (kind == 'measured_chat') return _measuredChatConfig(raw);
   if (kind == 'meta_stt') return _metaSttConfig(raw);
   if (kind == 'openrouter_tts') return _openRouterTtsConfig(raw);
   if (kind == 'native_d1') return _nativeD1Config(raw);
@@ -200,6 +203,36 @@ Map<String, Object?> providerConfig(Object? value) {
         : _digest(raw['expected_artifact_sha256']);
   }
   return Map.unmodifiable(result);
+}
+
+Map<String, Object?> _measuredChatConfig(Map<String, Object?> raw) {
+  if ((raw.containsKey('allow_cloud') && raw['allow_cloud'] != false) ||
+      raw['context_tokens'] == null ||
+      [
+        'reasoning_effort',
+        'max_tokens',
+        'timeout_s',
+      ].any((field) => raw.containsKey(field) && raw[field] == null)) {
+    _bad();
+  }
+  final normalized = providerConfig({
+    ...raw,
+    'kind': 'compatible',
+    'allow_cloud': false,
+    'reasoning_effort': raw['reasoning_effort'] ?? 'none',
+  });
+  final endpoint = Uri.parse(normalized['base_url'] as String);
+  final controls = RegExp(r'\p{C}', unicode: true);
+  if (!{'127.0.0.1', '::1'}.contains(endpoint.host) ||
+      RegExp(
+        r'^https?://[^/]*@',
+        caseSensitive: false,
+      ).hasMatch(normalized['base_url'] as String) ||
+      controls.hasMatch(raw['base_url'] as String) ||
+      controls.hasMatch(normalized['model'] as String)) {
+    _bad();
+  }
+  return Map.unmodifiable({...normalized, 'kind': 'measured_chat'});
 }
 
 Map<String, Object?> _nativeD1Config(Map<String, Object?> raw) {

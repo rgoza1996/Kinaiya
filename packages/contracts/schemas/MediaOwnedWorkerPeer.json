@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance",
+      "type": "string"
+    },
+    "kind": {
+      "const": "owned_worker",
+      "title": "Kind",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "instance",
+    "request_sha256"
+  ],
+  "title": "MediaOwnedWorkerPeer",
+  "type": "object"
+}

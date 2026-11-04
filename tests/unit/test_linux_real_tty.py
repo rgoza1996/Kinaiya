@@ -84,8 +84,9 @@ def test_standalone_bootstrap_reads_real_terminal_consent(tmp_path):
         "exec(\"def stop_download(*args):\\n print('BOOTSTRAP_CONSENT_READ')\\n raise SystemExit(0)\",ns); "
         "ns['download']=ns['stop_download']; ns['run'](['--no-setup'])"
     )
-    assert "BOOTSTRAP_CONSENT_READ" in run_tty(code, "yes\n", tmp_path)
-    assert "BOOTSTRAP_CONSENT_READ" in run_tty(code, "y\n", tmp_path)
+    # Select the default location before answering the separate plan confirmation.
+    assert "BOOTSTRAP_CONSENT_READ" in run_tty(code, "1\nyes\n", tmp_path)
+    assert "BOOTSTRAP_CONSENT_READ" in run_tty(code, "1\ny\n", tmp_path)
 
 
 def test_setup_wizard_accepts_short_y_n_on_real_controlling_terminal(tmp_path):

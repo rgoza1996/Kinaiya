@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "bytes": {
+      "maximum": 268435456,
+      "minimum": 1,
+      "title": "Bytes",
+      "type": "integer"
+    },
+    "guest": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Guest",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "decoder_exec",
+        "probe_exec",
+        "sandbox_exec",
+        "python_exec",
+        "runtime_library",
+        "driver_source"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "path",
+    "guest",
+    "bytes",
+    "sha256"
+  ],
+  "title": "MediaAssetPin",
+  "type": "object"
+}
