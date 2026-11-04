@@ -493,10 +493,22 @@ async def test_layout_and_configuration_matrix_spaces_idempotency_and_bootstrap_
     monkeypatch.setattr(bootstrap, "preflight", lambda **kw: None)
     monkeypatch.setattr(bootstrap, "missing_dependencies", lambda: ["bubblewrap"])
     monkeypatch.setattr(bootstrap, "resolve", lambda channel: (release, release["artifacts"][0]))
+    bootstrap_home = tmp_path / "bootstrap-home"
+    bootstrap_home.mkdir()
+    monkeypatch.setattr(bootstrap.Path, "home", lambda: bootstrap_home)
+    monkeypatch.setattr(
+        bootstrap,
+        "install_missing_dependencies",
+        lambda *args: pytest.fail("declined plan must not install dependencies"),
+    )
+    monkeypatch.setattr(
+        bootstrap, "download", lambda *args: pytest.fail("declined plan must not download")
+    )
+    decline_tty = _ControlledTTY(["1", "no"])
 
     @contextmanager
     def _decline_tty():
-        yield _ControlledTTY(["no"])
+        yield decline_tty
 
     monkeypatch.setattr(bootstrap, "open_terminal", _decline_tty)
     plan_stdout = io.StringIO()
@@ -504,7 +516,10 @@ async def test_layout_and_configuration_matrix_spaces_idempotency_and_bootstrap_
         redirect_stdout(plan_stdout),
         pytest.raises(bootstrap.BootstrapError, match="cancelled; no files changed"),
     ):
-        bootstrap.run(["--channel", "nightly"])
+        bootstrap.run(["--channel", "nightly"], invoking_dir=tmp_path)
+    assert "Choose install location [1]: " in decline_tty.output
+    assert "Review the plan. Type yes to download and install: " in decline_tty.output
+    assert not list(bootstrap_home.iterdir())
     plan_json = json.loads(plan_stdout.getvalue().strip())
     assert plan_json["channel"] == "nightly"
     assert plan_json["source_sha"] == release["source_sha"]
