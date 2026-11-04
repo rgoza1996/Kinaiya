@@ -61,7 +61,11 @@ def compute_readiness_state(receipt: Mapping[str, Any]) -> tuple[str, str, bool]
                 or ("ok" if conn == "verified" else conn)
             )
         )
-        return "connection_verified", f"Connection verified ({detail})", conn == "inference_verified"
+        return (
+            "connection_verified",
+            f"Connection verified ({detail})",
+            conn == "inference_verified",
+        )
     if conn == "failed":
         reason = redact_secrets(
             str(
