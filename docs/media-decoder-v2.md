@@ -12,11 +12,28 @@ actual executable qualification remain separate requirements.
 
 ## Explicit version selection
 
-Select `pyav17_timed_fd_v2` with `decoder_fd_v2` in a pinned DecoderProfile.
-The profile itself stays version 1; its new driver and protocol values form a
-required pair. Existing v1 driver/profile declarations and v1 request/response
-records remain supported by their existing interfaces. The planner supports
-its prior PyAV v1 pair plus the new PyAV v2 pair; FFmpeg planning is not enabled.
+Select `pyav17_timed_fd_v2` with `decoder_fd_v2` in a pinned
+`MediaDecoderProfileV2` and its exact `MediaDecoderProtocolV2`. These are separate
+closed DTOs, registered under `DecoderProfileV2` and `DecoderProtocolV2` hash
+domains. The profile's metadata `v` stays 1; its exact class, driver, protocol
+and self-hash domain identify the new generation. Its self hash omits only
+`profile_sha256`, with all nested fields retained.
+
+The original `MediaDecoderProfile` and `MediaDecoderProtocol` retain their
+original closed fields, literals, validation and exported schema bytes. V1
+handlers do not accept or reinterpret V2 profiles. The planner accepts the
+exact original PyAV v1 profile/pair or exact new PyAV v2 profile/pair; FFmpeg
+planning is not enabled. The native Session constructor and persisted catalog
+currently resolve the original `DecoderProfile` only. Explicit V2 native
+catalog registration and launch integration remain pending.
+
+PR441's original CI602 run exposed six changed v1 profile/protocol schema files
+and an omitted 21-schema inventory exclusion. The repair separates the V2
+types instead of changing the original 69-schema byte pin or the original
+184-schema count/hash. Its exact additive inventory is nine records with
+Receipt/Found wrappers: the seven handshake records plus the two V2 profile
+and protocol records. Prior executable results below remain tied to their
+recorded revisions; this schema/type repair needs its own qualification.
 
 The new request/response functions are `decoder_request_v2_bytes/json` and
 `decoder_response_v2_bytes/json` in `services.common.media_decoder_wire`.

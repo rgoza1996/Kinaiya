@@ -565,15 +565,11 @@
       "title": "MediaDecodeTrackCursor",
       "type": "object"
     },
-    "MediaDecoderProfile": {
+    "MediaDecoderProfileV2": {
       "additionalProperties": false,
       "properties": {
         "driver": {
-          "enum": [
-            "pyav17_timed_fd_v1",
-            "ffmpeg_cli_fd_v1",
-            "pyav17_timed_fd_v2"
-          ],
+          "const": "pyav17_timed_fd_v2",
           "title": "Driver",
           "type": "string"
         },
@@ -646,7 +642,7 @@
           "type": "string"
         },
         "protocol": {
-          "$ref": "#/$defs/MediaDecoderProtocol"
+          "$ref": "#/$defs/MediaDecoderProtocolV2"
         },
         "runtime": {
           "anyOf": [
@@ -681,10 +677,10 @@
         "limits",
         "protocol"
       ],
-      "title": "MediaDecoderProfile",
+      "title": "MediaDecoderProfileV2",
       "type": "object"
     },
-    "MediaDecoderProtocol": {
+    "MediaDecoderProtocolV2": {
       "additionalProperties": false,
       "properties": {
         "cleanup": {
@@ -703,10 +699,7 @@
           ]
         },
         "kind": {
-          "enum": [
-            "decoder_fd_v1",
-            "decoder_fd_v2"
-          ],
+          "const": "decoder_fd_v2",
           "title": "Kind",
           "type": "string"
         },
@@ -773,7 +766,7 @@
         "cleanup",
         "segments"
       ],
-      "title": "MediaDecoderProtocol",
+      "title": "MediaDecoderProtocolV2",
       "type": "object"
     },
     "MediaFence": {
@@ -1740,7 +1733,7 @@
     "profile": {
       "anyOf": [
         {
-          "$ref": "#/$defs/MediaDecoderProfile"
+          "$ref": "#/$defs/MediaDecoderProfileV2"
         },
         {
           "type": "null"

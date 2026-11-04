@@ -50,7 +50,7 @@ def _case(*, exchange_audio_ids=False):
     profile["driver"] = "pyav17_timed_fd_v2"
     profile["protocol"]["kind"] = "decoder_fd_v2"
     profile["formats"] = [video, audio1, image, audio0]
-    profile = fixtures._self_hash("DecoderProfile", profile, "profile_sha256")
+    profile = fixtures._self_hash("DecoderProfileV2", profile, "profile_sha256")
     profile_hash = profile["profile_sha256"]
     probe = fixtures._probe()
     probe["container"] = "mp4"
@@ -239,13 +239,13 @@ def _response(case, result="probe", *, payload="audio", body=b"abc"):
     return value
 
 
-def _native_args(case):
+def _native_args(case, *, profile_kind="MediaDecoderProfileV2"):
     return {
         "source_ref": _typed("MediaNativeRef", fixtures._SOURCE),
         "seal_ref": _typed("MediaNativeRef", fixtures._OWNER),
         "admission": _typed("MediaSourceAdmission", case["admission"]),
         "seal": _typed("MediaSeal", case["seal"]),
-        "profile": _typed("MediaDecoderProfile", case["profile"]),
+        "profile": _typed(profile_kind, case["profile"]),
         "open_plan": _typed("MediaDecodeOpenPlan", case["plan"]),
     }
 
@@ -256,8 +256,8 @@ def _put(value, path, replacement):
     value[path[-1]] = copy.deepcopy(replacement)
 
 
-def _rehash_profile(case):
-    profile = fixtures._self_hash("DecoderProfile", case["profile"], "profile_sha256")
+def _rehash_profile(case, *, short="DecoderProfileV2"):
+    profile = fixtures._self_hash(short, case["profile"], "profile_sha256")
     case["profile"] = profile
     pin = profile["profile_sha256"]
     case["admission"]["decoder_profile_sha256"] = pin
@@ -394,9 +394,9 @@ def test_v2_profile_and_protocol_must_be_selected_together(driver, protocol):
     profile = fixtures._profile()
     profile["driver"] = driver
     profile["protocol"]["kind"] = protocol
-    profile = fixtures._self_hash("DecoderProfile", profile, "profile_sha256")
+    profile = fixtures._self_hash("DecoderProfileV2", profile, "profile_sha256")
     with pytest.raises(media.MediaContractError):
-        _typed("MediaDecoderProfile", profile)
+        _typed("MediaDecoderProfileV2", profile)
 
 
 @pytest.mark.parametrize(
@@ -584,6 +584,7 @@ def test_native_planner_rejects_foreign_resolved_reference(target):
 )
 def test_native_planner_keeps_existing_origin_geometry_format_and_runtime_guards(fault):
     case = _case()
+    profile_kind = "MediaDecoderProfileV2"
     raw = case["plan"]
     if fault == "origin":
         for track in raw["ready"]["tracks"]:
@@ -605,11 +606,13 @@ def test_native_planner_keeps_existing_origin_geometry_format_and_runtime_guards
     elif fault == "v1_profile":
         case["profile"]["driver"] = "pyav17_timed_fd_v1"
         case["profile"]["protocol"]["kind"] = "decoder_fd_v1"
-        _rehash_profile(case)
+        # A valid V1 DTO must reach the planner's V2-only boundary.
+        profile_kind = "MediaDecoderProfile"
+        _rehash_profile(case, short="DecoderProfile")
     else:
         case["profile"]["runtime" if fault == "runtime" else "implementation"] = None
         _rehash_profile(case)
-    args = _native_args(case)
+    args = _native_args(case, profile_kind=profile_kind)
     with pytest.raises(planner.MediaDecodePlanError):
         planner.build_decode_plan_from_open(**args)
 
