@@ -87,7 +87,7 @@ remain separate from preparing these options.
 | Option family | Type/default policy | Scope, persistence and authority | Status |
 | --- | --- | --- | --- |
 | `voice.capture_mode`, `end_silence` | Explicit Call/live listening or Tell/one message; no automatic microphone arming. Fallback clip silence choices above; live window timing is Decisions-controlled, not a silence timer. | Current Converse/audio owner; retain drafts and actual capture/playback state. | App. |
-| `voice.input_device`, `output_device`, `volume`, `language` | Device/model capability choices with an explicit default-device option; unavailable devices do not appear connected. | App/platform audio permission and current stream ownership. | Web output selection is optional for the current audio owner; input, volume and language editors remain planned. |
+| `voice.input_device`, `output_device`, `volume`, `language` | Device/model capability choices with an explicit default-device option; unavailable devices do not appear connected. | App/platform audio permission and current stream ownership. | Web input and output selection are optional for the current audio owner; volume and language editors remain planned. |
 | `voice.tts_voice`, `rate`, `prosody` | Supported voice/style controls only; provider-specific ranges and preview cost disclosed before a preview. | Converse TTS profile; no automatic test synthesis on open. | Host/provider-specific configuration; app controls planned. |
 | `voice.interruption`, `vad`, `window_limits` | Supported interruption/VAD and retained-window bounds; preserve trusted cancellation and delivery evidence. | Native Converse/speech pipeline. A stop request is not proof playback/capture ended. | Existing runtime behavior; advanced app editor planned. |
 | `converse.personality`, `instructions` | Character/personality and owner instructions, separate from task execution policy. | Converse only; editable text cannot change protected authorization or completion criteria. | Personality exists in Converse; unified editor planned. |
@@ -109,6 +109,16 @@ default**, rather than silent fallback. Without an explicit choice, existing
 system-default playback remains unchanged. Permission denial, embedding policy
 or a missing browser API is reported as unavailable; this feature does not
 change system defaults, configure recording, or establish audible delivery.
+
+Web input selection separately uses explicit device enumeration and an exact
+audio-input ID for the next capture. Refresh and selection do not open a
+microphone; labels may remain unavailable until platform permission exists.
+A missing or mismatched explicit input cannot silently become the default.
+Selection is blocked while capture is acquiring, armed or stopping, and IDs
+remain session-local. **Use system default** is an explicit browser-owner
+choice, not an OS-default change. Native Call capture and its bounded pending
+admissions follow [ADR0112](adr/0112-buffered-native-audio.md); deterministic
+checks do not establish actual microphone or audible-delivery qualification.
 
 ### Agent execution, workspaces and permissions
 

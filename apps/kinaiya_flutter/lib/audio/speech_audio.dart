@@ -98,4 +98,32 @@ abstract interface class AudioOutputSelection {
   Future<String> useDefaultAudioOutput();
 }
 
+/// Optional original-PCM capture for an explicitly armed native-audio Call.
+/// Configuration never acquires a microphone. Existing capture operations keep
+/// their ownership semantics; finishClip yields complete mono16k PCM16 WAV.
+abstract interface class NativePcmCaptureAudio {
+  bool get supportsNativePcmCapture;
+  Future<void> configureNativePcmCapture(bool enabled);
+}
+
+/// Session-local preference, not proof that a microphone has been acquired.
+class AudioInputDevice {
+  const AudioInputDevice({
+    required this.opaqueId,
+    required this.label,
+    this.selected = false,
+  });
+
+  final String opaqueId, label;
+  final bool selected;
+}
+
+/// Discovery and selection do not acquire microphone permission or persist IDs.
+/// A chosen input must be acquired exactly; disappearance never selects default.
+abstract interface class AudioInputSelection {
+  Future<List<AudioInputDevice>> audioInputs();
+  Future<String> selectAudioInput(String opaqueId);
+  Future<String> useDefaultAudioInput();
+}
+
 SpeechAudio speechAudio() => impl.createSpeechAudio();
