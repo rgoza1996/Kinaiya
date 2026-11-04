@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -59,15 +60,22 @@ class _MoonlitHomeState extends State<MoonlitHome>
   late final AnimationController _sleepTransition;
   final _sceneKey = GlobalKey();
   final _panelKey = GlobalKey();
-  final _resizeFocus = FocusNode(
-    debugLabel: 'Resize connection panel',
-    skipTraversal: true,
-  );
+  late final Map<String, FocusNode> _resizeFocusNodes = {
+    for (final id in const [
+      'right',
+      'bottom',
+      'corner',
+      'left',
+      'top',
+      'top-left',
+      'top-right',
+      'bottom-left',
+    ])
+      id: FocusNode(debugLabel: 'Resize connection panel ($id)'),
+  };
   Offset _panelOffset = Offset.zero;
   double? _panelWidth;
   double? _panelHeight;
-  bool _resizeFromLeft = false;
-  bool _resizeFromBottom = false;
   bool _panelBoundsCheckPending = false;
   static const double _minPanelWidth = 320.0;
   static const double _minPanelHeight = 120.0;
@@ -86,10 +94,8 @@ class _MoonlitHomeState extends State<MoonlitHome>
   ];
   bool _resting(MoonlitHome home) => home.sleeping || home.offlineResting;
 
-  void _focusResize({bool? fromLeft, bool? fromBottom}) {
-    if (fromLeft != null) _resizeFromLeft = fromLeft;
-    if (fromBottom != null) _resizeFromBottom = fromBottom;
-    _resizeFocus.requestFocus();
+  void _focusResizeHandle(String id) {
+    _resizeFocusNodes[id]?.requestFocus();
   }
 
   void _resizePanelEdges({
@@ -177,74 +183,122 @@ class _MoonlitHomeState extends State<MoonlitHome>
     }
   }
 
+  Widget _buildResizeHandle({
+    required String id,
+    required double order,
+    required String label,
+    required Key handleKey,
+    required Key gestureKey,
+    required MouseCursor cursor,
+    VoidCallback? onLeft,
+    VoidCallback? onRight,
+    VoidCallback? onUp,
+    VoidCallback? onDown,
+    VoidCallback? onIncrease,
+    VoidCallback? onDecrease,
+    GestureDragUpdateCallback? onHorizontalDragUpdate,
+    GestureDragUpdateCallback? onVerticalDragUpdate,
+    GestureDragUpdateCallback? onPanUpdate,
+  }) {
+    final node = _resizeFocusNodes[id]!;
+    return FocusTraversalOrder(
+      order: NumericFocusOrder(order),
+      child: Semantics(
+        label: label,
+        focusable: true,
+        onIncrease: onIncrease,
+        onDecrease: onDecrease,
+        child: Focus(
+          key: handleKey,
+          focusNode: node,
+          onKeyEvent: (focusNode, event) {
+            if (!focusNode.hasPrimaryFocus) return KeyEventResult.ignored;
+            if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+              return KeyEventResult.ignored;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+                onLeft != null) {
+              onLeft();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+                onRight != null) {
+              onRight();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                onUp != null) {
+              onUp();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+                onDown != null) {
+              onDown();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Builder(
+            builder: (context) {
+              final focused = Focus.of(context).hasPrimaryFocus;
+              return MouseRegion(
+                cursor: cursor,
+                child: GestureDetector(
+                  key: gestureKey,
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _focusResizeHandle(id),
+                  onHorizontalDragStart: onHorizontalDragUpdate == null
+                      ? null
+                      : (_) => _focusResizeHandle(id),
+                  onHorizontalDragUpdate: onHorizontalDragUpdate,
+                  onVerticalDragStart: onVerticalDragUpdate == null
+                      ? null
+                      : (_) => _focusResizeHandle(id),
+                  onVerticalDragUpdate: onVerticalDragUpdate,
+                  onPanStart: onPanUpdate == null
+                      ? null
+                      : (_) => _focusResizeHandle(id),
+                  onPanUpdate: onPanUpdate,
+                  child: DecoratedBox(
+                    decoration: focused
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.primary,
+                              width: 2,
+                            ),
+                          )
+                        : const BoxDecoration(),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   List<Widget> _windowResizeHandles() => [
     Positioned(
-      left: 0,
-      top: 14,
-      bottom: 14,
-      width: 14,
-      child: Semantics(
-        label: 'Resize panel left edge',
-        onIncrease: () => _resizePanelEdges(left: -24),
-        onDecrease: () => _resizePanelEdges(left: 24),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.resizeLeftRight,
-          child: GestureDetector(
-            key: const ValueKey('home-panel-resize-left'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _focusResize(fromLeft: true),
-            onHorizontalDragStart: (_) => _focusResize(fromLeft: true),
-            onHorizontalDragUpdate: (details) =>
-                _resizePanelEdges(left: details.delta.dx),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ),
-    ),
-    Positioned(
       right: 0,
       top: 14,
       bottom: 14,
       width: 14,
-      child: Semantics(
+      child: _buildResizeHandle(
+        id: 'right',
+        order: 1,
         label: 'Resize panel right edge',
+        handleKey: const ValueKey('home-panel-resize-handle-right'),
+        gestureKey: const ValueKey('home-panel-resize-right'),
+        cursor: SystemMouseCursors.resizeLeftRight,
+        onLeft: () => _resizePanelEdges(right: -24),
+        onRight: () => _resizePanelEdges(right: 24),
         onIncrease: () => _resizePanelEdges(right: 24),
         onDecrease: () => _resizePanelEdges(right: -24),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.resizeLeftRight,
-          child: GestureDetector(
-            key: const ValueKey('home-panel-resize-right'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _focusResize(fromLeft: false),
-            onHorizontalDragStart: (_) => _focusResize(fromLeft: false),
-            onHorizontalDragUpdate: (details) =>
-                _resizePanelEdges(right: details.delta.dx),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ),
-    ),
-    Positioned(
-      top: 0,
-      left: 14,
-      right: 14,
-      height: 12,
-      child: Semantics(
-        label: 'Resize panel top edge',
-        onIncrease: () => _resizePanelEdges(top: -24),
-        onDecrease: () => _resizePanelEdges(top: 24),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.resizeUpDown,
-          child: GestureDetector(
-            key: const ValueKey('home-panel-resize-top'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _focusResize(fromBottom: false),
-            onVerticalDragStart: (_) => _focusResize(fromBottom: false),
-            onVerticalDragUpdate: (details) =>
-                _resizePanelEdges(top: details.delta.dy),
-            child: const SizedBox.expand(),
-          ),
-        ),
+        onHorizontalDragUpdate: (details) =>
+            _resizePanelEdges(right: details.delta.dx),
       ),
     ),
     Positioned(
@@ -252,78 +306,19 @@ class _MoonlitHomeState extends State<MoonlitHome>
       left: 14,
       right: 14,
       height: 12,
-      child: Semantics(
+      child: _buildResizeHandle(
+        id: 'bottom',
+        order: 2,
         label: 'Resize panel bottom edge',
+        handleKey: const ValueKey('home-panel-resize-handle-bottom'),
+        gestureKey: const ValueKey('home-panel-resize-bottom'),
+        cursor: SystemMouseCursors.resizeUpDown,
+        onUp: () => _resizePanelEdges(bottom: -24),
+        onDown: () => _resizePanelEdges(bottom: 24),
         onIncrease: () => _resizePanelEdges(bottom: 24),
         onDecrease: () => _resizePanelEdges(bottom: -24),
-        child: MouseRegion(
-          cursor: SystemMouseCursors.resizeUpDown,
-          child: GestureDetector(
-            key: const ValueKey('home-panel-resize-bottom'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _focusResize(fromBottom: true),
-            onVerticalDragStart: (_) => _focusResize(fromBottom: true),
-            onVerticalDragUpdate: (details) =>
-                _resizePanelEdges(bottom: details.delta.dy),
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ),
-    ),
-    Positioned(
-      top: 0,
-      left: 0,
-      width: 14,
-      height: 14,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeUpLeftDownRight,
-        child: GestureDetector(
-          key: const ValueKey('home-panel-resize-top-left'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _focusResize(fromLeft: true, fromBottom: false),
-          onPanStart: (_) => _focusResize(fromLeft: true, fromBottom: false),
-          onPanUpdate: (details) =>
-              _resizePanelEdges(left: details.delta.dx, top: details.delta.dy),
-          child: const SizedBox.expand(),
-        ),
-      ),
-    ),
-    Positioned(
-      top: 0,
-      right: 0,
-      width: 14,
-      height: 14,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeUpRightDownLeft,
-        child: GestureDetector(
-          key: const ValueKey('home-panel-resize-top-right'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _focusResize(fromLeft: false, fromBottom: false),
-          onPanStart: (_) => _focusResize(fromLeft: false, fromBottom: false),
-          onPanUpdate: (details) =>
-              _resizePanelEdges(right: details.delta.dx, top: details.delta.dy),
-          child: const SizedBox.expand(),
-        ),
-      ),
-    ),
-    Positioned(
-      bottom: 0,
-      left: 0,
-      width: 14,
-      height: 14,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.resizeUpRightDownLeft,
-        child: GestureDetector(
-          key: const ValueKey('home-panel-resize-bottom-left'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _focusResize(fromLeft: true, fromBottom: true),
-          onPanStart: (_) => _focusResize(fromLeft: true, fromBottom: true),
-          onPanUpdate: (details) => _resizePanelEdges(
-            left: details.delta.dx,
-            bottom: details.delta.dy,
-          ),
-          child: const SizedBox.expand(),
-        ),
+        onVerticalDragUpdate: (details) =>
+            _resizePanelEdges(bottom: details.delta.dy),
       ),
     ),
     Positioned(
@@ -331,19 +326,121 @@ class _MoonlitHomeState extends State<MoonlitHome>
       right: 0,
       width: 14,
       height: 14,
-      child: MouseRegion(
+      child: _buildResizeHandle(
+        id: 'corner',
+        order: 3,
+        label: 'Resize panel bottom-right corner',
+        handleKey: const ValueKey('home-panel-resize-handle-corner'),
+        gestureKey: const ValueKey('home-panel-resize-bottom-right'),
         cursor: SystemMouseCursors.resizeUpLeftDownRight,
-        child: GestureDetector(
-          key: const ValueKey('home-panel-resize-bottom-right'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _focusResize(fromLeft: false, fromBottom: true),
-          onPanStart: (_) => _focusResize(fromLeft: false, fromBottom: true),
-          onPanUpdate: (details) => _resizePanelEdges(
-            right: details.delta.dx,
-            bottom: details.delta.dy,
-          ),
-          child: const SizedBox.expand(),
+        onLeft: () => _resizePanelEdges(right: -24),
+        onRight: () => _resizePanelEdges(right: 24),
+        onUp: () => _resizePanelEdges(bottom: -24),
+        onDown: () => _resizePanelEdges(bottom: 24),
+        onPanUpdate: (details) => _resizePanelEdges(
+          right: details.delta.dx,
+          bottom: details.delta.dy,
         ),
+      ),
+    ),
+    Positioned(
+      left: 0,
+      top: 14,
+      bottom: 14,
+      width: 14,
+      child: _buildResizeHandle(
+        id: 'left',
+        order: 4,
+        label: 'Resize panel left edge',
+        handleKey: const ValueKey('home-panel-resize-handle-left'),
+        gestureKey: const ValueKey('home-panel-resize-left'),
+        cursor: SystemMouseCursors.resizeLeftRight,
+        onLeft: () => _resizePanelEdges(left: -24),
+        onRight: () => _resizePanelEdges(left: 24),
+        onIncrease: () => _resizePanelEdges(left: -24),
+        onDecrease: () => _resizePanelEdges(left: 24),
+        onHorizontalDragUpdate: (details) =>
+            _resizePanelEdges(left: details.delta.dx),
+      ),
+    ),
+    Positioned(
+      top: 0,
+      left: 14,
+      right: 14,
+      height: 12,
+      child: _buildResizeHandle(
+        id: 'top',
+        order: 5,
+        label: 'Resize panel top edge',
+        handleKey: const ValueKey('home-panel-resize-handle-top'),
+        gestureKey: const ValueKey('home-panel-resize-top'),
+        cursor: SystemMouseCursors.resizeUpDown,
+        onUp: () => _resizePanelEdges(top: -24),
+        onDown: () => _resizePanelEdges(top: 24),
+        onIncrease: () => _resizePanelEdges(top: -24),
+        onDecrease: () => _resizePanelEdges(top: 24),
+        onVerticalDragUpdate: (details) =>
+            _resizePanelEdges(top: details.delta.dy),
+      ),
+    ),
+    Positioned(
+      top: 0,
+      left: 0,
+      width: 14,
+      height: 14,
+      child: _buildResizeHandle(
+        id: 'top-left',
+        order: 6,
+        label: 'Resize panel top-left corner',
+        handleKey: const ValueKey('home-panel-resize-handle-top-left'),
+        gestureKey: const ValueKey('home-panel-resize-top-left'),
+        cursor: SystemMouseCursors.resizeUpLeftDownRight,
+        onLeft: () => _resizePanelEdges(left: -24),
+        onRight: () => _resizePanelEdges(left: 24),
+        onUp: () => _resizePanelEdges(top: -24),
+        onDown: () => _resizePanelEdges(top: 24),
+        onPanUpdate: (details) =>
+            _resizePanelEdges(left: details.delta.dx, top: details.delta.dy),
+      ),
+    ),
+    Positioned(
+      top: 0,
+      right: 0,
+      width: 14,
+      height: 14,
+      child: _buildResizeHandle(
+        id: 'top-right',
+        order: 7,
+        label: 'Resize panel top-right corner',
+        handleKey: const ValueKey('home-panel-resize-handle-top-right'),
+        gestureKey: const ValueKey('home-panel-resize-top-right'),
+        cursor: SystemMouseCursors.resizeUpRightDownLeft,
+        onLeft: () => _resizePanelEdges(right: -24),
+        onRight: () => _resizePanelEdges(right: 24),
+        onUp: () => _resizePanelEdges(top: -24),
+        onDown: () => _resizePanelEdges(top: 24),
+        onPanUpdate: (details) =>
+            _resizePanelEdges(right: details.delta.dx, top: details.delta.dy),
+      ),
+    ),
+    Positioned(
+      bottom: 0,
+      left: 0,
+      width: 14,
+      height: 14,
+      child: _buildResizeHandle(
+        id: 'bottom-left',
+        order: 8,
+        label: 'Resize panel bottom-left corner',
+        handleKey: const ValueKey('home-panel-resize-handle-bottom-left'),
+        gestureKey: const ValueKey('home-panel-resize-bottom-left'),
+        cursor: SystemMouseCursors.resizeUpRightDownLeft,
+        onLeft: () => _resizePanelEdges(left: -24),
+        onRight: () => _resizePanelEdges(left: 24),
+        onUp: () => _resizePanelEdges(bottom: -24),
+        onDown: () => _resizePanelEdges(bottom: 24),
+        onPanUpdate: (details) =>
+            _resizePanelEdges(left: details.delta.dx, bottom: details.delta.dy),
       ),
     ),
   ];
@@ -354,7 +451,24 @@ class _MoonlitHomeState extends State<MoonlitHome>
     if (scene == null || panel == null || !scene.hasSize || !panel.hasSize) {
       return;
     }
-    final origin = scene.globalToLocal(panel.localToGlobal(Offset.zero));
+    final maxSceneWidth = math.max(0.0, scene.size.width - 32);
+    final minWidth = math.min(_minPanelWidth, maxSceneWidth);
+    final currentWidth = (_panelWidth ?? panel.size.width).clamp(
+      minWidth,
+      maxSceneWidth,
+    );
+    final maxSceneHeight = math.max(0.0, scene.size.height - 16);
+    final minHeight = math.min(_minPanelHeight, maxSceneHeight);
+    final currentHeight = (_panelHeight ?? panel.size.height).clamp(
+      minHeight,
+      maxSceneHeight,
+    );
+    final sleepingDesign =
+        (widget.sleeping || widget.offlineResting) && widget.useDesignScene;
+    final baseBottom = sleepingDesign ? 8.0 : 16.0;
+    final startX = scene.size.width / 2 + _panelOffset.dx - currentWidth / 2;
+    final startY =
+        scene.size.height - baseBottom + _panelOffset.dy - currentHeight;
     double bounded(double change, double start, double length, double extent) {
       final lower = 8 - start;
       final upper = extent - 8 - start - length;
@@ -362,8 +476,8 @@ class _MoonlitHomeState extends State<MoonlitHome>
     }
 
     final adjustment = Offset(
-      bounded(delta.dx, origin.dx, panel.size.width, scene.size.width),
-      bounded(delta.dy, origin.dy, panel.size.height, scene.size.height),
+      bounded(delta.dx, startX, currentWidth, scene.size.width),
+      bounded(delta.dy, startY, currentHeight, scene.size.height),
     );
     if (adjustment.distance > .01) {
       setState(() => _panelOffset += adjustment);
@@ -427,7 +541,9 @@ class _MoonlitHomeState extends State<MoonlitHome>
 
   @override
   void dispose() {
-    _resizeFocus.dispose();
+    for (final node in _resizeFocusNodes.values) {
+      node.dispose();
+    }
     _sleepTransition.dispose();
     _clock?.cancel();
     super.dispose();
@@ -469,135 +585,143 @@ class _MoonlitHomeState extends State<MoonlitHome>
     final maxHeight = math.max(0.0, maxSceneHeight - 16);
     final minHeight = math.min(_minPanelHeight, maxHeight);
     final effectiveHeight = _panelHeight?.clamp(minHeight, maxHeight);
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Tooltip(
-          message: 'Drag to move panel',
-          child: MouseRegion(
-            cursor: SystemMouseCursors.move,
-            child: Icon(
-              Icons.drag_handle,
-              size: 20,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final dragGrip = RawGestureDetector(
+      behavior: HitTestBehavior.opaque,
+      gestures: <Type, GestureRecognizerFactory>{
+        _EagerPanGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<_EagerPanGestureRecognizer>(
+              _EagerPanGestureRecognizer.new,
+              (instance) {
+                instance.onUpdate = (details) => _movePanel(details.delta);
+              },
             ),
+      },
+      child: Tooltip(
+        message: 'Drag to move panel',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.move,
+          child: Icon(
+            Icons.drag_handle,
+            size: effectiveHeight == null ? 20 : 18,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-        const SizedBox(height: 2),
-        Semantics(
-          container: true,
-          liveRegion: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              if (widget.sleeping) const Text('Converse is offline'),
-              if (widget.helperText != null &&
-                  widget.helperText!.trim().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    widget.helperText!,
-                    key: const ValueKey('home-helper-copy'),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.35,
-                    ),
+      ),
+    );
+    final bodyChildren = <Widget>[
+      Semantics(
+        container: true,
+        liveRegion: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            if (widget.sleeping) const Text('Converse is offline'),
+            if (widget.helperText != null &&
+                widget.helperText!.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  widget.helperText!,
+                  key: const ValueKey('home-helper-copy'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.35,
                   ),
                 ),
-            ],
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      if (!widget.sleeping)
+        ExcludeSemantics(
+          child: Icon(
+            Icons.graphic_eq_rounded,
+            size: 28,
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
-        const SizedBox(height: 8),
-        if (!widget.sleeping)
-          ExcludeSemantics(
-            child: Icon(
-              Icons.graphic_eq_rounded,
-              size: 28,
-              color: Theme.of(context).colorScheme.primary,
+      if (!widget.sleeping && widget.caption != null) widget.caption!,
+      if (!widget.sleeping) const SizedBox(height: 8),
+      Wrap(
+        key: const ValueKey('home-primary-actions'),
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (!widget.sleeping && widget.onCall != null) ...[
+            Tooltip(
+              message: widget.callTooltip,
+              child: Semantics(
+                key: const ValueKey('home-talk'),
+                child: FilledButton.icon(
+                  key: const ValueKey('call-kinaiya'),
+                  onPressed: widget.onCall,
+                  icon: Icon(
+                    widget.callLabel == 'End conversation' ||
+                            widget.callLabel == 'Stop microphone'
+                        ? Icons.call_end_rounded
+                        : Icons.mic_none,
+                  ),
+                  label: Text(widget.callLabel),
+                ),
+              ),
             ),
-          ),
-        if (!widget.sleeping && widget.caption != null) widget.caption!,
-        if (!widget.sleeping) const SizedBox(height: 8),
-        Wrap(
-          key: const ValueKey('home-primary-actions'),
-          alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            if (!widget.sleeping && widget.onCall != null) ...[
+            OutlinedButton(
+              key: const ValueKey('home-setup'),
+              onPressed: widget.onSetup,
+              child: Text(widget.setupLabel),
+            ),
+          ] else ...[
+            FilledButton.icon(
+              key: const ValueKey('home-setup'),
+              onPressed: widget.onSetup,
+              icon: const Icon(Icons.tune_rounded),
+              label: Text(widget.setupLabel),
+            ),
+            if (!widget.sleeping)
               Tooltip(
                 message: widget.callTooltip,
                 child: Semantics(
                   key: const ValueKey('home-talk'),
-                  child: FilledButton.icon(
+                  child: OutlinedButton.icon(
                     key: const ValueKey('call-kinaiya'),
-                    onPressed: widget.onCall,
-                    icon: Icon(
-                      widget.callLabel == 'End conversation' ||
-                              widget.callLabel == 'Stop microphone'
-                          ? Icons.call_end_rounded
-                          : Icons.mic_none,
-                    ),
+                    onPressed: null,
+                    icon: const Icon(Icons.mic_none),
                     label: Text(widget.callLabel),
                   ),
                 ),
               ),
-              OutlinedButton(
-                key: const ValueKey('home-setup'),
-                onPressed: widget.onSetup,
-                child: Text(widget.setupLabel),
-              ),
-            ] else ...[
-              FilledButton.icon(
-                key: const ValueKey('home-setup'),
-                onPressed: widget.onSetup,
-                icon: const Icon(Icons.tune_rounded),
-                label: Text(widget.setupLabel),
-              ),
-              if (!widget.sleeping)
-                Tooltip(
-                  message: widget.callTooltip,
-                  child: Semantics(
-                    key: const ValueKey('home-talk'),
-                    child: OutlinedButton.icon(
-                      key: const ValueKey('call-kinaiya'),
-                      onPressed: null,
-                      icon: const Icon(Icons.mic_none),
-                      label: Text(widget.callLabel),
-                    ),
-                  ),
-                ),
-            ],
           ],
+        ],
+      ),
+      if (widget.ownerControl != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: widget.ownerControl!,
         ),
-        if (widget.ownerControl != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: widget.ownerControl!,
-          ),
-        if (!widget.showConverseView)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: TextButton.icon(
-              key: const ValueKey('home-converse-hidden-setup'),
-              onPressed: widget.onConverseSetup ?? widget.onSetup,
-              icon: const Icon(Icons.visibility_outlined, size: 18),
-              label: const Text(
-                'Converse view is hidden · Enable it in Setup',
-                textAlign: TextAlign.center,
-              ),
+      if (!widget.showConverseView)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: TextButton.icon(
+            key: const ValueKey('home-converse-hidden-setup'),
+            onPressed: widget.onConverseSetup ?? widget.onSetup,
+            icon: const Icon(Icons.visibility_outlined, size: 18),
+            label: const Text(
+              'Converse view is hidden · Enable it in Setup',
+              textAlign: TextAlign.center,
             ),
           ),
-      ],
-    );
+        ),
+    ];
 
     return Center(
       child: ConstrainedBox(
@@ -610,52 +734,50 @@ class _MoonlitHomeState extends State<MoonlitHome>
         ),
         child: KeyedSubtree(
           key: _panelKey,
-          child: CallbackShortcuts(
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-                  _resizeFromLeft
-                  ? _resizePanelEdges(left: -24)
-                  : _resizePanelEdges(right: -24),
-              const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-                  _resizeFromLeft
-                  ? _resizePanelEdges(left: 24)
-                  : _resizePanelEdges(right: 24),
-              const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-                  _resizeFromBottom
-                  ? _resizePanelEdges(bottom: -24)
-                  : _resizePanelEdges(top: -24),
-              const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-                  _resizeFromBottom
-                  ? _resizePanelEdges(bottom: 24)
-                  : _resizePanelEdges(top: 24),
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              DirectionalFocusIntent: CallbackAction<DirectionalFocusIntent>(
+                onInvoke: (_) => false,
+              ),
             },
-            child: Focus(
-              focusNode: _resizeFocus,
+            child: FocusTraversalGroup(
+              policy: OrderedTraversalPolicy(),
               child: Stack(
                 fit: StackFit.passthrough,
                 children: [
-                  GestureDetector(
-                    onPanUpdate: (details) => _movePanel(details.delta),
-                    child: _card(
-                      key: const ValueKey('home-action-card'),
-                      prominent: true,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 14,
-                      ),
-                      effectiveHeight == null
-                          ? content
-                          : LayoutBuilder(
-                              builder: (context, innerBox) => Center(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: SizedBox(
-                                    width: innerBox.maxWidth,
-                                    child: content,
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(0),
+                    child: GestureDetector(
+                      onPanUpdate: (details) => _movePanel(details.delta),
+                      child: _card(
+                        key: const ValueKey('home-action-card'),
+                        prominent: true,
+                        padding: effectiveHeight == null
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 14,
+                              )
+                            : const EdgeInsets.fromLTRB(18, 2, 18, 12),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            dragGrip,
+                            if (effectiveHeight == null) ...[
+                              const SizedBox(height: 2),
+                              ...bodyChildren,
+                            ] else
+                              Flexible(
+                                child: SingleChildScrollView(
+                                  key: const ValueKey('home-panel-scroll'),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: bodyChildren,
                                   ),
                                 ),
                               ),
-                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   ..._windowResizeHandles(),
@@ -913,4 +1035,12 @@ class ConversePortrait extends StatelessWidget {
       );
     },
   );
+}
+
+class _EagerPanGestureRecognizer extends PanGestureRecognizer {
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+  }
 }
