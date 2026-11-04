@@ -16,6 +16,7 @@ import '../state/app_state.dart';
 import '../state/converse_handoff.dart';
 import '../state/native_audio_clip.dart';
 import 'book_sheet.dart';
+import 'converse_companions.dart';
 import 'converse_memory.dart';
 import 'converse_design.dart';
 import 'converse_interaction.dart';
@@ -3012,6 +3013,7 @@ class _CharacterViewState extends State<CharacterView> {
                     ),
                   ),
                   ConverseMemoryButton(state: expectedOwner ?? _s),
+                  ConverseCompanionsButton(state: expectedOwner ?? _s),
                   if (widget.surface != CharacterSurface.legacy)
                     Tooltip(
                       message: _recording
@@ -3457,6 +3459,8 @@ class _CharacterViewState extends State<CharacterView> {
                 onVoiceOptions: _openVoiceOptions,
                 onMemory: () =>
                     showConverseMemoryDialog(context: context, state: _s),
+                onCompanions: () =>
+                    showConverseCompanionsDialog(context: context, state: _s),
                 activeVoice: _armed || _recording || _speaking,
               ),
         ),
