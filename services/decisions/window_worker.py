@@ -292,13 +292,7 @@ class WindowDecisionsWorker:
         model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
         provider_info = self._active_provider_info()
         window_chars = getattr(self.classifier, "window_chars", 36000)
-        (
-            source_admissible,
-            admissible_context,
-            _kept_context,
-            _task_refs,
-            input_digest,
-        ) = admissible_window_projection(
+        projection = admissible_window_projection(
             source,
             context,
             tasks,
@@ -308,12 +302,19 @@ class WindowDecisionsWorker:
             agent_available=available,
             model_stamp=model_stamp,
         )
+        # One authorization-first builder defines both the reuse identity and
+        # the classifier input: the classifier receives exactly the projected
+        # context and tasks, so a reused answer always matches the bytes a
+        # fresh provider call would see.
+        input_digest = projection.digest
+        admissible_context, admissible_tasks = projection.context, projection.tasks
         _, disclosed_task_sources = _project_tasks_with_sources(
-            tasks, provider_info=provider_info, limit=len(_task_refs)
+            admissible_tasks, provider_info=provider_info, limit=len(admissible_tasks)
         )
         cached = self.outputs.get(key)
         reused = (
-            source_admissible
+            projection.source_admissible
+            and input_digest is not None
             and cached is not None
             and cached[0] == input_digest
             and self.output_models.get(key) == model_stamp
@@ -370,7 +371,8 @@ class WindowDecisionsWorker:
                 ) as capture:
                     capture_sources(source, [*admissible_context, *disclosed_task_sources])
                     labels = await asyncio.wait_for(
-                        self.classifier.classify(source, admissible_context, tasks), self.timeout
+                        self.classifier.classify(source, admissible_context, admissible_tasks),
+                        self.timeout,
                     )
                     capture.validated_output = labels
             else:
@@ -390,7 +392,8 @@ class WindowDecisionsWorker:
                     ) as capture:
                         capture_sources(source, [*admissible_context, *disclosed_task_sources])
                         labels = await asyncio.wait_for(
-                            classifier.classify(source, admissible_context, tasks), self.timeout
+                            classifier.classify(source, admissible_context, admissible_tasks),
+                            self.timeout,
                         )
                         capture.validated_output = labels
             original_call = capture.call_id if capture.started else None

@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "MediaQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaQ",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "first_pts": {
+      "maximum": 9007199254740991,
+      "minimum": -9007199254740991,
+      "title": "First Pts",
+      "type": "integer"
+    },
+    "probe_index": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Probe Index",
+      "type": "integer"
+    },
+    "provenance": {
+      "enum": [
+        "container",
+        "untimed_image"
+      ],
+      "title": "Provenance",
+      "type": "string"
+    },
+    "timebase": {
+      "$ref": "#/$defs/MediaQ"
+    }
+  },
+  "required": [
+    "probe_index",
+    "first_pts",
+    "timebase",
+    "provenance"
+  ],
+  "title": "MediaProbeClock",
+  "type": "object"
+}

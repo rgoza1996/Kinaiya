@@ -965,28 +965,33 @@ async def test_window_cache_reuse_refuses_when_disclosed_task_source_revoked_dur
             ),
             "owner",
         )
-        await worker.classify(e0)
-        assert len(seen_requests) == 1
-        assert store.window_decision(e0.event_id) is not None
+        original_native = worker._native
+        fail_first_append = {"armed": True}
 
-        w1 = w0.model_copy(update={"window_index": 1, "end_ms": 1500})
-        e1 = store.append(
-            AppendRequest(
-                session_id=session.session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                kind="conversation.window",
-                payload=w1.model_dump(mode="json"),
-                idempotency_key="w1-reuse-revoke",
-            ),
-            "owner",
-        )
+        async def fail_once(operation, *args, **kwargs):
+            if (
+                fail_first_append["armed"]
+                and operation == "append"
+                and args
+                and getattr(args[0], "kind", None) == "routing.window_decided"
+            ):
+                fail_first_append["armed"] = False
+                worker._native = original_native
+                raise RuntimeError("synthetic append outage after inference")
+            return await original_native(operation, *args, **kwargs)
+
+        worker._native = fail_once
+        with pytest.raises(RuntimeError, match="synthetic append outage"):
+            await worker.classify(e0)
+        assert len(seen_requests) == 1
+        assert store.window_decision(e0.event_id) is None
+
         with pytest.raises(ProviderRefusal, match="disclosure scope changed"):
-            await worker.classify(e1)
-        assert store.window_decision(e1.event_id) is None
+            await worker.classify(e0)
+        assert store.window_decision(e0.event_id) is None
         assert not worker.outputs
-        detail_e1 = store.decisions.detail(e1.event_id)
-        assert detail_e1["calls"][0]["status"] == "refused"
+        detail_e0 = store.decisions.detail(e0.event_id)
+        assert any(c["status"] == "refused" for c in detail_e0["calls"])
     finally:
         await provider.close()
         store.close()
