@@ -18,6 +18,7 @@ from services.distribution.installation import (
     SUPPORTED_ROLE_ADAPTERS,
     InstallError,
     Layout,
+    apt_simulation_command,
     current_receipt,
     dependency_install_command,
     install_missing_dependencies,
@@ -367,7 +368,11 @@ def dispatch(args):
     confirmation_payload = {"host": host, "plan": plan, "install": str(layout.install)}
     if missing:
         confirmation_payload["missing_dependencies"] = missing
+        confirmation_payload["dependency_check"] = " ".join(apt_simulation_command(missing))
         confirmation_payload["dependency_command"] = " ".join(dependency_install_command(missing))
+        confirmation_payload["dependency_policy"] = (
+            "solver-verified exact package=version install; refuses any upgrade, downgrade, or removal of existing packages"
+        )
     confirm(args.yes, json.dumps(confirmation_payload, indent=2))
     if missing:
         install_missing_dependencies(missing)

@@ -528,13 +528,58 @@ def test_install_missing_dependencies_uses_no_upgrade_and_never_runs_apt_update(
 
     def fake_run(argv, **kwargs):
         commands.append(argv)
+        if "-s" in argv:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.\n"
+                    "Inst bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Inst libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf bubblewrap (0.9.0-1ubuntu0.3 Ubuntu:24.04/noble [amd64])\n"
+                    "Conf libseccomp2 (2.5.5-1ubuntu3.1 Ubuntu:24.04/noble [amd64])\n"
+                ),
+                stderr="",
+            )
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     installed = module.install_missing_dependencies(["bubblewrap", "libseccomp2"])
     assert installed == ["bubblewrap", "libseccomp2"]
     assert commands == [
-        ["sudo", "apt-get", "install", "--no-upgrade", "-y", "bubblewrap", "libseccomp2"]
+        [
+            "apt-get",
+            "-s",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "install",
+            "--",
+            "bubblewrap",
+            "libseccomp2",
+        ],
+        [
+            "sudo",
+            "apt-get",
+            "install",
+            "--no-upgrade",
+            "--no-remove",
+            "-o",
+            "APT::Get::Upgrade=false",
+            "-o",
+            "APT::Get::Remove=false",
+            "-o",
+            "APT::Get::Allow-Downgrades=false",
+            "-y",
+            "--",
+            "bubblewrap=0.9.0-1ubuntu0.3",
+            "libseccomp2=2.5.5-1ubuntu3.1",
+        ],
     ]
     for cmd in commands:
         assert "update" not in cmd and "upgrade" not in cmd
