@@ -221,10 +221,10 @@ def _readonly_bindings(policy: ToolPolicy):
             key=lambda path: (len(path.parts), str(path)),
         )
         bindings = tuple(
-            ("--bind-fd", opened[path], _sandbox_path(policy, path)) for path in ancestors
+            ("--bind-fd", opened[path], str(_sandbox_path(policy, path))) for path in ancestors
         )
         bindings += tuple(
-            ("--ro-bind-fd", opened[root], _sandbox_path(policy, root)) for root in roots
+            ("--ro-bind-fd", opened[root], str(_sandbox_path(policy, root))) for root in roots
         )
     except (OSError, ValueError) as exc:
         raise PolicyDenied("shell read-only reference cannot be pinned") from exc
