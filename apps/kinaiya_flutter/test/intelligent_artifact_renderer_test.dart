@@ -308,9 +308,8 @@ void main() {
   test('native task submit sequence is optional and bounded', () {
     expect(IntelligentArtifact.fromJson(envelope()).taskSubmitSequence, 0);
     expect(
-      IntelligentArtifact.fromJson(
-        envelope()..['task_submit_sequence'] = 7,
-      ).taskSubmitSequence,
+      IntelligentArtifact.fromJson(envelope()..['task_submit_sequence'] = 7)
+          .taskSubmitSequence,
       7,
     );
   });

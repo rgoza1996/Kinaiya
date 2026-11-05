@@ -126,8 +126,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
     setState(() {});
     if (prior.any((item) => item.confirmed && !_pending.contains(item))) {
       setState(
-        () => _notice =
-            'Exact save confirmed. Refresh effective values; a receipt is historical.',
+        () => _notice = 'Exact save confirmed. Refresh effective values; a receipt is historical.',
       );
       unawaited(_loadScope());
       unawaited(_loadSaved());
@@ -184,8 +183,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _snapshot = null;
-          _error =
-              'Native scope could not be read. No permission was changed. Check the ID and owner connection.';
+          _error = 'Native scope could not be read. No permission was changed. Check the ID and owner connection.';
         });
       }
     } finally {
@@ -218,8 +216,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
     } catch (_) {
       if (_current(api, active) && read == _savedRead) {
         setState(
-          () => _savedError =
-              'Saved scope inventory could not be read. Retained requests are unchanged.',
+          () => _savedError = 'Saved scope inventory could not be read. Retained requests are unchanged.',
         );
       }
     } finally {
@@ -270,8 +267,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
     } catch (_) {
       if (mounted && widget.active()) {
         setState(
-          () => _error =
-              'This tool rule was not dispatched. Review its native scope and bounds.',
+          () => _error = 'This tool rule was not dispatched. Review its native scope and bounds.',
         );
       }
     }
@@ -336,8 +332,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice =
-          'The save response could not be confirmed. Keep the original scope, body and key for reconciliation.';
+      item.notice = 'The save response could not be confirmed. Keep the original scope, body and key for reconciliation.';
       if (receiptOnly) {
         await _checkFence(item, api, active, release: releaseFenced);
       }
@@ -364,8 +359,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
       if (!_current(api, active) || !_pending.contains(item)) return;
       if (fresh.instanceId != item.snapshot.instanceId ||
           fresh.revision <= (item.body['expected_revision'] as int)) {
-        item.notice =
-            'The earlier save’s outcome remains unknown. This connection has not confirmed that it can no longer change permissions.';
+        item.notice = 'The earlier save’s outcome remains unknown. This connection has not confirmed that it can no longer change permissions.';
         return;
       }
       item.fenceOwner = api;
@@ -386,8 +380,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
       }
     } catch (_) {
       if (_current(api, active) && _pending.contains(item)) {
-        item.notice =
-            'The save outcome remains unknown. The host could not confirm that the earlier request can no longer change permissions.';
+        item.notice = 'The save outcome remains unknown. The host could not confirm that the earlier request can no longer change permissions.';
       }
     }
   }
@@ -495,12 +488,9 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             Text(switch (row.tool) {
-              'read_file' =>
-                'Controls read_file only. Search, shell and context selection can read through separate native owners.',
-              'write_file' =>
-                'Controls write_file only. A permitted shell or another tool may write through its own native policy.',
-              _ =>
-                'Controls shell action approval. It does not grant network access or remove the required sandbox.',
+              'read_file' => 'Controls read_file only. Search, shell and context selection can read through separate native owners.',
+              'write_file' => 'Controls write_file only. A permitted shell or another tool may write through its own native policy.',
+              _ => 'Controls shell action approval. It does not grant network access or remove the required sandbox.',
             }),
             const SizedBox(height: 12),
             if (otherDirty)
@@ -656,8 +646,7 @@ class _OptionsToolPermissionsState extends State<OptionsToolPermissions> {
                   labelText: _kind == 'session'
                       ? 'Native session ID'
                       : 'Native task ID',
-                  helperText:
-                      'Resolve on the host to inspect its canonical scope. Nothing is saved by resolving.',
+                  helperText: 'Resolve on the host to inspect its canonical scope. Nothing is saved by resolving.',
                   helperMaxLines: 3,
                   border: const OutlineInputBorder(),
                 ),

@@ -288,9 +288,9 @@ void main() {
     expect(controller.preferences.primaryOverride, isNull);
     expect(storage.writes, isEmpty);
     expect(
-      const PresentationPreferences(
-        primaryOverride: '#123456',
-      ).copyWith(clearOverrides: true).primaryOverride,
+      const PresentationPreferences(primaryOverride: '#123456')
+          .copyWith(clearOverrides: true)
+          .primaryOverride,
       isNull,
     );
     expect(packSchemaV2, 2);

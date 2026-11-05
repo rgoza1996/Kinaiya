@@ -196,9 +196,9 @@ void main() {
       expect(selection.pack.fallback, isFalse);
       expect(selection.pack.activities, hasLength(2));
       expect(
-        (await inspectCharacterPackage(
-          exportCharacterSelection(selection),
-        )).pack.fallbacks,
+        (await inspectCharacterPackage(exportCharacterSelection(selection)))
+            .pack
+            .fallbacks,
         selection.pack.fallbacks,
       );
     },
@@ -221,9 +221,9 @@ void main() {
       expect(selection.packageJson, isNull);
       expect(selection.pack.fallback, isFalse);
       expect(
-        (await inspectCharacterPackage(
-          exportCharacterSelection(selection),
-        )).pack.name,
+        (await inspectCharacterPackage(exportCharacterSelection(selection)))
+            .pack
+            .name,
         'Bundled character',
       );
     },
@@ -235,13 +235,13 @@ void main() {
       final selection = await loadDefaultCharacterSelection(rootBundle);
       expect(selection.pack.fallback, isFalse);
       expect(selection.pack.packId, 'kinaiya-default');
-      final package =
-          jsonDecode(exportCharacterSelection(selection))
-              as Map<String, dynamic>;
+      final package = jsonDecode(
+        exportCharacterSelection(selection),
+      ) as Map<String, dynamic>;
       expect(
-        filesOf(
-          package,
-        ).map((file) => (file as Map<String, dynamic>)['path']).toSet(),
+        filesOf(package)
+            .map((file) => (file as Map<String, dynamic>)['path'])
+            .toSet(),
         {
           'assets/character/kinaiya-core-v1.png',
           'assets/character/kinaiya-activity-v1.png',

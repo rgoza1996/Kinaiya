@@ -480,12 +480,10 @@ class KinaiyaClient {
 
   Future<Map<String, Object?>> agentModelSelection(String? harness) async =>
       (await _agentWorkspaceReader.get(
-                agentBase,
-                '/v1/agent/options/model-selection',
-                query: {if (harness != null) 'harness_version': harness},
-              )
-              as Map)
-          .cast<String, Object?>();
+        agentBase,
+        '/v1/agent/options/model-selection',
+        query: {if (harness != null) 'harness_version': harness},
+      ) as Map).cast<String, Object?>();
 
   Future<Map<String, Object?>> saveAgentModels(
     Map<String, Object?> body,
@@ -569,11 +567,9 @@ class KinaiyaClient {
 
   Future<Map<String, Object?>> projectReceipt(String key) async =>
       (await _agentWorkspaceReader.get(
-                agentBase,
-                '/v1/agent/projects/changes/${Uri.encodeComponent(key)}',
-              )
-              as Map)
-          .cast<String, Object?>();
+        agentBase,
+        '/v1/agent/projects/changes/${Uri.encodeComponent(key)}',
+      ) as Map).cast<String, Object?>();
 
   Future<SessionInfo> createAgentSession(
     String harnessVersion, {
@@ -918,16 +914,19 @@ class KinaiyaClient {
     required List<int> wav,
     required ContentScope contentScope,
   }) async {
-    final result =
-        await _post(converseBase, '/v1/converse/native-audio/clips', {
-          'session_id': session.sessionId,
-          'thread_id': session.threadId,
-          'epoch': session.epoch,
-          'utterance_id': utteranceId,
-          'request_id': requestId,
-          'content_scope': contentScope.wireValue,
-          'audio_base64': base64Encode(wav),
-        });
+    final result = await _post(
+      converseBase,
+      '/v1/converse/native-audio/clips',
+      {
+        'session_id': session.sessionId,
+        'thread_id': session.threadId,
+        'epoch': session.epoch,
+        'utterance_id': utteranceId,
+        'request_id': requestId,
+        'content_scope': contentScope.wireValue,
+        'audio_base64': base64Encode(wav),
+      },
+    );
     final entry = result['entry'];
     if (result.length != 2 ||
         result['replay'] is! bool ||

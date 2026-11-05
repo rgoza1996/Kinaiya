@@ -13,30 +13,24 @@ Map<String, dynamic> _variant({
   int cooldownMs = 0,
 }) => {'animation': animation, 'weight': weight, 'cooldown_ms': cooldownMs};
 
-Map<String, dynamic> _manifest() =>
-    jsonDecode(
-          fixtures.buildV2(
-            fixtures.makePng(8, 8),
-            topOverrides: {
-              'pack_schema': packSchemaV3,
-              'activities': {
-                'idle': [_variant()],
-                'working.write_code': [
-                  {
-                    ..._variant(
-                      animation: 'thinking',
-                      weight: 100,
-                      cooldownMs: 60000,
-                    ),
-                    'when': ['working', 'quiet'],
-                  },
-                ],
-              },
-              'fallbacks': {'blocked': 'working.read_email'},
-            },
-          ),
-        )
-        as Map<String, dynamic>;
+Map<String, dynamic> _manifest() => jsonDecode(
+  fixtures.buildV2(
+    fixtures.makePng(8, 8),
+    topOverrides: {
+      'pack_schema': packSchemaV3,
+      'activities': {
+        'idle': [_variant()],
+        'working.write_code': [
+          {
+            ..._variant(animation: 'thinking', weight: 100, cooldownMs: 60000),
+            'when': ['working', 'quiet'],
+          },
+        ],
+      },
+      'fallbacks': {'blocked': 'working.read_email'},
+    },
+  ),
+) as Map<String, dynamic>;
 
 Future<CharacterPack> _load(Map<String, dynamic> manifest) => loadCharacterPack(
   manifestJson: jsonEncode(manifest),

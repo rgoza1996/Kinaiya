@@ -2,7 +2,9 @@
 library;
 
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../api/agent_model_client.dart';
 import '../api/agent_model_settings.dart';
 

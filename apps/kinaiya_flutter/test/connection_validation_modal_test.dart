@@ -6,21 +6,18 @@ import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/setup_dialog.dart';
 
 void main() {
-  test(
-    'ConnectionProfile.validate explains missing owner access token clearly using owner-login',
-    () {
-      final profile = ConnectionProfile.defaults();
-      final problem = profile.validate();
-      expect(problem, isNotNull);
-      expect(problem, contains('Owner access token is required.'));
-      expect(problem, contains('kinaiya --data-dir <dir> owner-login'));
-      expect(problem, contains('owner-login.txt'));
-      expect(problem, contains('Load local access token'));
-      expect(problem, isNot(contains('KINAIYA_OWNER_TOKEN')));
-      expect(problem, isNot(contains('service-tokens.json')));
-      expect(problem, isNot(contains('[REDACTED]')));
-    },
-  );
+  test('ConnectionProfile.validate explains missing owner access token clearly using owner-login', () {
+    final profile = ConnectionProfile.defaults();
+    final problem = profile.validate();
+    expect(problem, isNotNull);
+    expect(problem, contains('Owner access token is required.'));
+    expect(problem, contains('kinaiya --data-dir <dir> owner-login'));
+    expect(problem, contains('owner-login.txt'));
+    expect(problem, contains('Load local access token'));
+    expect(problem, isNot(contains('KINAIYA_OWNER_TOKEN')));
+    expect(problem, isNot(contains('service-tokens.json')));
+    expect(problem, isNot(contains('[REDACTED]')));
+  });
 
   testWidgets(
     'SetupDialog shows modal alert on missing owner token, blocks background interaction and focus traversal, and restores focus on dismiss',

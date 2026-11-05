@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +13,7 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/setup_dialog.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
+
 import 'agent_workspace_state_test.dart' show harnessJson;
 import 'decisions_inspection_test.dart' as decisions;
 import 'memory_models_test.dart' as memory;

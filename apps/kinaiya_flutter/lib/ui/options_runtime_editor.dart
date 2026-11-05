@@ -252,8 +252,7 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
               ],
               _field(
                 'Active shell directory',
-                execution.directory ??
-                    'Unavailable. Choose an existing workspace directory below.',
+                execution.directory ?? 'Unavailable. Choose an existing workspace directory below.',
               ),
               TextField(
                 key: const Key('options-shell-directory'),
@@ -262,8 +261,7 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
                 maxLength: 512,
                 decoration: const InputDecoration(
                   labelText: 'Shell starting directory',
-                  helperText:
-                      'Relative to the workspace; . uses its root. Folder must already exist.',
+                  helperText: 'Relative to the workspace; . uses its root. Folder must already exist.',
                   helperMaxLines: 3,
                   border: OutlineInputBorder(),
                 ),
@@ -320,9 +318,7 @@ class _OptionsRuntimeEditorState extends State<OptionsRuntimeEditor> {
               ),
               _field(
                 'Isolation status',
-                execution.isolationVerified
-                    ? 'Verified by host'
-                    : 'Not verified by this inspection. Execution must establish isolation.',
+                execution.isolationVerified ? 'Verified by host' : 'Not verified by this inspection. Execution must establish isolation.',
               ),
               _field(
                 'Configured network namespace',

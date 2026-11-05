@@ -1032,8 +1032,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     var draft = _memoryDrafts[_namespaceKey];
     if (revised != null && draft?.hasContent == true) {
       setState(() {
-        _notice =
-            'Your draft is kept. Discard it before starting a revision of another note.';
+        _notice = 'Your draft is kept. Discard it before starting a revision of another note.';
         _editorOpen = true;
       });
       return;
@@ -1167,8 +1166,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
       fact = draft.fact;
     } on FormatException {
       setState(
-        () => _contentProblem =
-            'The typed fact is invalid. Check its key, value type and byte limits.',
+        () => _contentProblem = 'The typed fact is invalid. Check its key, value type and byte limits.',
       );
       return;
     }
@@ -1178,8 +1176,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     );
     if (fence == null) {
       setState(
-        () => _contentProblem =
-            'Earlier owner requests are still unresolved. Refresh before creating a note.',
+        () => _contentProblem = 'Earlier owner requests are still unresolved. Refresh before creating a note.',
       );
       return;
     }
@@ -1220,8 +1217,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
     );
     if (fence == null) {
       setState(
-        () => _notice =
-            'Earlier owner requests are still unresolved. Refresh before forgetting notes.',
+        () => _notice = 'Earlier owner requests are still unresolved. Refresh before forgetting notes.',
       );
       return;
     }
@@ -1421,8 +1417,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
         operation.notice =
             'No saved receipt was found. The earlier outcome is still unknown.';
       } else {
-        operation.notice =
-            'The saved result could not be checked. The earlier outcome is still unknown.';
+        operation.notice = 'The saved result could not be checked. The earlier outcome is still unknown.';
       }
       _contentSignal.value++;
     }());
@@ -1528,8 +1523,7 @@ class _ConverseMemoryDialogState extends State<ConverseMemoryDialog> {
                   _removeOp(key, operation.fence.token);
                   _contentChanges.remove(key);
                   setState(
-                    () => _notice =
-                        'Pending request cleared. Its earlier outcome remains unknown. Your draft is kept.',
+                    () => _notice = 'Pending request cleared. Its earlier outcome remains unknown. Your draft is kept.',
                   );
                   _contentSignal.value++;
                 },

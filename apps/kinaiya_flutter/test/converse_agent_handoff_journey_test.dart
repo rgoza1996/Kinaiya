@@ -218,8 +218,7 @@ void main() {
         // Assistant prose claiming acceptance/completion must NEVER fabricate handoff or task completion.
         ChatMsg(
           role: 'kinaiya',
-          text:
-              'I accepted task-1, ran the tests, and verified report.md is ready!',
+          text: 'I accepted task-1, ran the tests, and verified report.md is ready!',
           eventId: 'assistant-claim',
         ),
       ]);
@@ -402,8 +401,7 @@ void main() {
           approvalId: 'app-1',
           taskId: 'task-1',
           tool: 'write_file',
-          actionDigest:
-              'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          actionDigest: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
           objectiveRevision: 1,
           arguments: const {'path': 'report.md'},
           reason: 'Write failure summary to report.md',
@@ -455,8 +453,7 @@ void main() {
               summary: 'Published preview card',
               objectiveRevision: 1,
               path: 'artifact://art-1',
-              sha256:
-                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
               output:
                   '{"artifact_id":"art-1","kind":"markdown","title":"Preview"}',
             ),
@@ -493,8 +490,7 @@ void main() {
               summary: 'wrote report.md',
               objectiveRevision: 1,
               path: 'report.md',
-              sha256:
-                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
             ),
           ],
         ),

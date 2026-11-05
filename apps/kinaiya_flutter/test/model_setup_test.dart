@@ -141,9 +141,8 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(small ? 2 : 1)),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(small ? 2 : 1)),
               child: child!,
             ),
             home: Builder(

@@ -44,12 +44,14 @@ Json _record(int number) {
   final request = _object(receipt['request']);
   request['responsibility_id'] = _id(number);
   request['idempotency_key'] = 'independent-read-binding-$number';
-  receipt['authorization_digest'] =
-      _digest('kinaiya.standing.authorization.v1', {
-        'responsibility_id': request['responsibility_id'],
-        'revision': receipt['revision'],
-        'request': request,
-      });
+  receipt['authorization_digest'] = _digest(
+    'kinaiya.standing.authorization.v1',
+    {
+      'responsibility_id': request['responsibility_id'],
+      'revision': receipt['revision'],
+      'request': request,
+    },
+  );
   record['record_digest'] = _digest('kinaiya.standing.record.v1', {
     'receipt': receipt,
     'activation': record['activation'],
@@ -128,9 +130,8 @@ void main() {
   setUpAll(() {
     fixture = _object(
       jsonDecode(
-        File(
-          'test/fixtures/standing-owner-independent-v1.json',
-        ).readAsStringSync(),
+        File('test/fixtures/standing-owner-independent-v1.json')
+            .readAsStringSync(),
       ),
     );
   });
@@ -158,9 +159,12 @@ void main() {
     () async {
       final response = _page([2]);
       expect(
-        StandingResponsibilityPage.fromJson(
-          response,
-        ).items.single.receipt.request.responsibilityId,
+        StandingResponsibilityPage.fromJson(response)
+            .items
+            .single
+            .receipt
+            .request
+            .responsibilityId,
         _id(2),
       );
       await _refusesCallerMismatch(
@@ -177,9 +181,12 @@ void main() {
     () async {
       final response = _page([1]);
       expect(
-        StandingResponsibilityPage.fromJson(
-          response,
-        ).items.single.receipt.request.responsibilityId,
+        StandingResponsibilityPage.fromJson(response)
+            .items
+            .single
+            .receipt
+            .request
+            .responsibilityId,
         _id(1),
       );
       await _refusesCallerMismatch(

@@ -79,8 +79,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                 key: const ValueKey('audio-output-device'),
                 decoration: const InputDecoration(
                   labelText: 'Available output',
-                  helperText:
-                      'Device permission and availability are controlled by your browser.',
+                  helperText: 'Device permission and availability are controlled by your browser.',
                   helperMaxLines: 4,
                 ),
                 child: DropdownButtonHideUnderline(
@@ -228,8 +227,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Speech sensitivity',
-                    helperText:
-                        'Higher sensitivity picks up softer speech and more background sound.',
+                    helperText: 'Higher sensitivity picks up softer speech and more background sound.',
                     helperMaxLines: 4,
                   ),
                   items: [
@@ -307,8 +305,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                 const SizedBox(height: KinaiyaDesign.spaceMd),
                 _duration(
                   label: 'Speech confirmation',
-                  help:
-                      'Ignore shorter sounds before confirming speech in clip mode.',
+                  help: 'Ignore shorter sounds before confirming speech in clip mode.',
                   value: settings.minSpeechMs,
                   values: const [100, 200, 300, 500, 1000, 2000],
                   onChanged: change == null
@@ -318,8 +315,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                 ),
                 _duration(
                   label: 'Interrupt confirmation',
-                  help:
-                      'Sustained speech needed to stop Kinaiya’s playback in clip mode.',
+                  help: 'Sustained speech needed to stop Kinaiya’s playback in clip mode.',
                   value: settings.bargeMs,
                   values: const [150, 220, 350, 500, 1000],
                   onChanged: change == null

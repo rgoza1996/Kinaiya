@@ -186,10 +186,8 @@ void main() {
     final inspection = evidenceJson('inspection');
     expect(evidencedTask([inspection]).isGroundedSuccess, isFalse);
     expect(
-      evidencedTask([
-        inspection,
-        evidenceJson('file', revision: 1),
-      ]).isGroundedSuccess,
+      evidencedTask([inspection, evidenceJson('file', revision: 1)])
+          .isGroundedSuccess,
       isFalse,
     );
     expect(

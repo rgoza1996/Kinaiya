@@ -237,10 +237,9 @@ void main() {
   );
   test('node consistency, source authority and body bounds', () {
     expect(
-      MemoryNode.fromJson({
-        ...nodeJson(),
-        'body': '\t${'a' * 2047}',
-      }).body!.length,
+      MemoryNode.fromJson({...nodeJson(), 'body': '\t${'a' * 2047}'})
+          .body!
+          .length,
       2048,
     );
     expect(

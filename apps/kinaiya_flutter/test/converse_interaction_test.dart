@@ -70,9 +70,8 @@ Widget _screen({
 }) => MaterialApp(
   theme: theme ?? kinaiyaTheme(brightness: Brightness.dark, designSystem: true),
   builder: (context, child) => MediaQuery(
-    data: MediaQuery.of(
-      context,
-    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    data: MediaQuery.of(context)
+        .copyWith(textScaler: TextScaler.linear(textScale)),
     child: child!,
   ),
   home: Scaffold(
@@ -606,9 +605,8 @@ void main() {
       Widget buildSummary({double textScale = 1.0}) => MaterialApp(
         theme: kinaiyaTheme(brightness: Brightness.dark, designSystem: true),
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
           child: child!,
         ),
         home: Scaffold(

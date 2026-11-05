@@ -3,7 +3,9 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'capability_settings.dart';
@@ -70,21 +72,15 @@ class CapabilityApi {
     if (!capabilitySections.contains(section) || after < 0 || after > 1000000) {
       throw const CapabilityFailure('Invalid capability page');
     }
-    return _request(
-      'GET',
-      '/v1/agent/options/capabilities',
-      null,
-      (raw) {
-        final result = CapabilitySnapshot.fromJson(raw);
-        if (result.section != section ||
-            (result.nextAfter != null &&
-                result.nextAfter != after + result.items.length)) {
-          throw const FormatException();
-        }
-        return result;
-      },
-      query: {'section': section, 'after': '$after', 'limit': '8'},
-    );
+    return _request('GET', '/v1/agent/options/capabilities', null, (raw) {
+      final result = CapabilitySnapshot.fromJson(raw);
+      if (result.section != section ||
+          (result.nextAfter != null &&
+              result.nextAfter != after + result.items.length)) {
+        throw const FormatException();
+      }
+      return result;
+    }, query: {'section': section, 'after': '$after', 'limit': '8'});
   }
 
   bool hasUnconfirmedSection(String section) => _known.any(

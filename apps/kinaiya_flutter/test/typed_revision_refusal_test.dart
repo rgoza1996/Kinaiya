@@ -176,27 +176,21 @@ AppState _owner(_Api api) {
 }
 
 void main() {
-  test(
-    'canonical original-user refusal binds the actual authenticated revision cause',
-    () {
-      final tracker = _seed(correctionCauses: const []);
-      _expectUnavailable(tracker.observe(_refusal(), _scope));
-      _expectUnavailable(tracker.noticeForSource('source', _scope));
-      expect(tracker.noticeForSource('revision-a', _scope), isNull);
-    },
-  );
+  test('canonical original-user refusal binds the actual authenticated revision cause', () {
+    final tracker = _seed(correctionCauses: const []);
+    _expectUnavailable(tracker.observe(_refusal(), _scope));
+    _expectUnavailable(tracker.noticeForSource('source', _scope));
+    expect(tracker.noticeForSource('revision-a', _scope), isNull);
+  });
 
-  test(
-    'historical raw revision ID refusal projects only onto its exact original user',
-    () {
-      final tracker = _seed(correctionCauses: const []);
-      final refusal = _refusal(source: 'revision-a');
-      expect(refusal.payload.containsKey('source_sequence'), isFalse);
-      _expectUnavailable(tracker.observe(refusal, _scope));
-      _expectUnavailable(tracker.noticeForSource('source', _scope));
-      expect(tracker.noticeForSource('revision-a', _scope), isNull);
-    },
-  );
+  test('historical raw revision ID refusal projects only onto its exact original user', () {
+    final tracker = _seed(correctionCauses: const []);
+    final refusal = _refusal(source: 'revision-a');
+    expect(refusal.payload.containsKey('source_sequence'), isFalse);
+    _expectUnavailable(tracker.observe(refusal, _scope));
+    _expectUnavailable(tracker.noticeForSource('source', _scope));
+    expect(tracker.noticeForSource('revision-a', _scope), isNull);
+  });
 
   test(
     'historical alias A cannot borrow current revision B payload or cause',
@@ -233,70 +227,57 @@ void main() {
     },
   );
 
-  test(
-    'exact revision proof requires authenticated scope target scalar order and cause',
-    () {
-      final invalid = [
-        _revision(origin: 'decisions'),
-        _revision(origin: 'unauthenticated'),
-        _revision(session: 'foreign'),
-        _revision(thread: 'foreign'),
-        _revision(epoch: 4),
-        _revision(id: ''),
-        _revision(target: 'unrelated'),
-        _revision(revision: true),
-        _revision(revision: '2'),
-        _revision(revision: 0),
-        _revision(revision: null),
-        _revision(sequence: 0),
-        _revision(sequence: 1),
-      ];
-      for (final invalidRevision in invalid) {
-        for (final sourceId in ['source', 'revision-a']) {
-          final tracker = ConverseHandoffTracker()
-            ..observe(old.source(revision: 2), _scope)
-            ..observe(invalidRevision, _scope);
-          expect(tracker.observe(_refusal(source: sourceId), _scope), isNull);
-          expect(tracker.noticeForSource('source', _scope), isNull);
-        }
+  test('exact revision proof requires authenticated scope target scalar order and cause', () {
+    final invalid = [
+      _revision(origin: 'decisions'),
+      _revision(origin: 'unauthenticated'),
+      _revision(session: 'foreign'),
+      _revision(thread: 'foreign'),
+      _revision(epoch: 4),
+      _revision(id: ''),
+      _revision(target: 'unrelated'),
+      _revision(revision: true),
+      _revision(revision: '2'),
+      _revision(revision: 0),
+      _revision(revision: null),
+      _revision(sequence: 0),
+      _revision(sequence: 1),
+    ];
+    for (final invalidRevision in invalid) {
+      for (final sourceId in ['source', 'revision-a']) {
+        final tracker = ConverseHandoffTracker()
+          ..observe(old.source(revision: 2), _scope)
+          ..observe(invalidRevision, _scope);
+        expect(tracker.observe(_refusal(source: sourceId), _scope), isNull);
+        expect(tracker.noticeForSource('source', _scope), isNull);
       }
-    },
-  );
+    }
+  });
 
-  test(
-    'new authentic revision invalidates prior refusal without reviving stale alias',
-    () {
-      final tracker = _seed();
-      _expectUnavailable(
-        tracker.observe(_refusal(source: 'revision-a'), _scope),
-      );
+  test('new authentic revision invalidates prior refusal without reviving stale alias', () {
+    final tracker = _seed();
+    _expectUnavailable(tracker.observe(_refusal(source: 'revision-a'), _scope));
+    tracker.observe(
+      _revision(id: 'revision-b', revision: 3, sequence: 21),
+      _scope,
+    );
+    expect(tracker.noticeForSource('source', _scope), isNull);
+    expect(
       tracker.observe(
-        _revision(id: 'revision-b', revision: 3, sequence: 21),
+        _refusal(id: 'stale', source: 'revision-a', sequence: 22),
         _scope,
-      );
-      expect(tracker.noticeForSource('source', _scope), isNull);
-      expect(
-        tracker.observe(
-          _refusal(id: 'stale', source: 'revision-a', sequence: 22),
-          _scope,
-        ),
-        isNull,
-      );
-      expect(tracker.noticeForSource('source', _scope), isNull);
-      _expectUnavailable(
-        tracker.observe(
-          _refusal(
-            id: 'current',
-            revision: 3,
-            cause: 'revision-b',
-            sequence: 23,
-          ),
-          _scope,
-        ),
-        revision: 3,
-      );
-    },
-  );
+      ),
+      isNull,
+    );
+    expect(tracker.noticeForSource('source', _scope), isNull);
+    _expectUnavailable(
+      tracker.observe(
+        _refusal(id: 'current', revision: 3, cause: 'revision-b', sequence: 23),
+        _scope,
+      ),
+      revision: 3,
+    );
+  });
 
   for (final acceptanceFirst in [true, false]) {
     test(
@@ -456,37 +437,34 @@ void main() {
     },
   );
 
-  test(
-    'old raw alias remains recoverable under existing bounded source-history pressure',
-    () async {
-      final api = _Api()
-        ..entries = [old.source(), _revision()]
-        ..references = {
-          'source': old.source(revision: 2, text: 'Corrected public request'),
-          'revision-a': _revision(),
-        };
-      for (var i = 0; i < 300; i++) {
-        final id = 'history-user-$i';
-        api.entries.add(old.source(id: id, sequence: 3 + 2 * i));
-        api.entries.add(
-          _revision(id: 'history-revision-$i', target: id, sequence: 4 + 2 * i),
-        );
-      }
-      final state = _owner(api);
-      // Seven ordinary <=100-entry pages cover all 602 original history entries.
-      for (var page = 0; page < 7; page++) {
-        final before = api.reads.length;
-        await state.refreshNotices();
-        expect(api.reads.length - before, lessThanOrEqualTo(8));
-      }
-      api.entries.add(_refusal(source: 'revision-a', sequence: 1000));
+  test('old raw alias remains recoverable under existing bounded source-history pressure', () async {
+    final api = _Api()
+      ..entries = [old.source(), _revision()]
+      ..references = {
+        'source': old.source(revision: 2, text: 'Corrected public request'),
+        'revision-a': _revision(),
+      };
+    for (var i = 0; i < 300; i++) {
+      final id = 'history-user-$i';
+      api.entries.add(old.source(id: id, sequence: 3 + 2 * i));
+      api.entries.add(
+        _revision(id: 'history-revision-$i', target: id, sequence: 4 + 2 * i),
+      );
+    }
+    final state = _owner(api);
+    // Seven ordinary <=100-entry pages cover all 602 original history entries.
+    for (var page = 0; page < 7; page++) {
       final before = api.reads.length;
       await state.refreshNotices();
-      _expectUnavailable(state.handoffNotice('source'));
-      final recovery = api.reads.skip(before).toList();
-      expect(recovery.length, inInclusiveRange(1, 8));
-      expect(recovery.any((read) => read.$1 == 'source'), isTrue);
-      expect(state.tasks, isEmpty);
-    },
-  );
+      expect(api.reads.length - before, lessThanOrEqualTo(8));
+    }
+    api.entries.add(_refusal(source: 'revision-a', sequence: 1000));
+    final before = api.reads.length;
+    await state.refreshNotices();
+    _expectUnavailable(state.handoffNotice('source'));
+    final recovery = api.reads.skip(before).toList();
+    expect(recovery.length, inInclusiveRange(1, 8));
+    expect(recovery.any((read) => read.$1 == 'source'), isTrue);
+    expect(state.tasks, isEmpty);
+  });
 }

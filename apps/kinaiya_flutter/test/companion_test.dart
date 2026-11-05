@@ -200,31 +200,28 @@ void main() {
     },
   );
 
-  test(
-    'nonadvancing or wrong-transition receipts retain original uncertain action',
-    () async {
-      for (final result in [
-        fixtureCall(),
-        fixtureCall(revision: 2, state: 'ended'),
-      ]) {
-        final controller = CompanionController(
-          clientFactory: (_) => clientFor((request) {
-            if (request.url.path.endsWith('/redeem')) return pairingResponse();
-            if (request.method == 'GET') return pageResponse([fixtureCall()]);
-            return jsonResponse(result);
-          }),
-        );
-        await controller.pair('https://host.invalid', 'c' * 43, 'Test phone');
-        await controller.action(controller.calls.single, 'answer');
-        expect(controller.pending, isNotNull);
-        final key = controller.pending!.key;
-        await controller.retryAction();
-        expect(controller.pending!.key, key);
-        expect(controller.calls.single.state, CompanionCallState.ringing);
-        controller.dispose();
-      }
-    },
-  );
+  test('nonadvancing or wrong-transition receipts retain original uncertain action', () async {
+    for (final result in [
+      fixtureCall(),
+      fixtureCall(revision: 2, state: 'ended'),
+    ]) {
+      final controller = CompanionController(
+        clientFactory: (_) => clientFor((request) {
+          if (request.url.path.endsWith('/redeem')) return pairingResponse();
+          if (request.method == 'GET') return pageResponse([fixtureCall()]);
+          return jsonResponse(result);
+        }),
+      );
+      await controller.pair('https://host.invalid', 'c' * 43, 'Test phone');
+      await controller.action(controller.calls.single, 'answer');
+      expect(controller.pending, isNotNull);
+      final key = controller.pending!.key;
+      await controller.retryAction();
+      expect(controller.pending!.key, key);
+      expect(controller.calls.single.state, CompanionCallState.ringing);
+      controller.dispose();
+    }
+  });
 
   testWidgets(
     'controller replacements dispose only locally owned controllers',
@@ -254,46 +251,40 @@ void main() {
       external.dispose();
     },
   );
-  test(
-    'pairing sends no bearer; subsequent calls use device bearer only in header',
-    () async {
-      final requests = <http.Request>[];
-      final client = clientFor((request) {
-        requests.add(request);
-        return request.url.path.endsWith('/redeem')
-            ? pairingResponse()
-            : pageResponse([]);
-      });
-      final device = await client.pair('c' * 43, 'Test phone');
-      await client.calls(device);
-      expect(requests.first.headers.containsKey('authorization'), isFalse);
-      expect(requests.first.url.toString(), isNot(contains('c' * 43)));
-      expect(
-        (jsonDecode(requests.first.body) as Map<String, Object?>)['code'],
-        'c' * 43,
-      );
-      expect(requests.last.headers['authorization'], 'Bearer $fixtureToken');
-      expect(requests.last.url.toString(), isNot(contains(fixtureToken)));
-      expect(requests.every((request) => !request.followRedirects), isTrue);
-      client.close();
-    },
-  );
+  test('pairing sends no bearer; subsequent calls use device bearer only in header', () async {
+    final requests = <http.Request>[];
+    final client = clientFor((request) {
+      requests.add(request);
+      return request.url.path.endsWith('/redeem')
+          ? pairingResponse()
+          : pageResponse([]);
+    });
+    final device = await client.pair('c' * 43, 'Test phone');
+    await client.calls(device);
+    expect(requests.first.headers.containsKey('authorization'), isFalse);
+    expect(requests.first.url.toString(), isNot(contains('c' * 43)));
+    expect(
+      (jsonDecode(requests.first.body) as Map<String, Object?>)['code'],
+      'c' * 43,
+    );
+    expect(requests.last.headers['authorization'], 'Bearer $fixtureToken');
+    expect(requests.last.url.toString(), isNot(contains(fixtureToken)));
+    expect(requests.every((request) => !request.followRedirects), isTrue);
+    client.close();
+  });
 
-  test(
-    'remote plaintext, credentials, query and fragment hosts rejected before request',
-    () {
-      for (final host in [
-        'http://remote.invalid',
-        'https://user:secret@host.invalid',
-        'https://host.invalid?token=secret',
-        'https://host.invalid#secret',
-        'file:///tmp',
-      ]) {
-        expect(() => CompanionClient(host), throwsA(isA<CompanionFailure>()));
-      }
-      CompanionClient('http://127.0.0.1:8760').close();
-    },
-  );
+  test('remote plaintext, credentials, query and fragment hosts rejected before request', () {
+    for (final host in [
+      'http://remote.invalid',
+      'https://user:secret@host.invalid',
+      'https://host.invalid?token=secret',
+      'https://host.invalid#secret',
+      'file:///tmp',
+    ]) {
+      expect(() => CompanionClient(host), throwsA(isA<CompanionFailure>()));
+    }
+    CompanionClient('http://127.0.0.1:8760').close();
+  });
 
   test(
     'redirect and echoed host errors never disclose response content',
@@ -549,9 +540,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(2)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(2)),
             child: child!,
           ),
           home: CompanionHome(controller: controller),

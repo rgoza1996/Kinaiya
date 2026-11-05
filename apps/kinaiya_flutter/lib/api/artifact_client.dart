@@ -141,9 +141,8 @@ class ArtifactApi {
     Map<String, Object?>? result;
     ArtifactFailure? failure;
     try {
-      final uri = Uri.parse(
-        '$_base$path',
-      ).replace(queryParameters: query.isEmpty ? null : query);
+      final uri = Uri.parse('$_base$path')
+          .replace(queryParameters: query.isEmpty ? null : query);
       final request = http.Request(method, uri)..followRedirects = false;
       request.headers['Authorization'] = 'Bearer $_token';
       if (body != null) {

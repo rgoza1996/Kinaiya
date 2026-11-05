@@ -180,48 +180,45 @@ void main() {
     },
   );
 
-  test(
-    'two timed-out sends retain slots and own every late response until cancellation settles',
-    () async {
-      final clients = <_HeldSend>[];
-      var recovered = false;
-      final api = _api(() {
-        if (recovered) return _Completed(_page());
-        final client = _HeldSend();
-        clients.add(client);
-        return client;
-      });
-      addTearDown(api.close);
-      await Future.wait(
-        List.generate(
-          2,
-          (_) => expectLater(
-            api.page(_session()),
-            throwsA(_failure(unconfirmed: true)),
-          ),
+  test('two timed-out sends retain slots and own every late response until cancellation settles', () async {
+    final clients = <_HeldSend>[];
+    var recovered = false;
+    final api = _api(() {
+      if (recovered) return _Completed(_page());
+      final client = _HeldSend();
+      clients.add(client);
+      return client;
+    });
+    addTearDown(api.close);
+    await Future.wait(
+      List.generate(
+        2,
+        (_) => expectLater(
+          api.page(_session()),
+          throwsA(_failure(unconfirmed: true)),
         ),
-      );
-      expect(clients.length, 2);
-      expect(clients.every((client) => client.closes == 1), isTrue);
-      await expectLater(api.page(_session()), throwsA(_failure()));
-      expect(clients.length, 2);
-      final bodies = List.generate(2, (_) => _Body());
-      for (var i = 0; i < clients.length; i++) {
-        clients[i].response.complete(bodies[i].response);
-      }
-      await _flush();
-      expect(
-        bodies.every((body) => body.listens == 1 && body.cancels == 1),
-        isTrue,
-      );
-      await expectLater(api.page(_session()), throwsA(_failure()));
-      expect(clients.length, 2);
-      await Future.wait(bodies.map((body) => body.finish()));
-      await _flush();
-      recovered = true;
-      expect((await api.page(_session())).items, isEmpty);
-    },
-  );
+      ),
+    );
+    expect(clients.length, 2);
+    expect(clients.every((client) => client.closes == 1), isTrue);
+    await expectLater(api.page(_session()), throwsA(_failure()));
+    expect(clients.length, 2);
+    final bodies = List.generate(2, (_) => _Body());
+    for (var i = 0; i < clients.length; i++) {
+      clients[i].response.complete(bodies[i].response);
+    }
+    await _flush();
+    expect(
+      bodies.every((body) => body.listens == 1 && body.cancels == 1),
+      isTrue,
+    );
+    await expectLater(api.page(_session()), throwsA(_failure()));
+    expect(clients.length, 2);
+    await Future.wait(bodies.map((body) => body.finish()));
+    await _flush();
+    recovered = true;
+    expect((await api.page(_session())).items, isEmpty);
+  });
 
   for (final refusal in ['status', 'declared length']) {
     test(
@@ -268,36 +265,33 @@ void main() {
     );
   }
 
-  test(
-    'a stalled body has a bounded deadline without freeing unsettled cancellation',
-    () async {
-      final clients = <_Body>[];
-      var recovered = false;
-      final api = _api(() {
-        if (recovered) return _Completed(_page());
-        final client = _Body();
-        clients.add(client);
-        return client;
-      });
-      addTearDown(api.close);
-      await Future.wait(
-        List.generate(
-          2,
-          (_) => expectLater(
-            api.page(_session()),
-            throwsA(_failure(unconfirmed: true)),
-          ),
+  test('a stalled body has a bounded deadline without freeing unsettled cancellation', () async {
+    final clients = <_Body>[];
+    var recovered = false;
+    final api = _api(() {
+      if (recovered) return _Completed(_page());
+      final client = _Body();
+      clients.add(client);
+      return client;
+    });
+    addTearDown(api.close);
+    await Future.wait(
+      List.generate(
+        2,
+        (_) => expectLater(
+          api.page(_session()),
+          throwsA(_failure(unconfirmed: true)),
         ),
-      );
-      expect(clients.every((client) => client.cancels == 1), isTrue);
-      await expectLater(api.page(_session()), throwsA(_failure()));
-      expect(clients.length, 2);
-      await Future.wait(clients.map((client) => client.finish()));
-      await _flush();
-      recovered = true;
-      expect((await api.page(_session())).items, isEmpty);
-    },
-  );
+      ),
+    );
+    expect(clients.every((client) => client.cancels == 1), isTrue);
+    await expectLater(api.page(_session()), throwsA(_failure()));
+    expect(clients.length, 2);
+    await Future.wait(clients.map((client) => client.finish()));
+    await _flush();
+    recovered = true;
+    expect((await api.page(_session())).items, isEmpty);
+  });
 
   test(
     'throwing client close cannot release capacity or leak its exception',
@@ -333,81 +327,72 @@ void main() {
     },
   );
 
-  test(
-    'streamed byte bound and exact declared length fail without decoding private data',
-    () async {
-      for (final sample in [
-        _Completed(
-          'x' * (intelligentArtifactMaxBytes + 1),
-          declareLength: false,
-        ),
-        _Completed(_secret, declared: _secret.length + 1),
-        _Completed(_secret),
-      ]) {
-        final api = _api(() => sample);
-        await expectLater(
-          api.detail(_session(), 'artifact-test'),
-          throwsA(_failure()),
-        );
-        await api.close();
-        expect(sample.closes, 1);
-      }
-    },
-  );
-
-  test(
-    'POST timeout never retries and explicit replay preserves the supplied idempotency key',
-    () async {
-      final held = _HeldSend();
-      final raw = artifactFixture(
-        components: [
-          artifactComponent('choice', 'select', {
-            'label': 'Scenario',
-            'options': ['A', 'B'],
-            'value': 'A',
-          }),
-        ],
-      );
-      final artifact = IntelligentArtifact.fromJson(raw);
-      final result = {
-        ...raw,
-        'view_revision': 1,
-        'view_state': {'choice': 'B'},
-      };
-      final completed = _Completed(jsonEncode(result));
-      var count = 0;
-      final api = _api(() => count++ == 0 ? held : completed);
-      addTearDown(api.close);
+  test('streamed byte bound and exact declared length fail without decoding private data', () async {
+    for (final sample in [
+      _Completed('x' * (intelligentArtifactMaxBytes + 1), declareLength: false),
+      _Completed(_secret, declared: _secret.length + 1),
+      _Completed(_secret),
+    ]) {
+      final api = _api(() => sample);
       await expectLater(
-        api.action(_session(), artifact, 'choice', 'B', 'exact-replay-key'),
-        throwsA(_failure(unconfirmed: true)),
+        api.detail(_session(), 'artifact-test'),
+        throwsA(_failure()),
       );
-      await _flush();
-      expect(held.requests.length, 1);
-      expect(count, 1);
-      held.response.complete(
-        _Completed(jsonEncode(result)).send(held.requests.single),
-      );
-      await _flush();
-      final replay = await api.action(
-        _session(),
-        artifact,
-        'choice',
-        'B',
-        'exact-replay-key',
-      );
-      expect(replay.viewState['choice'], 'B');
-      expect(count, 2);
-      final first = held.requests.single as http.Request;
-      final second = completed.requests.single as http.Request;
-      expect(first.method, 'POST');
-      expect(first.body, second.body);
-      expect(
-        jsonDecode(first.body),
-        containsPair('idempotency_key', 'exact-replay-key'),
-      );
-    },
-  );
+      await api.close();
+      expect(sample.closes, 1);
+    }
+  });
+
+  test('POST timeout never retries and explicit replay preserves the supplied idempotency key', () async {
+    final held = _HeldSend();
+    final raw = artifactFixture(
+      components: [
+        artifactComponent('choice', 'select', {
+          'label': 'Scenario',
+          'options': ['A', 'B'],
+          'value': 'A',
+        }),
+      ],
+    );
+    final artifact = IntelligentArtifact.fromJson(raw);
+    final result = {
+      ...raw,
+      'view_revision': 1,
+      'view_state': {'choice': 'B'},
+    };
+    final completed = _Completed(jsonEncode(result));
+    var count = 0;
+    final api = _api(() => count++ == 0 ? held : completed);
+    addTearDown(api.close);
+    await expectLater(
+      api.action(_session(), artifact, 'choice', 'B', 'exact-replay-key'),
+      throwsA(_failure(unconfirmed: true)),
+    );
+    await _flush();
+    expect(held.requests.length, 1);
+    expect(count, 1);
+    held.response.complete(
+      _Completed(jsonEncode(result)).send(held.requests.single),
+    );
+    await _flush();
+    final replay = await api.action(
+      _session(),
+      artifact,
+      'choice',
+      'B',
+      'exact-replay-key',
+    );
+    expect(replay.viewState['choice'], 'B');
+    expect(count, 2);
+    final first = held.requests.single as http.Request;
+    final second = completed.requests.single as http.Request;
+    expect(first.method, 'POST');
+    expect(first.body, second.body);
+    expect(
+      jsonDecode(first.body),
+      containsPair('idempotency_key', 'exact-replay-key'),
+    );
+  });
 
   test(
     'closing artifact API owns late sends without closing the task transport',

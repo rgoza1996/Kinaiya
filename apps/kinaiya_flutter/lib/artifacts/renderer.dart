@@ -11,8 +11,10 @@ import 'package:flutter/services.dart';
 import '../ui/design_tokens.dart';
 import 'models.dart';
 
-typedef ArtifactAction =
-    FutureOr<void> Function(String componentId, Object? value);
+typedef ArtifactAction = FutureOr<void> Function(
+  String componentId,
+  Object? value,
+);
 
 class IntelligentArtifactRenderer extends StatefulWidget {
   const IntelligentArtifactRenderer({

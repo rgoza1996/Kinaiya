@@ -95,9 +95,8 @@ void main() {
   setUpAll(() {
     _vectors = _map(
       jsonDecode(
-        File(
-          'test/fixtures/standing-dispatch-independent-v1.json',
-        ).readAsStringSync(),
+        File('test/fixtures/standing-dispatch-independent-v1.json')
+            .readAsStringSync(),
       ),
     );
   });
@@ -234,265 +233,247 @@ void main() {
     }
   });
 
-  test(
-    'request matches and original proof binding include every variable identity',
-    () {
-      final original = StandingDispatchActivation.fromJson(
-        _fixture('activation'),
-      );
-      for (final change in <(List<String>, String, Object)>[
-        (['mode_change'], 'idempotency_key', 'different-key'),
-        (['mode_change'], 'expected_backend', _repeat('b', 32)),
-        (['mode_change'], 'expected_instance', _otherId),
-        (['mode_change'], 'expected_revision', 1),
-        ([], 'expected_epoch', 1),
-        ([], 'expected_fence_token', _otherId),
-      ]) {
-        final raw = _fixture('activation');
-        _at(raw, change.$1)[change.$2] = change.$3;
-        final different = StandingDispatchActivation.fromJson(raw);
-        expect(original.matches(different), isFalse);
-        expect(different.matches(original), isFalse);
-        expect(
-          () => StandingDispatchActivationReceipt.fromJson(
-            _fixture('activation_receipt'),
-            original: different,
-          ),
-          throwsFormatException,
-        );
-        expect(
-          () => StandingDispatchActivationLookup.fromJson(
-            _fixture('lookup'),
-            original: different,
-          ),
-          throwsFormatException,
-        );
-      }
+  test('request matches and original proof binding include every variable identity', () {
+    final original = StandingDispatchActivation.fromJson(
+      _fixture('activation'),
+    );
+    for (final change in <(List<String>, String, Object)>[
+      (['mode_change'], 'idempotency_key', 'different-key'),
+      (['mode_change'], 'expected_backend', _repeat('b', 32)),
+      (['mode_change'], 'expected_instance', _otherId),
+      (['mode_change'], 'expected_revision', 1),
+      ([], 'expected_epoch', 1),
+      ([], 'expected_fence_token', _otherId),
+    ]) {
+      final raw = _fixture('activation');
+      _at(raw, change.$1)[change.$2] = change.$3;
+      final different = StandingDispatchActivation.fromJson(raw);
+      expect(original.matches(different), isFalse);
+      expect(different.matches(original), isFalse);
       expect(
-        original.matches(
-          StandingDispatchActivation.fromJson(_fixture('activation')),
-        ),
-        isTrue,
-      );
-      final renewal = StandingProducerRenewal.fromJson(_fixture('renewal'));
-      for (final field in [
-        'expected_backend',
-        'expected_instance',
-        'producer_id',
-        'sequence',
-      ]) {
-        final raw = _fixture('renewal');
-        raw[field] = field == 'sequence'
-            ? 8
-            : field == 'expected_backend'
-            ? _repeat('b', 32)
-            : _otherId;
-        final different = StandingProducerRenewal.fromJson(raw);
-        expect(renewal.matches(different), isFalse);
-        expect(
-          () => StandingProducerReceipt.fromJson(
-            _fixture('producer_receipt'),
-            original: different,
-          ),
-          throwsFormatException,
-        );
-      }
-      final stop = StandingDispatchStop.fromJson(_fixture('stop'));
-      for (final field in [
-        'expected_backend',
-        'expected_instance',
-        'activation_digest',
-        'expected_fence_token',
-      ]) {
-        final raw = _fixture('stop');
-        raw[field] = field == 'expected_backend'
-            ? _repeat('b', 32)
-            : field == 'activation_digest'
-            ? _repeat('d', 64)
-            : _otherId;
-        final different = StandingDispatchStop.fromJson(raw);
-        expect(stop.matches(different), isFalse);
-        expect(
-          () => StandingDispatchStopProof.fromJson(
-            _fixture('stop_proof'),
-            original: different,
-          ),
-          throwsFormatException,
-        );
-      }
-      expect(
-        stop.matches(StandingDispatchStop.fromJson(_fixture('zero_stop'))),
-        isFalse,
-      );
-      expect(
-        () => StandingDispatchStopProof.fromJson(
-          _fixture('stop_proof'),
-          original: StandingDispatchStop.fromJson(_fixture('zero_stop')),
+        () => StandingDispatchActivationReceipt.fromJson(
+          _fixture('activation_receipt'),
+          original: different,
         ),
         throwsFormatException,
       );
-    },
-  );
+      expect(
+        () => StandingDispatchActivationLookup.fromJson(
+          _fixture('lookup'),
+          original: different,
+        ),
+        throwsFormatException,
+      );
+    }
+    expect(
+      original.matches(
+        StandingDispatchActivation.fromJson(_fixture('activation')),
+      ),
+      isTrue,
+    );
+    final renewal = StandingProducerRenewal.fromJson(_fixture('renewal'));
+    for (final field in [
+      'expected_backend',
+      'expected_instance',
+      'producer_id',
+      'sequence',
+    ]) {
+      final raw = _fixture('renewal');
+      raw[field] = field == 'sequence'
+          ? 8
+          : field == 'expected_backend'
+          ? _repeat('b', 32)
+          : _otherId;
+      final different = StandingProducerRenewal.fromJson(raw);
+      expect(renewal.matches(different), isFalse);
+      expect(
+        () => StandingProducerReceipt.fromJson(
+          _fixture('producer_receipt'),
+          original: different,
+        ),
+        throwsFormatException,
+      );
+    }
+    final stop = StandingDispatchStop.fromJson(_fixture('stop'));
+    for (final field in [
+      'expected_backend',
+      'expected_instance',
+      'activation_digest',
+      'expected_fence_token',
+    ]) {
+      final raw = _fixture('stop');
+      raw[field] = field == 'expected_backend'
+          ? _repeat('b', 32)
+          : field == 'activation_digest'
+          ? _repeat('d', 64)
+          : _otherId;
+      final different = StandingDispatchStop.fromJson(raw);
+      expect(stop.matches(different), isFalse);
+      expect(
+        () => StandingDispatchStopProof.fromJson(
+          _fixture('stop_proof'),
+          original: different,
+        ),
+        throwsFormatException,
+      );
+    }
+    expect(
+      stop.matches(StandingDispatchStop.fromJson(_fixture('zero_stop'))),
+      isFalse,
+    );
+    expect(
+      () => StandingDispatchStopProof.fromJson(
+        _fixture('stop_proof'),
+        original: StandingDispatchStop.fromJson(_fixture('zero_stop')),
+      ),
+      throwsFormatException,
+    );
+  });
 
-  test(
-    'strict scalars refuse booleans, floats, unsafe numbers and identity normalization',
-    () {
-      for (final value in <Object?>[
-        true,
-        false,
-        0,
-        1.0,
-        -1,
-        _max + 1,
-        '7',
-        null,
-      ]) {
-        _refuses(StandingProducerRenewal.fromJson, {
-          ..._fixture('renewal'),
-          'sequence': value,
-        });
-      }
-      for (final value in <Object?>[0, 1, 'true', null]) {
-        _refuses(StandingDispatchState.fromJson, {
-          ..._fixture('state'),
-          'control_writable': value,
-        });
-        _refuses(StandingDispatchState.fromJson, {
-          ..._fixture('state'),
-          'dispatch_ready': value,
-        });
-        _refuses(StandingDispatchStopProof.fromJson, {
-          ..._fixture('stop_proof'),
-          'target_fenced': value,
-        });
-      }
-      for (final value in [
-        _repeat('A', 32),
-        '${_repeat('a', 32)}\n',
-        ' ${_repeat('a', 32)}',
-        _repeat('é', 32),
-        String.fromCharCode(0xd800),
-      ]) {
-        _refuses(StandingProducerRenewal.fromJson, {
-          ..._fixture('renewal'),
-          'expected_backend': value,
-        });
-      }
-      for (final value in [
-        _otherId.toUpperCase().replaceFirst('0000', 'ABCD'),
-        '$_otherId\n',
-        ' $_otherId',
-        String.fromCharCode(0xdc00),
-      ]) {
-        _refuses(StandingProducerRenewal.fromJson, {
-          ..._fixture('renewal'),
-          'producer_id': value,
-        });
-      }
-      final maximum = StandingProducerRenewal.fromJson({
+  test('strict scalars refuse booleans, floats, unsafe numbers and identity normalization', () {
+    for (final value in <Object?>[
+      true,
+      false,
+      0,
+      1.0,
+      -1,
+      _max + 1,
+      '7',
+      null,
+    ]) {
+      _refuses(StandingProducerRenewal.fromJson, {
         ..._fixture('renewal'),
-        'sequence': _max,
+        'sequence': value,
       });
-      expect(maximum.sequence, _max);
-    },
-  );
+    }
+    for (final value in <Object?>[0, 1, 'true', null]) {
+      _refuses(StandingDispatchState.fromJson, {
+        ..._fixture('state'),
+        'control_writable': value,
+      });
+      _refuses(StandingDispatchState.fromJson, {
+        ..._fixture('state'),
+        'dispatch_ready': value,
+      });
+      _refuses(StandingDispatchStopProof.fromJson, {
+        ..._fixture('stop_proof'),
+        'target_fenced': value,
+      });
+    }
+    for (final value in [
+      _repeat('A', 32),
+      '${_repeat('a', 32)}\n',
+      ' ${_repeat('a', 32)}',
+      _repeat('é', 32),
+      String.fromCharCode(0xd800),
+    ]) {
+      _refuses(StandingProducerRenewal.fromJson, {
+        ..._fixture('renewal'),
+        'expected_backend': value,
+      });
+    }
+    for (final value in [
+      _otherId.toUpperCase().replaceFirst('0000', 'ABCD'),
+      '$_otherId\n',
+      ' $_otherId',
+      String.fromCharCode(0xdc00),
+    ]) {
+      _refuses(StandingProducerRenewal.fromJson, {
+        ..._fixture('renewal'),
+        'producer_id': value,
+      });
+    }
+    final maximum = StandingProducerRenewal.fromJson({
+      ..._fixture('renewal'),
+      'sequence': _max,
+    });
+    expect(maximum.sequence, _max);
+  });
 
-  test(
-    'arbitrary, deep, cyclic and non-string-key graphs refuse with fixed private errors',
-    () {
-      final cycle = <String, Object?>{};
-      cycle['cycle'] = cycle;
-      Object? depth;
-      for (var n = 0; n < 14; n++) {
-        depth = {'x': depth};
+  test('arbitrary, deep, cyclic and non-string-key graphs refuse with fixed private errors', () {
+    final cycle = <String, Object?>{};
+    cycle['cycle'] = cycle;
+    Object? depth;
+    for (var n = 0; n < 14; n++) {
+      depth = {'x': depth};
+    }
+    for (final input in <Object?>[
+      null,
+      true,
+      1,
+      double.nan,
+      double.infinity,
+      [],
+      <Object?, Object?>{1: _marker},
+      cycle,
+      depth,
+      {'many': List.filled(2049, 0)},
+    ]) {
+      _refuses(StandingDispatchActivation.fromJson, input);
+    }
+    final messages = <String>{};
+    for (final marker in [_marker, 'OTHER-PRIVATE-MARKER']) {
+      try {
+        StandingDispatchActivation.fromJson({
+          ..._fixture('activation'),
+          marker: marker,
+        });
+        fail('Invalid graph was accepted');
+      } on FormatException catch (error) {
+        messages.add(error.toString());
+        expect(error.toString(), isNot(contains(marker)));
       }
-      for (final input in <Object?>[
-        null,
-        true,
-        1,
-        double.nan,
-        double.infinity,
-        [],
-        <Object?, Object?>{1: _marker},
-        cycle,
-        depth,
-        {'many': List.filled(2049, 0)},
-      ]) {
-        _refuses(StandingDispatchActivation.fromJson, input);
-      }
-      final messages = <String>{};
-      for (final marker in [_marker, 'OTHER-PRIVATE-MARKER']) {
-        try {
-          StandingDispatchActivation.fromJson({
-            ..._fixture('activation'),
-            marker: marker,
-          });
-          fail('Invalid graph was accepted');
-        } on FormatException catch (error) {
-          messages.add(error.toString());
-          expect(error.toString(), isNot(contains(marker)));
-        }
-      }
-      expect(messages.length, 1);
-    },
-  );
+    }
+    expect(messages.length, 1);
+  });
 
-  test(
-    'producer proof has an exact safe 15000ms interval without local liveness inference',
-    () {
-      final maximum = {
+  test('producer proof has an exact safe 15000ms interval without local liveness inference', () {
+    final maximum = {
+      ..._fixture('producer_receipt'),
+      'issued_monotonic_ms': _max - 15000,
+      'expires_monotonic_ms': _max,
+    };
+    expect(StandingProducerReceipt.fromJson(maximum).expiresMonotonicMs, _max);
+    for (final mutation in <Json>[
+      {'issued_monotonic_ms': -1},
+      {'issued_monotonic_ms': true},
+      {'expires_monotonic_ms': 15999},
+      {'expires_monotonic_ms': 16001},
+      {'issued_monotonic_ms': _max - 14999, 'expires_monotonic_ms': _max + 1},
+      {'lease_token': _repeat('A', 36)},
+    ]) {
+      _refuses(StandingProducerReceipt.fromJson, {
         ..._fixture('producer_receipt'),
-        'issued_monotonic_ms': _max - 15000,
-        'expires_monotonic_ms': _max,
-      };
-      expect(
-        StandingProducerReceipt.fromJson(maximum).expiresMonotonicMs,
-        _max,
-      );
-      for (final mutation in <Json>[
-        {'issued_monotonic_ms': -1},
-        {'issued_monotonic_ms': true},
-        {'expires_monotonic_ms': 15999},
-        {'expires_monotonic_ms': 16001},
-        {'issued_monotonic_ms': _max - 14999, 'expires_monotonic_ms': _max + 1},
-        {'lease_token': _repeat('A', 36)},
-      ]) {
-        _refuses(StandingProducerReceipt.fromJson, {
-          ..._fixture('producer_receipt'),
-          ...mutation,
-        });
-      }
-      expect(
-        StandingDispatchState.fromJson(_fixture('state')).dispatchReady,
-        isTrue,
-      );
-    },
-  );
+        ...mutation,
+      });
+    }
+    expect(
+      StandingDispatchState.fromJson(_fixture('state')).dispatchReady,
+      isTrue,
+    );
+  });
 
-  test(
-    'null-controller emergency history is valid only without writer or producer claims',
-    () {
-      final state = StandingDispatchState.fromJson(
-        _fixture('null_controller_state'),
-      );
-      expect(state.instanceId, isNull);
-      expect(state.controlWritable, isFalse);
-      expect(state.producer, isNull);
-      expect(state.mode, AgentMode.autonomous);
-      expect(state.epoch, 1);
-      expect(state.dispatchReady, isFalse);
-      for (final mutation in <Json>[
-        {'control_writable': true},
-        {'producer': _fixture('producer_receipt')},
-        {'dispatch_ready': true},
-      ]) {
-        _refuses(StandingDispatchState.fromJson, {
-          ..._fixture('null_controller_state'),
-          ...mutation,
-        });
-      }
-    },
-  );
+  test('null-controller emergency history is valid only without writer or producer claims', () {
+    final state = StandingDispatchState.fromJson(
+      _fixture('null_controller_state'),
+    );
+    expect(state.instanceId, isNull);
+    expect(state.controlWritable, isFalse);
+    expect(state.producer, isNull);
+    expect(state.mode, AgentMode.autonomous);
+    expect(state.epoch, 1);
+    expect(state.dispatchReady, isFalse);
+    for (final mutation in <Json>[
+      {'control_writable': true},
+      {'producer': _fixture('producer_receipt')},
+      {'dispatch_ready': true},
+    ]) {
+      _refuses(StandingDispatchState.fromJson, {
+        ..._fixture('null_controller_state'),
+        ...mutation,
+      });
+    }
+  });
 
   test('readiness equals the complete native conjunction, not mode alone', () {
     for (final mutation in <Json>[
@@ -520,216 +501,196 @@ void main() {
     );
   });
 
-  test(
-    'state epoch, history, activation revision and producer authority stay closed',
-    () {
-      for (final mutation in <Json>[
-        {'stopped_through_epoch': 2},
-        {'epoch': -1},
-        {'epoch': 10001},
-        {'epoch': true},
-        {'activation_digest': null},
-        {'activation_digest': _repeat('D', 64)},
-        {'activation_control_revision': null},
-        {'activation_control_revision': 0},
-        {'activation_control_revision': 2},
-        {'control_revision': _max + 1},
-      ]) {
-        _refuses(StandingDispatchState.fromJson, {
-          ..._fixture('state'),
-          ...mutation,
-        });
-      }
-      for (final field in [
-        'activation_digest',
-        'activation_control_revision',
-      ]) {
-        _refuses(StandingDispatchState.fromJson, {
-          ..._fixture('zero_state'),
-          field: field == 'activation_digest' ? _repeat('d', 64) : 1,
-        });
-      }
-      for (final field in ['expected_backend', 'expected_instance']) {
-        final raw = _fixture('state');
-        _at(raw, ['producer', 'request'])[field] = field == 'expected_backend'
-            ? _repeat('b', 32)
-            : _otherId;
-        _refuses(StandingDispatchState.fromJson, raw);
-      }
-    },
-  );
+  test('state epoch, history, activation revision and producer authority stay closed', () {
+    for (final mutation in <Json>[
+      {'stopped_through_epoch': 2},
+      {'epoch': -1},
+      {'epoch': 10001},
+      {'epoch': true},
+      {'activation_digest': null},
+      {'activation_digest': _repeat('D', 64)},
+      {'activation_control_revision': null},
+      {'activation_control_revision': 0},
+      {'activation_control_revision': 2},
+      {'control_revision': _max + 1},
+    ]) {
+      _refuses(StandingDispatchState.fromJson, {
+        ..._fixture('state'),
+        ...mutation,
+      });
+    }
+    for (final field in ['activation_digest', 'activation_control_revision']) {
+      _refuses(StandingDispatchState.fromJson, {
+        ..._fixture('zero_state'),
+        field: field == 'activation_digest' ? _repeat('d', 64) : 1,
+      });
+    }
+    for (final field in ['expected_backend', 'expected_instance']) {
+      final raw = _fixture('state');
+      _at(raw, ['producer', 'request'])[field] = field == 'expected_backend'
+          ? _repeat('b', 32)
+          : _otherId;
+      _refuses(StandingDispatchState.fromJson, raw);
+    }
+  });
 
-  test(
-    'activation accepts the final epoch but only complete autonomous mode requests',
-    () {
-      expect(
-        StandingDispatchActivation.fromJson(
-          _fixture('terminal_activation'),
-        ).expectedEpoch,
-        9999,
-      );
-      expect(
-        StandingDispatchActivationReceipt.fromJson(
-          _fixture('terminal_receipt'),
-        ).epoch,
-        10000,
-      );
-      for (final epoch in <Object?>[-1, 10000, true, 0.0, null]) {
-        _refuses(StandingDispatchActivation.fromJson, {
-          ..._fixture('activation'),
-          'expected_epoch': epoch,
-        });
-      }
-      for (final mode in ['off', 'on_demand', 'Autonomous']) {
-        final raw = _fixture('activation');
-        _map(raw['mode_change'])['mode'] = mode;
-        _refuses(StandingDispatchActivation.fromJson, raw);
-      }
-    },
-  );
+  test('activation accepts the final epoch but only complete autonomous mode requests', () {
+    expect(
+      StandingDispatchActivation.fromJson(_fixture('terminal_activation'))
+          .expectedEpoch,
+      9999,
+    );
+    expect(
+      StandingDispatchActivationReceipt.fromJson(_fixture('terminal_receipt'))
+          .epoch,
+      10000,
+    );
+    for (final epoch in <Object?>[-1, 10000, true, 0.0, null]) {
+      _refuses(StandingDispatchActivation.fromJson, {
+        ..._fixture('activation'),
+        'expected_epoch': epoch,
+      });
+    }
+    for (final mode in ['off', 'on_demand', 'Autonomous']) {
+      final raw = _fixture('activation');
+      _map(raw['mode_change'])['mode'] = mode;
+      _refuses(StandingDispatchActivation.fromJson, raw);
+    }
+  });
 
-  test(
-    'activation receipt recomputes digest and binds ordinary mode ACK plus next epoch',
-    () {
-      for (final field in ['epoch', 'activation_digest']) {
-        final raw = _fixture('activation_receipt');
-        raw[field] = field == 'epoch' ? 2 : _repeat('d', 64);
-        _refuses(StandingDispatchActivationReceipt.fromJson, raw);
-      }
-      for (final field in [
-        'backend_id',
-        'service_instance',
-        'revision',
-        'status',
-      ]) {
-        final raw = _fixture('activation_receipt');
-        _map(raw['mode_receipt'])[field] = switch (field) {
-          'backend_id' => _repeat('b', 32),
-          'service_instance' => _otherId,
-          'revision' => 2,
-          _ => 'not_saved',
-        };
-        _refuses(StandingDispatchActivationReceipt.fromJson, raw);
-      }
-      final different = _fixture('activation_receipt');
-      _at(different, ['mode_receipt', 'request'])['idempotency_key'] =
-          'other-key';
-      _refuses(StandingDispatchActivationReceipt.fromJson, different);
-      final validOther = StandingDispatchActivationReceipt.fromJson(
-        _fixture('other_receipt'),
-      );
-      expect(
-        validOther.request.matches(
-          StandingDispatchActivation.fromJson(_fixture('activation')),
-        ),
-        isFalse,
-      );
-    },
-  );
-
-  test(
-    'recorded lookup requires full receipt and current-epoch digest/revision binding',
-    () {
-      for (final mutation in <Json>[
-        {'receipt': null},
-        {'status': 'unobserved'},
-        {'mutation_fenced': false},
-      ]) {
-        _refuses(StandingDispatchActivationLookup.fromJson, {
-          ..._fixture('lookup'),
-          ...mutation,
-        });
-      }
-      for (final mutation in <Json>[
-        {'activation_digest': _repeat('d', 64)},
-        {
-          'activation_control_revision': 2,
-          'control_revision': 2,
-          'dispatch_ready': true,
-        },
-        {
-          'backend_id': _repeat('b', 32),
-          'producer': null,
-          'dispatch_ready': false,
-        },
-      ]) {
-        final raw = _fixture('lookup');
-        raw['state'] = {..._map(raw['state']), ...mutation};
-        _refuses(StandingDispatchActivationLookup.fromJson, raw);
-      }
-      final historical = _fixture('lookup');
-      historical['state'] = {
-        ..._fixture('stopped_state'),
-        'epoch': 2,
-        'control_revision': 2,
-        'activation_control_revision': 2,
-        'activation_digest': _repeat('d', 64),
-        'producer': null,
+  test('activation receipt recomputes digest and binds ordinary mode ACK plus next epoch', () {
+    for (final field in ['epoch', 'activation_digest']) {
+      final raw = _fixture('activation_receipt');
+      raw[field] = field == 'epoch' ? 2 : _repeat('d', 64);
+      _refuses(StandingDispatchActivationReceipt.fromJson, raw);
+    }
+    for (final field in [
+      'backend_id',
+      'service_instance',
+      'revision',
+      'status',
+    ]) {
+      final raw = _fixture('activation_receipt');
+      _map(raw['mode_receipt'])[field] = switch (field) {
+        'backend_id' => _repeat('b', 32),
+        'service_instance' => _otherId,
+        'revision' => 2,
+        _ => 'not_saved',
       };
-      expect(
-        StandingDispatchActivationLookup.fromJson(historical).receipt!.epoch,
-        1,
-      );
-    },
-  );
+      _refuses(StandingDispatchActivationReceipt.fromJson, raw);
+    }
+    final different = _fixture('activation_receipt');
+    _at(different, ['mode_receipt', 'request'])['idempotency_key'] =
+        'other-key';
+    _refuses(StandingDispatchActivationReceipt.fromJson, different);
+    final validOther = StandingDispatchActivationReceipt.fromJson(
+      _fixture('other_receipt'),
+    );
+    expect(
+      validOther.request.matches(
+        StandingDispatchActivation.fromJson(_fixture('activation')),
+      ),
+      isFalse,
+    );
+  });
 
-  test(
-    'unobserved lookup fences exactly irreversible identity/revision/epoch/fence changes',
-    () {
-      final unchanged = StandingDispatchActivationLookup.fromJson(
-        _fixture('unobserved_lookup'),
-      );
-      expect(unchanged.receipt, isNull);
-      expect(unchanged.mutationFenced, isFalse);
+  test('recorded lookup requires full receipt and current-epoch digest/revision binding', () {
+    for (final mutation in <Json>[
+      {'receipt': null},
+      {'status': 'unobserved'},
+      {'mutation_fenced': false},
+    ]) {
       _refuses(StandingDispatchActivationLookup.fromJson, {
-        ..._fixture('unobserved_lookup'),
-        'mutation_fenced': true,
+        ..._fixture('lookup'),
+        ...mutation,
       });
-      _refuses(StandingDispatchActivationLookup.fromJson, {
-        ..._fixture('unobserved_lookup'),
-        'receipt': _fixture('activation_receipt'),
-      });
-      for (final mutation in <Json>[
-        {'instance_id': _otherId},
-        {'instance_id': null, 'control_writable': false},
-        {'control_revision': 1},
-        {'fence_token': _otherId},
-        {
-          'epoch': 1,
-          'control_revision': 1,
-          'activation_control_revision': 1,
-          'activation_digest': _repeat('d', 64),
-        },
-      ]) {
-        final raw = _fixture('unobserved_lookup');
-        raw['state'] = {..._map(raw['state']), ...mutation};
-        raw['mutation_fenced'] = true;
-        expect(
-          StandingDispatchActivationLookup.fromJson(raw).mutationFenced,
-          isTrue,
-        );
-        _refuses(StandingDispatchActivationLookup.fromJson, {
-          ...raw,
-          'mutation_fenced': false,
-        });
-      }
-      final modeOnly = _fixture('unobserved_lookup');
-      _map(modeOnly['state'])['mode'] = 'off';
+    }
+    for (final mutation in <Json>[
+      {'activation_digest': _repeat('d', 64)},
+      {
+        'activation_control_revision': 2,
+        'control_revision': 2,
+        'dispatch_ready': true,
+      },
+      {
+        'backend_id': _repeat('b', 32),
+        'producer': null,
+        'dispatch_ready': false,
+      },
+    ]) {
+      final raw = _fixture('lookup');
+      raw['state'] = {..._map(raw['state']), ...mutation};
+      _refuses(StandingDispatchActivationLookup.fromJson, raw);
+    }
+    final historical = _fixture('lookup');
+    historical['state'] = {
+      ..._fixture('stopped_state'),
+      'epoch': 2,
+      'control_revision': 2,
+      'activation_control_revision': 2,
+      'activation_digest': _repeat('d', 64),
+      'producer': null,
+    };
+    expect(
+      StandingDispatchActivationLookup.fromJson(historical).receipt!.epoch,
+      1,
+    );
+  });
+
+  test('unobserved lookup fences exactly irreversible identity/revision/epoch/fence changes', () {
+    final unchanged = StandingDispatchActivationLookup.fromJson(
+      _fixture('unobserved_lookup'),
+    );
+    expect(unchanged.receipt, isNull);
+    expect(unchanged.mutationFenced, isFalse);
+    _refuses(StandingDispatchActivationLookup.fromJson, {
+      ..._fixture('unobserved_lookup'),
+      'mutation_fenced': true,
+    });
+    _refuses(StandingDispatchActivationLookup.fromJson, {
+      ..._fixture('unobserved_lookup'),
+      'receipt': _fixture('activation_receipt'),
+    });
+    for (final mutation in <Json>[
+      {'instance_id': _otherId},
+      {'instance_id': null, 'control_writable': false},
+      {'control_revision': 1},
+      {'fence_token': _otherId},
+      {
+        'epoch': 1,
+        'control_revision': 1,
+        'activation_control_revision': 1,
+        'activation_digest': _repeat('d', 64),
+      },
+    ]) {
+      final raw = _fixture('unobserved_lookup');
+      raw['state'] = {..._map(raw['state']), ...mutation};
+      raw['mutation_fenced'] = true;
       expect(
-        StandingDispatchActivationLookup.fromJson(modeOnly).mutationFenced,
-        isFalse,
+        StandingDispatchActivationLookup.fromJson(raw).mutationFenced,
+        isTrue,
       );
-      for (final field in ['expected_revision', 'expected_epoch']) {
-        final raw = _fixture('unobserved_lookup');
-        if (field == 'expected_epoch') {
-          _map(raw['request'])[field] = 1;
-        } else {
-          _at(raw, ['request', 'mode_change'])[field] = 1;
-        }
-        _refuses(StandingDispatchActivationLookup.fromJson, raw);
+      _refuses(StandingDispatchActivationLookup.fromJson, {
+        ...raw,
+        'mutation_fenced': false,
+      });
+    }
+    final modeOnly = _fixture('unobserved_lookup');
+    _map(modeOnly['state'])['mode'] = 'off';
+    expect(
+      StandingDispatchActivationLookup.fromJson(modeOnly).mutationFenced,
+      isFalse,
+    );
+    for (final field in ['expected_revision', 'expected_epoch']) {
+      final raw = _fixture('unobserved_lookup');
+      if (field == 'expected_epoch') {
+        _map(raw['request'])[field] = 1;
+      } else {
+        _at(raw, ['request', 'mode_change'])[field] = 1;
       }
-    },
-  );
+      _refuses(StandingDispatchActivationLookup.fromJson, raw);
+    }
+  });
 
   test(
     'Stop proof fences only its target and may leave a later epoch ready',

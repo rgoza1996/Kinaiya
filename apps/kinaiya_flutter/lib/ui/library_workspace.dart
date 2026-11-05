@@ -242,12 +242,10 @@ class _LibraryWorkspaceState extends State<LibraryWorkspace> {
           );
         }
       } else {
-        operation.notice =
-            'The change is unconfirmed. Retry the same request to recover its receipt.';
+        operation.notice = 'The change is unconfirmed. Retry the same request to recover its receipt.';
       }
     } catch (_) {
-      operation.notice =
-          'The change is unconfirmed. Retry the same request to recover its receipt.';
+      operation.notice = 'The change is unconfirmed. Retry the same request to recover its receipt.';
     } finally {
       operation.inFlight--;
       _projectChangeUpdates.value++;
@@ -362,9 +360,7 @@ class _LibraryWorkspaceState extends State<LibraryWorkspace> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _isProjects
-                      ? 'Organize Agent sessions into projects.'
-                      : 'Outputs recorded by Agent. Creation times use your local time.',
+                  _isProjects ? 'Organize Agent sessions into projects.' : 'Outputs recorded by Agent. Creation times use your local time.',
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -467,9 +463,7 @@ class _LibraryWorkspaceState extends State<LibraryWorkspace> {
                             cells: [
                               DataCell(
                                 Tooltip(
-                                  message:
-                                      output.path ??
-                                      'Historical output with unknown workspace. No current-root path is inferred.',
+                                  message: output.path ?? 'Historical output with unknown workspace. No current-root path is inferred.',
                                   child: Text(output.name),
                                 ),
                               ),

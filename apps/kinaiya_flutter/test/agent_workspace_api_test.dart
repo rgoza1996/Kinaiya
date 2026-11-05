@@ -10,93 +10,89 @@ import 'package:kinaiya_flutter/api/models.dart';
 import 'agent_workspace_state_test.dart' show sessionJson, harnessJson;
 
 void main() {
-  test(
-    'production workspace client uses owner-only typed endpoints and exact create body',
-    () async {
-      final requests = <http.Request>[];
-      Future<http.Response> handle(http.Request request) async {
-        requests.add(request);
-        expect(request.headers['Authorization'], 'Bearer synthetic-owner');
-        expect(request.url.toString(), isNot(contains('synthetic-owner')));
-        if (request.url.path == '/v1/agent/harnesses') {
-          expect(request.url.host, 'agent.invalid');
-          expect(request.url.queryParameters['limit'], '50');
-          return http.Response(
-            jsonEncode({
-              'schema_version': '1.0',
-              'configured': false,
-              'items': [harnessJson('seed-v1', active: true)],
-              'next_cursor': null,
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        if (request.url.path == '/v1/sessions/page') {
-          expect(request.url.host, 'session.invalid');
-          expect(request.url.queryParameters, {
-            'channel': 'agent',
-            'harness_version': 'unassociated',
-            'limit': '20',
-            'after': '9007199254740999',
-          });
-          return http.Response(
-            jsonEncode({
-              'schema_version': '1.0',
-              'items': [sessionJson('old', harness: null)],
-              'next_cursor': '17',
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        expect(request.url.path, '/v1/agent/sessions');
-        expect(request.method, 'POST');
-        expect(jsonDecode(request.body), {
-          'schema_version': '1.0',
-          'harness_version': 'seed-v1',
-          'name': 'Synthetic work',
-        });
+  test('production workspace client uses owner-only typed endpoints and exact create body', () async {
+    final requests = <http.Request>[];
+    Future<http.Response> handle(http.Request request) async {
+      requests.add(request);
+      expect(request.headers['Authorization'], 'Bearer synthetic-owner');
+      expect(request.url.toString(), isNot(contains('synthetic-owner')));
+      if (request.url.path == '/v1/agent/harnesses') {
+        expect(request.url.host, 'agent.invalid');
+        expect(request.url.queryParameters['limit'], '50');
         return http.Response(
-          jsonEncode(sessionJson('new')),
+          jsonEncode({
+            'schema_version': '1.0',
+            'configured': false,
+            'items': [harnessJson('seed-v1', active: true)],
+            'next_cursor': null,
+          }),
           200,
           headers: {'content-type': 'application/json'},
         );
       }
+      if (request.url.path == '/v1/sessions/page') {
+        expect(request.url.host, 'session.invalid');
+        expect(request.url.queryParameters, {
+          'channel': 'agent',
+          'harness_version': 'unassociated',
+          'limit': '20',
+          'after': '9007199254740999',
+        });
+        return http.Response(
+          jsonEncode({
+            'schema_version': '1.0',
+            'items': [sessionJson('old', harness: null)],
+            'next_cursor': '17',
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      expect(request.url.path, '/v1/agent/sessions');
+      expect(request.method, 'POST');
+      expect(jsonDecode(request.body), {
+        'schema_version': '1.0',
+        'harness_version': 'seed-v1',
+        'name': 'Synthetic work',
+      });
+      return http.Response(
+        jsonEncode(sessionJson('new')),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    }
 
-      final client = KinaiyaClient(
-        sessionBase: 'https://session.invalid',
-        agentBase: 'https://agent.invalid',
-        converseBase: 'https://converse.invalid',
-        ownerToken: 'synthetic-owner',
-        httpClient: MockClient(handle),
-        agentWorkspaceClientFactory: () => MockClient(handle),
-      );
-      addTearDown(client.close);
-      expect((await client.agentHarnesses()).items.single.kind, 'seed_runtime');
-      expect(
-        (await client.agentSessions(
-          harnessVersion: 'unassociated',
-          after: '9007199254740999',
-        )).items.single.harnessVersion,
-        isNull,
-      );
-      expect(
-        (await client.createAgentSession(
-          'seed-v1',
-          name: 'Synthetic work',
-        )).harnessVersion,
+    final client = KinaiyaClient(
+      sessionBase: 'https://session.invalid',
+      agentBase: 'https://agent.invalid',
+      converseBase: 'https://converse.invalid',
+      ownerToken: 'synthetic-owner',
+      httpClient: MockClient(handle),
+      agentWorkspaceClientFactory: () => MockClient(handle),
+    );
+    addTearDown(client.close);
+    expect((await client.agentHarnesses()).items.single.kind, 'seed_runtime');
+    expect(
+      (await client.agentSessions(
+        harnessVersion: 'unassociated',
+        after: '9007199254740999',
+      )).items.single.harnessVersion,
+      isNull,
+    );
+    expect(
+      (await client.createAgentSession(
         'seed-v1',
-      );
-      expect(requests.length, 3);
-    },
-  );
+        name: 'Synthetic work',
+      )).harnessVersion,
+      'seed-v1',
+    );
+    expect(requests.length, 3);
+  });
   test('additive native session and task pins retain historical null', () {
     expect(SessionInfo.fromJson(sessionJson('s')).harnessVersion, 'seed-v1');
     expect(
-      SessionInfo.fromJson(
-        sessionJson('s')..remove('harness_version'),
-      ).harnessVersion,
+      SessionInfo.fromJson(sessionJson('s')..remove('harness_version'))
+          .harnessVersion,
       isNull,
     );
     final task = {
