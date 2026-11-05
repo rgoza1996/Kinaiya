@@ -44,6 +44,7 @@ MAX_BASE64 = ((MAX_WAV_BYTES + 2) // 3) * 4
 MAX_CLIPS = 32
 MAX_RETAINED_BYTES = 16 * 1024 * 1024
 REPLY_RESERVATION = 2 * 1024 * 1024
+MIN_CLIP_RESERVED_BYTES = 48 + REPLY_RESERVATION
 MAX_INTENTS = 4096
 _STATES = {"reserved", "asr", "append_pending", "published", "refused", "unknown"}
 _SCOPES = {"local_only", "public_synthetic", "private_cloud_authorized"}
@@ -470,9 +471,24 @@ class NativeAudioOwner:
     def available(self):
         try:
             self._capture()
-            return True
+            return not self._capacity()["exhausted"]
         except Exception:
             return False
+
+    def _capacity(self):
+        retained = len(self._clips)
+        remaining_bytes = MAX_RETAINED_BYTES - self._bytes
+        return {
+            "retained_clips": retained,
+            "max_clips": MAX_CLIPS,
+            "reserved_bytes": self._bytes,
+            "max_reserved_bytes": MAX_RETAINED_BYTES,
+            "remaining_clips": MAX_CLIPS - retained,
+            "remaining_bytes": remaining_bytes,
+            "min_clip_reserved_bytes": MIN_CLIP_RESERVED_BYTES,
+            "exhausted": retained >= MAX_CLIPS
+            or remaining_bytes < MIN_CLIP_RESERVED_BYTES,
+        }
 
     def _readiness_reason(self) -> str:
         if self._closed or self._sealed:
@@ -532,6 +548,7 @@ class NativeAudioOwner:
             "pending": bool(pending),
             "active": active,
             "cleanup_failed": self._cleanup_failed,
+            "capacity": self._capacity(),
         }
 
     def _window(self, clip):
