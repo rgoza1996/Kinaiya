@@ -3,10 +3,13 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:crypto/crypto.dart';
 
 import '../artifacts/models.dart';
+import '../artifacts/media.dart';
 import '../config/service_root.dart';
 import 'models.dart';
 
@@ -72,6 +75,108 @@ class ArtifactApi {
 
   Future<IntelligentArtifact> detail(SessionInfo session, String id) async =>
       _checked(await _request('GET', _path(id), _scope(session)), session, id);
+
+  Future<ArtifactMedia> media(
+    SessionInfo session,
+    IntelligentArtifact artifact,
+    String assetId,
+    String variant,
+  ) async {
+    if (!_matches(artifact, session) ||
+        !{'source', 'highlighted'}.contains(variant) ||
+        !RegExp(r'^media_[a-f0-9]{32}$').hasMatch(assetId) ||
+        !artifact.components.any(
+          (c) => c.type == 'media' && c.data['asset_id'] == assetId,
+        )) {
+      throw const ArtifactFailure('Invalid scoped video reference.');
+    }
+    final route = '${_path(artifact.artifactId)}/media/$assetId';
+    final metadata = await _request(
+      'GET',
+      route,
+      _scope(session),
+      maxBytes: 16384,
+    );
+    final binding = metadata['binding'], part = metadata[variant];
+    bool digest(Object? value) =>
+        value is String && RegExp(r'^[a-f0-9]{64}$').hasMatch(value);
+    if (metadata['schema_version'] != 'artifact_media.v1' ||
+        metadata['asset_id'] != assetId ||
+        metadata['publication_only'] != true ||
+        metadata['content_scope'] != artifact.contentScope ||
+        !digest(metadata['overlay_sha256']) ||
+        binding is! Map ||
+        binding['task_id'] != artifact.taskId ||
+        binding['objective_revision'] != artifact.objectiveRevision ||
+        binding['session_id'] != session.sessionId ||
+        binding['thread_id'] != session.threadId ||
+        binding['epoch'] != session.epoch ||
+        part is! Map ||
+        part['mime_type'] != 'video/mp4' ||
+        !digest(part['sha256']) ||
+        part['bytes'] is! int ||
+        (part['bytes'] as int) < 16 ||
+        (part['bytes'] as int) > 32 * 1024 * 1024) {
+      throw const ArtifactFailure('Invalid native video receipt.');
+    }
+    final bytes = await _videoBytes(route, {
+      ..._scope(session),
+      'variant': variant,
+    }, part['bytes'] as int);
+    if (bytes.length != part['bytes'] ||
+        sha256.convert(bytes).toString() != part['sha256'] ||
+        ascii.decode(bytes.sublist(4, 8), allowInvalid: true) != 'ftyp') {
+      throw const ArtifactFailure(
+        'Native video bytes differ from their receipt.',
+      );
+    }
+    return ArtifactMedia(
+      Uint8List.fromList(bytes),
+      variant: variant,
+      sha256: part['sha256'] as String,
+    );
+  }
+
+  Future<List<int>> _videoBytes(
+    String route,
+    Map<String, String> query,
+    int maxBytes,
+  ) async {
+    if (_closed || _owners.length >= 2) {
+      throw const ArtifactFailure('Artifact connection is busy or closed.');
+    }
+    final owner = _ArtifactRequest(_factory(), cleanupTimeout);
+    _owners.add(owner);
+    owner.onSettled = () {
+      if (owner.settled) _owners.remove(owner);
+    };
+    List<int>? result;
+    ArtifactFailure? failure;
+    try {
+      final request = http.Request(
+        'GET',
+        Uri.parse('$_base$route/content').replace(queryParameters: query),
+      )..followRedirects = false;
+      request.headers['Authorization'] = 'Bearer $_token';
+      request.headers['Accept'] = 'video/mp4';
+      result = await owner
+          .read(request, maxBytes, expectedMime: 'video/mp4')
+          .timeout(timeout);
+    } catch (_) {
+      failure = const ArtifactFailure(
+        'Could not verify the scoped video response.',
+      );
+    } finally {
+      if (!await owner.close()) {
+        failure = const ArtifactFailure(
+          'Video transport cleanup is unconfirmed.',
+        );
+      }
+      if (owner.settled) _owners.remove(owner);
+    }
+    if (failure != null) throw failure;
+    return result!;
+  }
 
   Future<IntelligentArtifact> action(
     SessionInfo session,
@@ -219,7 +324,11 @@ class _ArtifactRequest {
   bool get settled =>
       _finished && _clientClosed && (_reader == null || _cancelSettled);
 
-  Future<List<int>> read(http.Request request, int maxBytes) async {
+  Future<List<int>> read(
+    http.Request request,
+    int maxBytes, {
+    String? expectedMime,
+  }) async {
     try {
       final response = await client.send(request);
       _reader = StreamIterator(response.stream);
@@ -245,6 +354,19 @@ class _ArtifactRequest {
       }
       if ((response.contentLength ?? 0) > maxBytes) {
         throw const ArtifactFailure('Artifact response exceeds its limit.');
+      }
+      if (expectedMime != null &&
+          ((response.headers['content-type'] ?? '')
+                      .split(';')
+                      .first
+                      .trim()
+                      .toLowerCase() !=
+                  expectedMime ||
+              (response.headers['content-encoding'] ?? 'identity')
+                      .trim()
+                      .toLowerCase() !=
+                  'identity')) {
+        throw const ArtifactFailure('Invalid native video response type.');
       }
       final bytes = <int>[];
       var more = await first;

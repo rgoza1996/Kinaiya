@@ -976,3 +976,537 @@ def test_rejected_post_body_cannot_corrupt_next_metered_request(gateway):
     assert accepted.status_code == 200 and len(calls) == 1
     assert len(module.STATE["calls"]) == 1
     assert module.STATE["calls"][0]["state"] == "usage_reported"
+
+
+# New exact-source video coverage; the existing image/audio/text assertions
+# above remain unchanged. All upstreams are the same synthetic fixture.
+def video_fixture(module, model="sam-3.1", *, frames=3):
+    import hashlib
+
+    source = b"\x00\x00\x00\x18ftypmp42" + b"PUBLIC SYNTHETIC VIDEO CONTRACT BYTES"
+    prompt = "Native synthetic signing-hands instruction."
+    source_sha = hashlib.sha256(source).hexdigest()
+    prompt_sha = hashlib.sha256(prompt.encode()).hexdigest()
+    grant = {
+        "sha256": source_sha,
+        "bytes": len(source),
+        "frames": frames,
+        "prompts": {"sam-3.1": prompt_sha, module.MODEL: prompt_sha},
+    }
+    body = {
+        "model": model,
+        "stream": False,
+        "store": False,
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {
+                        "type": "input_video",
+                        "video_url": "data:video/mp4;base64," + base64.b64encode(source).decode(),
+                    },
+                ],
+            },
+        ],
+    }
+    if model == module.MODEL:
+        body.update(reasoning={"effort": "xhigh"}, max_output_tokens=8192, tools=[])
+    return body, grant
+
+
+@pytest.mark.parametrize("model", ["sam-3.1", "muse-spark-1.3-contributor"])
+def test_exact_video_requires_opt_in_even_when_old_media_smoke_enabled(gateway, model):
+    module, calls, _, client = gateway
+    module.MEDIA_SMOKE = True
+    body, _ = video_fixture(module, model)
+    before = copy.deepcopy(module.STATE)
+    assert client.post("/v1/responses", json=body).status_code == 403
+    assert calls == [] and module.STATE == before
+
+
+@pytest.mark.parametrize("model", ["sam-3.1", "muse-spark-1.3-contributor"])
+def test_exact_video_uses_original_inline_bytes_and_retained_ten_dollar_guard(gateway, model):
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module, model)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    module.lower_budget_limit(module.STATE, 10)
+    result.raw = json.dumps(
+        {
+            "status": "completed",
+            "model": model,
+            "output": [],
+            "usage": {"video_frames_processed": 50, "input_tokens": 100, "output_tokens": 20},
+        }
+    ).encode()
+    response = client.post(
+        "/v1/responses", json=body, headers={"authorization": "Bearer SYNTHETIC_VIDEO_CREDENTIAL"}
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1 and json.loads(calls[0].data) == body
+    assert calls[0].full_url == "https://api.meta.ai/v1/responses"
+    assert module.STATE["limit_usd"] == 10
+    assert module.MEDIA_LIMIT_USD == 0.10
+    assert module.MEDIA_RESERVATIONS == {"sam-3.1": 0.005, "muse-image-1.0": 0.02}
+    ledger = module.LEDGER.read_text()
+    assert "SYNTHETIC_VIDEO_CREDENTIAL" not in ledger
+    assert "Native synthetic signing-hands instruction" not in ledger
+    assert "data:video" not in ledger
+    module.STATE["reserved_usd"] = 9.999
+    assert client.post("/v1/responses", json=body).status_code == 402
+    assert len(calls) == 1 and module.STATE["reserved_usd"] == 9.999
+
+
+@pytest.mark.parametrize("change", ["bytes", "prompt", "url", "wonder", "tools", "reasoning"])
+def test_video_source_prompt_target_and_native_tool_bounds_cannot_be_broadened(gateway, change):
+    module, calls, _, client = gateway
+    body, grant = video_fixture(module, module.MODEL)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    if change == "bytes":
+        body["input"][0]["content"][1]["video_url"] += "AA=="
+    elif change == "prompt":
+        body["input"][0]["content"][0]["text"] += " UNAUTHORIZED PRIVATE EXTRA"
+    elif change == "url":
+        body["input"][0]["content"][1]["video_url"] = "https://untrusted.invalid/private.mp4"
+    elif change == "wonder":
+        body["model"] = "wonder"
+    elif change == "tools":
+        body["tools"] = [{"type": "web_search"}]
+    else:
+        body["reasoning"] = {"effort": "low"}
+    assert client.post("/v1/responses", json=body).status_code == 403
+    assert calls == [] and module.STATE["calls"] == []
+
+
+def test_video_manifest_rejects_duplicate_authority_keys_and_nonprivate_files(budget, tmp_path):
+    module, _, _ = budget
+    _, grant = video_fixture(module)
+    manifest = tmp_path / "video-grant.json"
+    raw = json.dumps([grant]).replace('"frames": 3', '"frames": 1, "frames": 3')
+    manifest.write_text(raw)
+    manifest.chmod(0o600)
+    with pytest.raises(ValueError):
+        module._video.load_video_grants(manifest)
+    manifest.write_text(json.dumps([grant]))
+    manifest.chmod(0o600)
+    assert module._video.load_video_grants(manifest) == {grant["sha256"]: grant}
+    manifest.chmod(0o644)
+    with pytest.raises(ValueError):
+        module._video.load_video_grants(manifest)
+
+
+def test_free_count_cannot_disclose_ungranted_video(gateway):
+    module, calls, _, client = gateway
+    body, _ = video_fixture(module, module.MODEL)
+    before = copy.deepcopy(module.STATE)
+    assert client.post("/v1/responses/input_tokens", json=body).status_code == 400
+    assert calls == [] and module.STATE == before
+
+
+@pytest.mark.parametrize("usage", [None, [], "untrusted usage", True])
+def test_video_malformed_usage_is_generic_and_does_not_release_original_reservation(gateway, usage):
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    result.raw = json.dumps(
+        {"status": "completed", "model": "sam-3.1", "output": [], "usage": usage}
+    ).encode()
+    response = client.post("/v1/responses", json=body)
+    assert response.status_code == 502
+    assert len(calls) == 1
+    assert module.STATE["media_calls"][0]["state"] == "uncertain_reservation_retained"
+    assert module.STATE["media_reserved_usd"] == pytest.approx(0.02)
+    assert module.STATE["media_estimated_usd"] == 0
+
+
+@pytest.mark.parametrize("frames", [0, 3, 49, 51, True, "50"])
+def test_video_usage_must_confirm_exact_billed_frames(gateway, frames):
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    result.raw = json.dumps(
+        {
+            "status": "completed",
+            "model": "sam-3.1",
+            "output": [],
+            "usage": {"video_frames_processed": frames},
+        }
+    ).encode()
+    response = client.post("/v1/responses", json=body)
+    assert response.status_code == 502 and response.json().get("status") != "completed"
+    assert len(calls) == 1
+    assert module.STATE["media_calls"][0]["state"] == "uncertain_reservation_retained"
+    assert module.STATE["media_reserved_usd"] == pytest.approx(0.02)
+    assert module.STATE["media_estimated_usd"] == 0
+
+
+@pytest.mark.parametrize("model", ["sam-3.1", "muse-spark-1.3-contributor"])
+def test_video_upstream_error_details_never_escape_or_trigger_retry(gateway, model):
+    import urllib.error
+
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module, model)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    result.error = urllib.error.HTTPError(
+        "https://api.meta.ai/v1/responses",
+        403,
+        "SYNTHETIC_PRIVATE_CREDENTIAL",
+        {},
+        io.BytesIO(b"SYNTHETIC_PRIVATE_CREDENTIAL"),
+    )
+    response = client.post("/v1/responses", json=body)
+    assert response.status_code == 403 and "SYNTHETIC_PRIVATE_CREDENTIAL" not in response.text
+    assert len(calls) == 1
+    assert "SYNTHETIC_PRIVATE_CREDENTIAL" not in module.LEDGER.read_text()
+    if model == "sam-3.1":
+        assert module.STATE["media_reserved_usd"] == pytest.approx(0.02)
+    else:
+        assert module.STATE["reserved_usd"] > 0
+
+
+@pytest.mark.parametrize("model", ["sam-3.1", "muse-spark-1.3-contributor"])
+@pytest.mark.parametrize("kind", ["depth", "nodes"])
+def test_video_gateway_rejects_excessive_json_before_releasing_reservation(gateway, model, kind):
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module, model)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    value = {
+        "status": "completed",
+        "model": model,
+        "output": [],
+        "usage": {"video_frames_processed": 50, "input_tokens": 100, "output_tokens": 20},
+    }
+    prefix = json.dumps(value)[:-1].encode() + b',"untrusted":'
+    result.raw = (
+        prefix + b"[" * 33 + b"0" + b"]" * 33 + b"}"
+        if kind == "depth"
+        else prefix + b"[" + b"0," * 65536 + b"0]}"
+    )
+    response = client.post("/v1/responses", json=body)
+    assert response.status_code == 502 and response.json().get("status") != "completed"
+    assert len(calls) == 1
+    if model == "sam-3.1":
+        assert module.STATE["media_reserved_usd"] == pytest.approx(0.02)
+        assert module.STATE["media_estimated_usd"] == 0
+    else:
+        assert module.STATE["reserved_usd"] > 0
+        assert module.STATE["calls"][0]["state"] != "usage_reported"
+
+
+@pytest.mark.parametrize("model", ["sam-3.1", "muse-spark-1.3-contributor"])
+def test_video_original_upstream_close_must_succeed_before_valid_data_or_settlement(gateway, model):
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module, model)
+    module.VIDEO_GRANTS = {grant["sha256"]: grant}
+    result.raw = json.dumps(
+        {
+            "status": "completed",
+            "model": model,
+            "output": [],
+            "usage": {"video_frames_processed": 50, "input_tokens": 100, "output_tokens": 20},
+        }
+    ).encode()
+    result.close_error = True
+    response = client.post("/v1/responses", json=body)
+    assert response.status_code == 502
+    assert response.json().get("status") != "completed"
+    assert len(calls) == 1
+    if model == "sam-3.1":
+        assert module.STATE["media_calls"][0]["state"] == "uncertain_reservation_retained"
+        assert module.STATE["media_reserved_usd"] == pytest.approx(0.02)
+        assert module.STATE["media_estimated_usd"] == 0
+    else:
+        assert module.STATE["calls"][0]["state"] != "usage_reported"
+        assert module.STATE["reserved_usd"] > 0
+
+
+def wonder_body(**changes):
+    return {
+        "model": "muse-wonder-1.0",
+        "stream": False,
+        "store": False,
+        "reasoning": {"effort": "max"},
+        "max_output_tokens": 32768,
+        "input": [{"role": "user", "content": "Public synthetic task fixture."}],
+        "tools": [],
+        **changes,
+    }
+
+
+WONDER_AUTH = {"authorization": "Bearer SYNTHETIC_WONDER_CREDENTIAL"}
+
+
+def count_wonder(gateway, body, *, tokens=1000, headers=None):
+    module, _, result, client = gateway
+    module.WONDER_STANDARD = True
+    result.raw = json.dumps({"object": "response.input_tokens", "input_tokens": tokens}).encode()
+    return client.post(
+        "/v1/responses/input_tokens", json=body, headers=WONDER_AUTH if headers is None else headers
+    )
+
+
+def wonder_response(result, **changes):
+    result.raw = json.dumps(
+        {
+            "status": "completed",
+            "model": "muse-wonder-1.0",
+            "output": [],
+            "usage": {
+                "input_tokens": 1000,
+                "output_tokens": 20,
+                "input_tokens_details": {"cached_tokens": 500},
+            },
+            **changes,
+        }
+    ).encode()
+
+
+def test_wonder_default_hold_and_one_exact_count_are_required(gateway):
+    module, calls, _, client = gateway
+    body = wonder_body()
+    before = copy.deepcopy(module.STATE)
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 403
+    assert (
+        client.post("/v1/responses/input_tokens", json=body, headers=WONDER_AUTH).status_code == 400
+    )
+    assert calls == [] and module.STATE == before
+    module.WONDER_STANDARD = True
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 403
+    assert calls == [] and module.STATE["calls"] == []
+
+
+def test_wonder_standard_settlement_preserves_old_reserve_and_contributor_counters(gateway):
+    module, calls, result, client = gateway
+    body = wonder_body()
+    module.lower_budget_limit(module.STATE, 10)
+    module.STATE["reserved_usd"] = 0.25  # Preexisting unresolved allowance is never refunded.
+    assert count_wonder(gateway, body).status_code == 200
+    wonder_response(result)
+    response = client.post("/v1/responses", json=body, headers=WONDER_AUTH)
+    assert response.status_code == 200 and len(calls) == 2
+    assert all("x-tbh-contributor-mode" not in {k.lower() for k in call.headers} for call in calls)
+    record = module.STATE["calls"][0]
+    assert record["model"] == record["resolved_model"] == module.WONDER_MODEL
+    assert record["pricing_mode"] == "standard" and record["measured_input_tokens"] == 1000
+    assert record["reservation_usd"] == pytest.approx(1.572864)
+    assert record["standard_estimated_usd"] == pytest.approx(0.0025)
+    assert record["admission_estimated_usd"] == pytest.approx(0.0088)
+    assert module.STATE["cache_aware_admission_estimated_usd"] == pytest.approx(0.005)
+    assert module.STATE["reserved_usd"] == pytest.approx(0.25)
+    assert module.STATE["contributor_estimated_usd"] == module.STATE["estimated_usd"] == 0
+    assert module.STATE["limit_usd"] == 10 and module._video.VIDEO_LIMIT_USD == 1.50
+    assert "SYNTHETIC_WONDER_CREDENTIAL" not in module.LEDGER.read_text()
+    assert "Public synthetic task fixture" not in module.LEDGER.read_text()
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 403
+    assert len(calls) == 2  # A used count receipt cannot replay a paid call.
+
+
+@pytest.mark.parametrize("change", ["body", "auth", "expiry"])
+def test_wonder_count_ticket_cannot_cross_body_authorization_or_deadline(gateway, change):
+    module, calls, _, client = gateway
+    body = wonder_body()
+    assert count_wonder(gateway, body).status_code == 200
+    headers = WONDER_AUTH
+    if change == "body":
+        body["input"][0]["content"] += " changed"
+    elif change == "auth":
+        headers = {"authorization": "Bearer DIFFERENT_SYNTHETIC_CREDENTIAL"}
+    else:
+        key = next(iter(module.WONDER_COUNT_TICKETS))
+        _, tokens, uses = module.WONDER_COUNT_TICKETS[key]
+        module.WONDER_COUNT_TICKETS[key] = (module.time.monotonic() - 61, tokens, uses)
+    assert client.post("/v1/responses", json=body, headers=headers).status_code == 403
+    assert len(calls) == 1 and module.STATE["calls"] == []
+
+
+@pytest.mark.parametrize(
+    "change", ["full", "alias", "effort", "output", "store", "hosted", "history"]
+)
+def test_wonder_standard_exact_model_mode_and_request_bounds(gateway, change):
+    module, calls, _, client = gateway
+    module.WONDER_STANDARD = True
+    body = wonder_body()
+    if change == "full":
+        body["model"] = "muse-wonder-full-1.0"
+    elif change == "alias":
+        body["model"] = "wonder"
+    elif change == "effort":
+        body["reasoning"] = {"effort": "xhigh"}
+    elif change == "output":
+        body["max_output_tokens"] = 32769
+    elif change == "store":
+        body["store"] = True
+    elif change == "hosted":
+        body["tools"] = [{"type": "web_search"}]
+    else:
+        body["previous_response_id"] = "external-history"
+    assert (
+        client.post("/v1/responses/input_tokens", json=body, headers=WONDER_AUTH).status_code == 400
+    )
+    assert calls == [] and module.STATE["calls"] == []
+
+
+@pytest.mark.parametrize("tokens", [0, 32769, True])
+def test_wonder_over_bound_or_invalid_count_never_admits_generation(gateway, tokens):
+    module, calls, _, client = gateway
+    body = wonder_body()
+    response = count_wonder(gateway, body, tokens=tokens)
+    assert response.status_code in {400, 502}
+    assert module.WONDER_COUNT_TICKETS == {}
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 403
+    assert len(calls) == 1 and module.STATE["calls"] == []
+
+
+def test_wonder_counter_close_failure_creates_no_ticket(gateway):
+    module, calls, result, client = gateway
+    result.close_error = True
+    assert count_wonder(gateway, wonder_body()).status_code == 502
+    assert module.WONDER_COUNT_TICKETS == {}
+    assert client.post("/v1/responses", json=wonder_body(), headers=WONDER_AUTH).status_code == 403
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("role", [[], {}, True, None])
+def test_wonder_malformed_text_role_is_a_bounded_refusal(gateway, role):
+    module, calls, _, client = gateway
+    module.WONDER_STANDARD = True
+    body = wonder_body(input=[{"role": role, "content": "Synthetic fixture"}])
+    assert (
+        client.post("/v1/responses/input_tokens", json=body, headers=WONDER_AUTH).status_code == 400
+    )
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 403
+    assert calls == [] and module.STATE["calls"] == []
+
+
+@pytest.mark.parametrize("failure", ["close", "model", "usage", "output"])
+def test_wonder_uncertain_response_keeps_full_reserve_and_does_not_retry(gateway, failure):
+    module, calls, result, client = gateway
+    body = wonder_body()
+    assert count_wonder(gateway, body).status_code == 200
+    wonder_response(result)
+    if failure == "close":
+        result.close_error = True
+    elif failure == "model":
+        wonder_response(result, model=module.MODEL)
+    elif failure == "usage":
+        wonder_response(result, usage={"input_tokens": True, "output_tokens": 20})
+    else:
+        wonder_response(result, usage={"input_tokens": 1000, "output_tokens": 32769})
+    response = client.post("/v1/responses", json=body, headers=WONDER_AUTH)
+    assert response.status_code == 502 and response.json().get("status") != "completed"
+    assert len(calls) == 2 and module.STATE["reserved_usd"] == pytest.approx(1.572864)
+    assert module.STATE["calls"][0]["state"] == "wonder_uncertain_reservation_retained"
+    assert module.STATE.get("wonder_standard_estimated_usd", 0) == 0
+
+
+def test_wonder_exact_video_manifest_is_opt_in_and_counter_uses_same_grant(gateway, tmp_path):
+    module, calls, result, client = gateway
+    body, grant = video_fixture(module, module.MODEL)
+    body["model"], body["reasoning"] = module.WONDER_MODEL, {"effort": "max"}
+    grant["prompts"][module.WONDER_MODEL] = grant["prompts"].pop(module.MODEL)
+    manifest = tmp_path / "wonder-video.json"
+    manifest.write_text(json.dumps([grant]))
+    manifest.chmod(0o600)
+    with pytest.raises(ValueError):
+        module._video.load_video_grants(manifest)
+    module.VIDEO_GRANTS = module._video.load_video_grants(manifest, wonder_standard=True)
+    assert count_wonder(gateway, body).status_code == 200
+    assert json.loads(calls[0].data) == body
+    wonder_response(result)
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 200
+    record = module.STATE["calls"][0]
+    assert record["reservation_usd"] == pytest.approx(0.589824)
+    assert record["kind"] == "video" and record["source_sha256"] == grant["sha256"]
+    assert module._video.VIDEO_LIMIT_USD == 1.50
+
+
+def test_wonder_video_cannot_reuse_a_contributor_prompt_grant(gateway):
+    module, calls, _, client = gateway
+    body, contributor_grant = video_fixture(module, module.MODEL)
+    body["model"], body["reasoning"] = module.WONDER_MODEL, {"effort": "max"}
+    module.VIDEO_GRANTS = {contributor_grant["sha256"]: contributor_grant}
+    module.WONDER_STANDARD = True
+    assert (
+        client.post("/v1/responses/input_tokens", json=body, headers=WONDER_AUTH).status_code == 400
+    )
+    assert client.post("/v1/responses", json=body, headers=WONDER_AUTH).status_code == 403
+    assert calls == [] and module.WONDER_COUNT_TICKETS == {}
+
+
+def test_wonder_reservation_is_atomic_against_same_combined_ceiling(gateway):
+    from concurrent.futures import ThreadPoolExecutor
+
+    module, calls, result, client = gateway
+    first, second = (
+        wonder_body(),
+        wonder_body(input=[{"role": "user", "content": "Second fixture"}]),
+    )
+    assert count_wonder(gateway, first).status_code == 200
+    assert count_wonder(gateway, second).status_code == 200
+    module.STATE["limit_usd"] = 2
+    result.opened, result.release = threading.Event(), threading.Event()
+    wonder_response(result)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        original = pool.submit(client.post, "/v1/responses", json=first, headers=WONDER_AUTH)
+        try:
+            assert result.opened.wait(timeout=3)
+            assert module.STATE["reserved_usd"] == pytest.approx(1.572864)
+            refused = client.post("/v1/responses", json=second, headers=WONDER_AUTH)
+            assert refused.status_code == 402 and len(calls) == 3
+        finally:
+            result.release.set()
+        assert original.result(timeout=5).status_code == 200
+    assert module.STATE["limit_usd"] == 2 and len(module.STATE["calls"]) == 1
+
+
+def settled_wonder(module):
+    return {
+        "model": module.WONDER_MODEL,
+        "resolved_model": module.WONDER_MODEL,
+        "pricing_policy": module.WONDER_PRICING_POLICY,
+        "state": "usage_reported",
+        "reservation_usd": 1.572864,
+        "reported_usage": {
+            "input_tokens": 1000,
+            "output_tokens": 20,
+            "input_tokens_details": {"cached_tokens": 500},
+        },
+    }
+
+
+def test_mixed_model_reconcile_preserves_original_premiums_reserves_and_billing_floor(budget):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    old = settled_contributor(module)
+    old["admission_estimated_usd"] = 0.508
+    unknown = {"state": "in_flight", "reservation_usd": 0.75, "legacy_marker": "unchanged"}
+    original = copy.deepcopy([old, unknown])
+    state.update(admission_estimated_usd=0.7668, reserved_usd=0.75, billing_reported_usd=9)
+    state["calls"] = [old, unknown, settled_wonder(module)]
+    module.reconcile(state)
+    assert state["calls"][:2] == original
+    assert state["reserved_usd"] == 0.75 and state["billing_reported_usd"] == 9
+    assert state["admission_estimated_usd"] == pytest.approx(0.7668)
+    assert state["cache_aware_admission_estimated_usd"] == pytest.approx(0.5768)
+    assert module.reconcile(copy.deepcopy(state)) == state
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("pricing_policy", "unknown"),
+        ("resolved_model", None),
+        ("resolved_model", "muse-spark-1.3-contributor"),
+    ],
+)
+def test_unknown_wonder_price_or_identity_cannot_settle_or_refund_reservation(budget, field, value):
+    module, _, _ = budget
+    state = copy.deepcopy(module.STATE)
+    record = settled_wonder(module)
+    record[field] = value
+    state["calls"] = [record]
+    module.reconcile(state)
+    assert record["state"] == "usage_uncertain_reservation_retained"
+    assert state["reserved_usd"] == pytest.approx(1.572864)
+    assert module.reconcile(copy.deepcopy(state)) == state

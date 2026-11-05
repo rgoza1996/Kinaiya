@@ -7,6 +7,7 @@ import json
 import httpx
 import pytest
 
+from packages.providers.classification_errors import LowConfidenceRefusal
 from packages.providers.laya import LayaRoutingProvider, _finalized_questions, _window_questions
 from packages.providers.text import ProviderError, ProviderRefusal
 
@@ -369,8 +370,9 @@ async def test_floor_applies_to_selected_actions_not_irrelevant_target(channel):
             result = json.loads(await adapter.complete(messages(mode)))
             assert result["target_task_id"] is None
         else:
-            with pytest.raises(ProviderRefusal):
+            with pytest.raises(LowConfidenceRefusal) as raised:
                 await adapter.complete(messages(mode))
+            assert type(raised.value) is LowConfidenceRefusal
     finally:
         await adapter.close()
 

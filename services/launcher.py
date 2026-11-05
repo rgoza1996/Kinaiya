@@ -748,6 +748,11 @@ def serve(args):
             # owner catalog/Options control plane available so a valid saved
             # catalog selection can serve new work without the host credential.
             host_provider = UnavailableHostProvider()
+        from services.agent.task_media_launcher import task_media_owner
+
+        media_owner = task_media_owner(
+            config, data_dir=args.data_dir.resolve(), workspace=workspace
+        )
         runtime = AgentRuntime(
             journal,
             host_provider,
@@ -758,7 +763,10 @@ def serve(args):
             mcp_controller=mcp_controller,
             skill_service=skill_service,
             plugin_service=plugin_service,
-            artifact_store=ArtifactStore(artifact_path),
+            artifact_store=ArtifactStore(
+                artifact_path,
+                **({"media_assets": media_owner.media_assets} if media_owner is not None else {}),
+            ),
         )
         runtime.workspace_settings = workspace_settings
         workspace_settings.bind(
@@ -878,6 +886,8 @@ def serve(args):
         commands = Registry(
             runtime, owner_journal, path=args.data_dir / "commands.sqlite", profiles=profiles
         )
+        if media_owner is not None:
+            media_owner.bind(runtime)
 
         @asynccontextmanager
         async def agent_lifespan(app):
@@ -892,6 +902,8 @@ def serve(args):
                     await asyncio.sleep(0.1)
             yield
             await runtime.close()
+            if media_owner is not None:
+                await media_owner.close()
             await runtime.authorizations.close_journal(journal)
             await owner_journal.close()
             commands.close()

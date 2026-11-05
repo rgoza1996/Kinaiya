@@ -2,8 +2,10 @@
 library;
 
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
 import '../character/package.dart';
 import 'preferences.dart';
 import 'storage.dart';

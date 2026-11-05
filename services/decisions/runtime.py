@@ -14,6 +14,10 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
+from packages.providers.classification_errors import (
+    classification_refusal_reason,
+    retained_refusal_reason,
+)
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
     _capture,
@@ -605,7 +609,17 @@ class DecisionsWorker:
                                 reason = exc.reason_code
                     return PersistedCallState("refused", prior_attempts, None, (reason, err_type))
                 return PersistedCallState(
-                    "refused", prior_attempts, None, ("provider_refused", err_type)
+                    "refused",
+                    prior_attempts,
+                    None,
+                    (
+                        retained_refusal_reason(
+                            err_type,
+                            provider=call.get("provider"),
+                            request_format=call.get("request_format"),
+                        ),
+                        err_type,
+                    ),
                 )
             if status == "started":
                 has_pending_uncertain = True
@@ -846,7 +860,7 @@ class DecisionsWorker:
                             return None
                         except ProviderRefusal as exc:
                             await self._append_refusal(
-                                source, "provider_refused", type(exc).__name__
+                                source, classification_refusal_reason(exc), type(exc).__name__
                             )
                             return None
                         except Exception as exc:
@@ -1015,6 +1029,13 @@ class OutcomeWorker:
         return len(entries)
 
     async def run(self):
+        from packages.contracts.agent_outcome import OutcomeEvidenceUnavailable
+
         while True:
-            if not await self.tick():
-                await asyncio.sleep(0.1)
+            try:
+                if not await self.tick():
+                    await asyncio.sleep(0.1)
+            except OutcomeEvidenceUnavailable:
+                # Cursor stays before the unavailable outcome. Retry only its
+                # authenticated evidence reads; no announcement was attempted.
+                await asyncio.sleep(1)

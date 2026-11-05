@@ -4,6 +4,7 @@ import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
+
 import 'client_test.dart' show mockClient;
 
 void main() {

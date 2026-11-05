@@ -3,11 +3,12 @@
 import asyncio
 import copy
 import json
+import math
 import os
 import stat
 from collections import deque
 from collections.abc import AsyncIterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,17 +18,50 @@ import httpx
 
 from packages.contracts.agent_tools import (
     LEGACY_NATIVE_TOOL_ORDER,
-    NATIVE_TOOL_ORDER,
     agent_export_permitted,
     capture_agent_export_admission,
     capture_agent_export_check,
     current_agent_tools,
+)
+from packages.contracts.agent_tools import (
+    SUPPORTED_NATIVE_TOOL_ORDER as NATIVE_TOOL_ORDER,
 )
 from packages.contracts.models import ProviderInfo
 
 
 class ProviderError(RuntimeError):
     pass
+
+
+class MetaTransportError(ProviderError):
+    """Closed transport labels; never echo an exception, URL or credential."""
+
+    _LABELS = {
+        "connect_timeout": "connect timeout",
+        "read_timeout": "read timeout",
+        "write_timeout": "write timeout",
+        "pool_timeout": "connection pool timeout",
+        "total_timeout": "total request timeout",
+        "transport_timeout": "transport timeout",
+        "transport_error": "transport error",
+    }
+
+    def __init__(self, reason):
+        if type(reason) is not str or reason not in self._LABELS:
+            raise ValueError("Unknown Meta transport diagnostic")
+        self._reason = reason
+        super().__init__(
+            f"Meta generation {self._LABELS[reason]}; provider completion is unknown; "
+            "no automatic retry"
+        )
+
+    @property
+    def reason(self):
+        return self._reason
+
+    @property
+    def diagnostic(self):
+        return {"stage": "generation_transport", "reason": self.reason, "completion": "unknown"}
 
 
 _ACTION_JSON_REASONS = (
@@ -94,6 +128,37 @@ class ActionDecodeError(ProviderError):
         return {"stage": self.stage, "reason": self.reason}
 
 
+class SettledPublicationRejection(ActionDecodeError):
+    """One rejected proposal from a consumed, closed, measured Meta request.
+
+    The parser still rejects the original object. This constant projection
+    carries no model text and cannot authorize publication or completion.
+    Unmeasured calls and all other decoding failures retain their old error.
+    """
+
+    def __init__(self, request_sha256: str):
+        if (
+            type(request_sha256) is not str
+            or len(request_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in request_sha256)
+        ):
+            raise ValueError("Invalid settled publication request")
+        super().__init__("ui_arguments", "json_syntax")
+        self._request_sha256 = request_sha256
+
+    def validate_request(self, request_sha256: str) -> None:
+        if (
+            type(self) is not SettledPublicationRejection
+            or self.stage != "ui_arguments"
+            or self.reason != "json_syntax"
+            or type(request_sha256) is not str
+            or len(request_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in request_sha256)
+            or self._request_sha256 != request_sha256
+        ):
+            raise ValueError("Invalid settled publication request")
+
+
 class ProviderRefusal(ProviderError):
     """A rejected input/result must be surfaced rather than retried as a decision."""
 
@@ -119,6 +184,78 @@ class MetaResponseError(ProviderError):
         from packages.providers.response_diagnostics import validate_meta_diagnostic
 
         return validate_meta_diagnostic(self._diagnostic)
+
+
+@dataclass(eq=False, slots=True)
+class _OutputBudgetAttempt:
+    provider: object
+    request_sha256: str
+    owner: object
+    consumed: bool = False
+
+
+_output_budget_attempt = ContextVar("native_meta_output_budget_attempt", default=None)
+_SETTLED_OUTPUT_BUDGET = object()
+
+
+@contextmanager
+def meta_output_budget_attempt(provider, request_sha256):
+    """Bind one measured buffered call; this never permits an export or retry."""
+    attempt = None
+    if (
+        type(provider) is MetaResponsesProvider
+        and type(request_sha256) is str
+        and len(request_sha256) == 64
+        and all(char in "0123456789abcdef" for char in request_sha256)
+    ):
+        attempt = _OutputBudgetAttempt(provider, request_sha256, asyncio.current_task())
+    token = _output_budget_attempt.set(attempt)
+    try:
+        yield attempt
+    finally:
+        # This scope contains no generator yield to the caller: runtime enters
+        # and leaves it in the same Task around exactly prepared.complete().
+        _output_budget_attempt.reset(token)
+
+
+class SettledOutputBudgetExhaustion(MetaResponseError):
+    """A one-use native notice; no incomplete model output or action survives."""
+
+    def __init__(self, diagnostic, attempt, export_check, *, _proof=None):
+        if _proof is not _SETTLED_OUTPUT_BUDGET or type(attempt) is not _OutputBudgetAttempt:
+            raise ValueError("Unproven Meta output-budget settlement")
+        super().__init__(diagnostic)
+        self._attempt, self._export_check, self._proof = attempt, export_check, _proof
+        self._provider = attempt.provider
+        from packages.providers.prompt_budget import request_digest
+
+        self._diagnostic_sha256 = request_digest(self.diagnostic)
+
+    def validate_attempt(self, attempt):
+        from packages.providers.prompt_budget import request_digest
+
+        if (
+            type(self) is not SettledOutputBudgetExhaustion
+            or self._proof is not _SETTLED_OUTPUT_BUDGET
+            or type(attempt) is not _OutputBudgetAttempt
+            or self._attempt is not attempt
+            or attempt.consumed
+            or attempt.owner is not asyncio.current_task()
+            or type(attempt.provider) is not MetaResponsesProvider
+            or attempt.provider is not self._provider
+            or request_digest(self.diagnostic) != self._diagnostic_sha256
+            or self.diagnostic["request_sha256"] != attempt.request_sha256
+            or self.diagnostic["status"] != "incomplete"
+            or self.diagnostic["reason"] != "max_output_tokens"
+            or self.diagnostic["error_code"] != "missing"
+            or not callable(self._export_check)
+            or self._export_check() is not True
+        ):
+            raise ValueError("Obsolete Meta output-budget settlement")
+
+    def consume(self, attempt):
+        self.validate_attempt(attempt)
+        attempt.consumed = True
 
 
 _UI_SPEC_MAX_BYTES = 48 * 1024
@@ -184,7 +321,22 @@ def _ui_spec_object(encoded):
 def _gateway_action_object(action):
     """Retain the existing foreign-gateway mapping for both Meta formats."""
     args = action["arguments"]
-    if action.get("tool") == "mcp_call":
+    if action.get("tool") == "run_task_harness":
+        encoded = args.get("harness_input_json")
+        if type(encoded) is not str or len(encoded.encode("utf-8")) > 65_536:
+            raise ProviderError("Harness input requires bounded JSON object text")
+        try:
+            decoded = json.loads(encoded)
+        except (ValueError, RecursionError) as exc:
+            raise ProviderError("Harness input is invalid JSON") from exc
+        if type(decoded) is not dict:
+            raise ProviderError("Harness input must decode to an object")
+        action["arguments"] = {
+            "source_path": args.get("source_path"),
+            "source_sha256": args.get("source_sha256"),
+            "input": decoded,
+        }
+    elif action.get("tool") == "mcp_call":
         encoded = args.get("mcp_arguments_json")
         if not isinstance(encoded, str) or len(encoded) > 65536:
             raise ProviderError("MCP arguments require bounded JSON object text")
@@ -706,6 +858,7 @@ class MetaResponsesProvider:
         structured_actions=False,
         action_format="flat-v1",
         context_tokens=None,
+        timeout=600,
         transport=None,
         pre_generation_proofs=False,
     ):
@@ -713,6 +866,13 @@ class MetaResponsesProvider:
 
         if not allow_cloud:
             raise ProviderError("Meta requires explicit cloud disclosure authorization")
+        if (
+            type(timeout) not in (int, float)
+            or not 1 <= timeout <= 1800
+            or not math.isfinite(timeout)
+        ):
+            raise ProviderError("Meta timeout must be between 1 and 1800 seconds")
+        self._request_timeout_s = float(timeout)
         if type(pre_generation_proofs) is not bool:
             raise ProviderError("Invalid native pre-generation proof configuration")
         if type(action_format) is not str or action_format not in {"flat-v1", "typed-v2"}:
@@ -726,6 +886,12 @@ class MetaResponsesProvider:
             raise ProviderError("Unknown Meta credential reference")
         if not api_key:
             raise ProviderError("Meta credential is unavailable")
+        from packages.providers.meta_policy import WONDER_STANDARD_MODEL, meta_reasoning_options
+
+        if (reasoning_effort == "max" and model != WONDER_STANDARD_MODEL) or (
+            model == WONDER_STANDARD_MODEL and reasoning_effort not in meta_reasoning_options(model)
+        ):
+            raise ProviderError("Invalid Wonder Standard reasoning effort")
         self.info = ProviderInfo(provider="meta", model=model, local=False, streaming=True)
         self.model, self.max_tokens, self.effort = model, max_tokens, reasoning_effort
         self.structured_actions = structured_actions
@@ -745,10 +911,18 @@ class MetaResponsesProvider:
         self._measurement_required = False
         self._measurement = None
         self._count_generation = 0
+        headers = {"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"}
+        if model == WONDER_STANDARD_MODEL:
+            del headers["x-tbh-contributor-mode"]
         self.http = RequestBoundAsyncClient(
             base_url=base_url.rstrip("/") + "/",
-            timeout=120,
-            headers={"Authorization": f"Bearer {api_key}", "x-tbh-contributor-mode": "true"},
+            timeout=httpx.Timeout(
+                self._request_timeout_s,
+                connect=min(10.0, self._request_timeout_s),
+                pool=min(10.0, self._request_timeout_s),
+                write=min(60.0, self._request_timeout_s),
+            ),
+            headers=headers,
             transport=transport,
             trust_env=False,
             follow_redirects=False,
@@ -769,8 +943,58 @@ class MetaResponsesProvider:
             self.structured_actions,
             self.action_format,
             self.context_tokens,
+            self._request_timeout_s,
             request_digest(self.info.model_dump()),
         ) + (("pre-generation-proofs-v1",) if self._pre_generation_proofs else ())
+
+    @asynccontextmanager
+    async def _generation_deadline(self):
+        # A logical deadline does not release an owned HTTP close. The existing
+        # stream owner still settles actual close before this error escapes.
+        owner = asyncio.current_task()
+        cancellations = owner.cancelling()
+        deadline = asyncio.timeout(self._request_timeout_s)
+        try:
+            async with deadline:
+                yield
+        except httpx.TimeoutException as exc:
+            if owner.cancelling() > cancellations:
+                raise asyncio.CancelledError from None
+            reason = (
+                "total_timeout"
+                if deadline.expired()
+                else next(
+                    (
+                        label
+                        for kind, label in (
+                            (httpx.ConnectTimeout, "connect_timeout"),
+                            (httpx.ReadTimeout, "read_timeout"),
+                            (httpx.WriteTimeout, "write_timeout"),
+                            (httpx.PoolTimeout, "pool_timeout"),
+                        )
+                        if isinstance(exc, kind)
+                    ),
+                    "transport_timeout",
+                )
+            )
+            raise MetaTransportError(reason) from None
+        except TimeoutError:
+            if owner.cancelling() > cancellations:
+                raise asyncio.CancelledError from None
+            reason = "total_timeout" if deadline.expired() else "transport_timeout"
+            raise MetaTransportError(reason) from None
+        except httpx.HTTPError:
+            if owner.cancelling() > cancellations:
+                raise asyncio.CancelledError from None
+            reason = "total_timeout" if deadline.expired() else "transport_error"
+            raise MetaTransportError(reason) from None
+        # A transport may suppress cancellation while settling its real work.
+        # The original close settles first; no canceled/expired success escapes.
+        # A raised cleanup failure bypasses these success fences and stays sticky.
+        if owner.cancelling() > cancellations:
+            raise asyncio.CancelledError
+        if deadline.expired():
+            raise MetaTransportError("total_timeout")
 
     async def _input_tokens(self, client, body, check=None, admission=None):
         """One actual count response, owned through EOF and real HTTP close."""
@@ -1065,6 +1289,10 @@ class MetaResponsesProvider:
             )
         if "plugin_call" in tools:
             wire += " For plugin_call use plugin_id and JSON-encode input in plugin_arguments_json."
+        if "run_task_harness" in tools:
+            wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
+        if "run_task_program" in tools:
+            wire += " For run_task_program supply the declared literal argv array including separate {input} and {output} placeholders; native code pins the executable and input bytes."
         if messages and messages[0].get("role") == "system":
             messages[0]["content"] += wire
         else:
@@ -1075,7 +1303,13 @@ class MetaResponsesProvider:
             try:
                 action = json.loads(message["content"])
                 args = action["arguments"]
-                if action["tool"] == "mcp_call":
+                if action["tool"] == "run_task_harness":
+                    action["arguments"] = {
+                        "source_path": args["source_path"],
+                        "source_sha256": args["source_sha256"],
+                        "harness_input_json": json.dumps(args["input"], allow_nan=False),
+                    }
+                elif action["tool"] == "mcp_call":
                     if type(args) is not dict or set(args) != {"server_id", "tool", "arguments"}:
                         raise ValueError("Malformed historical MCP arguments")
                     action["arguments"] = {
@@ -1097,7 +1331,7 @@ class MetaResponsesProvider:
                     }
                 elif action["tool"] == "publish_ui":
                     _ui_spec_object(json.dumps(args, ensure_ascii=False, allow_nan=False))
-                message["content"] = json.dumps(encode_action(action))
+                message["content"] = json.dumps(encode_action(action, tools=tools))
             except (ValueError, KeyError, TypeError, ProviderError):
                 # A historical clipped/refused action remains opaque history;
                 # never invent missing arguments or a successful tool result.
@@ -1119,6 +1353,14 @@ class MetaResponsesProvider:
         }
 
     def body(self, messages, stream):
+        from packages.providers.meta_policy import WONDER_STANDARD_MODEL
+
+        result = self._body(messages, stream)
+        if self.model == WONDER_STANDARD_MODEL:
+            result["store"] = False
+        return result
+
+    def _body(self, messages, stream):
         snapshot = current_agent_tools()
         tools = snapshot.available_tools if snapshot is not None else LEGACY_NATIVE_TOOL_ORDER
         if self.structured_actions and self.action_format == "typed-v2":
@@ -1137,6 +1379,10 @@ class MetaResponsesProvider:
                     "\nFor plugin_call, put the approved id in plugin_id and JSON-encode "
                     "the input object in plugin_arguments_json."
                 )
+            if "run_task_harness" in tools:
+                wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
+            if "run_task_program" in tools:
+                wire += " For run_task_program use interpreter, source_path/source_sha256, entrypoint_path/entrypoint_sha256, input_path/input_sha256, fresh output_path, literal argv array and timeout_s; set unrelated fields null."
             if "publish_ui" in tools:
                 wire += (
                     "\nFor publish_ui, JSON-encode the complete logical publication argument object "
@@ -1168,7 +1414,13 @@ class MetaResponsesProvider:
                 try:
                     action = json.loads(message["content"])
                     args = action["arguments"]
-                    if action["tool"] == "mcp_call":
+                    if action["tool"] == "run_task_harness":
+                        action["arguments"] = {
+                            "source_path": args["source_path"],
+                            "source_sha256": args["source_sha256"],
+                            "harness_input_json": json.dumps(args["input"], allow_nan=False),
+                        }
+                    elif action["tool"] == "mcp_call":
                         action["arguments"] = {
                             "server_id": args["server_id"],
                             "mcp_tool": args["tool"],
@@ -1234,6 +1486,36 @@ class MetaResponsesProvider:
                 "maxLength": _UI_SPEC_MAX_BYTES,
                 "description": "For publish_ui only: JSON-encode its complete create or update argument object, at most 48 KiB UTF-8. All other argument fields must be null. Native storage validates the publication schema.",
             }
+            if "run_task_harness" in tools:
+                fields.update(
+                    {
+                        "source_path": {"type": ["string", "null"]},
+                        "source_sha256": {"type": ["string", "null"]},
+                        "harness_input_json": {"type": ["string", "null"], "maxLength": 65536},
+                    }
+                )
+            if "run_task_program" in tools:
+                fields.update(
+                    {
+                        key: {"type": ["string", "null"]}
+                        for key in (
+                            "interpreter",
+                            "source_path",
+                            "source_sha256",
+                            "entrypoint_path",
+                            "entrypoint_sha256",
+                            "input_path",
+                            "input_sha256",
+                            "output_path",
+                        )
+                    }
+                )
+                fields["argv"] = {
+                    "type": ["array", "null"],
+                    "items": {"type": "string"},
+                    "minItems": 2,
+                    "maxItems": 32,
+                }
             for action, optional_fields in (
                 ("select_context", ("max_chars",)),
                 ("skill_load", ("skill_id", "resource")),
@@ -1312,16 +1594,17 @@ class MetaResponsesProvider:
             or str(client.base_url) != origin
         ):
             raise ProviderRefusal("Meta capture transport binding changed")
-        if check is None:
-            response = await client.post("responses", json=body)
-            raw = response.content
-        else:
-            check(body)
+        async with self._generation_deadline():
+            if check is not None:
+                check(body)
+            # Both measured and legacy complete requests use the same original
+            # stream owner, including response-hook waits and EOF close. A new
+            # total deadline must not interrupt an unowned legacy close.
             async with complete_stream(
                 client,
                 "responses",
                 body,
-                lambda: check(body),
+                (lambda: check(body)) if check is not None else (lambda: None),
                 _OwnedHTTPStream,
                 admission=admission,
                 purpose="complete_generation",
@@ -1338,7 +1621,8 @@ class MetaResponsesProvider:
                         raise ProviderError("Meta complete response exceeds its native byte bound")
                     collected.extend(chunk)
                 raw = bytes(collected)
-            check(body)
+            if check is not None:
+                check(body)
         capture_response(raw)
         if response.is_error:
             raise ProviderError(f"Meta HTTP {response.status_code}; no automatic provider fallback")
@@ -1348,9 +1632,42 @@ class MetaResponsesProvider:
             raise ProviderError("Meta returned invalid response JSON") from exc
         if type(data) is dict and data.get("status") in ("failed", "incomplete"):
             from packages.providers.prompt_budget import request_digest
-            from packages.providers.response_diagnostics import meta_failure_diagnostic
+            from packages.providers.response_diagnostics import (
+                meta_failure_diagnostic,
+                settled_output_budget_diagnostic,
+            )
 
-            raise MetaResponseError(meta_failure_diagnostic(data, request_digest(body)))
+            request_sha256 = request_digest(body)
+            attempt = _output_budget_attempt.get()
+            if (
+                check is not None
+                and type(self) is MetaResponsesProvider
+                and type(attempt) is _OutputBudgetAttempt
+                and attempt.provider is self
+                and attempt.owner is asyncio.current_task()
+                and not attempt.consumed
+                and attempt.request_sha256 == request_sha256
+                and 200 <= response.status_code < 300
+                and response.is_stream_consumed
+                and response.is_closed
+                and (
+                    diagnostic := settled_output_budget_diagnostic(
+                        raw, request_sha256, body.get("max_output_tokens")
+                    )
+                )
+                is not None
+            ):
+                # EOF, the original owned close, and total-deadline success
+                # fences already completed. The stricter full-object parser
+                # grants no authority to ambiguous/partial output or actions.
+                check(body)
+                raise SettledOutputBudgetExhaustion(
+                    diagnostic,
+                    attempt,
+                    capture_agent_export_check(),
+                    _proof=_SETTLED_OUTPUT_BUDGET,
+                ) from None
+            raise MetaResponseError(meta_failure_diagnostic(data, request_sha256))
         messages = [item for item in data.get("output", []) if item.get("type") == "message"]
         final_messages = [
             item for item in messages if item.get("phase") in {"final", "final_answer"}
@@ -1416,7 +1733,26 @@ class MetaResponsesProvider:
                 active = {key: value for key, value in wire_args.items() if value is not None}
                 if set(active) != {"ui_spec_json"}:
                     raise ActionDecodeError("ui_wire", "argument_fields")
-                action["arguments"] = _ui_spec_object(active["ui_spec_json"])
+                try:
+                    action["arguments"] = _ui_spec_object(active["ui_spec_json"])
+                except ActionDecodeError as exc:
+                    if (
+                        type(exc) is ActionDecodeError
+                        and exc.stage == "ui_arguments"
+                        and exc.reason == "json_syntax"
+                        and check is not None
+                        and data.get("status") == "completed"
+                        and "publish_ui" in request_tools
+                    ):
+                        # The prepared path drained the original response and
+                        # confirmed owned close before parsing. No native tool
+                        # has received these rejected arguments. Never retry
+                        # this consumed request or repair its JSON here.
+                        from packages.providers.prompt_budget import request_digest
+
+                        check(body)
+                        raise SettledPublicationRejection(request_digest(body)) from None
+                    raise
                 return json.dumps(action, ensure_ascii=False, allow_nan=False)
             if action.get("tool") == "tool_catalog":
                 action = _closed_json_object(text, 16384, "catalog_wire")
