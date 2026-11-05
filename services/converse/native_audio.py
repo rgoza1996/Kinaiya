@@ -486,8 +486,7 @@ class NativeAudioOwner:
             "remaining_clips": MAX_CLIPS - retained,
             "remaining_bytes": remaining_bytes,
             "min_clip_reserved_bytes": MIN_CLIP_RESERVED_BYTES,
-            "exhausted": retained >= MAX_CLIPS
-            or remaining_bytes < MIN_CLIP_RESERVED_BYTES,
+            "exhausted": retained >= MAX_CLIPS or remaining_bytes < MIN_CLIP_RESERVED_BYTES,
         }
 
     def _readiness_reason(self) -> str:
