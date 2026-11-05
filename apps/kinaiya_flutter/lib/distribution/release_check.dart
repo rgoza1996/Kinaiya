@@ -305,8 +305,9 @@ class ReleaseChecker {
 
 int _compareVersions(RegExpMatch a, RegExpMatch b) {
   for (var group = 1; group <= 3; group++) {
-    final order = int.parse(a.group(group)!)
-        .compareTo(int.parse(b.group(group)!));
+    final order = int.parse(
+      a.group(group)!,
+    ).compareTo(int.parse(b.group(group)!));
     if (order != 0) return order;
   }
   return 0;

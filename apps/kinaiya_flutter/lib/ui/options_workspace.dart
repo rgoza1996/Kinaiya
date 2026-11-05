@@ -263,7 +263,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         } catch (_) {
           if (current()) {
             setState(
-              () => _modelError = 'Agent options could not be read. Check the host connection and version.',
+              () => _modelError =
+                  'Agent options could not be read. Check the host connection and version.',
             );
           }
         }
@@ -373,7 +374,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         () => _modelNotice = (
           owner: api,
           backendId: authority.backendId,
-          text: 'Model recovery capacity is full. Resolve an earlier save before starting another.',
+          text:
+              'Model recovery capacity is full. Resolve an earlier save before starting another.',
         ),
       );
       return;
@@ -855,9 +857,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                           key: const ValueKey('options-search-partial-heading'),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                         ),
                       ),
@@ -920,9 +922,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                         key: const ValueKey('options-other-categories-heading'),
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                       ),
                     ),
@@ -1174,8 +1176,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.labelLarge
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 6),
         SelectableText(value, semanticsLabel: value),
@@ -1264,7 +1267,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           _sectionSubheading(
             key: const ValueKey('models-subheading-primary'),
             title: 'Conversation, execution & routing models',
-            subtitle: 'Configure the primary model for each independent service owner.',
+            subtitle:
+                'Configure the primary model for each independent service owner.',
           ),
           const SizedBox(height: KinaiyaDesign.spaceSm),
           KeyedSubtree(
@@ -1336,7 +1340,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           _sectionSubheading(
             key: const ValueKey('models-subheading-auxiliary'),
             title: 'Auxiliary task models & routing',
-            subtitle: 'Optional specialized models for background summarization, memory, and auxiliary routes.',
+            subtitle:
+                'Optional specialized models for background summarization, memory, and auxiliary routes.',
           ),
           const SizedBox(height: KinaiyaDesign.spaceSm),
           if (_models case final models?) ...[
@@ -1453,8 +1458,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
         children: [
           Text(
             'Independently configurable model roles',
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1467,7 +1473,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           _rolePurposeRow(
             roleKey: 'converse',
             title: 'Converse',
-            purpose: 'Handles live voice and text conversation responses with Kinaiya.',
+            purpose:
+                'Handles live voice and text conversation responses with Kinaiya.',
             selection: converseSelection,
             status: converseStatus,
           ),
@@ -1475,7 +1482,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           _rolePurposeRow(
             roleKey: 'agent',
             title: 'Agent',
-            purpose: 'Plans and executes bounded background tasks, file edits, and tool calls.',
+            purpose:
+                'Plans and executes bounded background tasks, file edits, and tool calls.',
             selection: agentSelection,
             status: agentStatus,
           ),
@@ -1483,7 +1491,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           _rolePurposeRow(
             roleKey: 'decisions',
             title: 'Decisions',
-            purpose: 'Classifies conversation turns and timing for potential Agent handoff.',
+            purpose:
+                'Classifies conversation turns and timing for potential Agent handoff.',
             selection: decisionsSelection,
             status: decisionsStatus,
           ),
@@ -1491,7 +1500,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
           _rolePurposeRow(
             roleKey: 'stt',
             title: 'Speech-to-text (STT)',
-            purpose: 'Transcribes spoken microphone audio into text before Converse processes it.',
+            purpose:
+                'Transcribes spoken microphone audio into text before Converse processes it.',
             selection: sttSelection,
             status: sttStatus,
             actionLabel: 'Open Audio & speech',
@@ -1713,8 +1723,9 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                   children: [
                     Text(
                       'Voice & microphone detection',
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: KinaiyaDesign.spaceSm),
                     const Text(

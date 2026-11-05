@@ -247,7 +247,8 @@ class _OptionsCapabilitiesState extends State<OptionsCapabilities> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _snapshot = null;
-          _error = 'Native installed capabilities could not be read. Drafts and original requests are retained. An oversized individual metadata row is not truncated.';
+          _error =
+              'Native installed capabilities could not be read. Drafts and original requests are retained. An oversized individual metadata row is not truncated.';
         });
       }
     } finally {
@@ -363,7 +364,8 @@ class _OptionsCapabilitiesState extends State<OptionsCapabilities> {
     final api = widget.api;
     if (api == null || _pending.length >= 16) {
       setState(
-        () => _error = 'Retained request storage is full. Reconcile existing requests first.',
+        () => _error =
+            'Retained request storage is full. Reconcile existing requests first.',
       );
       return;
     }
@@ -446,22 +448,26 @@ class _OptionsCapabilitiesState extends State<OptionsCapabilities> {
         item.lookup = result;
         item.lookupOwner = api;
         if (result.fenced) {
-          item.notice = 'Historical outcome unknown. Native authority confirms this unchanged request cannot make a new commit.';
+          item.notice =
+              'Historical outcome unknown. Native authority confirms this unchanged request cannot make a new commit.';
           if (release) {
             api.releaseFenced(item.body, result);
             _pending.remove(item);
             setState(
-              () => _notice = 'Local tracking released; the historical outcome remains unknown. Nothing was cancelled or rolled back. Drafts are retained.',
+              () => _notice =
+                  'Local tracking released; the historical outcome remains unknown. Nothing was cancelled or rolled back. Drafts are retained.',
             );
             unawaited(_load());
           }
           return;
         }
         if (result.status == 'pending') {
-          item.notice = 'The native owner retained the original intent. Its outcome is unknown; the effect will not be repeated. This section remains withheld pending native reconciliation.';
+          item.notice =
+              'The native owner retained the original intent. Its outcome is unknown; the effect will not be repeated. This section remains withheld pending native reconciliation.';
           return;
         }
-        item.notice = 'No exact receipt is observed. The original request is not fenced. Check again or explicitly retry it unchanged.';
+        item.notice =
+            'No exact receipt is observed. The original request is not fenced. Check again or explicitly retry it unchanged.';
         if (!retry) return;
       }
       if (!_current(api, active) || (first && firstCurrent?.call() != true)) {
@@ -476,15 +482,18 @@ class _OptionsCapabilitiesState extends State<OptionsCapabilities> {
         _pending.remove(item);
         if (_current(api, active)) {
           setState(
-            () => _error = 'The native request was not dispatched. Your selection is retained.',
+            () => _error =
+                'The native request was not dispatched. Your selection is retained.',
           );
         }
       } else {
-        item.notice = 'Outcome unconfirmed. The exact action, source/version, authority and original key are retained. Check its native receipt before retrying.';
+        item.notice =
+            'Outcome unconfirmed. The exact action, source/version, authority and original key are retained. Check its native receipt before retrying.';
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice = 'Original request not confirmed. Inspect its exact native receipt; do not create a replacement request.';
+      item.notice =
+          'Original request not confirmed. Inspect its exact native receipt; do not create a replacement request.';
     } finally {
       item.busy = false;
       _changes.value++;

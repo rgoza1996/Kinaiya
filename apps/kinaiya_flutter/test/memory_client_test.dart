@@ -476,283 +476,301 @@ void main() {
       );
     },
   );
-  test('contradictory or stale HTTP200 writes are uncertain, pristine off equal is valid', () async {
-    for (final change in [
-      <String, Object?>{'enabled': false, 'revision': 4},
-      {'enabled': true, 'revision': 2},
-    ]) {
-      final c = OwnedClient(
-        (r) async => response({...fixture.stateJson(), ...change}),
-      );
-      await expectLater(
-        api(c).configure(binding, expectedRevision: 3, enabled: true),
-        throwsA(failure(unconfirmed: true)),
-      );
-    }
-    final good = {
-      ...fixture.useJson(),
-      'enabled': true,
-      'use_generation': 5,
-      'implementation_id': 'korina-dag-v1',
-      'selector_ids': ['n1'],
-    };
-    for (final change in [
-      <String, Object?>{'enabled': false},
-      {'use_generation': 3},
-      {'use_generation': 2},
-      {'implementation_id': 'other'},
-      {
-        'selector_ids': ['n2'],
-      },
-    ]) {
-      final c = OwnedClient((r) async => response({...good, ...change}));
-      await expectLater(
-        api(c).configureUse(
+  test(
+    'contradictory or stale HTTP200 writes are uncertain, pristine off equal is valid',
+    () async {
+      for (final change in [
+        <String, Object?>{'enabled': false, 'revision': 4},
+        {'enabled': true, 'revision': 2},
+      ]) {
+        final c = OwnedClient(
+          (r) async => response({...fixture.stateJson(), ...change}),
+        );
+        await expectLater(
+          api(c).configure(binding, expectedRevision: 3, enabled: true),
+          throwsA(failure(unconfirmed: true)),
+        );
+      }
+      final good = {
+        ...fixture.useJson(),
+        'enabled': true,
+        'use_generation': 5,
+        'implementation_id': 'korina-dag-v1',
+        'selector_ids': ['n1'],
+      };
+      for (final change in [
+        <String, Object?>{'enabled': false},
+        {'use_generation': 3},
+        {'use_generation': 2},
+        {'implementation_id': 'other'},
+        {
+          'selector_ids': ['n2'],
+        },
+      ]) {
+        final c = OwnedClient((r) async => response({...good, ...change}));
+        await expectLater(
+          api(c).configureUse(
+            binding,
+            expectedRuntimeId: 'runtime',
+            expectedGeneration: 3,
+            enabled: true,
+            selectorIds: ['n1'],
+          ),
+          throwsA(failure(unconfirmed: true)),
+        );
+      }
+      final advanced = OwnedClient((r) async => response(good));
+      expect(
+        (await api(advanced).configureUse(
           binding,
           expectedRuntimeId: 'runtime',
           expectedGeneration: 3,
           enabled: true,
           selectorIds: ['n1'],
-        ),
-        throwsA(failure(unconfirmed: true)),
+        )).useGeneration,
+        5,
       );
-    }
-    final advanced = OwnedClient((r) async => response(good));
-    expect(
-      (await api(advanced).configureUse(
-        binding,
-        expectedRuntimeId: 'runtime',
-        expectedGeneration: 3,
-        enabled: true,
-        selectorIds: ['n1'],
-      )).useGeneration,
-      5,
-    );
-    final off = OwnedClient((r) async => response(fixture.useJson()));
-    expect(
-      (await api(off).configureUse(
-        binding,
-        expectedRuntimeId: 'runtime',
-        expectedGeneration: 0,
-        enabled: false,
-      )).useGeneration,
-      0,
-    );
-  });
-  test('owner close aborts all active clients once without closing a foreign owner', () async {
-    final streams = List.generate(3, (_) => StreamController<List<int>>());
-    final clients = <OwnedClient>[];
-    var cancelled = 0;
-    final memory = MemoryApi(
-      sessionBase: 'http://localhost:8761',
-      converseBase: 'https://converse.example',
-      ownerToken: 'token',
-      clientFactory: () {
-        final index = clients.length;
-        streams[index].onCancel = () {
-          cancelled++;
-        };
-        final c = OwnedClient(
-          (r) async => http.StreamedResponse(
-            streams[index].stream,
-            200,
-            headers: {'content-type': 'application/json'},
-          ),
-        );
-        clients.add(c);
-        return c;
-      },
-    );
-    final pending = List.generate(
-      3,
-      (_) => expectLater(
-        memory.configure(binding, expectedRevision: 0, enabled: false),
-        throwsA(failure(unconfirmed: true)),
-      ),
-    );
-    await Future<void>.delayed(Duration.zero);
-    final closing = memory.close();
-    expect(clients.map((c) => c.closes), [1, 1, 1]);
-    await closing;
-    await memory.close();
-    await Future.wait(pending);
-    expect(cancelled, 3);
-    await expectLater(memory.state(binding), throwsA(failure()));
-    expect(clients.length, 3);
-    expect(clients.map((c) => c.closes), [1, 1, 1]);
-    for (final stream in streams) {
-      await stream.close();
-    }
-    final shared = OwnedClient((r) async => response({}));
-    final held = Completer<http.StreamedResponse>();
-    final own = OwnedClient((r) => held.future);
-    final c = KinaiyaClient(
-      sessionBase: 'http://localhost:8761',
-      agentBase: 'http://synthetic-agent',
-      converseBase: 'https://converse.example',
-      ownerToken: 'token',
-      httpClient: shared,
-      memoryClientFactory: () => own,
-    );
-    final operation = expectLater(c.memory.state(binding), throwsA(failure()));
-    c.close();
-    expect(own.closes, 1);
-    expect(shared.closes, 1);
-    held.complete(response(fixture.stateJson()));
-    await operation;
-    expect(own.closes, 1);
-  });
-  test('unsettled send owners have a finite cap and are released only after late cancellation', () async {
-    final sends = List.generate(8, (_) => Completer<http.StreamedResponse>());
-    final streams = List.generate(8, (_) => StreamController<List<int>>());
-    var made = 0;
-    var cancelled = 0;
-    final memory = MemoryApi(
-      sessionBase: 'http://localhost:8761',
-      converseBase: 'https://converse.example',
-      ownerToken: 'token',
-      requestTimeout: const Duration(milliseconds: 15),
-      cleanupTimeout: const Duration(milliseconds: 30),
-      clientFactory: () {
-        final i = made++;
-        return OwnedClient(
-          (r) => i < 8
-              ? sends[i].future
-              : Future.value(response(fixture.stateJson())),
-        );
-      },
-    );
-    for (var i = 0; i < 8; i++) {
-      await expectLater(memory.state(binding), throwsA(failure()));
-    }
-    await expectLater(
-      memory.configure(binding, expectedRevision: 0, enabled: false),
-      throwsA(failure()),
-    );
-    expect(made, 8);
-    for (var i = 0; i < 8; i++) {
-      streams[i].onCancel = () {
-        cancelled++;
-      };
-      sends[i].complete(
-        http.StreamedResponse(
-          streams[i].stream,
-          200,
-          headers: {'content-type': 'application/json'},
-        ),
+      final off = OwnedClient((r) async => response(fixture.useJson()));
+      expect(
+        (await api(off).configureUse(
+          binding,
+          expectedRuntimeId: 'runtime',
+          expectedGeneration: 0,
+          enabled: false,
+        )).useGeneration,
+        0,
       );
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-    expect(cancelled, 8);
-    expect((await memory.state(binding)).binding, binding);
-    expect(made, 9);
-    await memory.close();
-    for (final stream in streams) {
-      await stream.close();
-    }
-  });
-  test('header refusals cancel body subscription and finite deadline includes body', () async {
-    var cancelled = 0;
-    final stream = StreamController<List<int>>(
-      onCancel: () {
-        cancelled++;
-      },
-    );
-    final c = OwnedClient(
-      (r) async => http.StreamedResponse(
-        stream.stream,
-        302,
-        headers: {'location': 'https://elsewhere.example'},
-      ),
-    );
-    await expectLater(api(c).state(binding), throwsA(failure(status: 302)));
-    expect(cancelled, 1);
-    expect(c.sends, 1);
-    await stream.close();
-    final body = StreamController<List<int>>();
-    final delayed = OwnedClient((r) async {
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-      return http.StreamedResponse(
-        body.stream,
-        200,
-        headers: {'content-type': 'application/json'},
-      );
-    });
-    final watch = Stopwatch()..start();
-    await expectLater(
-      api(delayed, timeout: const Duration(milliseconds: 40)).state(binding),
-      throwsA(failure()),
-    );
-    watch.stop();
-    expect(watch.elapsedMilliseconds, lessThan(200));
-    expect(delayed.closes, 1);
-    await body.close();
-  });
-  test('completed delayed cancellation restores capacity only after successful client close', () async {
-    for (final closeFails in [false, true]) {
-      final releases = List.generate(8, (_) => Completer<void>());
-      final streams = <StreamController<List<int>>>[];
+    },
+  );
+  test(
+    'owner close aborts all active clients once without closing a foreign owner',
+    () async {
+      final streams = List.generate(3, (_) => StreamController<List<int>>());
       final clients = <OwnedClient>[];
-      var cancelStarted = 0;
-      var cancelFinished = 0;
+      var cancelled = 0;
       final memory = MemoryApi(
         sessionBase: 'http://localhost:8761',
         converseBase: 'https://converse.example',
         ownerToken: 'token',
-        requestTimeout: const Duration(milliseconds: 10),
-        cleanupTimeout: const Duration(milliseconds: 10),
         clientFactory: () {
           final index = clients.length;
-          final c = OwnedClient((r) async {
-            if (index >= 8) return response(fixture.stateJson());
-            final stream = StreamController<List<int>>(
-              onCancel: () async {
-                cancelStarted++;
-                await releases[index].future;
-                cancelFinished++;
-              },
-            );
-            streams.add(stream);
-            return http.StreamedResponse(
-              stream.stream,
+          streams[index].onCancel = () {
+            cancelled++;
+          };
+          final c = OwnedClient(
+            (r) async => http.StreamedResponse(
+              streams[index].stream,
               200,
               headers: {'content-type': 'application/json'},
-            );
-          }, closeError: closeFails);
+            ),
+          );
           clients.add(c);
           return c;
+        },
+      );
+      final pending = List.generate(
+        3,
+        (_) => expectLater(
+          memory.configure(binding, expectedRevision: 0, enabled: false),
+          throwsA(failure(unconfirmed: true)),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      final closing = memory.close();
+      expect(clients.map((c) => c.closes), [1, 1, 1]);
+      await closing;
+      await memory.close();
+      await Future.wait(pending);
+      expect(cancelled, 3);
+      await expectLater(memory.state(binding), throwsA(failure()));
+      expect(clients.length, 3);
+      expect(clients.map((c) => c.closes), [1, 1, 1]);
+      for (final stream in streams) {
+        await stream.close();
+      }
+      final shared = OwnedClient((r) async => response({}));
+      final held = Completer<http.StreamedResponse>();
+      final own = OwnedClient((r) => held.future);
+      final c = KinaiyaClient(
+        sessionBase: 'http://localhost:8761',
+        agentBase: 'http://synthetic-agent',
+        converseBase: 'https://converse.example',
+        ownerToken: 'token',
+        httpClient: shared,
+        memoryClientFactory: () => own,
+      );
+      final operation = expectLater(
+        c.memory.state(binding),
+        throwsA(failure()),
+      );
+      c.close();
+      expect(own.closes, 1);
+      expect(shared.closes, 1);
+      held.complete(response(fixture.stateJson()));
+      await operation;
+      expect(own.closes, 1);
+    },
+  );
+  test(
+    'unsettled send owners have a finite cap and are released only after late cancellation',
+    () async {
+      final sends = List.generate(8, (_) => Completer<http.StreamedResponse>());
+      final streams = List.generate(8, (_) => StreamController<List<int>>());
+      var made = 0;
+      var cancelled = 0;
+      final memory = MemoryApi(
+        sessionBase: 'http://localhost:8761',
+        converseBase: 'https://converse.example',
+        ownerToken: 'token',
+        requestTimeout: const Duration(milliseconds: 15),
+        cleanupTimeout: const Duration(milliseconds: 30),
+        clientFactory: () {
+          final i = made++;
+          return OwnedClient(
+            (r) => i < 8
+                ? sends[i].future
+                : Future.value(response(fixture.stateJson())),
+          );
         },
       );
       for (var i = 0; i < 8; i++) {
         await expectLater(memory.state(binding), throwsA(failure()));
       }
-      expect(clients.length, 8);
-      expect(cancelStarted, 8);
-      expect(cancelFinished, 0);
-      expect(clients.map((c) => c.closes), List.filled(8, 1));
-      await expectLater(memory.state(binding), throwsA(failure()));
-      expect(clients.length, 8);
-      for (final release in releases) {
-        release.complete();
+      await expectLater(
+        memory.configure(binding, expectedRevision: 0, enabled: false),
+        throwsA(failure()),
+      );
+      expect(made, 8);
+      for (var i = 0; i < 8; i++) {
+        streams[i].onCancel = () {
+          cancelled++;
+        };
+        sends[i].complete(
+          http.StreamedResponse(
+            streams[i].stream,
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        );
       }
-      for (var i = 0; i < 20 && cancelFinished < 8; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 1));
-      }
-      expect(cancelFinished, 8);
-      if (closeFails) {
-        await expectLater(memory.state(binding), throwsA(failure()));
-        expect(clients.length, 8);
-      } else {
-        expect((await memory.state(binding)).binding, binding);
-        expect(clients.length, 9);
-      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(cancelled, 8);
+      expect((await memory.state(binding)).binding, binding);
+      expect(made, 9);
       await memory.close();
-      expect(clients.every((c) => c.closes == 1), true);
       for (final stream in streams) {
         await stream.close();
       }
-    }
-  });
+    },
+  );
+  test(
+    'header refusals cancel body subscription and finite deadline includes body',
+    () async {
+      var cancelled = 0;
+      final stream = StreamController<List<int>>(
+        onCancel: () {
+          cancelled++;
+        },
+      );
+      final c = OwnedClient(
+        (r) async => http.StreamedResponse(
+          stream.stream,
+          302,
+          headers: {'location': 'https://elsewhere.example'},
+        ),
+      );
+      await expectLater(api(c).state(binding), throwsA(failure(status: 302)));
+      expect(cancelled, 1);
+      expect(c.sends, 1);
+      await stream.close();
+      final body = StreamController<List<int>>();
+      final delayed = OwnedClient((r) async {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        return http.StreamedResponse(
+          body.stream,
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final watch = Stopwatch()..start();
+      await expectLater(
+        api(delayed, timeout: const Duration(milliseconds: 40)).state(binding),
+        throwsA(failure()),
+      );
+      watch.stop();
+      expect(watch.elapsedMilliseconds, lessThan(200));
+      expect(delayed.closes, 1);
+      await body.close();
+    },
+  );
+  test(
+    'completed delayed cancellation restores capacity only after successful client close',
+    () async {
+      for (final closeFails in [false, true]) {
+        final releases = List.generate(8, (_) => Completer<void>());
+        final streams = <StreamController<List<int>>>[];
+        final clients = <OwnedClient>[];
+        var cancelStarted = 0;
+        var cancelFinished = 0;
+        final memory = MemoryApi(
+          sessionBase: 'http://localhost:8761',
+          converseBase: 'https://converse.example',
+          ownerToken: 'token',
+          requestTimeout: const Duration(milliseconds: 10),
+          cleanupTimeout: const Duration(milliseconds: 10),
+          clientFactory: () {
+            final index = clients.length;
+            final c = OwnedClient((r) async {
+              if (index >= 8) return response(fixture.stateJson());
+              final stream = StreamController<List<int>>(
+                onCancel: () async {
+                  cancelStarted++;
+                  await releases[index].future;
+                  cancelFinished++;
+                },
+              );
+              streams.add(stream);
+              return http.StreamedResponse(
+                stream.stream,
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }, closeError: closeFails);
+            clients.add(c);
+            return c;
+          },
+        );
+        for (var i = 0; i < 8; i++) {
+          await expectLater(memory.state(binding), throwsA(failure()));
+        }
+        expect(clients.length, 8);
+        expect(cancelStarted, 8);
+        expect(cancelFinished, 0);
+        expect(clients.map((c) => c.closes), List.filled(8, 1));
+        await expectLater(memory.state(binding), throwsA(failure()));
+        expect(clients.length, 8);
+        for (final release in releases) {
+          release.complete();
+        }
+        for (var i = 0; i < 20 && cancelFinished < 8; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect(cancelFinished, 8);
+        if (closeFails) {
+          await expectLater(memory.state(binding), throwsA(failure()));
+          expect(clients.length, 8);
+        } else {
+          expect((await memory.state(binding)).binding, binding);
+          expect(clients.length, 9);
+        }
+        await memory.close();
+        expect(clients.every((c) => c.closes == 1), true);
+        for (final stream in streams) {
+          await stream.close();
+        }
+      }
+    },
+  );
   testWidgets('successful EOF cancellation restores capacity inside fakeAsync', (
     tester,
   ) async {

@@ -188,9 +188,9 @@ void main() {
       expect(scene.primary, const Color(0xFF12693C));
       expect(scene.background, const Color(0xFFF4FFF5));
       expect(
-        Theme.of(tester.element(find.byType(CharacterView)))
-            .colorScheme
-            .primary,
+        Theme.of(
+          tester.element(find.byType(CharacterView)),
+        ).colorScheme.primary,
         const Color(0xFF12693C),
       );
       await presentation.setPreferences(
@@ -206,8 +206,9 @@ void main() {
         const Color(0xFF7A2255),
       );
       expect(
-        MediaQuery.of(tester.element(find.byType(CharacterView)))
-            .disableAnimations,
+        MediaQuery.of(
+          tester.element(find.byType(CharacterView)),
+        ).disableAnimations,
         isTrue,
       );
       expectVoiceOnlyMain();

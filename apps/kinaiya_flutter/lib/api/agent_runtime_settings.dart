@@ -71,8 +71,9 @@ String _backend(Object? value) {
 
 String _instance(Object? value) {
   if (value is! String ||
-      !RegExp(r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$')
-          .hasMatch(value)) {
+      !RegExp(
+        r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$',
+      ).hasMatch(value)) {
     throw const FormatException('Invalid execution authority');
   }
   return value;
@@ -143,8 +144,9 @@ class AgentRuntimeChange {
         raw['expected_state'] is! String ||
         !RegExp(r'^[a-f0-9]{64}$').hasMatch(raw['expected_state'] as String) ||
         raw['idempotency_key'] is! String ||
-        !RegExp(r'^[A-Za-z0-9:._-]{1,128}$')
-            .hasMatch(raw['idempotency_key'] as String)) {
+        !RegExp(
+          r'^[A-Za-z0-9:._-]{1,128}$',
+        ).hasMatch(raw['idempotency_key'] as String)) {
       throw const FormatException('Invalid execution change');
     }
     _backend(raw['expected_backend']);

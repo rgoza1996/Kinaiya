@@ -194,155 +194,165 @@ void main() {
     },
   );
 
-  test('public timeout and facade close retain late native ownership through actual cancellation', () async {
-    final response = Completer<http.StreamedResponse>();
-    final cancellation = Completer<void>();
-    final stream = StreamController<List<int>>(
-      onCancel: () => cancellation.future,
-    );
-    final client = ModelTestClient((_) => response.future);
-    final api = controlApi(() => client, timeoutMs: 20);
-    final attempt = api.change(AgentModeChange.fromJson(modeChangeJson()));
-    var settled = false;
-    unawaited(attempt.settled.then((_) => settled = true));
-    await expectLater(
-      attempt.result,
-      throwsA(
-        isA<AgentControlFailure>().having(
-          (e) => e.unconfirmed,
-          'uncertain',
-          isTrue,
-        ),
-      ),
-    );
-    await api.close();
-    expect(settled, isFalse);
-    expect(client.closes, 1);
-    response.complete(
-      http.StreamedResponse(
-        stream.stream,
-        200,
-        headers: {'content-type': 'application/json'},
-      ),
-    );
-    await Future<void>.delayed(Duration.zero);
-    expect(settled, isFalse);
-    cancellation.complete();
-    await attempt.settled;
-    expect(settled, isTrue);
-    expect(client.closes, 1);
-    await stream.close();
-  });
-
-  test('32 actual owners are combined across all three domains and hidden late cleanup', () async {
-    final responses = <Completer<http.StreamedResponse>>[];
-    final clients = <ModelTestClient>[];
-    http.Client factory() {
+  test(
+    'public timeout and facade close retain late native ownership through actual cancellation',
+    () async {
       final response = Completer<http.StreamedResponse>();
-      responses.add(response);
+      final cancellation = Completer<void>();
+      final stream = StreamController<List<int>>(
+        onCancel: () => cancellation.future,
+      );
       final client = ModelTestClient((_) => response.future);
-      clients.add(client);
-      return client;
-    }
+      final api = controlApi(() => client, timeoutMs: 20);
+      final attempt = api.change(AgentModeChange.fromJson(modeChangeJson()));
+      var settled = false;
+      unawaited(attempt.settled.then((_) => settled = true));
+      await expectLater(
+        attempt.result,
+        throwsA(
+          isA<AgentControlFailure>().having(
+            (e) => e.unconfirmed,
+            'uncertain',
+            isTrue,
+          ),
+        ),
+      );
+      await api.close();
+      expect(settled, isFalse);
+      expect(client.closes, 1);
+      response.complete(
+        http.StreamedResponse(
+          stream.stream,
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(settled, isFalse);
+      cancellation.complete();
+      await attempt.settled;
+      expect(settled, isTrue);
+      expect(client.closes, 1);
+      await stream.close();
+    },
+  );
 
-    final control = controlApi(factory, timeoutMs: 30);
-    final model = modelApi(factory, timeoutMs: 30);
-    final runtime = runtimeApi(factory, timeoutMs: 30);
-    final outcomes = <Future<void>>[], settled = <Future<void>>[];
-    void retain(Future<Object?> result, Future<void> actual) {
-      outcomes.add(result.then<void>((_) {}, onError: (Object _) {}));
-      settled.add(actual);
-    }
-
-    for (var i = 0; i < 32; i++) {
-      if (i % 3 == 0) {
-        final a = control.snapshot();
-        retain(a.result, a.settled);
-      } else if (i % 3 == 1) {
-        final a = model.change(AgentModelChange.fromJson(changeJson()));
-        retain(a.result, a.settled);
-      } else {
-        final a = runtime.change(
-          AgentRuntimeChange.fromJson(runtimeChangeJson()),
-        );
-        retain(a.result, a.settled);
+  test(
+    '32 actual owners are combined across all three domains and hidden late cleanup',
+    () async {
+      final responses = <Completer<http.StreamedResponse>>[];
+      final clients = <ModelTestClient>[];
+      http.Client factory() {
+        final response = Completer<http.StreamedResponse>();
+        responses.add(response);
+        final client = ModelTestClient((_) => response.future);
+        clients.add(client);
+        return client;
       }
-    }
-    expect(responses.length, 32);
-    for (final capacity in [
-      control.hasCapacity,
-      model.hasCapacity,
-      runtime.hasCapacity,
-    ]) {
-      expect(capacity, isFalse);
-    }
-    final refused = control.snapshot();
-    await expectLater(
-      refused.result,
-      throwsA(
-        isA<AgentControlFailure>().having(
-          (e) => e.unconfirmed,
-          'never sent',
-          isFalse,
-        ),
-      ),
-    );
-    await refused.settled;
-    await Future.wait(outcomes);
-    await Future.wait([control.close(), model.close(), runtime.close()]);
-    expect(clients.every((client) => client.closes == 1), isTrue);
-    expect(responses.length, 32);
-    final fresh = controlApi(factory);
-    expect(fresh.hasCapacity, isFalse);
-    for (final response in responses) {
-      response.complete(modelResponse(controlStateJson()));
-    }
-    await Future.wait(settled);
-    expect(fresh.hasCapacity, isTrue);
-    await fresh.close();
-  });
 
-  test('facade uses Session factory and an injected facade never opens fallback HTTP', () async {
-    final generic = ModelTestClient(
-      (_) async => throw StateError('Generic HTTP must not own mode requests'),
-    );
-    final client = KinaiyaClient(
-      sessionBase: 'https://session.invalid/prefix/',
-      agentBase: 'https://agent.invalid',
-      converseBase: 'https://converse.invalid',
-      ownerToken: 'synthetic-owner',
-      httpClient: generic,
-    );
-    final missing = client.agentControl.snapshot();
-    await expectLater(
-      missing.result,
-      throwsA(
-        isA<AgentControlFailure>().having(
-          (e) => e.unconfirmed,
-          'no dispatch',
-          isFalse,
+      final control = controlApi(factory, timeoutMs: 30);
+      final model = modelApi(factory, timeoutMs: 30);
+      final runtime = runtimeApi(factory, timeoutMs: 30);
+      final outcomes = <Future<void>>[], settled = <Future<void>>[];
+      void retain(Future<Object?> result, Future<void> actual) {
+        outcomes.add(result.then<void>((_) {}, onError: (Object _) {}));
+        settled.add(actual);
+      }
+
+      for (var i = 0; i < 32; i++) {
+        if (i % 3 == 0) {
+          final a = control.snapshot();
+          retain(a.result, a.settled);
+        } else if (i % 3 == 1) {
+          final a = model.change(AgentModelChange.fromJson(changeJson()));
+          retain(a.result, a.settled);
+        } else {
+          final a = runtime.change(
+            AgentRuntimeChange.fromJson(runtimeChangeJson()),
+          );
+          retain(a.result, a.settled);
+        }
+      }
+      expect(responses.length, 32);
+      for (final capacity in [
+        control.hasCapacity,
+        model.hasCapacity,
+        runtime.hasCapacity,
+      ]) {
+        expect(capacity, isFalse);
+      }
+      final refused = control.snapshot();
+      await expectLater(
+        refused.result,
+        throwsA(
+          isA<AgentControlFailure>().having(
+            (e) => e.unconfirmed,
+            'never sent',
+            isFalse,
+          ),
         ),
-      ),
-    );
-    await missing.settled;
-    expect(generic.sends, 0);
-    client.close();
-    final mock = KinaiyaClient.mock(
-      sessionBase: 'https://session.invalid/prefix/',
-      agentBase: 'https://agent.invalid',
-      converseBase: 'https://converse.invalid',
-      mockTransport: generic,
-      agentControlClientFactory: () => ModelTestClient((request) async {
-        expect(
-          request.url.toString(),
-          'https://session.invalid/prefix/v1/agent-control/state',
-        );
-        return modelResponse(controlStateJson());
-      }),
-    );
-    final read = mock.agentControl.snapshot();
-    expect((await read.result).backendId, controlBackendA);
-    await read.settled;
-    mock.close();
-  });
+      );
+      await refused.settled;
+      await Future.wait(outcomes);
+      await Future.wait([control.close(), model.close(), runtime.close()]);
+      expect(clients.every((client) => client.closes == 1), isTrue);
+      expect(responses.length, 32);
+      final fresh = controlApi(factory);
+      expect(fresh.hasCapacity, isFalse);
+      for (final response in responses) {
+        response.complete(modelResponse(controlStateJson()));
+      }
+      await Future.wait(settled);
+      expect(fresh.hasCapacity, isTrue);
+      await fresh.close();
+    },
+  );
+
+  test(
+    'facade uses Session factory and an injected facade never opens fallback HTTP',
+    () async {
+      final generic = ModelTestClient(
+        (_) async =>
+            throw StateError('Generic HTTP must not own mode requests'),
+      );
+      final client = KinaiyaClient(
+        sessionBase: 'https://session.invalid/prefix/',
+        agentBase: 'https://agent.invalid',
+        converseBase: 'https://converse.invalid',
+        ownerToken: 'synthetic-owner',
+        httpClient: generic,
+      );
+      final missing = client.agentControl.snapshot();
+      await expectLater(
+        missing.result,
+        throwsA(
+          isA<AgentControlFailure>().having(
+            (e) => e.unconfirmed,
+            'no dispatch',
+            isFalse,
+          ),
+        ),
+      );
+      await missing.settled;
+      expect(generic.sends, 0);
+      client.close();
+      final mock = KinaiyaClient.mock(
+        sessionBase: 'https://session.invalid/prefix/',
+        agentBase: 'https://agent.invalid',
+        converseBase: 'https://converse.invalid',
+        mockTransport: generic,
+        agentControlClientFactory: () => ModelTestClient((request) async {
+          expect(
+            request.url.toString(),
+            'https://session.invalid/prefix/v1/agent-control/state',
+          );
+          return modelResponse(controlStateJson());
+        }),
+      );
+      final read = mock.agentControl.snapshot();
+      expect((await read.result).backendId, controlBackendA);
+      await read.settled;
+      mock.close();
+    },
+  );
 }

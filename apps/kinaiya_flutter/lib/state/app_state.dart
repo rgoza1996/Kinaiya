@@ -538,7 +538,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (runner == null) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      localSignInError =
+          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
       notifyListeners();
       return false;
     }
@@ -575,14 +576,18 @@ class AppState extends ChangeNotifier {
       localSignInState = LocalHostSignInState.unavailable;
       if (error is LocalSignInException) {
         if (error.code == 'LocalSignInExpired') {
-          localSignInError = 'Local sign-in handoff has expired. Click Recover access to restore your session.';
+          localSignInError =
+              'Local sign-in handoff has expired. Click Recover access to restore your session.';
         } else if (error.code == 'LocalSignInDenied' &&
             error.message.contains('already been consumed')) {
-          localSignInError = 'Local sign-in handoff was already used. Click Recover access to restore your session.';
+          localSignInError =
+              'Local sign-in handoff was already used. Click Recover access to restore your session.';
         } else if (error.code == 'LocalSignInStale') {
-          localSignInError = 'Host was restarted or owner credential rotated. Click Recover access or enter updated credentials.';
+          localSignInError =
+              'Host was restarted or owner credential rotated. Click Recover access or enter updated credentials.';
         } else if (error.code == 'StorageUnavailable') {
-          localSignInError = 'Private credential storage is missing or inaccessible. Check host permissions or run kinaiya init.';
+          localSignInError =
+              'Private credential storage is missing or inaccessible. Check host permissions or run kinaiya init.';
         } else {
           localSignInError = error.message;
         }
@@ -595,7 +600,8 @@ class AppState extends ChangeNotifier {
             errStr.contains('SocketException') ||
             errStr.contains('Failed to fetch') ||
             errStr.contains('ClientException')) {
-          localSignInError = 'Local host service is unreachable at 127.0.0.1. Ensure kinaiya start or kinaiya serve host is running.';
+          localSignInError =
+              'Local host service is unreachable at 127.0.0.1. Ensure kinaiya start or kinaiya serve host is running.';
         } else {
           localSignInError = errStr;
         }
@@ -746,7 +752,8 @@ class AppState extends ChangeNotifier {
     _decisionsModelOptionsRead++;
     decisionsModelOptions = null;
     decisionsModelOptionsLoading = false;
-    decisionsModelOptionsStatus = 'Decisions selection save is unconfirmed. Check the original request in Models.';
+    decisionsModelOptionsStatus =
+        'Decisions selection save is unconfirmed. Check the original request in Models.';
     notifyListeners();
   }
 
@@ -781,7 +788,8 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       if (!current()) return;
       decisionsModelOptions = null;
-      decisionsModelOptionsStatus = 'Decisions model options are unavailable. Other roles remain independent.';
+      decisionsModelOptionsStatus =
+          'Decisions model options are unavailable. Other roles remain independent.';
     } finally {
       if (current()) {
         decisionsModelOptionsLoading = false;
@@ -902,7 +910,8 @@ class AppState extends ChangeNotifier {
         if (agentOnline || converseOnline) {
           // At least one service answered but no role earned consent:
           // disclosure, malformed, or missing provider metadata.
-          connectionError = 'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
+          connectionError =
+              'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
         } else {
           connectionError =
               'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';

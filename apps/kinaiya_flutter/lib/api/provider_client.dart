@@ -74,8 +74,9 @@ class ProviderApi {
         (body['expected_revision'] as int) < 0 ||
         (body['expected_revision'] as int) >= providerMaxRevision ||
         body['client_operation_id'] is! String ||
-        !RegExp(r'^[A-Za-z0-9:._-]{1,128}$')
-            .hasMatch(body['client_operation_id'] as String) ||
+        !RegExp(
+          r'^[A-Za-z0-9:._-]{1,128}$',
+        ).hasMatch(body['client_operation_id'] as String) ||
         !customProviderActions.contains(body['action'])) {
       throw const ProviderFailure('Invalid custom provider change');
     }
@@ -144,8 +145,9 @@ class ProviderApi {
         (body['expected_revision'] as int) < 0 ||
         (body['expected_revision'] as int) >= providerMaxRevision ||
         body['idempotency_key'] is! String ||
-        !RegExp(r'^[A-Za-z0-9:._-]{1,128}$')
-            .hasMatch(body['idempotency_key'] as String) ||
+        !RegExp(
+          r'^[A-Za-z0-9:._-]{1,128}$',
+        ).hasMatch(body['idempotency_key'] as String) ||
         !providerOperations.contains(body['operation'])) {
       throw const ProviderFailure('Invalid provider change');
     }

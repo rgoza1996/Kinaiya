@@ -246,8 +246,9 @@ void main() {
       final state = penpotWired(api)..setTasks(api.fixtures);
       await tester.pumpWidget(
         MaterialApp(
-          theme: ThemeData.from(colorScheme: scheme)
-              .copyWith(cardTheme: CardThemeData(color: scheme.surface)),
+          theme: ThemeData.from(
+            colorScheme: scheme,
+          ).copyWith(cardTheme: CardThemeData(color: scheme.surface)),
           home: Scaffold(
             body: ListenableBuilder(
               listenable: state,

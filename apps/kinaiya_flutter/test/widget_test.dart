@@ -355,15 +355,17 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(2.0)),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2.0)),
             child: child!,
           ),
           home: Scaffold(
             body: MoonlitHome(
               character: const SizedBox(width: 120, height: 120),
               status: 'Ready when you are',
-              helperText: 'Long helper explanation that wraps across multiple lines when text scaling is doubled so the panel scrolls instead of shrinking text.',
+              helperText:
+                  'Long helper explanation that wraps across multiple lines when text scaling is doubled so the panel scrolls instead of shrinking text.',
               callLabel: 'Talk with Kinaiya',
               onCall: () => called++,
               onSetup: () => setupOpened++,

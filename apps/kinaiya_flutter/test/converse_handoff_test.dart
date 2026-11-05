@@ -210,108 +210,128 @@ AppState wired(ReceiptApi api) => AppState()
   ..converseSession = scope;
 
 void main() {
-  test('source and actual native decision establish waiting then acknowledgment, never classifier output alone', () {
-    final tracker = ConverseHandoffTracker()..acceptedSource(scope, 'source');
-    tracker.observe(source(), scope);
-    expect(tracker.observe(receipt('accepted'), scope), isNull);
-    expect(tracker.pendingReceipts, hasLength(1));
-    tracker.observe(decision(), scope);
-    expect(
-      tracker.drainPending(scope).single.text,
-      'Agent accepted the request · Task task-1',
-    );
-    expect(tracker.observe(receipt('queued', sequence: 4), scope), isNull);
-    expect(tracker.observe(receipt('unknown', sequence: 5), scope), isNull);
-    final fresh = ConverseHandoffTracker();
-    fresh.observe(source(), scope);
-    fresh.observe(decision(), scope);
-    expect(
-      fresh.observe(receipt('queued'), scope)!.text,
-      'Waiting for Agent acceptance.',
-    );
-    expect(
-      fresh.observe(receipt('accepted', sequence: 4), scope)!.text,
-      contains('Task task-1'),
-    );
-  });
-
-  test('unrelated causes, native decisions, source bindings and receipt claims cannot announce acceptance', () {
-    for (final invalid in [
-      receipt('accepted', cause: 'unrelated'),
-      receipt('accepted', origin: 'converse'),
-      receipt('accepted', thread: 'other'),
-      receipt('accepted', epoch: 4),
-      receipt('accepted', revision: 2),
-      receipt('accepted', sourceSequence: 2),
-      receipt('accepted', route: 'steer', target: 'task-1'),
-      receipt('accepted', target: 'unrelated-target'),
-      receipt('accepted', extra: {'native_task_id': null}),
-      receipt('accepted', extra: {'native_task_state': 'imaginary'}),
-    ]) {
-      final tracker = ConverseHandoffTracker();
+  test(
+    'source and actual native decision establish waiting then acknowledgment, never classifier output alone',
+    () {
+      final tracker = ConverseHandoffTracker()..acceptedSource(scope, 'source');
       tracker.observe(source(), scope);
-      tracker.observe(decision(), scope);
-      expect(tracker.observe(invalid, scope), isNull);
-      expect(tracker.drainPending(scope), isEmpty);
-    }
-    for (final invalid in [
-      decision(cause: 'other'),
-      decision(sourceId: 'other'),
-      decision(revision: 2),
-      decision(route: 'steer', target: 'task-1'),
-      decision(origin: 'converse'),
-      decision(thread: 'other'),
-      decision(decisionId: 'other'),
-    ]) {
-      final tracker = ConverseHandoffTracker();
-      tracker.observe(source(), scope);
-      tracker.observe(invalid, scope);
       expect(tracker.observe(receipt('accepted'), scope), isNull);
-      expect(tracker.drainPending(scope), isEmpty);
-    }
-  });
+      expect(tracker.pendingReceipts, hasLength(1));
+      tracker.observe(decision(), scope);
+      expect(
+        tracker.drainPending(scope).single.text,
+        'Agent accepted the request · Task task-1',
+      );
+      expect(tracker.observe(receipt('queued', sequence: 4), scope), isNull);
+      expect(tracker.observe(receipt('unknown', sequence: 5), scope), isNull);
+      final fresh = ConverseHandoffTracker();
+      fresh.observe(source(), scope);
+      fresh.observe(decision(), scope);
+      expect(
+        fresh.observe(receipt('queued'), scope)!.text,
+        'Waiting for Agent acceptance.',
+      );
+      expect(
+        fresh.observe(receipt('accepted', sequence: 4), scope)!.text,
+        contains('Task task-1'),
+      );
+    },
+  );
 
-  test('window receipts bind their actual native decision event and queue may create a different task', () {
-    final tracker = ConverseHandoffTracker();
-    tracker.observe(source(utterance: 'u'), scope);
-    tracker.observe(decision(window: true, target: 'prior-task'), scope);
-    expect(
+  test(
+    'unrelated causes, native decisions, source bindings and receipt claims cannot announce acceptance',
+    () {
+      for (final invalid in [
+        receipt('accepted', cause: 'unrelated'),
+        receipt('accepted', origin: 'converse'),
+        receipt('accepted', thread: 'other'),
+        receipt('accepted', epoch: 4),
+        receipt('accepted', revision: 2),
+        receipt('accepted', sourceSequence: 2),
+        receipt('accepted', route: 'steer', target: 'task-1'),
+        receipt('accepted', target: 'unrelated-target'),
+        receipt('accepted', extra: {'native_task_id': null}),
+        receipt('accepted', extra: {'native_task_state': 'imaginary'}),
+      ]) {
+        final tracker = ConverseHandoffTracker();
+        tracker.observe(source(), scope);
+        tracker.observe(decision(), scope);
+        expect(tracker.observe(invalid, scope), isNull);
+        expect(tracker.drainPending(scope), isEmpty);
+      }
+      for (final invalid in [
+        decision(cause: 'other'),
+        decision(sourceId: 'other'),
+        decision(revision: 2),
+        decision(route: 'steer', target: 'task-1'),
+        decision(origin: 'converse'),
+        decision(thread: 'other'),
+        decision(decisionId: 'other'),
+      ]) {
+        final tracker = ConverseHandoffTracker();
+        tracker.observe(source(), scope);
+        tracker.observe(invalid, scope);
+        expect(tracker.observe(receipt('accepted'), scope), isNull);
+        expect(tracker.drainPending(scope), isEmpty);
+      }
+    },
+  );
+
+  test(
+    'window receipts bind their actual native decision event and queue may create a different task',
+    () {
+      final tracker = ConverseHandoffTracker();
+      tracker.observe(source(utterance: 'u'), scope);
+      tracker.observe(decision(window: true, target: 'prior-task'), scope);
+      expect(
+        tracker.observe(
+          receipt(
+            'applied',
+            window: true,
+            cause: 'source',
+            target: 'prior-task',
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        tracker
+            .observe(
+              receipt('applied', window: true, target: 'prior-task'),
+              scope,
+            )!
+            .text,
+        contains('task-1'),
+      );
+      final unrelated = ConverseHandoffTracker();
+      unrelated.observe(source(utterance: 'u'), scope);
+      unrelated.observe(decision(window: true, sourceSequence: 99), scope);
+      expect(
+        unrelated.observe(receipt('applied', window: true), scope),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'an authenticated newer window with unchanged text does not hide a valid ACK',
+    () {
+      final tracker = ConverseHandoffTracker();
+      tracker.observe(source(utterance: 'u'), scope);
+      tracker.observe(decision(window: true), scope);
       tracker.observe(
-        receipt('applied', window: true, cause: 'source', target: 'prior-task'),
+        source(id: 'same-text', sequence: 4, utterance: 'u', index: 1),
         scope,
-      ),
-      isNull,
-    );
-    expect(
-      tracker
-          .observe(
-            receipt('applied', window: true, target: 'prior-task'),
-            scope,
-          )!
-          .text,
-      contains('task-1'),
-    );
-    final unrelated = ConverseHandoffTracker();
-    unrelated.observe(source(utterance: 'u'), scope);
-    unrelated.observe(decision(window: true, sourceSequence: 99), scope);
-    expect(unrelated.observe(receipt('applied', window: true), scope), isNull);
-  });
-
-  test('an authenticated newer window with unchanged text does not hide a valid ACK', () {
-    final tracker = ConverseHandoffTracker();
-    tracker.observe(source(utterance: 'u'), scope);
-    tracker.observe(decision(window: true), scope);
-    tracker.observe(
-      source(id: 'same-text', sequence: 4, utterance: 'u', index: 1),
-      scope,
-    );
-    expect(
-      tracker
-          .observe(receipt('applied', window: true, sequence: 5), scope)!
-          .text,
-      contains('task-1'),
-    );
-  });
+      );
+      expect(
+        tracker
+            .observe(receipt('applied', window: true, sequence: 5), scope)!
+            .text,
+        contains('task-1'),
+      );
+    },
+  );
 
   test(
     'typed corrections bind the current revision and actual correcting cause',
@@ -386,525 +406,557 @@ void main() {
     },
   );
 
-  test('status requires exact window cause; rejection and uncertainty remain generic', () {
-    final tracker = ConverseHandoffTracker();
-    tracker.observe(source(), scope);
-    tracker.observe(decision(), scope);
-    expect(
-      tracker
-          .observe(
-            receipt(
-              'rejected',
-              extra: {'http_status': 403, 'error': 'private body'},
-            ),
-            scope,
-          )!
-          .text,
-      'Agent did not accept this request.',
-    );
-    expect(
-      tracker.observe(receipt('unknown', sequence: 4), scope)!.text,
-      contains('unconfirmed'),
-    );
-    tracker.observe(source(id: 'window', sequence: 5, utterance: 'u'), scope);
-    final payload = {
-      'source_event_id': 'window',
-      'source_sequence': 5,
-      'source_revision': 1,
-      'phase': 'agent_unavailable',
-      'reason': 'agent_status_unavailable',
-    };
-    expect(
-      tracker.observe(
-        event('routing.window_status', 6, payload, causes: ['other']),
-        scope,
-      ),
-      isNull,
-    );
-    expect(
-      tracker
-          .observe(
-            event('routing.window_status', 6, payload, causes: ['window']),
-            scope,
-          )!
-          .text,
-      contains('no confirmed acceptance'),
-    );
-  });
-
-  test('native classification_refused emits conservative unavailable status and preserves accepted bindings (#450)', () {
-    final tracker = ConverseHandoffTracker();
-    tracker.observe(source(), scope);
-    final validRefusal = event(
-      'routing.classification_refused',
-      2,
-      {
-        'source_event_id': 'source',
+  test(
+    'status requires exact window cause; rejection and uncertainty remain generic',
+    () {
+      final tracker = ConverseHandoffTracker();
+      tracker.observe(source(), scope);
+      tracker.observe(decision(), scope);
+      expect(
+        tracker
+            .observe(
+              receipt(
+                'rejected',
+                extra: {'http_status': 403, 'error': 'private body'},
+              ),
+              scope,
+            )!
+            .text,
+        'Agent did not accept this request.',
+      );
+      expect(
+        tracker.observe(receipt('unknown', sequence: 4), scope)!.text,
+        contains('unconfirmed'),
+      );
+      tracker.observe(source(id: 'window', sequence: 5, utterance: 'u'), scope);
+      final payload = {
+        'source_event_id': 'window',
+        'source_sequence': 5,
         'source_revision': 1,
-        'reason': 'provider_refused',
-        'error_type': 'ProviderRefusal',
-      },
-      id: 'refusal-1',
-      causes: ['source'],
-    );
-    final notice = tracker.observe(validRefusal, scope);
-    expect(notice, isNotNull);
-    expect(notice!.status, HandoffStatus.unavailable);
-    expect(
-      notice.text,
-      'Routing unavailable. No Agent acceptance is confirmed for this input.',
-    );
-    // Duplicate poll is ignored.
-    expect(tracker.observe(validRefusal, scope), isNull);
+        'phase': 'agent_unavailable',
+        'reason': 'agent_status_unavailable',
+      };
+      expect(
+        tracker.observe(
+          event('routing.window_status', 6, payload, causes: ['other']),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        tracker
+            .observe(
+              event('routing.window_status', 6, payload, causes: ['window']),
+              scope,
+            )!
+            .text,
+        contains('no confirmed acceptance'),
+      );
+    },
+  );
 
-    // Invalid, cross-session, stale-epoch, old-revision, or unattributed refusal records are ignored.
-    for (final invalid in [
-      event(
+  test(
+    'native classification_refused emits conservative unavailable status and preserves accepted bindings (#450)',
+    () {
+      final tracker = ConverseHandoffTracker();
+      tracker.observe(source(), scope);
+      final validRefusal = event(
         'routing.classification_refused',
-        3,
+        2,
         {
           'source_event_id': 'source',
           'source_revision': 1,
           'reason': 'provider_refused',
           'error_type': 'ProviderRefusal',
         },
-        origin: 'converse',
+        id: 'refusal-1',
         causes: ['source'],
-      ),
-      event(
-        'routing.classification_refused',
-        3,
-        {
-          'source_event_id': 'source',
-          'source_revision': 1,
-          'reason': 'provider_refused',
-          'error_type': 'ProviderRefusal',
-        },
-        thread: 'other',
-        causes: ['source'],
-      ),
-      event(
-        'routing.classification_refused',
-        3,
-        {
-          'source_event_id': 'source',
-          'source_revision': 1,
-          'reason': 'provider_refused',
-          'error_type': 'ProviderRefusal',
-        },
-        epoch: 4,
-        causes: ['source'],
-      ),
-      event(
-        'routing.classification_refused',
-        3,
-        {
-          'source_event_id': 'source',
-          'source_revision': 1,
-          'reason': 'provider_refused',
-          'error_type': 'ProviderRefusal',
-        },
-        causes: ['unrelated'],
-      ),
-      event(
-        'routing.classification_refused',
-        3,
-        {
-          'source_event_id': 'source',
-          'source_revision': 1,
-          'reason': '',
-          'error_type': 'ProviderRefusal',
-        },
-        causes: ['source'],
-      ),
-    ]) {
-      final isolated = ConverseHandoffTracker()..observe(source(), scope);
-      expect(isolated.observe(invalid, scope), isNull);
-      expect(isolated.pendingReceipts, isEmpty);
-    }
+      );
+      final notice = tracker.observe(validRefusal, scope);
+      expect(notice, isNotNull);
+      expect(notice!.status, HandoffStatus.unavailable);
+      expect(
+        notice.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      // Duplicate poll is ignored.
+      expect(tracker.observe(validRefusal, scope), isNull);
 
-    // Revision 2 clears prior notice and accepts revision-bound refusal; old revision 1 refusal is ignored.
-    tracker.observe(
-      event('conversation.revision', 3, {
-        'target_event_id': 'source',
-        'revision': 2,
-        'text': 'Corrected request',
-      }, id: 'rev-2'),
-      scope,
-    );
-    expect(tracker.noticeForSource('source', scope), isNull);
-    expect(
-      tracker.observe(
+      // Invalid, cross-session, stale-epoch, old-revision, or unattributed refusal records are ignored.
+      for (final invalid in [
         event(
           'routing.classification_refused',
-          4,
+          3,
           {
             'source_event_id': 'source',
             'source_revision': 1,
             'reason': 'provider_refused',
             'error_type': 'ProviderRefusal',
           },
-          id: 'stale-refusal',
+          origin: 'converse',
           causes: ['source'],
         ),
-        scope,
-      ),
-      isNull,
-    );
-    final revNotice = tracker.observe(
-      event(
-        'routing.classification_refused',
-        5,
-        {
-          'source_event_id': 'source',
-          'source_revision': 2,
-          'reason': 'provider_refused',
-          'error_type': 'ProviderRefusal',
-        },
-        id: 'rev-refusal',
-        causes: ['rev-2'],
-      ),
-      scope,
-    );
-    expect(revNotice, isNotNull);
-    expect(revNotice!.status, HandoffStatus.unavailable);
-    expect(revNotice.sourceRevision, 2);
-
-    // Existing accepted task bindings are never overwritten by a later refusal record.
-    final acceptedTracker = ConverseHandoffTracker()
-      ..observe(source(), scope)
-      ..observe(decision(), scope);
-    expect(
-      acceptedTracker.observe(receipt('accepted'), scope)!.status,
-      HandoffStatus.accepted,
-    );
-    expect(
-      acceptedTracker.observe(
         event(
           'routing.classification_refused',
-          6,
+          3,
           {
             'source_event_id': 'source',
             'source_revision': 1,
             'reason': 'provider_refused',
             'error_type': 'ProviderRefusal',
           },
-          id: 'late-refusal',
+          thread: 'other',
           causes: ['source'],
         ),
-        scope,
-      ),
-      isNull,
-    );
-    expect(
-      acceptedTracker.noticeForSource('source', scope)!.status,
-      HandoffStatus.accepted,
-    );
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          epoch: 4,
+          causes: ['source'],
+        ),
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          causes: ['unrelated'],
+        ),
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': '',
+            'error_type': 'ProviderRefusal',
+          },
+          causes: ['source'],
+        ),
+      ]) {
+        final isolated = ConverseHandoffTracker()..observe(source(), scope);
+        expect(isolated.observe(invalid, scope), isNull);
+        expect(isolated.pendingReceipts, isEmpty);
+      }
 
-    // Reverse observation order: a valid refusal at seq 20 does not block
-    // later recovery of an authoritative accepted receipt at seq 3.
-    final reverseTracker = ConverseHandoffTracker()..observe(source(), scope);
-    final earlyRefusal = event(
-      'routing.classification_refused',
-      20,
-      {
-        'source_event_id': 'source',
-        'source_revision': 1,
-        'reason': 'provider_refused',
-        'error_type': 'ProviderRefusal',
-      },
-      id: 'refusal-early',
-      causes: ['source'],
-    );
-    expect(
-      reverseTracker.observe(earlyRefusal, scope)!.status,
-      HandoffStatus.unavailable,
-    );
-    reverseTracker.observe(decision(sequence: 2), scope);
-    final recoveredAccept = reverseTracker.observe(
-      receipt('accepted', sequence: 3),
-      scope,
-    );
-    expect(recoveredAccept, isNotNull);
-    expect(recoveredAccept!.status, HandoffStatus.accepted);
-    expect(
-      reverseTracker.noticeForSource('source', scope)!.status,
-      HandoffStatus.accepted,
-    );
-    expect(reverseTracker.observe(earlyRefusal, scope), isNull);
-
-    // Historical revision-A alias cannot be combined with current revision-B payload/cause.
-    final aliasTracker = ConverseHandoffTracker()
-      ..observe(source(), scope)
-      ..observe(
-        event('conversation.revision', 2, {
-          'target_event_id': 'source',
-          'revision': 2,
-          'text': 'Rev 2',
-        }, id: 'rev-2'),
-        scope,
-      )
-      ..observe(
+      // Revision 2 clears prior notice and accepts revision-bound refusal; old revision 1 refusal is ignored.
+      tracker.observe(
         event('conversation.revision', 3, {
           'target_event_id': 'source',
-          'revision': 3,
-          'text': 'Rev 3',
-        }, id: 'rev-3'),
+          'revision': 2,
+          'text': 'Corrected request',
+        }, id: 'rev-2'),
         scope,
       );
-    expect(
-      aliasTracker.observe(
+      expect(tracker.noticeForSource('source', scope), isNull);
+      expect(
+        tracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'source',
+              'source_revision': 1,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'stale-refusal',
+            causes: ['source'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      final revNotice = tracker.observe(
         event(
           'routing.classification_refused',
-          4,
+          5,
           {
-            'source_event_id': 'rev-2',
-            'source_revision': 3,
+            'source_event_id': 'source',
+            'source_revision': 2,
             'reason': 'provider_refused',
             'error_type': 'ProviderRefusal',
           },
-          id: 'mismatch-alias-rev',
-          causes: ['rev-3'],
+          id: 'rev-refusal',
+          causes: ['rev-2'],
         ),
         scope,
-      ),
-      isNull,
-    );
-    expect(
-      aliasTracker.observe(
+      );
+      expect(revNotice, isNotNull);
+      expect(revNotice!.status, HandoffStatus.unavailable);
+      expect(revNotice.sourceRevision, 2);
+
+      // Existing accepted task bindings are never overwritten by a later refusal record.
+      final acceptedTracker = ConverseHandoffTracker()
+        ..observe(source(), scope)
+        ..observe(decision(), scope);
+      expect(
+        acceptedTracker.observe(receipt('accepted'), scope)!.status,
+        HandoffStatus.accepted,
+      );
+      expect(
+        acceptedTracker.observe(
+          event(
+            'routing.classification_refused',
+            6,
+            {
+              'source_event_id': 'source',
+              'source_revision': 1,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'late-refusal',
+            causes: ['source'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        acceptedTracker.noticeForSource('source', scope)!.status,
+        HandoffStatus.accepted,
+      );
+
+      // Reverse observation order: a valid refusal at seq 20 does not block
+      // later recovery of an authoritative accepted receipt at seq 3.
+      final reverseTracker = ConverseHandoffTracker()..observe(source(), scope);
+      final earlyRefusal = event(
+        'routing.classification_refused',
+        20,
+        {
+          'source_event_id': 'source',
+          'source_revision': 1,
+          'reason': 'provider_refused',
+          'error_type': 'ProviderRefusal',
+        },
+        id: 'refusal-early',
+        causes: ['source'],
+      );
+      expect(
+        reverseTracker.observe(earlyRefusal, scope)!.status,
+        HandoffStatus.unavailable,
+      );
+      reverseTracker.observe(decision(sequence: 2), scope);
+      final recoveredAccept = reverseTracker.observe(
+        receipt('accepted', sequence: 3),
+        scope,
+      );
+      expect(recoveredAccept, isNotNull);
+      expect(recoveredAccept!.status, HandoffStatus.accepted);
+      expect(
+        reverseTracker.noticeForSource('source', scope)!.status,
+        HandoffStatus.accepted,
+      );
+      expect(reverseTracker.observe(earlyRefusal, scope), isNull);
+
+      // Historical revision-A alias cannot be combined with current revision-B payload/cause.
+      final aliasTracker = ConverseHandoffTracker()
+        ..observe(source(), scope)
+        ..observe(
+          event('conversation.revision', 2, {
+            'target_event_id': 'source',
+            'revision': 2,
+            'text': 'Rev 2',
+          }, id: 'rev-2'),
+          scope,
+        )
+        ..observe(
+          event('conversation.revision', 3, {
+            'target_event_id': 'source',
+            'revision': 3,
+            'text': 'Rev 3',
+          }, id: 'rev-3'),
+          scope,
+        );
+      expect(
+        aliasTracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'rev-2',
+              'source_revision': 3,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'mismatch-alias-rev',
+            causes: ['rev-3'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        aliasTracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'rev-3',
+              'source_revision': 3,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'mismatch-alias-cause',
+            causes: ['rev-2'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(aliasTracker.pendingReceipts, isEmpty);
+      final validAliasRefusal = aliasTracker.observe(
         event(
           'routing.classification_refused',
-          4,
+          5,
           {
             'source_event_id': 'rev-3',
             'source_revision': 3,
             'reason': 'provider_refused',
             'error_type': 'ProviderRefusal',
           },
-          id: 'mismatch-alias-cause',
-          causes: ['rev-2'],
+          id: 'valid-alias-rev-3',
+          causes: ['rev-3'],
         ),
         scope,
-      ),
-      isNull,
-    );
-    expect(aliasTracker.pendingReceipts, isEmpty);
-    final validAliasRefusal = aliasTracker.observe(
-      event(
+      );
+      expect(validAliasRefusal, isNotNull);
+      expect(validAliasRefusal!.sourceEventId, 'source');
+      expect(validAliasRefusal.sourceRevision, 3);
+    },
+  );
+
+  test(
+    'deferred classification_refused recovers skipped source and revision without decision page reads (#450)',
+    () async {
+      final correction = event('conversation.revision', 4, {
+        'target_event_id': 'source',
+        'revision': 2,
+        'text': 'Corrected request',
+      }, id: 'correction');
+      final refusal = event(
         'routing.classification_refused',
-        5,
+        20,
         {
-          'source_event_id': 'rev-3',
-          'source_revision': 3,
+          'source_event_id': 'source',
+          'source_revision': 2,
           'reason': 'provider_refused',
           'error_type': 'ProviderRefusal',
         },
-        id: 'valid-alias-rev-3',
-        causes: ['rev-3'],
-      ),
-      scope,
-    );
-    expect(validAliasRefusal, isNotNull);
-    expect(validAliasRefusal!.sourceEventId, 'source');
-    expect(validAliasRefusal.sourceRevision, 3);
-  });
+        id: 'refusal-2',
+        causes: ['correction'],
+      );
+      final api = ReceiptApi()
+        ..entries = [refusal]
+        ..references = {
+          'source': source(revision: 2, text: 'Corrected request'),
+          'correction': correction,
+        };
+      final state = wired(api);
+      await state.refreshNotices();
+      expect(state.converseHistory, hasLength(1));
+      expect(
+        state.converseHistory.single.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      expect(api.causalReads, 2);
+      expect(api.decisionCursors, isEmpty);
+      state.dispose();
 
-  test('deferred classification_refused recovers skipped source and revision without decision page reads (#450)', () async {
-    final correction = event('conversation.revision', 4, {
-      'target_event_id': 'source',
-      'revision': 2,
-      'text': 'Corrected request',
-    }, id: 'correction');
-    final refusal = event(
-      'routing.classification_refused',
-      20,
-      {
-        'source_event_id': 'source',
-        'source_revision': 2,
-        'reason': 'provider_refused',
-        'error_type': 'ProviderRefusal',
-      },
-      id: 'refusal-2',
-      causes: ['correction'],
-    );
-    final api = ReceiptApi()
-      ..entries = [refusal]
-      ..references = {
-        'source': source(revision: 2, text: 'Corrected request'),
-        'correction': correction,
-      };
-    final state = wired(api);
-    await state.refreshNotices();
-    expect(state.converseHistory, hasLength(1));
-    expect(
-      state.converseHistory.single.text,
-      'Routing unavailable. No Agent acceptance is confirmed for this input.',
-    );
-    expect(api.causalReads, 2);
-    expect(api.decisionCursors, isEmpty);
-    state.dispose();
-
-    // Bounded alias eviction (>256 revisions on one retained source) recovers evicted alias via authenticated GETs.
-    final otherSource = source(id: 'other', sequence: 2, text: 'Other');
-    final apiEvicted = ReceiptApi()
-      ..entries = [
-        source(id: 'source', sequence: 1, text: 'Initial'),
-        otherSource,
-        correction,
-        for (var i = 0; i < 260; i++)
-          event('conversation.revision', 10 + i, {
-            'target_event_id': 'other',
-            'revision': 2 + i,
-            'text': 'Other rev ${2 + i}',
-          }, id: 'other-rev-$i'),
-        event(
-          'routing.classification_refused',
-          300,
-          {
-            'source_event_id': 'correction',
-            'source_revision': 2,
-            'reason': 'provider_refused',
-            'error_type': 'ProviderRefusal',
-          },
-          id: 'refusal-evicted-alias',
-          causes: ['correction'],
-        ),
-      ]
-      ..references = {
-        'source': source(revision: 2, text: 'Corrected request'),
-        'correction': correction,
-      };
-    final stateEvicted = wired(apiEvicted);
-    await stateEvicted.refreshNotices();
-    await stateEvicted.refreshNotices();
-    await stateEvicted.refreshNotices();
-    expect(stateEvicted.converseHistory, hasLength(1));
-    expect(stateEvicted.converseHistory.single.eventId, 'handoff:source');
-    expect(
-      stateEvicted.converseHistory.single.text,
-      'Routing unavailable. No Agent acceptance is confirmed for this input.',
-    );
-    expect(apiEvicted.causalReads, 2);
-    expect(apiEvicted.decisionCursors, isEmpty);
-    stateEvicted.dispose();
-  });
-
-  test('native polling projects one waiting/accepted notice without causal lookups when fully loaded', () async {
-    final api = ReceiptApi()
-      ..entries = [source(), decision(), receipt('queued')];
-    final state = wired(api);
-    await state.refreshNotices();
-    expect(state.converseHistory.single.text, 'Waiting for Agent acceptance.');
-    api.entries.add(receipt('accepted', id: 'accepted', sequence: 4));
-    await state.refreshNotices();
-    expect(state.converseHistory, hasLength(1));
-    expect(state.converseHistory.single.text, contains('task-1'));
-    expect(api.causalReads, 0);
-    state.dispose();
-  });
-
-  test('fresh reload recovers skipped native source and decision through authenticated reads', () async {
-    final api = ReceiptApi()
-      ..entries = [receipt('accepted', sequence: 20)]
-      ..references = {'source': source()}
-      ..decisions = [decision()];
-    final state = wired(api);
-    await state.refreshNotices();
-    expect(state.converseHistory.single.text, contains('task-1'));
-    expect(api.causalReads, 3);
-    state.dispose();
-  });
-
-  test('a newer native receipt recovers a correction skipped by a resumed journal cursor', () async {
-    final api = ReceiptApi()
-      ..entries = [source(), decision(), receipt('queued')];
-    final state = wired(api);
-    await state.refreshNotices();
-    final correction = event('conversation.revision', 4, {
-      'target_event_id': 'source',
-      'revision': 2,
-    }, id: 'correction');
-    api.references = {'source': source(revision: 2), 'correction': correction};
-    api.decisions = [
-      decision(
-        sequence: 5,
-        decisionId: 'corrected',
-        revision: 2,
-        cause: 'correction',
-      ),
-    ];
-    api.entries.add(
-      receipt(
-        'accepted',
-        id: 'new-revision-receipt',
-        sequence: 20,
-        revision: 2,
-        decisionId: 'corrected',
-        cause: 'correction',
-      ),
-    );
-    await state.refreshNotices();
-    expect(state.converseHistory, hasLength(1));
-    expect(state.converseHistory.single.text, contains('task-1'));
-    expect(api.causalReads, 3);
-    state.dispose();
-  });
-
-  test('typed causal lookup preserves pagination across short pages and transient failures with eight-read budget', () async {
-    final api = ReceiptApi()
-      ..entries = [receipt('accepted', sequence: 20)]
-      ..references = {'source': source()}
-      ..pageSize = 1
-      ..decisions = [
-        for (var n = 2; n < 10; n++)
-          decision(sequence: n, id: 'native-$n', decisionId: 'other-$n'),
-        decision(sequence: 10),
-      ];
-    final state = wired(api);
-    await state.refreshNotices();
-    expect(state.converseHistory, isEmpty);
-    expect(api.causalReads, 8);
-    api.failPages = true;
-    await state.refreshNotices();
-    expect(state.converseHistory, isEmpty);
-    final failedCursor = api.decisionCursors.last;
-    api.failPages = false;
-    await state.refreshNotices();
-    expect(api.decisionCursors[api.decisionCursors.length - 3], failedCursor);
-    expect(state.converseHistory.single.text, contains('task-1'));
-    state.dispose();
-  });
-
-  test('delayed window ACK recovers an evicted source after 256 windows in another utterance', () async {
-    final original = source(utterance: 'utterance-A');
-    final nativeDecision = decision(window: true);
-    final api = ReceiptApi()
-      ..entries = [
-        original,
-        nativeDecision,
-        for (var n = 0; n < 256; n++)
-          source(
-            id: 'other-$n',
-            sequence: n + 3,
-            utterance: 'utterance-B',
-            index: n,
+      // Bounded alias eviction (>256 revisions on one retained source) recovers evicted alias via authenticated GETs.
+      final otherSource = source(id: 'other', sequence: 2, text: 'Other');
+      final apiEvicted = ReceiptApi()
+        ..entries = [
+          source(id: 'source', sequence: 1, text: 'Initial'),
+          otherSource,
+          correction,
+          for (var i = 0; i < 260; i++)
+            event('conversation.revision', 10 + i, {
+              'target_event_id': 'other',
+              'revision': 2 + i,
+              'text': 'Other rev ${2 + i}',
+            }, id: 'other-rev-$i'),
+          event(
+            'routing.classification_refused',
+            300,
+            {
+              'source_event_id': 'correction',
+              'source_revision': 2,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'refusal-evicted-alias',
+            causes: ['correction'],
           ),
-      ]
-      ..references = {'source': original, 'native-decision': nativeDecision}
-      ..latest = original;
-    final state = wired(api);
-    await state.refreshNotices();
-    await state.refreshNotices();
-    expect(
-      state.converseHistory.where((message) => message.note == 'Agent handoff'),
-      isEmpty,
-    );
-    api.entries.add(receipt('applied', window: true, sequence: 400));
-    await state.refreshNotices();
-    expect(state.converseHistory.last.text, contains('task-1'));
-    expect(api.causalReads, 3);
-    state.dispose();
-  });
+        ]
+        ..references = {
+          'source': source(revision: 2, text: 'Corrected request'),
+          'correction': correction,
+        };
+      final stateEvicted = wired(apiEvicted);
+      await stateEvicted.refreshNotices();
+      await stateEvicted.refreshNotices();
+      await stateEvicted.refreshNotices();
+      expect(stateEvicted.converseHistory, hasLength(1));
+      expect(stateEvicted.converseHistory.single.eventId, 'handoff:source');
+      expect(
+        stateEvicted.converseHistory.single.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      expect(apiEvicted.causalReads, 2);
+      expect(apiEvicted.decisionCursors, isEmpty);
+      stateEvicted.dispose();
+    },
+  );
+
+  test(
+    'native polling projects one waiting/accepted notice without causal lookups when fully loaded',
+    () async {
+      final api = ReceiptApi()
+        ..entries = [source(), decision(), receipt('queued')];
+      final state = wired(api);
+      await state.refreshNotices();
+      expect(
+        state.converseHistory.single.text,
+        'Waiting for Agent acceptance.',
+      );
+      api.entries.add(receipt('accepted', id: 'accepted', sequence: 4));
+      await state.refreshNotices();
+      expect(state.converseHistory, hasLength(1));
+      expect(state.converseHistory.single.text, contains('task-1'));
+      expect(api.causalReads, 0);
+      state.dispose();
+    },
+  );
+
+  test(
+    'fresh reload recovers skipped native source and decision through authenticated reads',
+    () async {
+      final api = ReceiptApi()
+        ..entries = [receipt('accepted', sequence: 20)]
+        ..references = {'source': source()}
+        ..decisions = [decision()];
+      final state = wired(api);
+      await state.refreshNotices();
+      expect(state.converseHistory.single.text, contains('task-1'));
+      expect(api.causalReads, 3);
+      state.dispose();
+    },
+  );
+
+  test(
+    'a newer native receipt recovers a correction skipped by a resumed journal cursor',
+    () async {
+      final api = ReceiptApi()
+        ..entries = [source(), decision(), receipt('queued')];
+      final state = wired(api);
+      await state.refreshNotices();
+      final correction = event('conversation.revision', 4, {
+        'target_event_id': 'source',
+        'revision': 2,
+      }, id: 'correction');
+      api.references = {
+        'source': source(revision: 2),
+        'correction': correction,
+      };
+      api.decisions = [
+        decision(
+          sequence: 5,
+          decisionId: 'corrected',
+          revision: 2,
+          cause: 'correction',
+        ),
+      ];
+      api.entries.add(
+        receipt(
+          'accepted',
+          id: 'new-revision-receipt',
+          sequence: 20,
+          revision: 2,
+          decisionId: 'corrected',
+          cause: 'correction',
+        ),
+      );
+      await state.refreshNotices();
+      expect(state.converseHistory, hasLength(1));
+      expect(state.converseHistory.single.text, contains('task-1'));
+      expect(api.causalReads, 3);
+      state.dispose();
+    },
+  );
+
+  test(
+    'typed causal lookup preserves pagination across short pages and transient failures with eight-read budget',
+    () async {
+      final api = ReceiptApi()
+        ..entries = [receipt('accepted', sequence: 20)]
+        ..references = {'source': source()}
+        ..pageSize = 1
+        ..decisions = [
+          for (var n = 2; n < 10; n++)
+            decision(sequence: n, id: 'native-$n', decisionId: 'other-$n'),
+          decision(sequence: 10),
+        ];
+      final state = wired(api);
+      await state.refreshNotices();
+      expect(state.converseHistory, isEmpty);
+      expect(api.causalReads, 8);
+      api.failPages = true;
+      await state.refreshNotices();
+      expect(state.converseHistory, isEmpty);
+      final failedCursor = api.decisionCursors.last;
+      api.failPages = false;
+      await state.refreshNotices();
+      expect(api.decisionCursors[api.decisionCursors.length - 3], failedCursor);
+      expect(state.converseHistory.single.text, contains('task-1'));
+      state.dispose();
+    },
+  );
+
+  test(
+    'delayed window ACK recovers an evicted source after 256 windows in another utterance',
+    () async {
+      final original = source(utterance: 'utterance-A');
+      final nativeDecision = decision(window: true);
+      final api = ReceiptApi()
+        ..entries = [
+          original,
+          nativeDecision,
+          for (var n = 0; n < 256; n++)
+            source(
+              id: 'other-$n',
+              sequence: n + 3,
+              utterance: 'utterance-B',
+              index: n,
+            ),
+        ]
+        ..references = {'source': original, 'native-decision': nativeDecision}
+        ..latest = original;
+      final state = wired(api);
+      await state.refreshNotices();
+      await state.refreshNotices();
+      expect(
+        state.converseHistory.where(
+          (message) => message.note == 'Agent handoff',
+        ),
+        isEmpty,
+      );
+      api.entries.add(receipt('applied', window: true, sequence: 400));
+      await state.refreshNotices();
+      expect(state.converseHistory.last.text, contains('task-1'));
+      expect(api.causalReads, 3);
+      state.dispose();
+    },
+  );
 
   test(
     'malformed latest-window lookup cannot prime a later unverified acceptance',
@@ -1577,7 +1629,8 @@ void main() {
           approvalId: 'app-1',
           taskId: 'task-1',
           tool: 'write_file',
-          actionDigest: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          actionDigest:
+              'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
           objectiveRevision: 1,
           arguments: const {'path': 'report.md'},
           reason: 'Write report',
@@ -1630,8 +1683,10 @@ void main() {
               summary: 'Published preview card',
               objectiveRevision: 1,
               path: 'artifact://art-1',
-              sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-              output: '{"artifact_id":"art-1","kind":"markdown","title":"Report preview"}',
+              sha256:
+                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              output:
+                  '{"artifact_id":"art-1","kind":"markdown","title":"Report preview"}',
             ),
           ],
         ),
@@ -1666,7 +1721,8 @@ void main() {
               summary: 'wrote report.md',
               objectiveRevision: 1,
               path: 'report.md',
-              sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              sha256:
+                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
             ),
           ],
         ),

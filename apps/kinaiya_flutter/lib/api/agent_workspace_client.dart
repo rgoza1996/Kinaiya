@@ -56,8 +56,9 @@ class AgentWorkspaceReader {
         cleanupTimeout <= Duration.zero) {
       throw const WorkspaceReadFailure('Invalid workspace connection');
     }
-    final uri = Uri.parse('${normalizeServiceRoot(base)}$path')
-        .replace(queryParameters: query);
+    final uri = Uri.parse(
+      '${normalizeServiceRoot(base)}$path',
+    ).replace(queryParameters: query);
     final request = http.Request('GET', uri)
       ..followRedirects = false
       ..headers.addAll({

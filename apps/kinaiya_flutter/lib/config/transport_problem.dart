@@ -13,7 +13,8 @@ enum TransportProblem { certificate, offline, unknown }
 TransportProblem classifyTransportError(Object error) => impl.classify(error);
 
 String transportProblemMessage(TransportProblem problem) => switch (problem) {
-  TransportProblem.certificate => 'This device does not trust the host HTTPS certificate. Check the address and the host certificate; Kinaiya never bypasses certificate checks.',
+  TransportProblem.certificate =>
+    'This device does not trust the host HTTPS certificate. Check the address and the host certificate; Kinaiya never bypasses certificate checks.',
   TransportProblem.offline =>
     'Host unreachable. Check the network and the host address, then retry.',
   TransportProblem.unknown =>

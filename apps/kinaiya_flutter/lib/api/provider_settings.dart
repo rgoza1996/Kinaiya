@@ -387,8 +387,9 @@ Map<String, Object?> _openRouterTtsConfig(Map<String, Object?> raw) {
     'model': 'hexgrad/kokoro-82m',
     'voice': 'af_heart',
     'allow_cloud': true,
-    'credential': ProviderCredentialBinding.fromJson(raw['credential'])
-        .toJson(),
+    'credential': ProviderCredentialBinding.fromJson(
+      raw['credential'],
+    ).toJson(),
     'timeout_s': _integer(
       raw.containsKey('timeout_s') ? raw['timeout_s'] : 120,
       1,

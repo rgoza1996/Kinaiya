@@ -178,12 +178,13 @@ class _SettingsHubState extends State<SettingsHub> {
                                   maxLengthEnforcement:
                                       MaxLengthEnforcement.enforced,
                                   textInputAction: TextInputAction.search,
-                                  buildCounter: (
-                                    context, {
-                                    required int currentLength,
-                                    required bool isFocused,
-                                    int? maxLength,
-                                  }) => const SizedBox.shrink(),
+                                  buildCounter:
+                                      (
+                                        context, {
+                                        required int currentLength,
+                                        required bool isFocused,
+                                        int? maxLength,
+                                      }) => const SizedBox.shrink(),
                                   decoration: InputDecoration(
                                     labelText: 'Search settings',
                                     hintText: 'Search settings',

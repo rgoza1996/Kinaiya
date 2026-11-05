@@ -242,7 +242,8 @@ class _PresentationSettingsState extends State<PresentationSettings> {
           _notice = 'Character pack selected.';
         });
       },
-      failure: 'Could not select this character pack. Your current settings are still shown.',
+      failure:
+          'Could not select this character pack. Your current settings are still shown.',
     );
   }
 

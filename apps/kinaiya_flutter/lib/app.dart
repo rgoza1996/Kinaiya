@@ -572,9 +572,9 @@ class _HomeShellState extends State<HomeShell> {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurfaceVariant,
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
                                           ),
                                     ),
                                   ],
@@ -630,9 +630,9 @@ class _HomeShellState extends State<HomeShell> {
                                           page.heading,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
                                         ),
                                       ),
                                       actions,
@@ -953,11 +953,15 @@ class _HomeShellState extends State<HomeShell> {
     }
     final home = page == _ShellPage.home;
     final description = switch (page) {
-      _ShellPage.home => 'Choose where you want to start. Your conversations stay open when you switch sections.',
+      _ShellPage.home =>
+        'Choose where you want to start. Your conversations stay open when you switch sections.',
       _ShellPage.decisions => 'Inspect literal historical Decisions evidence.',
-      _ShellPage.files => 'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
-      _ShellPage.projects => 'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
-      _ShellPage.media => 'A generated media library is not connected to this host yet. No example files are shown as your media.',
+      _ShellPage.files =>
+        'Workspace file browsing is planned. Opening this page does not read files or grant Agent access.',
+      _ShellPage.projects =>
+        'Project management is not connected to this host yet. Existing Agent sessions remain available in Agent.',
+      _ShellPage.media =>
+        'A generated media library is not connected to this host yet. No example files are shown as your media.',
       _ShellPage.converse || _ShellPage.agent || _ShellPage.options => '',
     };
     return Theme(

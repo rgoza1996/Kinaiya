@@ -99,137 +99,152 @@ Map<String, Object?> lookupJson(
 };
 
 void main() {
-  test('legacy and unsupported metadata remain readable but cannot authorize writes', () {
-    expect(
-      AgentModelsSnapshot.fromJson(modelSnapshotJson()).writeAuthority,
-      isNull,
-    );
-    expect(
-      AgentModelsSnapshot.fromJson({
+  test(
+    'legacy and unsupported metadata remain readable but cannot authorize writes',
+    () {
+      expect(
+        AgentModelsSnapshot.fromJson(modelSnapshotJson()).writeAuthority,
+        isNull,
+      );
+      expect(
+        AgentModelsSnapshot.fromJson({
+          ...modelSnapshotJson(),
+          'write_authority': {...authorityJson(), 'mutation_version': 'next'},
+        }).writeAuthority,
+        isNull,
+      );
+      final bound = AgentModelsSnapshot.fromJson({
         ...modelSnapshotJson(),
-        'write_authority': {...authorityJson(), 'mutation_version': 'next'},
-      }).writeAuthority,
-      isNull,
-    );
-    final bound = AgentModelsSnapshot.fromJson({
-      ...modelSnapshotJson(),
-      'write_authority': authorityJson(),
-    });
-    expect(bound.writeAuthority!.backendId, backendA);
-    expect(bound.writeAuthority!.writable, isTrue);
-    expect(authority(writable: false).writable, isFalse);
-    for (final field in ['backend_id', 'instance_id', 'writable']) {
+        'write_authority': authorityJson(),
+      });
+      expect(bound.writeAuthority!.backendId, backendA);
+      expect(bound.writeAuthority!.writable, isTrue);
+      expect(authority(writable: false).writable, isFalse);
+      for (final field in ['backend_id', 'instance_id', 'writable']) {
+        expect(
+          () => AgentModelAuthority.fromJson({...authorityJson(), field: null}),
+          throwsFormatException,
+        );
+      }
       expect(
-        () => AgentModelAuthority.fromJson({...authorityJson(), field: null}),
+        () => AgentModelAuthority.fromJson({...authorityJson(), 'extra': true}),
         throwsFormatException,
       );
-    }
-    expect(
-      () => AgentModelAuthority.fromJson({...authorityJson(), 'extra': true}),
-      throwsFormatException,
-    );
-  });
+    },
+  );
 
-  test('canonical primary, harness inheritance and all purpose bodies remain immutable', () {
-    for (final purpose in <String?>[null, ...agentModelPurposes]) {
-      final source = changeJson(
-        purpose: purpose,
-        harness: 'seed-v1',
-        profile: null,
-      );
-      final request = AgentModelChange.fromJson(source);
-      source['idempotency_key'] = 'changed';
-      expect(request.key, 'synthetic-key');
-      expect(() => request.body['reasoning'] = 'high', throwsUnsupportedError);
-      expect(request.body.containsKey('auxiliary_task'), purpose != null);
-      final receipt = AgentModelReceipt.fromJson(
-        receiptJson(request.body),
-        request,
-      );
-      expect(receipt.json['binding'], isNull);
-      expect(
-        AgentModelLookup.fromJson(lookupJson(request.body), request).receipt,
-        isNotNull,
-      );
-    }
-  });
+  test(
+    'canonical primary, harness inheritance and all purpose bodies remain immutable',
+    () {
+      for (final purpose in <String?>[null, ...agentModelPurposes]) {
+        final source = changeJson(
+          purpose: purpose,
+          harness: 'seed-v1',
+          profile: null,
+        );
+        final request = AgentModelChange.fromJson(source);
+        source['idempotency_key'] = 'changed';
+        expect(request.key, 'synthetic-key');
+        expect(
+          () => request.body['reasoning'] = 'high',
+          throwsUnsupportedError,
+        );
+        expect(request.body.containsKey('auxiliary_task'), purpose != null);
+        final receipt = AgentModelReceipt.fromJson(
+          receiptJson(request.body),
+          request,
+        );
+        expect(receipt.json['binding'], isNull);
+        expect(
+          AgentModelLookup.fromJson(lookupJson(request.body), request).receipt,
+          isNotNull,
+        );
+      }
+    },
+  );
 
-  test('strict canonical grammar refuses omissions, extras, unsafe numbers and inferred authority', () {
-    final bad = <Map<String, Object?>>[
-      {...changeJson(), 'schema_version': '1.0'},
-      {...changeJson(), 'expected_revision': 0.0},
-      {...changeJson(), 'expected_revision': true},
-      {...changeJson(), 'expected_revision': agentModelMaxRevision + 1},
-      {...changeJson(), 'expected_backend': backendA.toUpperCase()},
-      {...changeJson(), 'expected_instance': ''},
-      {...changeJson(), 'auxiliary_task': null},
-      {...changeJson(), 'extra': null},
-      {...changeJson(), 'profile_id': '\ud800'},
-      {...changeJson(), 'idempotency_key': 'a/b'},
-      {...changeJson()}..remove('harness_version'),
-    ];
-    for (final body in bad) {
-      expect(() => AgentModelChange.fromJson(body), throwsFormatException);
-    }
-    expect(
-      AgentModelChange.fromJson(changeJson(profile: '模型')).body['profile_id'],
-      '模型',
-    );
-  });
+  test(
+    'strict canonical grammar refuses omissions, extras, unsafe numbers and inferred authority',
+    () {
+      final bad = <Map<String, Object?>>[
+        {...changeJson(), 'schema_version': '1.0'},
+        {...changeJson(), 'expected_revision': 0.0},
+        {...changeJson(), 'expected_revision': true},
+        {...changeJson(), 'expected_revision': agentModelMaxRevision + 1},
+        {...changeJson(), 'expected_backend': backendA.toUpperCase()},
+        {...changeJson(), 'expected_instance': ''},
+        {...changeJson(), 'auxiliary_task': null},
+        {...changeJson(), 'extra': null},
+        {...changeJson(), 'profile_id': '\ud800'},
+        {...changeJson(), 'idempotency_key': 'a/b'},
+        {...changeJson()}..remove('harness_version'),
+      ];
+      for (final body in bad) {
+        expect(() => AgentModelChange.fromJson(body), throwsFormatException);
+      }
+      expect(
+        AgentModelChange.fromJson(changeJson(profile: '模型')).body['profile_id'],
+        '模型',
+      );
+    },
+  );
 
-  test('recorded proof binds backend, original instance, full request and exact receipt', () {
-    final request = AgentModelChange.fromJson(
-      changeJson(purpose: 'analysis', reasoning: 'high'),
-    );
-    final valid = receiptJson(request.body);
-    for (final field in [
-      'backend_id',
-      'service_instance',
-      'idempotency_key',
-      'revision',
-      'harness_version',
-      'binding',
-      'auxiliary_task',
-      'schema_version',
-      'change_boundary',
-    ]) {
-      expect(
-        () => AgentModelReceipt.fromJson({...valid, field: 'wrong'}, request),
-        throwsFormatException,
+  test(
+    'recorded proof binds backend, original instance, full request and exact receipt',
+    () {
+      final request = AgentModelChange.fromJson(
+        changeJson(purpose: 'analysis', reasoning: 'high'),
       );
-    }
-    for (final raw in [
-      {...lookupJson(request.body), 'mutation_fenced': false},
-      {...lookupJson(request.body), 'mutation_fenced': 1},
-      {...lookupJson(request.body), 'backend_id': backendB},
-      {
-        ...lookupJson(request.body),
-        'request': {...request.body, 'expected_instance': instanceB},
-      },
-      {
-        ...lookupJson(request.body),
-        'request': {...request.body, 'reasoning': null},
-      },
-      {...lookupJson(request.body), 'extra': true},
-    ]) {
+      final valid = receiptJson(request.body);
+      for (final field in [
+        'backend_id',
+        'service_instance',
+        'idempotency_key',
+        'revision',
+        'harness_version',
+        'binding',
+        'auxiliary_task',
+        'schema_version',
+        'change_boundary',
+      ]) {
+        expect(
+          () => AgentModelReceipt.fromJson({...valid, field: 'wrong'}, request),
+          throwsFormatException,
+        );
+      }
+      for (final raw in [
+        {...lookupJson(request.body), 'mutation_fenced': false},
+        {...lookupJson(request.body), 'mutation_fenced': 1},
+        {...lookupJson(request.body), 'backend_id': backendB},
+        {
+          ...lookupJson(request.body),
+          'request': {...request.body, 'expected_instance': instanceB},
+        },
+        {
+          ...lookupJson(request.body),
+          'request': {...request.body, 'reasoning': null},
+        },
+        {...lookupJson(request.body), 'extra': true},
+      ]) {
+        expect(
+          () => AgentModelLookup.fromJson(raw, request),
+          throwsFormatException,
+        );
+      }
       expect(
-        () => AgentModelLookup.fromJson(raw, request),
-        throwsFormatException,
+        AgentModelLookup.fromJson(
+          lookupJson(request.body, recorded: false, fenced: false),
+          request,
+        ).refused,
+        isFalse,
       );
-    }
-    expect(
-      AgentModelLookup.fromJson(
-        lookupJson(request.body, recorded: false, fenced: false),
-        request,
-      ).refused,
-      isFalse,
-    );
-    expect(
-      AgentModelLookup.fromJson(
-        lookupJson(request.body, recorded: false),
-        request,
-      ).refused,
-      isTrue,
-    );
-  });
+      expect(
+        AgentModelLookup.fromJson(
+          lookupJson(request.body, recorded: false),
+          request,
+        ).refused,
+        isTrue,
+      );
+    },
+  );
 }

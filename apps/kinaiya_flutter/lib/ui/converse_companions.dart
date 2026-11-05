@@ -415,7 +415,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
         timer.cancel();
         setState(() {
           _issuedPairing = null;
-          _notice = 'The one-time pairing code expired after 120 seconds. Issue a new code when ready.';
+          _notice =
+              'The one-time pairing code expired after 120 seconds. Issue a new code when ready.';
         });
       } else {
         setState(() {});
@@ -589,7 +590,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       setState(() {
         _issuedPairing = issued;
         _pairingError = null;
-        _notice = 'One-time pairing code issued in memory. Copy it before it expires.';
+        _notice =
+            'One-time pairing code issued in memory. Copy it before it expires.';
       });
       _startExpiryTicker();
     } on OwnerCompanionFailure catch (e) {
@@ -643,7 +645,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final scope = _ensureScopeUncertainty(key);
     if (scope == null) {
       setState(() {
-        _notice = 'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
+        _notice =
+            'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
       });
       return;
     }
@@ -676,7 +679,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final scope = _ensureScopeUncertainty(scopeKey);
     if (scope == null) {
       setState(() {
-        _notice = 'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
+        _notice =
+            'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
       });
       return;
     }
@@ -726,7 +730,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       if (e.unconfirmed) {
         setState(() {
-          _notice = 'Invitation request is unconfirmed. Retry sends the exact original request, or Refresh to inspect current calls.';
+          _notice =
+              'Invitation request is unconfirmed. Retry sends the exact original request, or Refresh to inspect current calls.';
         });
       } else {
         setState(() {
@@ -835,7 +840,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final scope = _ensureScopeUncertainty(scopeKey);
     if (scope == null) {
       setState(() {
-        _notice = 'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
+        _notice =
+            'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
       });
       return;
     }
@@ -868,7 +874,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final scope = _ensureScopeUncertainty(scopeKey);
     if (scope == null) {
       setState(() {
-        _notice = 'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
+        _notice =
+            'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
       });
       return;
     }
@@ -925,7 +932,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
       if (!mounted || token != _actionToken || !_scopeMatches()) return;
       if (e.unconfirmed) {
         setState(() {
-          _notice = 'End request is unconfirmed. Retry sends the exact original request, or Inspect to reconcile.';
+          _notice =
+              'End request is unconfirmed. Retry sends the exact original request, or Inspect to reconcile.';
         });
       } else {
         setState(() {
@@ -976,7 +984,8 @@ class _ConverseCompanionsDialogState extends State<ConverseCompanionsDialog>
     final scope = _ensureScopeUncertainty(scopeKey);
     if (scope == null) {
       setState(() {
-        _notice = 'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
+        _notice =
+            'Too many unresolved companion scopes are retained. Reconcile existing requests first.';
       });
       return;
     }

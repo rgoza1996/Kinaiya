@@ -249,7 +249,8 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
       }
       setState(() {
         _loading = false;
-        _error = 'Model configuration is unavailable from this host. No model settings were changed.';
+        _error =
+            'Model configuration is unavailable from this host. No model settings were changed.';
       });
     }
   }
@@ -458,8 +459,9 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: colors.primary),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.primary),
             ),
           ),
         ],

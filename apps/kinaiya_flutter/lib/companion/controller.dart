@@ -52,7 +52,9 @@ class CompanionController extends ChangeNotifier {
       if (_current(generation)) {
         _client?.close();
         _client = null;
-        message = error is CompanionFailure ? error.message : 'Pairing failed. Ask the host for a new invitation and try again.';
+        message = error is CompanionFailure
+            ? error.message
+            : 'Pairing failed. Ask the host for a new invitation and try again.';
       }
     } finally {
       if (_current(generation)) {

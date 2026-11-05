@@ -420,99 +420,111 @@ void main() {
     },
   );
 
-  test('authenticated resource intent requires its owner revision and cannot retreat', () async {
-    final api = SleepApi();
-    final state = AppState()
-      ..connect(ConnectionProfile.defaults(), injected: api);
-    Map<String, Object?> resources(
-      Object? ownerRevision,
-      bool desired,
-      int revision,
-    ) => {
-      'controller_id': 'synthetic-controller',
-      'policy': {
-        'phase': 'off',
-        'revision': revision,
-        'desired_converse': desired,
-        if (ownerRevision != null) 'owner_intent_revision': ownerRevision,
-      },
-    };
-    api.resources = resources(null, false, 1);
-    await state.refreshResources();
-    expect(state.converseSleeping, isFalse);
-    api.resources = resources(3, false, 2);
-    await state.refreshResources();
-    expect(state.converseSleeping, isTrue);
-    api.resources = resources(2, true, 3);
-    await state.refreshResources();
-    expect(state.resourceStatusStale, isTrue);
-    expect(state.converseSleeping, isFalse);
-    api.resources = resources(4, true, 4);
-    await state.refreshResources();
-    expect(state.converseOwnerEnabled, isTrue);
-    expect(
-      state.converseEnabled,
-      isFalse,
-      reason: 'owner on does not establish worker readiness',
-    );
-    state.applyConverseHealth(availability(false, 3));
-    expect(state.converseOwnerEnabled, isTrue);
-    state.dispose();
-  });
+  test(
+    'authenticated resource intent requires its owner revision and cannot retreat',
+    () async {
+      final api = SleepApi();
+      final state = AppState()
+        ..connect(ConnectionProfile.defaults(), injected: api);
+      Map<String, Object?> resources(
+        Object? ownerRevision,
+        bool desired,
+        int revision,
+      ) => {
+        'controller_id': 'synthetic-controller',
+        'policy': {
+          'phase': 'off',
+          'revision': revision,
+          'desired_converse': desired,
+          if (ownerRevision != null) 'owner_intent_revision': ownerRevision,
+        },
+      };
+      api.resources = resources(null, false, 1);
+      await state.refreshResources();
+      expect(state.converseSleeping, isFalse);
+      api.resources = resources(3, false, 2);
+      await state.refreshResources();
+      expect(state.converseSleeping, isTrue);
+      api.resources = resources(2, true, 3);
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isTrue);
+      expect(state.converseSleeping, isFalse);
+      api.resources = resources(4, true, 4);
+      await state.refreshResources();
+      expect(state.converseOwnerEnabled, isTrue);
+      expect(
+        state.converseEnabled,
+        isFalse,
+        reason: 'owner on does not establish worker readiness',
+      );
+      state.applyConverseHealth(availability(false, 3));
+      expect(state.converseOwnerEnabled, isTrue);
+      state.dispose();
+    },
+  );
 
-  test('ready resource snapshot without owner identity cannot override confirmed off', () async {
-    final api = SleepApi()..health = availability(false, 3);
-    final state = wired(api);
-    api.resources = {
-      'controller_id': 'new',
-      'policy': {'revision': 1, 'phase': 'ready', 'desired_converse': true},
-    };
-    await state.refreshResources();
-    expect(state.converseEnabled, isFalse);
-    expect(state.converseSleeping, isTrue);
-    expect(state.converseOwnerEnabled, isFalse);
-    state.dispose();
-  });
+  test(
+    'ready resource snapshot without owner identity cannot override confirmed off',
+    () async {
+      final api = SleepApi()..health = availability(false, 3);
+      final state = wired(api);
+      api.resources = {
+        'controller_id': 'new',
+        'policy': {'revision': 1, 'phase': 'ready', 'desired_converse': true},
+      };
+      await state.refreshResources();
+      expect(state.converseEnabled, isFalse);
+      expect(state.converseSleeping, isTrue);
+      expect(state.converseOwnerEnabled, isFalse);
+      state.dispose();
+    },
+  );
 
-  test('restoration needs fresh native health and rechecks unchanged ready resources', () async {
-    final api = SleepApi()..health = availability(true, 3, resource: false);
-    final state = wired(api);
-    api.resources = {
-      'controller_id': 'new',
-      'policy': {
-        'revision': 1,
-        'phase': 'ready',
-        'desired_converse': true,
-        'owner_intent_revision': 3,
-      },
-    };
-    await state.refreshResources();
-    expect(state.converseEnabled, isFalse);
-    expect(api.reads, 1);
-    api.health = availability(true, 3);
-    await state.refreshResources();
-    expect(api.reads, 2);
-    expect(state.converseEnabled, isTrue);
-    expect(state.converseSleeping, isFalse);
-    state.dispose();
-  });
+  test(
+    'restoration needs fresh native health and rechecks unchanged ready resources',
+    () async {
+      final api = SleepApi()..health = availability(true, 3, resource: false);
+      final state = wired(api);
+      api.resources = {
+        'controller_id': 'new',
+        'policy': {
+          'revision': 1,
+          'phase': 'ready',
+          'desired_converse': true,
+          'owner_intent_revision': 3,
+        },
+      };
+      await state.refreshResources();
+      expect(state.converseEnabled, isFalse);
+      expect(api.reads, 1);
+      api.health = availability(true, 3);
+      await state.refreshResources();
+      expect(api.reads, 2);
+      expect(state.converseEnabled, isTrue);
+      expect(state.converseSleeping, isFalse);
+      state.dispose();
+    },
+  );
 
-  test('malformed owner health fails closed without treating effective off as sleep', () {
-    final state = wired(SleepApi());
-    expect(
-      () => state.applyConverseHealth({
-        'enabled': false,
-        'owner_enabled': false,
-        'owner_intent_revision': 'invalid',
-        'resource_enabled': true,
-      }),
-      throwsFormatException,
-    );
-    expect(state.converseEnabled, isFalse);
-    expect(state.converseSleeping, isFalse);
-    expect(state.converseOwnerControlAvailable, isFalse);
-    state.dispose();
-  });
+  test(
+    'malformed owner health fails closed without treating effective off as sleep',
+    () {
+      final state = wired(SleepApi());
+      expect(
+        () => state.applyConverseHealth({
+          'enabled': false,
+          'owner_enabled': false,
+          'owner_intent_revision': 'invalid',
+          'resource_enabled': true,
+        }),
+        throwsFormatException,
+      );
+      expect(state.converseEnabled, isFalse);
+      expect(state.converseSleeping, isFalse);
+      expect(state.converseOwnerControlAvailable, isFalse);
+      state.dispose();
+    },
+  );
 
   test(
     'native owner POST retains intent when effective availability remains off',
@@ -558,23 +570,26 @@ void main() {
     },
   );
 
-  test('one pending mutation, failed acknowledgement reconciles without another POST', () async {
-    final api = SleepApi()..pendingWrite = Completer<Map<String, Object?>>();
-    final state = wired(api);
-    final operation = state.setConverseEnabled(false);
-    expect(state.converseControlPending, isTrue);
-    expect(state.converseSleeping, isFalse);
-    await state.setConverseEnabled(false);
-    expect(api.writes, [false]);
-    api.health = availability(false, 1);
-    api.pendingWrite!.completeError(StateError('Synthetic lost response'));
-    await operation;
-    expect(api.reads, 1);
-    expect(api.writes, [false]);
-    expect(state.converseSleeping, isTrue);
-    expect(state.converseControlError, isNull);
-    state.dispose();
-  });
+  test(
+    'one pending mutation, failed acknowledgement reconciles without another POST',
+    () async {
+      final api = SleepApi()..pendingWrite = Completer<Map<String, Object?>>();
+      final state = wired(api);
+      final operation = state.setConverseEnabled(false);
+      expect(state.converseControlPending, isTrue);
+      expect(state.converseSleeping, isFalse);
+      await state.setConverseEnabled(false);
+      expect(api.writes, [false]);
+      api.health = availability(false, 1);
+      api.pendingWrite!.completeError(StateError('Synthetic lost response'));
+      await operation;
+      expect(api.reads, 1);
+      expect(api.writes, [false]);
+      expect(state.converseSleeping, isTrue);
+      expect(state.converseControlError, isNull);
+      state.dispose();
+    },
+  );
 
   test(
     'unresolved write blocks retries until explicit read succeeds',

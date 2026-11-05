@@ -228,31 +228,34 @@ void main() {
     },
   );
 
-  test('weighted selection is deterministic, stable within cycles and proportional', () {
-    final pack = playbackPack(
-      activities: {
-        'idle': [
-          PackVariant(animation: 'inspect', weight: 1),
-          PackVariant(animation: 'code', weight: 3),
-        ],
-      },
-    );
-    final first = CharacterPlayback(pack), second = CharacterPlayback(pack);
-    final counts = <String, int>{'inspect': 0, 'code': 0};
-    for (var cycle = 0; cycle < 2000; cycle++) {
-      final time = cycle * 400;
-      final a = first.update(const CharacterSignals(), ms(time));
-      final b = second.update(const CharacterSignals(), ms(time));
-      expect(a.animationId, b.animationId);
-      expect(a.animationElapsed, Duration.zero);
-      counts[a.animationId] = counts[a.animationId]! + 1;
-      final mid = first.update(const CharacterSignals(), ms(time + 399));
-      expect(mid.animationId, a.animationId);
-      expect(mid.animationElapsed, ms(399));
-    }
-    expect(counts['inspect'], inInclusiveRange(450, 550));
-    expect(counts['code'], inInclusiveRange(1450, 1550));
-  });
+  test(
+    'weighted selection is deterministic, stable within cycles and proportional',
+    () {
+      final pack = playbackPack(
+        activities: {
+          'idle': [
+            PackVariant(animation: 'inspect', weight: 1),
+            PackVariant(animation: 'code', weight: 3),
+          ],
+        },
+      );
+      final first = CharacterPlayback(pack), second = CharacterPlayback(pack);
+      final counts = <String, int>{'inspect': 0, 'code': 0};
+      for (var cycle = 0; cycle < 2000; cycle++) {
+        final time = cycle * 400;
+        final a = first.update(const CharacterSignals(), ms(time));
+        final b = second.update(const CharacterSignals(), ms(time));
+        expect(a.animationId, b.animationId);
+        expect(a.animationElapsed, Duration.zero);
+        counts[a.animationId] = counts[a.animationId]! + 1;
+        final mid = first.update(const CharacterSignals(), ms(time + 399));
+        expect(mid.animationId, a.animationId);
+        expect(mid.animationElapsed, ms(399));
+      }
+      expect(counts['inspect'], inInclusiveRange(450, 550));
+      expect(counts['code'], inInclusiveRange(1450, 1550));
+    },
+  );
 
   test(
     'pack identity/version participate in deterministic variant sequence',
@@ -308,37 +311,43 @@ void main() {
     },
   );
 
-  test('all AND conditions apply and false conditions release a variant immediately', () {
-    final playback = CharacterPlayback(
-      playbackPack(
-        activities: {
-          'idle': [
-            PackVariant(animation: 'inspect', when: {'quiet', 'working'}),
-          ],
-        },
-      ),
-    );
-    expect(
-      playback
-          .update(
-            const CharacterSignals(working: true, activity: 'unknown'),
-            ms(0),
-          )
-          .animationId,
-      'inspect',
-    );
-    expect(
-      playback.update(const CharacterSignals(), ms(1)).animationId,
-      'idle',
-    );
-    // Quiet is false while listening; selection is the real listening semantic.
-    expect(
-      playback
-          .update(const CharacterSignals(listening: true, working: true), ms(2))
-          .animationId,
-      'listening',
-    );
-  });
+  test(
+    'all AND conditions apply and false conditions release a variant immediately',
+    () {
+      final playback = CharacterPlayback(
+        playbackPack(
+          activities: {
+            'idle': [
+              PackVariant(animation: 'inspect', when: {'quiet', 'working'}),
+            ],
+          },
+        ),
+      );
+      expect(
+        playback
+            .update(
+              const CharacterSignals(working: true, activity: 'unknown'),
+              ms(0),
+            )
+            .animationId,
+        'inspect',
+      );
+      expect(
+        playback.update(const CharacterSignals(), ms(1)).animationId,
+        'idle',
+      );
+      // Quiet is false while listening; selection is the real listening semantic.
+      expect(
+        playback
+            .update(
+              const CharacterSignals(listening: true, working: true),
+              ms(2),
+            )
+            .animationId,
+        'listening',
+      );
+    },
+  );
 
   test(
     'work hysteresis lasts650ms and retains honest newly requested semantic',
@@ -381,29 +390,32 @@ void main() {
     },
   );
 
-  test('urgent/readiness transitions bypass work hold and do not wait for approach', () {
-    for (final signals in [
-      const CharacterSignals(speaking: true, warming: true),
-      const CharacterSignals(listening: true),
-      const CharacterSignals(activity: 'alert.critical'),
-      const CharacterSignals(blocked: true),
-      const CharacterSignals(),
-    ]) {
-      final playback = CharacterPlayback(
-        playbackPack(
-          activities: {
-            'working.write_code': [PackVariant(animation: 'code')],
-            'alert.critical': [PackVariant(animation: 'critical')],
-          },
-        ),
-      );
-      playback.update(work('working.write_code'), ms(0));
-      final frame = playback.update(signals, ms(1));
-      expect(frame.semantic, signals.semantic);
-      expect(frame.animationId, isNot('code'));
-      expect(frame.approach, 1);
-    }
-  });
+  test(
+    'urgent/readiness transitions bypass work hold and do not wait for approach',
+    () {
+      for (final signals in [
+        const CharacterSignals(speaking: true, warming: true),
+        const CharacterSignals(listening: true),
+        const CharacterSignals(activity: 'alert.critical'),
+        const CharacterSignals(blocked: true),
+        const CharacterSignals(),
+      ]) {
+        final playback = CharacterPlayback(
+          playbackPack(
+            activities: {
+              'working.write_code': [PackVariant(animation: 'code')],
+              'alert.critical': [PackVariant(animation: 'critical')],
+            },
+          ),
+        );
+        playback.update(work('working.write_code'), ms(0));
+        final frame = playback.update(signals, ms(1));
+        expect(frame.semantic, signals.semantic);
+        expect(frame.animationId, isNot('code'));
+        expect(frame.approach, 1);
+      }
+    },
+  );
 
   test(
     'warming enters0 reaches1 over1200ms and ready speech exits immediately',
@@ -456,25 +468,28 @@ void main() {
     },
   );
 
-  test('regressing and negative clocks clamp without backward animation or approach', () {
-    final playback = CharacterPlayback(playbackPack());
-    final first = playback.update(
-      const CharacterSignals(warming: true),
-      ms(-10),
-    );
-    expect(first.animationElapsed, Duration.zero);
-    expect(first.approach, 0);
-    final later = playback.update(
-      const CharacterSignals(warming: true),
-      ms(300),
-    );
-    final regression = playback.update(
-      const CharacterSignals(warming: true),
-      ms(200),
-    );
-    expect(regression.animationElapsed, later.animationElapsed);
-    expect(regression.approach, later.approach);
-  });
+  test(
+    'regressing and negative clocks clamp without backward animation or approach',
+    () {
+      final playback = CharacterPlayback(playbackPack());
+      final first = playback.update(
+        const CharacterSignals(warming: true),
+        ms(-10),
+      );
+      expect(first.animationElapsed, Duration.zero);
+      expect(first.approach, 0);
+      final later = playback.update(
+        const CharacterSignals(warming: true),
+        ms(300),
+      );
+      final regression = playback.update(
+        const CharacterSignals(warming: true),
+        ms(200),
+      );
+      expect(regression.animationElapsed, later.animationElapsed);
+      expect(regression.approach, later.approach);
+    },
+  );
 
   test(
     'one-shots clamp without restart or variant churn absent semantic change',

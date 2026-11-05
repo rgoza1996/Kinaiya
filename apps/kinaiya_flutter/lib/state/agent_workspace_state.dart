@@ -459,7 +459,8 @@ extension AgentWorkspaceState on AppState {
                   ? error
                   : 'Task state: $state',
               eventId: entry.eventId,
-              note: 'Recorded Agent outcome; inspect task evidence for completion.',
+              note:
+                  'Recorded Agent outcome; inspect task evidence for completion.',
             ),
           );
         }
@@ -494,7 +495,8 @@ extension AgentWorkspaceState on AppState {
       _saveAgentWorkspace();
     } catch (_) {
       if (current()) {
-        data.historyError = 'History unavailable or session changed. Select the session to verify it again.';
+        data.historyError =
+            'History unavailable or session changed. Select the session to verify it again.';
       }
     } finally {
       if (current()) {
@@ -554,7 +556,8 @@ extension AgentWorkspaceState on AppState {
     } catch (_) {
       if (!ownsConnection(generation, api)) return null;
       data.creationUncertain = true;
-      data.sessionError = 'Session creation unconfirmed. Refresh and inspect sessions before creating another.';
+      data.sessionError =
+          'Session creation unconfirmed. Refresh and inspect sessions before creating another.';
     } finally {
       if (ownsConnection(generation, api)) {
         data.creating = false;

@@ -618,8 +618,9 @@ class _MoonlitHomeState extends State<MoonlitHome>
             Text(
               widget.sleeping ? 'Kinaiya is sleeping' : widget.status,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w700),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             if (widget.sleeping) const Text('Converse is offline'),
             if (widget.helperText != null &&
@@ -854,7 +855,8 @@ class _MoonlitHomeState extends State<MoonlitHome>
                               )
                             : HomeSpriteSheet(
                                 key: const ValueKey('home-sleeping-artwork'),
-                                asset: 'assets/character/kinaiya-sleeping-idle-v3.png',
+                                asset:
+                                    'assets/character/kinaiya-sleeping-idle-v3.png',
                                 animate: widget.animateCharacter,
                                 frameOffsets: _sleepFrameOffsets,
                               );

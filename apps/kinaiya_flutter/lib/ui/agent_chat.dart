@@ -120,7 +120,8 @@ class _SidebarResizeHandleState extends State<_SidebarResizeHandle> {
     );
     return Semantics(
       label: 'Resize ${widget.label}',
-      hint: 'Drag or use the left and right arrow keys to expand, resize, or collapse.',
+      hint:
+          'Drag or use the left and right arrow keys to expand, resize, or collapse.',
       enabled: true,
       focusable: true,
       value: widget.collapsed
@@ -199,8 +200,9 @@ class _SidebarResizeHandleState extends State<_SidebarResizeHandle> {
               decoration: BoxDecoration(
                 color: _hovered || _focused
                     ? Color.alphaBlend(
-                        Theme.of(context).colorScheme.primary
-                            .withValues(alpha: .08),
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: .08),
                         Theme.of(context).colorScheme.surfaceContainerLow,
                       )
                     : Theme.of(context).colorScheme.surfaceContainerLow,
@@ -223,8 +225,9 @@ class _SidebarResizeHandleState extends State<_SidebarResizeHandle> {
                   decoration: BoxDecoration(
                     color: _hovered || _focused
                         ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant
-                              .withValues(alpha: .65),
+                        : Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withValues(alpha: .65),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -667,7 +670,8 @@ class _AgentChatState extends State<AgentChat> {
       );
     } catch (_) {
       if (!owner.ownsConnection(generation, api)) return;
-      owner.agentNotice = 'The Agent request was not confirmed. Check any retained original request and inspect recorded tasks.';
+      owner.agentNotice =
+          'The Agent request was not confirmed. Check any retained original request and inspect recorded tasks.';
       owner.touch();
     } finally {
       if (owner.ownsConnection(generation, api)) {
@@ -713,7 +717,8 @@ class _AgentChatState extends State<AgentChat> {
         command: command,
       );
     } on FormatException {
-      owner.agentNotice = 'This input exceeds the supported Agent request bounds. It was not sent.';
+      owner.agentNotice =
+          'This input exceeds the supported Agent request bounds. It was not sent.';
       owner.touch();
       return;
     }
@@ -772,7 +777,8 @@ class _AgentChatState extends State<AgentChat> {
           );
           if (!attempt.request.sameScope(checked) ||
               checked.channel != 'agent') {
-            attempt.notice = 'The original session scope changed. This outcome remains unknown; inspect historical tasks. New sessions can still accept work.';
+            attempt.notice =
+                'The original session scope changed. This outcome remains unknown; inspect historical tasks. New sessions can still accept work.';
             return;
           }
         }
@@ -792,7 +798,8 @@ class _AgentChatState extends State<AgentChat> {
             // This operation has not reached POST: local withdrawal is known.
             _AgentSubmissions.pending.remove(attempt);
           } else {
-            attempt.notice = 'The connection changed. The original outcome is still unknown.';
+            attempt.notice =
+                'The connection changed. The original outcome is still unknown.';
           }
           return;
         }
@@ -883,7 +890,8 @@ class _AgentChatState extends State<AgentChat> {
         }
       } catch (_) {
         if (_AgentSubmissions.pending.contains(attempt)) {
-          attempt.notice = 'The original outcome is unknown. A failed response is not proof that no task was accepted. Check the original request.';
+          attempt.notice =
+              'The original outcome is unknown. A failed response is not proof that no task was accepted. Check the original request.';
         }
       } finally {
         attempt.outstanding--;
@@ -898,7 +906,8 @@ class _AgentChatState extends State<AgentChat> {
       await run().timeout(const Duration(seconds: 35));
     } on TimeoutException {
       if (_AgentSubmissions.pending.contains(attempt)) {
-        attempt.notice = 'The response timed out. The original outcome remains unknown; check its receipt before sending new work in this session.';
+        attempt.notice =
+            'The response timed out. The original outcome remains unknown; check its receipt before sending new work in this session.';
       }
     } finally {
       attempt.checking = false;
@@ -1028,7 +1037,8 @@ class _AgentChatState extends State<AgentChat> {
         return;
       }
       if (liveMatch.first.requiresInference && !_s.agentCanDisclose(scope)) {
-        _s.agentNotice = 'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
+        _s.agentNotice =
+            'Agent inference is not available for the current provider and disclosure consent. Deterministic controls (/status, /stop, /help) still work.';
         _s.touch();
         return;
       }
@@ -1133,7 +1143,8 @@ class _AgentChatState extends State<AgentChat> {
       _s.touch();
     } catch (_) {
       if (!_s.ownsConnection(generation, api)) return;
-      _s.agentNotice = 'The command result was not confirmed. Inspect the selected session before trying again.';
+      _s.agentNotice =
+          'The command result was not confirmed. Inspect the selected session before trying again.';
       _s.touch();
     }
   }
@@ -2163,7 +2174,8 @@ class _AgentChatState extends State<AgentChat> {
     } else {
       icon = Icons.auto_awesome_outlined;
       title = 'What would you like to work on?';
-      description = 'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.';
+      description =
+          'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.';
       if (_s.commandsAvailable) {
         actions.add(
           OutlinedButton.icon(
@@ -2278,7 +2290,8 @@ class _AgentChatState extends State<AgentChat> {
                     if (!_s.commandsAvailable)
                       _noticeBanner(
                         key: const ValueKey('agent-registry-notice'),
-                        message: 'Command registry unavailable; plain instructions still work.',
+                        message:
+                            'Command registry unavailable; plain instructions still work.',
                       ),
                     if (_s.agentNotice.isNotEmpty)
                       _noticeBanner(
@@ -2839,7 +2852,9 @@ class _AgentChatState extends State<AgentChat> {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  renewal.inFlight ? 'Checking renewal…' : 'Renewal outcome unconfirmed. Retry the same renewal to inspect its recorded outcome.',
+                  renewal.inFlight
+                      ? 'Checking renewal…'
+                      : 'Renewal outcome unconfirmed. Retry the same renewal to inspect its recorded outcome.',
                   style: textTheme.bodyMedium,
                 ),
               ),

@@ -132,8 +132,9 @@ class ConverseVoiceActions extends StatelessWidget {
               Text(
                 description,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: colors.onPrimaryContainer),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onPrimaryContainer,
+                ),
               ),
             ],
           ),

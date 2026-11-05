@@ -177,41 +177,48 @@ void main() {
       expect(() => DecisionDetail.fromJson(wrong), throwsFormatException);
     },
   );
-  test('owner GETs carry filters/cursors and never follow redirects or disclose in URL', () async {
-    final requests = <http.Request>[];
-    final api = DecisionsApi(
-      base: 'http://session/prefix/',
-      ownerToken: 'synthetic-owner-token',
-      clientFactory: () => MockClient((r) async {
-        requests.add(r);
-        return jsonResponse(
-          r.url.path.endsWith('source-2') ? detail() : page(),
-        );
-      }),
-    );
-    await api.list(
-      {'source': 'agent', 'search': '🙂&q', 'timezone': 'America/Los_Angeles'},
-      through: 2,
-      before: 2,
-    );
-    await api.detail('source-2', through: 7, before: 7);
-    expect(requests.map((r) => r.method), everyElement('GET'));
-    expect(requests.first.url.path, '/prefix/v1/decisions/inspections');
-    expect(requests.first.url.queryParameters['search'], '🙂&q');
-    expect(requests.first.url.queryParameters['through_sequence'], '2');
-    expect(requests.last.url.queryParameters['before_call_sequence'], '7');
-    expect(
-      requests.first.headers['Authorization'],
-      'Bearer synthetic-owner-token',
-    );
-    expect(
-      requests.every(
-        (r) => !r.followRedirects && !r.url.toString().contains('token'),
-      ),
-      isTrue,
-    );
-    api.close();
-  });
+  test(
+    'owner GETs carry filters/cursors and never follow redirects or disclose in URL',
+    () async {
+      final requests = <http.Request>[];
+      final api = DecisionsApi(
+        base: 'http://session/prefix/',
+        ownerToken: 'synthetic-owner-token',
+        clientFactory: () => MockClient((r) async {
+          requests.add(r);
+          return jsonResponse(
+            r.url.path.endsWith('source-2') ? detail() : page(),
+          );
+        }),
+      );
+      await api.list(
+        {
+          'source': 'agent',
+          'search': '🙂&q',
+          'timezone': 'America/Los_Angeles',
+        },
+        through: 2,
+        before: 2,
+      );
+      await api.detail('source-2', through: 7, before: 7);
+      expect(requests.map((r) => r.method), everyElement('GET'));
+      expect(requests.first.url.path, '/prefix/v1/decisions/inspections');
+      expect(requests.first.url.queryParameters['search'], '🙂&q');
+      expect(requests.first.url.queryParameters['through_sequence'], '2');
+      expect(requests.last.url.queryParameters['before_call_sequence'], '7');
+      expect(
+        requests.first.headers['Authorization'],
+        'Bearer synthetic-owner-token',
+      );
+      expect(
+        requests.every(
+          (r) => !r.followRedirects && !r.url.toString().contains('token'),
+        ),
+        isTrue,
+      );
+      api.close();
+    },
+  );
   test(
     'size limits, malformed UTF8 and 404 fail without reflecting remote body',
     () async {
@@ -467,70 +474,76 @@ void main() {
       expect(() => DecisionDetail.fromJson(revision), throwsFormatException);
     },
   );
-  test('source preview uses Unicode character bounds and rejects unpaired surrogates', () {
-    expect(
-      DecisionRow.fromJson({...row(), 'preview': '🙂' * 1000})
-          .preview
-          .runes
-          .length,
-      1000,
-    );
-    expect(
-      () => DecisionRow.fromJson({
-        ...row(),
-        'preview': String.fromCharCode(0xd800),
-      }),
-      throwsFormatException,
-    );
-  });
-  test('combined date/session filters and detail cursors preserve native query fields', () async {
-    final requests = <http.Request>[];
-    final api = DecisionsApi(
-      base: 'http://session',
-      ownerToken: 'token',
-      clientFactory: () => MockClient((r) async {
-        requests.add(r);
-        return jsonResponse(
-          r.url.path.endsWith('source-2') ? detail() : page(),
-        );
-      }),
-    );
-    await api.list({
-      'session_id': 'session',
-      'source': 'conversation',
-      'outcome': 'ignore',
-      'search': 'literal Ω',
-      'from_date': '2026-11-01',
-      'to_date': '2026-11-01',
-      'timezone': 'America/Los_Angeles',
-    });
-    expect(
-      requests.single.url.queryParameters,
-      containsPair('session_id', 'session'),
-    );
-    expect(
-      requests.single.url.queryParameters,
-      containsPair('from_date', '2026-11-01'),
-    );
-    expect(
-      requests.single.url.queryParameters,
-      containsPair('to_date', '2026-11-01'),
-    );
-    expect(
-      requests.single.url.queryParameters,
-      containsPair('timezone', 'America/Los_Angeles'),
-    );
-    await api.detail('source-2', through: 7, before: 7);
-    expect(
-      requests.last.url.queryParameters,
-      containsPair('through_call_sequence', '7'),
-    );
-    expect(
-      requests.last.url.queryParameters,
-      containsPair('before_call_sequence', '7'),
-    );
-    api.close();
-  });
+  test(
+    'source preview uses Unicode character bounds and rejects unpaired surrogates',
+    () {
+      expect(
+        DecisionRow.fromJson({
+          ...row(),
+          'preview': '🙂' * 1000,
+        }).preview.runes.length,
+        1000,
+      );
+      expect(
+        () => DecisionRow.fromJson({
+          ...row(),
+          'preview': String.fromCharCode(0xd800),
+        }),
+        throwsFormatException,
+      );
+    },
+  );
+  test(
+    'combined date/session filters and detail cursors preserve native query fields',
+    () async {
+      final requests = <http.Request>[];
+      final api = DecisionsApi(
+        base: 'http://session',
+        ownerToken: 'token',
+        clientFactory: () => MockClient((r) async {
+          requests.add(r);
+          return jsonResponse(
+            r.url.path.endsWith('source-2') ? detail() : page(),
+          );
+        }),
+      );
+      await api.list({
+        'session_id': 'session',
+        'source': 'conversation',
+        'outcome': 'ignore',
+        'search': 'literal Ω',
+        'from_date': '2026-11-01',
+        'to_date': '2026-11-01',
+        'timezone': 'America/Los_Angeles',
+      });
+      expect(
+        requests.single.url.queryParameters,
+        containsPair('session_id', 'session'),
+      );
+      expect(
+        requests.single.url.queryParameters,
+        containsPair('from_date', '2026-11-01'),
+      );
+      expect(
+        requests.single.url.queryParameters,
+        containsPair('to_date', '2026-11-01'),
+      );
+      expect(
+        requests.single.url.queryParameters,
+        containsPair('timezone', 'America/Los_Angeles'),
+      );
+      await api.detail('source-2', through: 7, before: 7);
+      expect(
+        requests.last.url.queryParameters,
+        containsPair('through_call_sequence', '7'),
+      );
+      expect(
+        requests.last.url.queryParameters,
+        containsPair('before_call_sequence', '7'),
+      );
+      api.close();
+    },
+  );
   testWidgets(
     'expired captures stay unavailable and reused inference links navigate actual source',
     (t) async {

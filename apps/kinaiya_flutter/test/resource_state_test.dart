@@ -157,57 +157,60 @@ void main() {
     },
   );
 
-  test('resource revisions cancel once, restore honestly, and recover controller identity', () async {
-    final api = ResourceApi();
-    final state = AppState()
-      ..connect(ConnectionProfile.defaults(), injected: api);
-    var stops = 0;
-    final subscription = state.resourceStops.listen((_) {
-      stops++;
-    });
-    await state.refreshResources();
-    expect(state.converseEnabled, isTrue);
-    state.turnNonce = 7;
-    api.phase = 'local_work';
-    api.revision = 2;
-    await state.refreshResources();
-    await Future<void>.delayed(Duration.zero);
-    expect(state.converseEnabled, isFalse);
-    expect(state.turnNonce, 8);
-    expect(stops, 1);
-    await state.refreshResources();
-    expect(state.turnNonce, 8);
-    api.phase = 'ready';
-    api.revision = 3;
-    await state.refreshResources();
-    expect(state.converseEnabled, isTrue);
-    api.controller = 'restarted';
-    api.phase = 'off';
-    api.revision = 1;
-    await state.refreshResources();
-    await Future<void>.delayed(Duration.zero);
-    expect(stops, 2);
-    expect(state.converseEnabled, isFalse);
-    api.fail = true;
-    await state.refreshResources();
-    expect(state.resourceStatusStale, isTrue);
-    expect(state.converseEnabled, isFalse);
-    api.fail = false;
-    api.phase = 'ready';
-    api.revision++;
-    await state.refreshResources();
-    expect(state.converseEnabled, isTrue);
-    api.malformed = true;
-    await state.refreshResources();
-    expect(state.resourceStatusStale, isTrue);
-    expect(state.converseEnabled, isFalse);
-    api.malformed = false;
-    await state.refreshResources();
-    expect(state.resourceStatusStale, isFalse);
-    expect(state.converseEnabled, isTrue);
-    await subscription.cancel();
-    state.dispose();
-  });
+  test(
+    'resource revisions cancel once, restore honestly, and recover controller identity',
+    () async {
+      final api = ResourceApi();
+      final state = AppState()
+        ..connect(ConnectionProfile.defaults(), injected: api);
+      var stops = 0;
+      final subscription = state.resourceStops.listen((_) {
+        stops++;
+      });
+      await state.refreshResources();
+      expect(state.converseEnabled, isTrue);
+      state.turnNonce = 7;
+      api.phase = 'local_work';
+      api.revision = 2;
+      await state.refreshResources();
+      await Future<void>.delayed(Duration.zero);
+      expect(state.converseEnabled, isFalse);
+      expect(state.turnNonce, 8);
+      expect(stops, 1);
+      await state.refreshResources();
+      expect(state.turnNonce, 8);
+      api.phase = 'ready';
+      api.revision = 3;
+      await state.refreshResources();
+      expect(state.converseEnabled, isTrue);
+      api.controller = 'restarted';
+      api.phase = 'off';
+      api.revision = 1;
+      await state.refreshResources();
+      await Future<void>.delayed(Duration.zero);
+      expect(stops, 2);
+      expect(state.converseEnabled, isFalse);
+      api.fail = true;
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isTrue);
+      expect(state.converseEnabled, isFalse);
+      api.fail = false;
+      api.phase = 'ready';
+      api.revision++;
+      await state.refreshResources();
+      expect(state.converseEnabled, isTrue);
+      api.malformed = true;
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isTrue);
+      expect(state.converseEnabled, isFalse);
+      api.malformed = false;
+      await state.refreshResources();
+      expect(state.resourceStatusStale, isFalse);
+      expect(state.converseEnabled, isTrue);
+      await subscription.cancel();
+      state.dispose();
+    },
+  );
 
   testWidgets(
     'resource pause stops local playback and capture without rearming on restore',

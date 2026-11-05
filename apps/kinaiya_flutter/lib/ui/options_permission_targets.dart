@@ -198,7 +198,8 @@ class _OptionsPermissionTargetsState extends State<OptionsPermissionTargets> {
     } catch (_) {
       if (_current(api, active) && read == _read) {
         setState(() {
-          _error = 'Target inventory could not be confirmed for this scope. Refresh the scope and targets; no rule was changed.';
+          _error =
+              'Target inventory could not be confirmed for this scope. Refresh the scope and targets; no rule was changed.';
           if (!more) {
             _page = null;
             _rows = [];
@@ -308,7 +309,8 @@ class _OptionsPermissionTargetsState extends State<OptionsPermissionTargets> {
     } catch (_) {
       if (mounted && widget.active()) {
         setState(
-          () => _error = 'This target rule was not dispatched. Inspect its current identity and scope.',
+          () => _error =
+              'This target rule was not dispatched. Inspect its current identity and scope.',
         );
       }
     }
@@ -373,12 +375,14 @@ class _OptionsPermissionTargetsState extends State<OptionsPermissionTargets> {
           );
         }
       } else {
-        item.notice = 'The save outcome remains unknown. Check its exact receipt or retry the unchanged request.';
+        item.notice =
+            'The save outcome remains unknown. Check its exact receipt or retry the unchanged request.';
         if (check) await _fence(item, api, active, release: release);
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice = 'The response could not be confirmed. The original target, binding, scope and key remain retained.';
+      item.notice =
+          'The response could not be confirmed. The original target, binding, scope and key remain retained.';
       if (check) await _fence(item, api, active, release: release);
     } finally {
       item.busy = false;
@@ -402,7 +406,8 @@ class _OptionsPermissionTargetsState extends State<OptionsPermissionTargets> {
       if (!_current(api, active) || !_pending.contains(item)) return;
       if (fresh.instanceId != item.snapshot.instanceId ||
           fresh.revision <= (item.body['expected_revision'] as int)) {
-        item.notice = 'Outcome unknown. This connection has not fenced any future commit of the original request.';
+        item.notice =
+            'Outcome unknown. This connection has not fenced any future commit of the original request.';
         return;
       }
       item.fenceOwner = api;
@@ -421,7 +426,8 @@ class _OptionsPermissionTargetsState extends State<OptionsPermissionTargets> {
       }
     } catch (_) {
       if (_current(api, active) && _pending.contains(item)) {
-        item.notice = 'Outcome unknown; a same-host mutation fence could not be confirmed.';
+        item.notice =
+            'Outcome unknown; a same-host mutation fence could not be confirmed.';
       }
     }
   }

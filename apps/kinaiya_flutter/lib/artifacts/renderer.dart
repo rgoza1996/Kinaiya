@@ -12,10 +12,8 @@ import '../ui/design_tokens.dart';
 import 'models.dart';
 import 'media.dart';
 
-typedef ArtifactAction = FutureOr<void> Function(
-  String componentId,
-  Object? value,
-);
+typedef ArtifactAction =
+    FutureOr<void> Function(String componentId, Object? value);
 
 class IntelligentArtifactRenderer extends StatefulWidget {
   const IntelligentArtifactRenderer({

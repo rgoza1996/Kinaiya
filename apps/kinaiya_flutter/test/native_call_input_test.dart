@@ -481,7 +481,8 @@ void main() {
         expect(
           find.byTooltip('Stop Live listen'),
           findsOneWidget,
-          reason: 'logical owner remains stoppable after actual capture capacity stops',
+          reason:
+              'logical owner remains stoppable after actual capture capacity stops',
         );
         first.complete();
         await _until(

@@ -201,7 +201,8 @@ void main() {
                 {'model_id': 'google/gemini-2.5-pro'},
               ],
               'manual_fallback_allowed': true,
-              'message': 'Discovered 2 model(s) from https://openrouter.ai/api/v1/models.',
+              'message':
+                  'Discovered 2 model(s) from https://openrouter.ai/api/v1/models.',
               'snapshot': buildSnapshot(),
             });
           }

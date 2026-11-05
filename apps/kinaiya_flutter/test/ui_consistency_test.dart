@@ -242,9 +242,9 @@ void main() {
     final decoration =
         tester.widget<Container>(composer).decoration! as BoxDecoration;
     final border = decoration.border! as Border;
-    final outline = Theme.of(tester.element(composer))
-        .colorScheme
-        .outlineVariant;
+    final outline = Theme.of(
+      tester.element(composer),
+    ).colorScheme.outlineVariant;
     expect([
       border.top.color,
       border.right.color,

@@ -274,8 +274,9 @@ void main() {
           MaterialApp(
             theme: theme,
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context)
-                  .copyWith(textScaler: const TextScaler.linear(2.0)),
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: const TextScaler.linear(2.0)),
               child: child!,
             ),
             home: Scaffold(body: McpSettings(state: state, embedded: true)),

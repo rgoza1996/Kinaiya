@@ -74,51 +74,57 @@ AppState owner(
 }
 
 void main() {
-  test('artifact API canonical path/auth/scope; actions never put credentials in URLs', () async {
-    final requests = <http.Request>[];
-    final artifact = choiceFixture();
-    final api = ArtifactApi(
-      base: ' https://agent.test/proxy/ ',
-      ownerToken: 'synthetic-owner',
-      clientFactory: () => MockClient((request) async {
-        requests.add(request);
-        return response(
-          request.url.path.endsWith('/actions') ? artifact : page([artifact]),
-        );
-      }),
-    );
-    addTearDown(api.close);
-    final result = await api.page(session());
-    await api.action(
-      session(),
-      result.items.single,
-      'choice',
-      'B',
-      'synthetic-action',
-    );
-    expect(requests.first.url.path, '/proxy/v1/artifacts');
-    expect(requests.first.url.queryParameters, {
-      'session_id': 'session-test',
-      'thread_id': 'thread-test',
-      'epoch': '1',
-      'after': '0',
-      'limit': '20',
-    });
-    expect(requests.last.url.path, '/proxy/v1/artifacts/artifact-test/actions');
-    expect(
-      requests.every(
-        (r) =>
-            r.headers['authorization'] == 'Bearer synthetic-owner' &&
-            !r.url.toString().contains('synthetic-owner') &&
-            !r.followRedirects,
-      ),
-      isTrue,
-    );
-    expect(
-      jsonDecode(requests.last.body),
-      containsPair('idempotency_key', 'synthetic-action'),
-    );
-  });
+  test(
+    'artifact API canonical path/auth/scope; actions never put credentials in URLs',
+    () async {
+      final requests = <http.Request>[];
+      final artifact = choiceFixture();
+      final api = ArtifactApi(
+        base: ' https://agent.test/proxy/ ',
+        ownerToken: 'synthetic-owner',
+        clientFactory: () => MockClient((request) async {
+          requests.add(request);
+          return response(
+            request.url.path.endsWith('/actions') ? artifact : page([artifact]),
+          );
+        }),
+      );
+      addTearDown(api.close);
+      final result = await api.page(session());
+      await api.action(
+        session(),
+        result.items.single,
+        'choice',
+        'B',
+        'synthetic-action',
+      );
+      expect(requests.first.url.path, '/proxy/v1/artifacts');
+      expect(requests.first.url.queryParameters, {
+        'session_id': 'session-test',
+        'thread_id': 'thread-test',
+        'epoch': '1',
+        'after': '0',
+        'limit': '20',
+      });
+      expect(
+        requests.last.url.path,
+        '/proxy/v1/artifacts/artifact-test/actions',
+      );
+      expect(
+        requests.every(
+          (r) =>
+              r.headers['authorization'] == 'Bearer synthetic-owner' &&
+              !r.url.toString().contains('synthetic-owner') &&
+              !r.followRedirects,
+        ),
+        isTrue,
+      );
+      expect(
+        jsonDecode(requests.last.body),
+        containsPair('idempotency_key', 'synthetic-action'),
+      );
+    },
+  );
 
   test(
     'one unsupported artifact falls back without losing a valid sibling',
@@ -164,63 +170,69 @@ void main() {
     },
   );
 
-  test('stream byte bound and redirects reject without reflecting response secrets', () async {
-    for (final status in [302, 500]) {
+  test(
+    'stream byte bound and redirects reject without reflecting response secrets',
+    () async {
+      for (final status in [302, 500]) {
+        final api = ArtifactApi(
+          base: 'https://agent.test',
+          ownerToken: 'fixture',
+          clientFactory: () => MockClient(
+            (_) async => http.Response(
+              'secret-response',
+              status,
+              headers: {'location': 'https://elsewhere.test'},
+            ),
+          ),
+        );
+        try {
+          await api.page(session());
+          fail('Expected rejection');
+        } catch (error) {
+          expect(error.toString(), isNot(contains('secret-response')));
+        } finally {
+          api.close();
+        }
+      }
       final api = ArtifactApi(
         base: 'https://agent.test',
         ownerToken: 'fixture',
         clientFactory: () => MockClient(
-          (_) async => http.Response(
-            'secret-response',
-            status,
-            headers: {'location': 'https://elsewhere.test'},
-          ),
+          (_) async => http.Response('x' * (2 * 1024 * 1024 + 1), 200),
         ),
       );
-      try {
-        await api.page(session());
-        fail('Expected rejection');
-      } catch (error) {
-        expect(error.toString(), isNot(contains('secret-response')));
-      } finally {
-        api.close();
-      }
-    }
-    final api = ArtifactApi(
-      base: 'https://agent.test',
-      ownerToken: 'fixture',
-      clientFactory: () => MockClient(
-        (_) async => http.Response('x' * (2 * 1024 * 1024 + 1), 200),
-      ),
-    );
-    addTearDown(api.close);
-    await expectLater(api.page(session()), throwsA(isA<ArtifactFailure>()));
-  });
+      addTearDown(api.close);
+      await expectLater(api.page(session()), throwsA(isA<ArtifactFailure>()));
+    },
+  );
 
-  test('native high-water prevents older tasks reopening after close; chooser can reopen', () async {
-    var rows = [artifactFixture(id: 'new', submitSequence: 20)];
-    var cursor = 1;
-    final state = owner((_) async => response(page(rows, next: cursor)));
-    await state.refreshArtifacts();
-    expect(state.activeArtifact?.artifactId, 'new');
-    state.closeArtifact();
-    rows = [artifactFixture(id: 'old-late', submitSequence: 10)];
-    cursor = 2;
-    await state.refreshArtifacts();
-    expect(state.activeArtifact, isNull);
-    state.chooseArtifact('new');
-    expect(state.activeArtifact?.artifactId, 'new');
-    state.pinArtifact(true);
-    rows = [artifactFixture(id: 'newer', submitSequence: 30)];
-    cursor = 3;
-    await state.refreshArtifacts();
-    expect(state.activeArtifact?.artifactId, 'new');
-    state.pinArtifact(false);
-    rows = [];
-    await state.refreshArtifacts();
-    state.chooseArtifact('newer');
-    expect(state.activeArtifact?.artifactId, 'newer');
-  });
+  test(
+    'native high-water prevents older tasks reopening after close; chooser can reopen',
+    () async {
+      var rows = [artifactFixture(id: 'new', submitSequence: 20)];
+      var cursor = 1;
+      final state = owner((_) async => response(page(rows, next: cursor)));
+      await state.refreshArtifacts();
+      expect(state.activeArtifact?.artifactId, 'new');
+      state.closeArtifact();
+      rows = [artifactFixture(id: 'old-late', submitSequence: 10)];
+      cursor = 2;
+      await state.refreshArtifacts();
+      expect(state.activeArtifact, isNull);
+      state.chooseArtifact('new');
+      expect(state.activeArtifact?.artifactId, 'new');
+      state.pinArtifact(true);
+      rows = [artifactFixture(id: 'newer', submitSequence: 30)];
+      cursor = 3;
+      await state.refreshArtifacts();
+      expect(state.activeArtifact?.artifactId, 'new');
+      state.pinArtifact(false);
+      rows = [];
+      await state.refreshArtifacts();
+      state.chooseArtifact('newer');
+      expect(state.activeArtifact?.artifactId, 'newer');
+    },
+  );
 
   test(
     'a missing detail does not starve later native artifact updates',
@@ -292,30 +304,33 @@ void main() {
     expect(state.converseArtifacts, isEmpty);
   });
 
-  test('500 after commit retains exact action key; replay reconciles without a second effect', () async {
-    final keys = <String>[];
-    final state = owner((request) async {
-      if (request.method == 'GET') return response(page([choiceFixture()]));
-      final body = jsonDecode(request.body) as Map;
-      keys.add(body['idempotency_key'] as String);
-      if (keys.length == 1) {
-        return response({'detail': 'hidden'}, status: 500);
-      }
-      final result = choiceFixture()..['view_revision'] = 1;
-      result['view_state'] = {'choice': 'B'};
-      return response(result);
-    });
-    await state.refreshArtifacts();
-    await state.interactWithArtifact('choice', 'B');
-    expect(state.artifactActionUncertain, isTrue);
-    state.closeArtifact();
-    expect(state.activeArtifact, isNotNull);
-    await state.interactWithArtifact('choice', 'B');
-    expect(keys.length, 2);
-    expect(keys.first, keys.last);
-    expect(state.artifactActionUncertain, isFalse);
-    expect(state.activeArtifact?.viewRevision, 1);
-  });
+  test(
+    '500 after commit retains exact action key; replay reconciles without a second effect',
+    () async {
+      final keys = <String>[];
+      final state = owner((request) async {
+        if (request.method == 'GET') return response(page([choiceFixture()]));
+        final body = jsonDecode(request.body) as Map;
+        keys.add(body['idempotency_key'] as String);
+        if (keys.length == 1) {
+          return response({'detail': 'hidden'}, status: 500);
+        }
+        final result = choiceFixture()..['view_revision'] = 1;
+        result['view_state'] = {'choice': 'B'};
+        return response(result);
+      });
+      await state.refreshArtifacts();
+      await state.interactWithArtifact('choice', 'B');
+      expect(state.artifactActionUncertain, isTrue);
+      state.closeArtifact();
+      expect(state.activeArtifact, isNotNull);
+      await state.interactWithArtifact('choice', 'B');
+      expect(keys.length, 2);
+      expect(keys.first, keys.last);
+      expect(state.artifactActionUncertain, isFalse);
+      expect(state.activeArtifact?.viewRevision, 1);
+    },
+  );
 
   test(
     'definitive stale revision rejects and does not retain uncertain action',
@@ -332,97 +347,109 @@ void main() {
     },
   );
 
-  test('same backend reconnect restores the exact uncertain intent for explicit retry', () async {
-    final bodies = <Map<String, Object?>>[];
-    final state = owner((request) async {
-      if (request.method == 'GET') return response(page([choiceFixture()]));
-      bodies.add((jsonDecode(request.body) as Map).cast<String, Object?>());
-      return response({}, status: 500);
-    });
-    await state.refreshArtifacts();
-    await state.interactWithArtifact('choice', 'B');
-    final original = bodies.single;
-    state.disconnect();
-    state.connect(
-      ConnectionProfile.defaults(),
-      injected: artifactTransport((request) async {
+  test(
+    'same backend reconnect restores the exact uncertain intent for explicit retry',
+    () async {
+      final bodies = <Map<String, Object?>>[];
+      final state = owner((request) async {
         if (request.method == 'GET') return response(page([choiceFixture()]));
         bodies.add((jsonDecode(request.body) as Map).cast<String, Object?>());
-        return response(
-          choiceFixture()
-            ..['view_revision'] = 1
-            ..['view_state'] = {'choice': 'B'},
-        );
-      }),
-    );
-    state.converseSession = session();
-    await state.refreshArtifacts();
-    expect(state.artifactActionUncertain, isTrue);
-    expect(state.artifactActionPending, isFalse);
-    expect(
-      state.activeArtifact?.artifactId,
-      original['artifact_id'] ?? 'artifact-test',
-    );
-    expect(bodies.length, 1, reason: 'reconnect and reads never replay a POST');
-    await state.interactWithArtifact('choice', 'A');
-    expect(
-      bodies.length,
-      1,
-      reason: 'a different value cannot bypass reconciliation',
-    );
-    await state.interactWithArtifact('choice', 'B');
-    expect(bodies.length, 2);
-    expect(bodies.last, original);
-    expect(state.artifactActionUncertain, isFalse);
-    expect(state.activeArtifact?.viewState['choice'], 'B');
-  });
+        return response({}, status: 500);
+      });
+      await state.refreshArtifacts();
+      await state.interactWithArtifact('choice', 'B');
+      final original = bodies.single;
+      state.disconnect();
+      state.connect(
+        ConnectionProfile.defaults(),
+        injected: artifactTransport((request) async {
+          if (request.method == 'GET') return response(page([choiceFixture()]));
+          bodies.add((jsonDecode(request.body) as Map).cast<String, Object?>());
+          return response(
+            choiceFixture()
+              ..['view_revision'] = 1
+              ..['view_state'] = {'choice': 'B'},
+          );
+        }),
+      );
+      state.converseSession = session();
+      await state.refreshArtifacts();
+      expect(state.artifactActionUncertain, isTrue);
+      expect(state.artifactActionPending, isFalse);
+      expect(
+        state.activeArtifact?.artifactId,
+        original['artifact_id'] ?? 'artifact-test',
+      );
+      expect(
+        bodies.length,
+        1,
+        reason: 'reconnect and reads never replay a POST',
+      );
+      await state.interactWithArtifact('choice', 'A');
+      expect(
+        bodies.length,
+        1,
+        reason: 'a different value cannot bypass reconciliation',
+      );
+      await state.interactWithArtifact('choice', 'B');
+      expect(bodies.length, 2);
+      expect(bodies.last, original);
+      expect(state.artifactActionUncertain, isFalse);
+      expect(state.activeArtifact?.viewState['choice'], 'B');
+    },
+  );
 
-  test('in-flight reconnect retry keeps its original key and old completion cannot own it', () async {
-    final oldReply = Completer<http.Response>(),
-        newReply = Completer<http.Response>();
-    final keys = <String>[];
-    final state = owner((request) async {
-      if (request.method == 'GET') return response(page([choiceFixture()]));
-      keys.add((jsonDecode(request.body) as Map)['idempotency_key'] as String);
-      return oldReply.future;
-    });
-    await state.refreshArtifacts();
-    final oldAction = state.interactWithArtifact('choice', 'B');
-    await Future<void>.delayed(Duration.zero);
-    expect(state.artifactActionPending, isTrue);
-    state.connect(
-      ConnectionProfile.defaults(),
-      injected: artifactTransport((request) async {
+  test(
+    'in-flight reconnect retry keeps its original key and old completion cannot own it',
+    () async {
+      final oldReply = Completer<http.Response>(),
+          newReply = Completer<http.Response>();
+      final keys = <String>[];
+      final state = owner((request) async {
         if (request.method == 'GET') return response(page([choiceFixture()]));
         keys.add(
           (jsonDecode(request.body) as Map)['idempotency_key'] as String,
         );
-        return newReply.future;
-      }),
-    );
-    state.converseSession = session();
-    await state.refreshArtifacts();
-    expect(state.artifactActionPending, isFalse);
-    expect(state.artifactActionUncertain, isTrue);
-    expect(keys.length, 1);
-    final retry = state.interactWithArtifact('choice', 'B');
-    await Future<void>.delayed(Duration.zero);
-    expect(state.artifactActionPending, isTrue);
-    expect(keys.length, 2);
-    expect(keys.first, keys.last);
-    final updated = choiceFixture()
-      ..['view_revision'] = 1
-      ..['view_state'] = {'choice': 'B'};
-    oldReply.complete(response(updated));
-    await oldAction;
-    expect(state.artifactActionPending, isTrue);
-    expect(state.activeArtifact?.viewRevision, 0);
-    newReply.complete(response(updated));
-    await retry;
-    expect(state.artifactActionPending, isFalse);
-    expect(state.artifactActionUncertain, isFalse);
-    expect(state.activeArtifact?.viewRevision, 1);
-  });
+        return oldReply.future;
+      });
+      await state.refreshArtifacts();
+      final oldAction = state.interactWithArtifact('choice', 'B');
+      await Future<void>.delayed(Duration.zero);
+      expect(state.artifactActionPending, isTrue);
+      state.connect(
+        ConnectionProfile.defaults(),
+        injected: artifactTransport((request) async {
+          if (request.method == 'GET') return response(page([choiceFixture()]));
+          keys.add(
+            (jsonDecode(request.body) as Map)['idempotency_key'] as String,
+          );
+          return newReply.future;
+        }),
+      );
+      state.converseSession = session();
+      await state.refreshArtifacts();
+      expect(state.artifactActionPending, isFalse);
+      expect(state.artifactActionUncertain, isTrue);
+      expect(keys.length, 1);
+      final retry = state.interactWithArtifact('choice', 'B');
+      await Future<void>.delayed(Duration.zero);
+      expect(state.artifactActionPending, isTrue);
+      expect(keys.length, 2);
+      expect(keys.first, keys.last);
+      final updated = choiceFixture()
+        ..['view_revision'] = 1
+        ..['view_state'] = {'choice': 'B'};
+      oldReply.complete(response(updated));
+      await oldAction;
+      expect(state.artifactActionPending, isTrue);
+      expect(state.activeArtifact?.viewRevision, 0);
+      newReply.complete(response(updated));
+      await retry;
+      expect(state.artifactActionPending, isFalse);
+      expect(state.artifactActionUncertain, isFalse);
+      expect(state.activeArtifact?.viewRevision, 1);
+    },
+  );
 
   for (final changed in ['host', 'credential', 'session', 'thread', 'epoch']) {
     test('retained intents stay private when $changed changes', () async {
@@ -632,19 +659,26 @@ void main() {
     });
   }
 
-  test('saved rich-rendering preference migrates every released shape without reset', () {
-    final current = const PresentationPreferences(
-      reducedMotion: true,
-      showCaptions: false,
-      intelligentUi: false,
-    ).toJson();
-    expect(PresentationPreferences.fromJson(current).intelligentUi, isFalse);
-    final legacy = Map<String, dynamic>.from(current)..remove('intelligent_ui');
-    expect(PresentationPreferences.fromJson(legacy).intelligentUi, isTrue);
-    expect(PresentationPreferences.fromJson(legacy).reducedMotion, isTrue);
-    expect(PresentationPreferences.fromJson(legacy).showCaptions, isFalse);
-    final gap = Map<String, dynamic>.from(current)
-      ..remove('speech_mouth_motion');
-    expect(() => PresentationPreferences.fromJson(gap), throwsFormatException);
-  });
+  test(
+    'saved rich-rendering preference migrates every released shape without reset',
+    () {
+      final current = const PresentationPreferences(
+        reducedMotion: true,
+        showCaptions: false,
+        intelligentUi: false,
+      ).toJson();
+      expect(PresentationPreferences.fromJson(current).intelligentUi, isFalse);
+      final legacy = Map<String, dynamic>.from(current)
+        ..remove('intelligent_ui');
+      expect(PresentationPreferences.fromJson(legacy).intelligentUi, isTrue);
+      expect(PresentationPreferences.fromJson(legacy).reducedMotion, isTrue);
+      expect(PresentationPreferences.fromJson(legacy).showCaptions, isFalse);
+      final gap = Map<String, dynamic>.from(current)
+        ..remove('speech_mouth_motion');
+      expect(
+        () => PresentationPreferences.fromJson(gap),
+        throwsFormatException,
+      );
+    },
+  );
 }

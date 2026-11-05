@@ -397,14 +397,16 @@ class AgentSubmission {
         binding.length != 3 ||
         binding['id'] != value['profile_id'] ||
         binding['id'] is! String ||
-        !RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')
-            .hasMatch(binding['id'] as String) ||
+        !RegExp(
+          r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$',
+        ).hasMatch(binding['id'] as String) ||
         binding['generation'] is! int ||
         (binding['generation'] as int) < 1 ||
         (binding['generation'] as int) > 64 ||
         binding['configuration_sha256'] is! String ||
-        !RegExp(r'^[a-f0-9]{64}$')
-            .hasMatch(binding['configuration_sha256'] as String) ||
+        !RegExp(
+          r'^[a-f0-9]{64}$',
+        ).hasMatch(binding['configuration_sha256'] as String) ||
         revision is! int ||
         revision < 0 ||
         revision > 9007199254740990) {
