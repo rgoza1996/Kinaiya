@@ -19,8 +19,15 @@ def make_payload(query: str, files: list[dict], max_chars: int) -> dict:
 
 
 def selected_chars(ids: list[str], files: list[dict]) -> int:
-    """Char budget used by ``ids``: sum of ``len(text)`` (chars, not tokens)."""
+    """Char budget used by ``ids``: sum of ``len(text)`` (chars, not tokens).
+
+    Raises ValueError for unknown file IDs, matching ``validate_output``
+    and the trusted host check, instead of leaking a raw KeyError.
+    """
     by_id = {f["id"]: f["text"] for f in files}
+    unknown = [i for i in ids if i not in by_id]
+    if unknown:
+        raise ValueError(f"unknown file IDs: {unknown}")
     return sum(len(by_id[i]) for i in ids)
 
 
