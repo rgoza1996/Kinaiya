@@ -3519,16 +3519,17 @@ class AgentRuntime:
     def _mcp_server_ids(self, rec=None) -> list[str] | None:
         """Enabled owner-configured server ids for the prompt, or None.
 
-        Only ids, never secrets, endpoints, or schemas. An unavailable
-        host reports no servers rather than failing the whole turn.
+        Only ids, never secrets, endpoints, or schemas. A host failure
+        raises loudly instead of reporting no servers, so a broken
+        inventory cannot masquerade as "none configured".
         """
         host = self._model_mcp(rec)
         if host is None:
             return None
         try:
             servers = host.list_servers()
-        except Exception:
-            return []
+        except Exception as exc:
+            raise PolicyDenied("MCP server inventory is unavailable") from exc
         return [
             str(entry.get("id", ""))
             for entry in servers
