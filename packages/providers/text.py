@@ -186,6 +186,78 @@ class MetaResponseError(ProviderError):
         return validate_meta_diagnostic(self._diagnostic)
 
 
+@dataclass(eq=False, slots=True)
+class _OutputBudgetAttempt:
+    provider: object
+    request_sha256: str
+    owner: object
+    consumed: bool = False
+
+
+_output_budget_attempt = ContextVar("native_meta_output_budget_attempt", default=None)
+_SETTLED_OUTPUT_BUDGET = object()
+
+
+@contextmanager
+def meta_output_budget_attempt(provider, request_sha256):
+    """Bind one measured buffered call; this never permits an export or retry."""
+    attempt = None
+    if (
+        type(provider) is MetaResponsesProvider
+        and type(request_sha256) is str
+        and len(request_sha256) == 64
+        and all(char in "0123456789abcdef" for char in request_sha256)
+    ):
+        attempt = _OutputBudgetAttempt(provider, request_sha256, asyncio.current_task())
+    token = _output_budget_attempt.set(attempt)
+    try:
+        yield attempt
+    finally:
+        # This scope contains no generator yield to the caller: runtime enters
+        # and leaves it in the same Task around exactly prepared.complete().
+        _output_budget_attempt.reset(token)
+
+
+class SettledOutputBudgetExhaustion(MetaResponseError):
+    """A one-use native notice; no incomplete model output or action survives."""
+
+    def __init__(self, diagnostic, attempt, export_check, *, _proof=None):
+        if _proof is not _SETTLED_OUTPUT_BUDGET or type(attempt) is not _OutputBudgetAttempt:
+            raise ValueError("Unproven Meta output-budget settlement")
+        super().__init__(diagnostic)
+        self._attempt, self._export_check, self._proof = attempt, export_check, _proof
+        self._provider = attempt.provider
+        from packages.providers.prompt_budget import request_digest
+
+        self._diagnostic_sha256 = request_digest(self.diagnostic)
+
+    def validate_attempt(self, attempt):
+        from packages.providers.prompt_budget import request_digest
+
+        if (
+            type(self) is not SettledOutputBudgetExhaustion
+            or self._proof is not _SETTLED_OUTPUT_BUDGET
+            or type(attempt) is not _OutputBudgetAttempt
+            or self._attempt is not attempt
+            or attempt.consumed
+            or attempt.owner is not asyncio.current_task()
+            or type(attempt.provider) is not MetaResponsesProvider
+            or attempt.provider is not self._provider
+            or request_digest(self.diagnostic) != self._diagnostic_sha256
+            or self.diagnostic["request_sha256"] != attempt.request_sha256
+            or self.diagnostic["status"] != "incomplete"
+            or self.diagnostic["reason"] != "max_output_tokens"
+            or self.diagnostic["error_code"] != "missing"
+            or not callable(self._export_check)
+            or self._export_check() is not True
+        ):
+            raise ValueError("Obsolete Meta output-budget settlement")
+
+    def consume(self, attempt):
+        self.validate_attempt(attempt)
+        attempt.consumed = True
+
+
 _UI_SPEC_MAX_BYTES = 48 * 1024
 # JSON string escaping can expand one UTF-8 byte to six wire bytes. This
 # envelope bound includes that expansion plus the other nullable wire fields.
@@ -1560,9 +1632,42 @@ class MetaResponsesProvider:
             raise ProviderError("Meta returned invalid response JSON") from exc
         if type(data) is dict and data.get("status") in ("failed", "incomplete"):
             from packages.providers.prompt_budget import request_digest
-            from packages.providers.response_diagnostics import meta_failure_diagnostic
+            from packages.providers.response_diagnostics import (
+                meta_failure_diagnostic,
+                settled_output_budget_diagnostic,
+            )
 
-            raise MetaResponseError(meta_failure_diagnostic(data, request_digest(body)))
+            request_sha256 = request_digest(body)
+            attempt = _output_budget_attempt.get()
+            if (
+                check is not None
+                and type(self) is MetaResponsesProvider
+                and type(attempt) is _OutputBudgetAttempt
+                and attempt.provider is self
+                and attempt.owner is asyncio.current_task()
+                and not attempt.consumed
+                and attempt.request_sha256 == request_sha256
+                and 200 <= response.status_code < 300
+                and response.is_stream_consumed
+                and response.is_closed
+                and (
+                    diagnostic := settled_output_budget_diagnostic(
+                        raw, request_sha256, body.get("max_output_tokens")
+                    )
+                )
+                is not None
+            ):
+                # EOF, the original owned close, and total-deadline success
+                # fences already completed. The stricter full-object parser
+                # grants no authority to ambiguous/partial output or actions.
+                check(body)
+                raise SettledOutputBudgetExhaustion(
+                    diagnostic,
+                    attempt,
+                    capture_agent_export_check(),
+                    _proof=_SETTLED_OUTPUT_BUDGET,
+                ) from None
+            raise MetaResponseError(meta_failure_diagnostic(data, request_sha256))
         messages = [item for item in data.get("output", []) if item.get("type") == "message"]
         final_messages = [
             item for item in messages if item.get("phase") in {"final", "final_answer"}

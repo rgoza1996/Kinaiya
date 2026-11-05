@@ -111,7 +111,9 @@ from packages.providers.text import (
     MetaResponsesProvider,
     ProviderCleanupError,
     ProviderRefusal,
+    SettledOutputBudgetExhaustion,
     SettledPublicationRejection,
+    meta_output_budget_attempt,
 )
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.completion import append_completion
@@ -258,6 +260,32 @@ class _InferencePublicationRejection(Exception):
             "request_sha256": self.request_sha256,
             "objective_revision": self.revision,
         }
+
+
+class _InferenceOutputBudgetExhaustion(_InferenceProviderFailure):
+    """One consumed, closed, effect-free generation under current authority."""
+
+    def __init__(self, rec, generation_id, request_sha256, error, attempt, current):
+        super().__init__(rec, generation_id, request_sha256, error)
+        self.record, self.error, self.attempt, self.current = rec, error, attempt, current
+
+    def for_record(self, rec):
+        self.current()
+        if (
+            self.record is not rec
+            or rec.completion_pending
+            or rec._cleanup_uncertain
+            or rec.standing_cleanup_uncertain
+            or type(self.error) is not SettledOutputBudgetExhaustion
+        ):
+            raise ValueError("Obsolete output-budget settlement")
+        self.error.validate_attempt(self.attempt)
+        return super().for_record(rec)
+
+    def consume(self, rec):
+        diagnostic = self.for_record(rec)
+        self.error.consume(self.attempt)
+        return diagnostic
 
 
 class _PublicationUncertain(ToolFailure):
@@ -408,6 +436,9 @@ class _Record:
     # pending fence is cleared only by a later successful native publication.
     ui_format_recovery_revision: int | None = None
     ui_format_pending_revision: int | None = None
+    # One fresh, separately admitted request may follow known-settled Meta
+    # output exhaustion. It supplies neither work evidence nor completion.
+    output_budget_recovery_revision: int | None = None
     failed_plugin: bool = False
     failed_task_harness: bool = False
     task_harness_execution: dict | None = None
@@ -4031,7 +4062,47 @@ class AgentRuntime:
                 # Stay in this Task and exact tool scope. A child task would
                 # invalidate the provider's request-local admission binding.
                 try:
-                    text = await prepared.complete()
+                    # The host resource wrapper is native and owns its own
+                    # retained export predicate. Never unwrap foreign proxies
+                    # or subclasses into a trusted Meta settlement capability.
+                    from services.resources.providers import ResourceBoundProvider
+
+                    meta_provider = provider
+                    if type(provider) is ResourceBoundProvider and provider.role == "agent":
+                        meta_provider = provider.provider
+                    with meta_output_budget_attempt(
+                        meta_provider,
+                        None
+                        if prepared.measurement is None
+                        else prepared.measurement.request_sha256,
+                    ) as output_attempt:
+                        text = await prepared.complete()
+                except SettledOutputBudgetExhaustion as exc:
+                    try:
+                        if prepared.measurement is None:
+                            raise ValueError("Unmeasured output-budget settlement")
+                        exc.validate_attempt(output_attempt)
+                        if exc.diagnostic["request_sha256"] != prepared.measurement.request_sha256:
+                            raise ValueError("Wrong output-budget request")
+                    except ValueError:
+                        current()
+                        raise _InferenceProviderFailure(
+                            rec,
+                            observation_operation,
+                            None
+                            if prepared.measurement is None
+                            else prepared.measurement.request_sha256,
+                            exc,
+                        ) from None
+                    await check()
+                    raise _InferenceOutputBudgetExhaustion(
+                        rec,
+                        observation_operation,
+                        prepared.measurement.request_sha256,
+                        exc,
+                        output_attempt,
+                        current,
+                    ) from None
                 except SettledPublicationRejection as exc:
                     try:
                         if (
@@ -4208,6 +4279,51 @@ class AgentRuntime:
                 except ActionDecodeError as exc:
                     await self._fail(rec, f"provider error: {exc}", decode_error=exc)
                     return
+                except _InferenceOutputBudgetExhaustion as exc:
+                    if rec.cancel_requested or rec.closing:
+                        await self._cancel(rec)
+                        return
+                    if rec.pending_steer is not None:
+                        await self._apply_steer(rec)
+                        continue
+                    if rec.output_budget_recovery_revision == rec.task.objective_revision:
+                        await self._fail(rec, f"provider error: {exc}", response_error=exc)
+                        return
+                    try:
+                        diagnostic = exc.consume(rec)
+                    except ProviderCleanupError:
+                        rec._cleanup_uncertain = True
+                        raise
+                    except Exception:
+                        await self._fail(rec, f"provider error: {exc}", response_error=exc)
+                        return
+                    # Consume before any await. No incomplete assistant text,
+                    # tool proposal, effect status or evidence is installed.
+                    # Existing required-work/publication/finish fences remain.
+                    rec.output_budget_recovery_revision = rec.task.objective_revision
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False,
+                                "Native generation exhausted its output budget after confirmed "
+                                "response close; no action from it executed. Produce exactly one "
+                                "small valid next action. Do not repeat completed work. The objective, "
+                                "permissions and all native finish requirements are unchanged.",
+                            ),
+                        }
+                    )
+                    await self._append(
+                        rec,
+                        "agent.state",
+                        {
+                            "reason": "settled_output_budget_exhausted",
+                            "effect_executed": False,
+                            "recovery_attempt": 1,
+                            "provider_response_diagnostic": diagnostic,
+                        },
+                    )
+                    continue
                 except _InferenceProviderFailure as exc:
                     await self._fail(rec, f"provider error: {exc}", response_error=exc)
                     return

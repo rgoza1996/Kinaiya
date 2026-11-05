@@ -1,6 +1,7 @@
 """Closed Meta failure metadata; no raw response, request or server text is retained."""
 
 import json
+import math
 import re
 
 MAX_DIAGNOSTIC_BYTES = 1024
@@ -20,6 +21,7 @@ _ERROR_CODES = frozenset(
 )
 _UNAVAILABLE = frozenset({"missing", "malformed", "unknown"})
 _COUNTERS = frozenset({"input_tokens", "output_tokens", "total_tokens"})
+_SETTLED_RESPONSE_BYTES = 8 * 1024 * 1024
 
 
 def _label(container, key, allowed):
@@ -103,6 +105,62 @@ def meta_failure_diagnostic(response, request_sha256):
     if usage is not None:
         result["usage"] = usage
     return validate_meta_diagnostic(result)
+
+
+def settled_output_budget_diagnostic(raw, request_sha256, max_output_tokens):
+    """Project one strict output-budget response, without proving transport settlement.
+
+    The caller must separately establish the consumed prepared request and its
+    original HTTP close. This parser returns no partial model text or action.
+    Ambiguous, malformed or unsupported responses never authorize recovery.
+    """
+    if (
+        type(raw) is not bytes
+        or not 1 <= len(raw) <= _SETTLED_RESPONSE_BYTES
+        or type(request_sha256) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", request_sha256) is None
+        or type(max_output_tokens) is not int
+        or not 1 <= max_output_tokens <= MAX_TOKEN_COUNT
+    ):
+        return None
+
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("Duplicate response field")
+            result[key] = value
+        return result
+
+    def finite(value):
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError("Non-finite response number")
+        return parsed
+
+    def invalid(_):
+        raise ValueError("Non-finite response number")
+
+    try:
+        response = json.loads(
+            raw.decode("utf-8"), object_pairs_hook=pairs, parse_float=finite, parse_constant=invalid
+        )
+        # JSON escape syntax can encode unpaired surrogates despite valid raw
+        # UTF-8. Inspect ignored fields too, without retaining their contents.
+        json.dumps(response, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        if (
+            type(response) is not dict
+            or response.get("status") != "incomplete"
+            or response.get("incomplete_details") != {"reason": "max_output_tokens"}
+            or response.get("error") is not None
+            or (usage := _usage(response.get("usage"))) is None
+            or usage["input_tokens"] <= 0
+            or usage["output_tokens"] != max_output_tokens
+        ):
+            return None
+        return meta_failure_diagnostic(response, request_sha256)
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        return None
 
 
 def meta_failure_message(diagnostic):
