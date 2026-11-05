@@ -91,6 +91,88 @@ class _SetupDialogState extends State<SetupDialog> {
     }
   }
 
+  Future<void> _handleRecoverAccess() async {
+    final chosen = await chooseCredential();
+    if (!mounted || chosen == null || chosen.trim().isEmpty) return;
+    setState(() => _validationModalMessage = null);
+    final success = await widget.state.recoverAccess(
+      authorizationProof: chosen.trim(),
+      backendProfile: _profile,
+    );
+    if (!mounted) return;
+    final c = widget.state.connection;
+    if (c != null && success) {
+      _session.text = c.sessionUrl;
+      _agent.text = c.agentUrl;
+      _converse.text = c.converseUrl;
+      _decisions.text = c.decisionsUrl ?? '';
+    }
+  }
+
+  Future<void> _handleRotateCredential() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        key: const Key('setup-rotate-confirm-dialog'),
+        title: const Text('Replace owner credential?'),
+        content: const Text(
+          'Replacing your owner credential invalidates the previous credential, '
+          'all active owner sessions, and outstanding launch handoffs.\n\n'
+          'This local GUI session will automatically reconnect with the new authority.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('setup-rotate-cancel-button'),
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('setup-rotate-confirm-button'),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Replace credential'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    String? proof = widget.state.connection?.ownerToken;
+    if (proof == null || proof.isEmpty) {
+      proof = await chooseCredential();
+    }
+    if (!mounted || proof == null || proof.trim().isEmpty) return;
+
+    final result = await widget.state.rotateCredential(
+      authorizationProof: proof.trim(),
+      backendProfile: _profile,
+    );
+    if (!mounted) return;
+    if (result != null) {
+      final c = widget.state.connection;
+      if (c != null) {
+        _session.text = c.sessionUrl;
+        _agent.text = c.agentUrl;
+        _converse.text = c.converseUrl;
+        _decisions.text = c.decisionsUrl ?? '';
+      }
+      if (result.newOwnerToken != null && mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Owner credential replaced (epoch ${result.ownerEpoch ?? 2}). Previous sessions revoked.',
+            ),
+            action: SnackBarAction(
+              label: 'Export token',
+              onPressed: () {
+                exportCredential('owner-login.txt', result.newOwnerToken!);
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _session.dispose();
@@ -198,6 +280,8 @@ class _SetupDialogState extends State<SetupDialog> {
         widget.state.connectionError == 'Checking services…';
     final isConnected =
         widget.state.connected && widget.state.sessionAuthenticated;
+    final isUnavailable =
+        widget.state.localSignInState == LocalHostSignInState.unavailable;
 
     return Container(
       key: const Key('local-host-connection-card'),
@@ -261,13 +345,30 @@ class _SetupDialogState extends State<SetupDialog> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              if (!isConnecting && !isConnected)
+              if (!isConnecting && !isConnected) ...[
                 OutlinedButton.icon(
                   key: const Key('local-host-retry-signin'),
                   onPressed: _retryLocalSignIn,
                   icon: const Icon(Icons.refresh, size: 18),
                   label: const Text('Retry local sign-in'),
                 ),
+              ],
+              if (isUnavailable) ...[
+                OutlinedButton.icon(
+                  key: const Key('local-host-recover-access'),
+                  onPressed: _handleRecoverAccess,
+                  icon: const Icon(Icons.lock_open, size: 18),
+                  label: const Text('Recover access'),
+                ),
+              ],
+              if (isConnected || isUnavailable) ...[
+                OutlinedButton.icon(
+                  key: const Key('local-host-rotate-credential'),
+                  onPressed: _handleRotateCredential,
+                  icon: const Icon(Icons.sync_lock, size: 18),
+                  label: const Text('Replace owner credential'),
+                ),
+              ],
               TextButton.icon(
                 key: const Key('setup-toggle-endpoint-fields'),
                 onPressed: () => setState(
@@ -420,18 +521,53 @@ class _SetupDialogState extends State<SetupDialog> {
                 ),
                 if (kIsWeb) ...[
                   const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final token = await chooseCredential();
-                      if (mounted && token != null) {
-                        setState(() {
-                          _token.text = token;
-                          _validationModalMessage = null;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('Load local access token'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      TextButton.icon(
+                        key: const Key('setup-load-credential'),
+                        onPressed: () async {
+                          final token = await chooseCredential();
+                          if (mounted && token != null) {
+                            setState(() {
+                              _token.text = token;
+                              _validationModalMessage = null;
+                            });
+                          }
+                        },
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text('Load local access token'),
+                      ),
+                      if (_hasExistingMemoryToken || _token.text.isNotEmpty)
+                        TextButton.icon(
+                          key: const Key('setup-export-credential'),
+                          onPressed: () async {
+                            final token = _token.text.isNotEmpty
+                                ? _token.text
+                                : (widget.state.connection?.ownerToken ?? '');
+                            if (token.isNotEmpty) {
+                              final messenger = ScaffoldMessenger.maybeOf(
+                                context,
+                              );
+                              await exportCredential('owner-login.txt', token);
+                              if (mounted && messenger != null) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Owner credential exported to browser download (owner-login.txt). '
+                                      'Keep private with mode 0600. '
+                                      'Exporting does not rotate the credential or invalidate sessions.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.download),
+                          label: const Text('Export owner credential'),
+                        ),
+                    ],
                   ),
                 ],
               ],

@@ -22,6 +22,7 @@ import '../api/agent_workspace.dart';
 import '../api/artifact_client.dart';
 import '../artifacts/models.dart';
 import '../config/connection.dart';
+import '../config/credential_picker.dart';
 import 'converse_handoff.dart';
 import 'native_audio_clip.dart';
 
@@ -571,13 +572,180 @@ class AppState extends ChangeNotifier {
           connectionError ?? 'Local automatic sign-in unavailable.';
       notifyListeners();
       return false;
-    } catch (_) {
+    } catch (error) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      if (error is LocalSignInException) {
+        if (error.code == 'LocalSignInExpired') {
+          localSignInError =
+              'Local sign-in handoff has expired. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInDenied' &&
+            error.message.contains('already been consumed')) {
+          localSignInError =
+              'Local sign-in handoff was already used. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInStale') {
+          localSignInError =
+              'Host was restarted or owner credential rotated. Click Recover access or enter updated credentials.';
+        } else if (error.code == 'StorageUnavailable') {
+          localSignInError =
+              'Private credential storage is missing or inaccessible. Check host permissions or run kinaiya init.';
+        } else {
+          localSignInError = error.message;
+        }
+      } else {
+        final errStr = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+        if (errStr.contains('Connection refused') ||
+            errStr.contains('SocketException') ||
+            errStr.contains('Failed to fetch') ||
+            errStr.contains('ClientException')) {
+          localSignInError =
+              'Local host service is unreachable at 127.0.0.1. Ensure kinaiya start or kinaiya serve host is running.';
+        } else {
+          localSignInError = errStr;
+        }
+      }
       notifyListeners();
       return false;
     }
+  }
+
+  /// Recovers local owner access using a verified local authorization proof
+  /// (e.g. from local credential file or challenge) without rotating credentials.
+  Future<bool> recoverAccess({
+    required String authorizationProof,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+    Future<LocalSignInResult> Function(String)? customRecovery,
+  }) async {
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+
+    try {
+      final result = customRecovery != null
+          ? await customRecovery(authorizationProof)
+          : await recoverLocalAccess(authorizationProof: authorizationProof);
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ??
+          'Local access recovery succeeded but session verification failed.';
+      notifyListeners();
+      return false;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        localSignInError = error.message;
+      } else {
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+      }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Atomically rotates the owner credential with explicit local authorization,
+  /// invalidating previous sessions, and reconnects with the new authority.
+  Future<LocalSignInResult?> rotateCredential({
+    required String authorizationProof,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+    Future<LocalSignInResult> Function(String)? customRotation,
+  }) async {
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+
+    try {
+      final result = customRotation != null
+          ? await customRotation(authorizationProof)
+          : await rotateOwnerCredential(authorizationProof: authorizationProof);
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return result;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return result;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ?? 'Credential rotated, but reconnect failed.';
+      notifyListeners();
+      return result;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        localSignInError = error.message;
+      } else {
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+      }
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Exports the owner token currently in memory to a browser file download.
+  Future<bool> exportCurrentCredential({
+    String filename = 'owner-login.txt',
+  }) async {
+    final token = connection?.ownerToken;
+    if (token == null || token.isEmpty) return false;
+    await exportCredential(filename, token);
+    return true;
   }
 
   void invalidateDecisionsModelOptions() {
