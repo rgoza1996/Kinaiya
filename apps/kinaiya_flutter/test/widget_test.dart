@@ -930,4 +930,108 @@ void main() {
       expect(state.hostRoleStatusSummary, 'Agent host unreachable');
     },
   );
+
+  testWidgets(
+    'expired local handoff displays actionable diagnosis and offers Recover access',
+    (tester) async {
+      final state = AppState(
+        localSignInExchange: () async {
+          throw const LocalSignInException(
+            'Local sign-in handoff has expired',
+            code: 'LocalSignInExpired',
+            statusCode: 403,
+          );
+        },
+      );
+      addTearDown(state.dispose);
+
+      await state.attemptLocalSignIn(injected: mockClient());
+      expect(state.connected, isFalse);
+      expect(state.localSignInState, LocalHostSignInState.unavailable);
+      expect(
+        state.localSignInError,
+        contains('expired'),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SetupDialog(state: state, embedded: true)),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('local-host-status-unavailable')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('local-host-recover-access')), findsOneWidget);
+      expect(find.byKey(const Key('local-host-rotate-credential')), findsOneWidget);
+
+      // Trigger recovery with a local authorization proof
+      final recovered = await state.recoverAccess(
+        authorizationProof: 'local-auth-proof-code',
+        injected: mockClient(),
+        customRecovery: (proof) async => LocalSignInResult(
+          ownerToken: 'recovered-session-token',
+        ),
+      );
+      expect(recovered, isTrue);
+      expect(state.connected, isTrue);
+      await tester.pump();
+      expect(
+        find.byKey(const Key('local-host-status-connected')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'rotate owner credential requires explicit confirmation and updates session',
+    (tester) async {
+      final state = AppState(
+        localSignInExchange: () async => LocalSignInResult(
+          ownerToken: 'initial-owner-token',
+          ownerEpoch: 1,
+        ),
+      );
+      addTearDown(state.dispose);
+      await state.attemptLocalSignIn(injected: mockClient());
+      expect(state.connected, isTrue);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SetupDialog(state: state, embedded: true)),
+        ),
+      );
+      await tester.pump();
+
+      // Tap replace owner credential
+      await tester.tap(find.byKey(const Key('local-host-rotate-credential')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('setup-rotate-confirm-dialog')), findsOneWidget);
+      expect(
+        find.textContaining('invalidates the previous credential'),
+        findsOneWidget,
+      );
+
+      // Confirm replacement
+      await tester.tap(find.byKey(const Key('setup-rotate-confirm-button')));
+      await tester.pumpAndSettle();
+
+      // Reconnect with new rotated credential
+      final rotatedResult = await state.rotateCredential(
+        authorizationProof: 'initial-owner-token',
+        injected: mockClient(),
+        customRotation: (proof) async => LocalSignInResult(
+          ownerToken: 'rotated-session-token',
+          ownerEpoch: 2,
+          newOwnerToken: 'new-raw-owner-secret',
+        ),
+      );
+      expect(rotatedResult, isNotNull);
+      expect(rotatedResult!.ownerEpoch, 2);
+      expect(state.connected, isTrue);
+    },
+  );
 }

@@ -151,6 +151,7 @@ def test_first_local_launch_handoff_authenticates_session_and_agent_without_manu
                 )
                 event = ws.receive_json()
                 assert event["payload"]["text"] == "signed in automatically"
+                ws.close()
     finally:
         server.shutdown()
         server.server_close()
@@ -450,3 +451,359 @@ def test_stale_host_generation_and_owner_token_rotation_invalidate_session_and_h
             ).status_code
             == 401
         )
+
+
+def test_storage_status_diagnosis_reports_missing_corrupt_and_ready_without_reinitialization(
+    tmp_path: Path,
+):
+    data_dir = tmp_path / "data"
+    ui_root = tmp_path / "web"
+    ui_root.mkdir()
+    (ui_root / "index.html").write_text("<html>owner UI</html>")
+    (ui_root / "main.dart.js").write_text("// js")
+
+    # 1. Missing storage
+    load_or_create_tokens(data_dir)
+    broker = LocalOwnerSignInBroker(data_dir)
+    server, thread = _start_web_server(ui_root, broker)
+    port = server.server_port
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+        # Check initial ready status
+        conn.request("GET", "/__kinaiya/storage-status")
+        res = conn.getresponse()
+        assert res.status == 200
+        data = json.loads(res.read().decode("utf-8"))
+        assert data["status"] == "ready"
+        assert data["owner_epoch"] == 1
+
+        # Delete service-tokens.json -> status becomes missing (503), NEVER silently recreated!
+        (data_dir / "service-tokens.json").unlink()
+        conn.request("GET", "/__kinaiya/storage-status")
+        res = conn.getresponse()
+        assert res.status == 503
+        data = json.loads(res.read().decode("utf-8"))
+        assert data["status"] == "missing"
+        assert "Private credential storage does not exist" in data["detail"]
+        assert not (data_dir / "service-tokens.json").exists()
+
+        # Write file with insecure permissions (0644)
+        (data_dir / "service-tokens.json").write_text("{}")
+        conn.request("GET", "/__kinaiya/storage-status")
+        res = conn.getresponse()
+        assert res.status == 503
+        data = json.loads(res.read().decode("utf-8"))
+        assert data["status"] == "permission_denied"
+
+        # Set 0600 mode but corrupt content
+        (data_dir / "service-tokens.json").chmod(0o600)
+        (data_dir / "service-tokens.json").write_text("NOT_JSON")
+        conn.request("GET", "/__kinaiya/storage-status")
+        res = conn.getresponse()
+        assert res.status == 503
+        data = json.loads(res.read().decode("utf-8"))
+        assert data["status"] == "corrupt"
+        assert "corrupt or malformed" in data["detail"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_recovery_challenge_and_access_recovery_without_credential_rotation(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    ui_root = tmp_path / "web"
+    ui_root.mkdir()
+    (ui_root / "index.html").write_text("<html>owner UI</html>")
+    (ui_root / "main.dart.js").write_text("// js")
+
+    tokens = load_or_create_tokens(data_dir)
+    initial_owner_token = tokens["owner"]
+    broker = LocalOwnerSignInBroker(data_dir)
+    server, thread = _start_web_server(ui_root, broker)
+    port = server.server_port
+    origin = f"http://127.0.0.1:{port}"
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+
+        # 1. Simulate handoff expiration: user didn't consume launch handoff in time.
+        # Request recovery challenge via POST /__kinaiya/recovery/challenge
+        conn.request(
+            "POST",
+            "/__kinaiya/recovery/challenge",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+            },
+        )
+        chal_res = conn.getresponse()
+        chal_raw = chal_res.read().decode("utf-8")
+        assert chal_res.status == 200, chal_raw
+        chal_data = json.loads(chal_raw)
+        assert "challenge_id" in chal_data
+        assert "challenge_path" in chal_data
+        # Security invariant: secret code must NOT be sent over HTTP in response!
+        assert "code" not in chal_data
+        assert "auth_code" not in chal_data
+
+        # 2. Challenge file exists on disk with 0600 mode and contains code
+        chal_file = Path(chal_data["challenge_path"])
+        assert chal_file.exists()
+        assert stat.S_IMODE(chal_file.stat().st_mode) == 0o600
+        chal_disk = json.loads(chal_file.read_text())
+        assert chal_disk["code"].startswith("kny_rec_")
+
+        # 3. Recover access by submitting the challenge proof via POST /__kinaiya/recover-access
+        conn.request(
+            "POST",
+            "/__kinaiya/recover-access",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps({"authorization_proof": chal_disk["code"]}),
+        )
+        rec_res = conn.getresponse()
+        rec_raw = rec_res.read().decode("utf-8")
+        assert rec_res.status == 200, rec_raw
+        rec_data = json.loads(rec_raw)
+        assert rec_data["status"] == "authenticated"
+        assert rec_data["role"] == "owner"
+        assert rec_data["credential_kind"] == "scoped_owner_session"
+        assert rec_data["proof_kind"] == "challenge"
+        new_session_token = rec_data["session_token"]
+        assert new_session_token.startswith("kny_sess_")
+
+        # Invariant: Owner credential was NOT rotated!
+        current_tokens = load_or_create_tokens(data_dir)
+        assert current_tokens["owner"] == initial_owner_token
+        assert current_tokens.owner_epoch == 1
+
+        # Challenge file was consumed and deleted upon use
+        assert not chal_file.exists()
+
+        # 4. Verify the recovered session token works with Session service
+        auth = Auth(current_tokens, allowed_origins=(origin,))
+        store = Store(data_dir / "journal.sqlite")
+        app = create_session_app(store, auth)
+        with TestClient(app) as client:
+            res = client.get(
+                "/v1/sessions",
+                headers={"Authorization": f"Bearer {new_session_token}", "Origin": origin},
+            )
+            assert res.status_code == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_gui_owner_credential_rotation_invalidates_prior_sessions_and_handoffs(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    ui_root = tmp_path / "web"
+    ui_root.mkdir()
+    (ui_root / "index.html").write_text("<html>owner UI</html>")
+    (ui_root / "main.dart.js").write_text("// js")
+
+    tokens = load_or_create_tokens(data_dir)
+    initial_owner = tokens["owner"]
+    broker = LocalOwnerSignInBroker(data_dir)
+    server, thread = _start_web_server(ui_root, broker)
+    port = server.server_port
+    origin = f"http://127.0.0.1:{port}"
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+
+        # 1. Establish an initial session token
+        conn.request("GET", "/")
+        res = conn.getresponse()
+        _ = res.read()
+        seal = parse_handoff_cookie((res.getheader("Set-Cookie") or "").split(";", 1)[0])
+
+        conn.request(
+            "POST",
+            "/__kinaiya/local-signin",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Cookie": f"{HANDOFF_COOKIE_NAME}={seal}",
+            },
+        )
+        signin_res = conn.getresponse()
+        signin_data = json.loads(signin_res.read().decode("utf-8"))
+        old_session_token = signin_data["session_token"]
+
+        # Create active session in Session service
+        auth = Auth(tokens, allowed_origins=(origin,))
+        store = Store(data_dir / "journal.sqlite")
+        app = create_session_app(store, auth)
+        with TestClient(app) as client:
+            assert (
+                client.get(
+                    "/v1/sessions",
+                    headers={"Authorization": f"Bearer {old_session_token}", "Origin": origin},
+                ).status_code
+                == 200
+            )
+
+        # 2. Perform GUI credential rotation with explicit confirmation and return_exported_token
+        conn.request(
+            "POST",
+            "/__kinaiya/rotate-owner",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps(
+                {
+                    "authorization_proof": old_session_token,
+                    "confirm": True,
+                    "return_exported_token": True,
+                }
+            ),
+        )
+        rot_res = conn.getresponse()
+        rot_raw = rot_res.read().decode("utf-8")
+        assert rot_res.status == 200, rot_raw
+        rot_data = json.loads(rot_raw)
+        assert rot_data["status"] == "rotated"
+        assert rot_data["owner_epoch"] == 2
+        assert rot_data["proof_kind"] == "scoped_session"
+        new_session_token = rot_data["session_token"]
+        assert new_session_token != old_session_token
+        assert "new_owner_token" in rot_data
+        new_owner_token = rot_data["new_owner_token"]
+        assert new_owner_token != initial_owner
+
+        # 3. Old session token is immediately rejected on Session service
+        with TestClient(app) as client:
+            assert (
+                client.get(
+                    "/v1/sessions",
+                    headers={"Authorization": f"Bearer {old_session_token}", "Origin": origin},
+                ).status_code
+                == 401
+            )
+            # New session token succeeds with new authority
+            assert (
+                client.get(
+                    "/v1/sessions",
+                    headers={"Authorization": f"Bearer {new_session_token}", "Origin": origin},
+                ).status_code
+                == 200
+            )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_recovery_and_rotation_fail_closed_on_unauthorized_attempts(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    ui_root = tmp_path / "web"
+    ui_root.mkdir()
+    (ui_root / "index.html").write_text("<html>owner UI</html>")
+    (ui_root / "main.dart.js").write_text("// js")
+
+    load_or_create_tokens(data_dir)
+    broker = LocalOwnerSignInBroker(data_dir)
+    server, thread = _start_web_server(ui_root, broker)
+    port = server.server_port
+    origin = f"http://127.0.0.1:{port}"
+
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+
+        # 1. Unconfirmed rotation fails closed (403)
+        conn.request(
+            "POST",
+            "/__kinaiya/rotate-owner",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps({"authorization_proof": "fake", "confirm": False}),
+        )
+        res = conn.getresponse()
+        assert res.status == 403
+        data = json.loads(res.read().decode("utf-8"))
+        assert "explicit confirmation" in data["detail"]
+
+        # 2. Invalid authorization proof fails closed (403)
+        conn.request(
+            "POST",
+            "/__kinaiya/recover-access",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps({"authorization_proof": "invalid_code_here"}),
+        )
+        res = conn.getresponse()
+        assert res.status == 403
+        data = json.loads(res.read().decode("utf-8"))
+        assert data["code"] == "LocalSignInDenied"
+
+        # 3. Wrong origin fails closed (403)
+        conn.request(
+            "POST",
+            "/__kinaiya/recover-access",
+            headers={
+                "Origin": "http://evil.attacker.com",
+                "Sec-Fetch-Site": "same-origin",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps({"authorization_proof": "anything"}),
+        )
+        res = conn.getresponse()
+        _ = res.read()
+        assert res.status == 403
+
+        # 4. Missing CSRF header fails closed (403)
+        conn.request(
+            "POST",
+            "/__kinaiya/recover-access",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "same-origin",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps({"authorization_proof": "anything"}),
+        )
+        res = conn.getresponse()
+        _ = res.read()
+        assert res.status == 403
+
+        # 5. Cross-site Sec-Fetch-Site fails closed (403)
+        conn.request(
+            "POST",
+            "/__kinaiya/recover-access",
+            headers={
+                "Origin": origin,
+                "Sec-Fetch-Site": "cross-site",
+                "X-Kinaiya-Local-Handoff": "1",
+                "Content-Type": "application/json",
+            },
+            body=json.dumps({"authorization_proof": "anything"}),
+        )
+        res = conn.getresponse()
+        _ = res.read()
+        assert res.status == 403
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
