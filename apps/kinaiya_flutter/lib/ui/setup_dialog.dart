@@ -549,11 +549,11 @@ class _SetupDialogState extends State<SetupDialog> {
                                 ? _token.text
                                 : (widget.state.connection?.ownerToken ?? '');
                             if (token.isNotEmpty) {
+                              final messenger =
+                                  ScaffoldMessenger.maybeOf(context);
                               await exportCredential('owner-login.txt', token);
-                              if (mounted) {
-                                ScaffoldMessenger.maybeOf(
-                                  context,
-                                )?.showSnackBar(
+                              if (mounted && messenger != null) {
+                                messenger.showSnackBar(
                                   const SnackBar(
                                     content: Text(
                                       'Owner credential exported to browser download (owner-login.txt). '

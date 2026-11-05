@@ -18,7 +18,7 @@ const String localSignInPath = '/__kinaiya/local-signin';
 const String localRecoveryChallengePath = '/__kinaiya/recovery/challenge';
 const String localRecoverAccessPath = '/__kinaiya/recover-access';
 const String localRotateOwnerPath = '/__kinaiya/rotate-owner';
-const String localStorageStatusPath = '/__kinaiya/storage-status';
+const String hostCredentialStorageStatusPath = '/__kinaiya/storage-status';
 const String localSignInHeader = 'X-Kinaiya-Local-Handoff';
 
 const List<String> permittedWebOrigins = <String>[
@@ -366,7 +366,7 @@ Future<Map<String, Object?>> checkStorageStatus({
 }) async {
   final target =
       endpoint ??
-      Uri.parse('${permittedWebOrigins.last}$localStorageStatusPath');
+      Uri.parse('${permittedWebOrigins.last}$hostCredentialStorageStatusPath');
   if (!ConnectionProfile._isLoopback(target.host)) {
     throw const LocalSignInException(
       'Storage status check is restricted to loopback origins.',
