@@ -345,26 +345,7 @@ class _SetupDialogState extends State<SetupDialog> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              if (isUnavailable) ...[
-                OutlinedButton.icon(
-                  key: const Key('local-host-retry-signin'),
-                  onPressed: _retryLocalSignIn,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Retry local sign-in'),
-                ),
-                OutlinedButton.icon(
-                  key: const Key('local-host-recover-access'),
-                  onPressed: _handleRecoverAccess,
-                  icon: const Icon(Icons.lock_open, size: 18),
-                  label: const Text('Recover access'),
-                ),
-                OutlinedButton.icon(
-                  key: const Key('local-host-rotate-credential'),
-                  onPressed: _handleRotateCredential,
-                  icon: const Icon(Icons.sync_lock, size: 18),
-                  label: const Text('Replace owner credential'),
-                ),
-              ] else if (!isConnecting && !isConnected) ...[
+              if (!isConnecting && !isConnected) ...[
                 OutlinedButton.icon(
                   key: const Key('local-host-retry-signin'),
                   onPressed: _retryLocalSignIn,
@@ -372,7 +353,15 @@ class _SetupDialogState extends State<SetupDialog> {
                   label: const Text('Retry local sign-in'),
                 ),
               ],
-              if (isConnected) ...[
+              if (isUnavailable) ...[
+                OutlinedButton.icon(
+                  key: const Key('local-host-recover-access'),
+                  onPressed: _handleRecoverAccess,
+                  icon: const Icon(Icons.lock_open, size: 18),
+                  label: const Text('Recover access'),
+                ),
+              ],
+              if (isConnected || isUnavailable) ...[
                 OutlinedButton.icon(
                   key: const Key('local-host-rotate-credential'),
                   onPressed: _handleRotateCredential,
