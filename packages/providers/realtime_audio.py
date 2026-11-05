@@ -228,7 +228,25 @@ def _final_message(item, identity, text):
             _require(part.get("transcript", "") == "")
 
 
+def _default_transport_ready() -> bool:
+    try:
+        import websockets
+        import websockets.asyncio.client as client
+    except Exception:
+        return False
+    version = getattr(websockets, "__version__", None)
+    connect = getattr(client, "connect", None)
+    if type(version) is not str or not callable(connect):
+        return False
+    match = re.match(r"^([0-9]+)\.", version.strip())
+    if match is None or int(match[1]) < 14:
+        return False
+    return True
+
+
 async def _default_connect(url, **options):
+    if not _default_transport_ready():
+        raise _MissingTransport
     try:
         from websockets.asyncio.client import connect
     except ImportError:
@@ -644,6 +662,14 @@ class RealtimeAudioProvider:
             hashlib.sha256(self._key.encode("ascii")).hexdigest(),
             id(self._connect),
         )
+
+    def transport_available(self) -> bool:
+        """Report local transport dependency readiness without probing the network."""
+        if self._sealed or self._cleanup_failed:
+            return False
+        if self._connect is _default_connect:
+            return _default_transport_ready()
+        return callable(self._connect)
 
     async def _settle(self, operation):
         deadline = asyncio.get_running_loop().time() + _CLEANUP_WAIT

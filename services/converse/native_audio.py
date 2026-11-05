@@ -400,6 +400,17 @@ class NativeAudioOwner:
             getattr(getattr(self.provider, "respond", None), "__func__", None),
         )
 
+    def _transport_available(self) -> bool:
+        check = getattr(self.provider, "transport_available", None)
+        if check is None:
+            return True
+        if not callable(check):
+            return False
+        try:
+            return check() is True
+        except Exception:
+            return False
+
     def _capture(self):
         if self._sealed or self._closed or self._failed or self._cleanup_failed:
             raise _error(503)
@@ -421,6 +432,8 @@ class NativeAudioOwner:
             info = runtime_provider_info(self.runtime)
             if type(info.local) is not bool or info.local is not True:
                 raise _error(409)
+            if not self._transport_available():
+                raise _error(503)
             settings = runtime_model_settings(self.runtime)
             token = None if settings is None else settings.state_token()
             return (
@@ -461,6 +474,36 @@ class NativeAudioOwner:
         except Exception:
             return False
 
+    def _readiness_reason(self) -> str:
+        if self._closed or self._sealed:
+            return "closed"
+        if self._failed or self._cleanup_failed:
+            return "cleanup_failed"
+        try:
+            if getattr(self.runtime, "native_audio", None) is not self:
+                return "unavailable"
+            if self.provider is not self._original_provider:
+                return "unavailable"
+            close = getattr(self.provider, "close", None)
+            original_close = self._original_provider_close
+            if getattr(close, "__self__", None) is not getattr(
+                original_close, "__self__", None
+            ) or getattr(close, "__func__", close) is not getattr(
+                original_close, "__func__", original_close
+            ):
+                return "unavailable"
+            if not host_model_selected(self.runtime) or not self.runtime.enabled:
+                return "unavailable"
+            info = runtime_provider_info(self.runtime)
+            if type(info.local) is not bool or info.local is not True:
+                return "unavailable"
+            if not self._transport_available():
+                return "missing_transport"
+            self._capture()
+        except Exception:
+            return "unavailable"
+        return "ready"
+
     def status(self):
         active = sum(
             clip.task is not None and not clip.task.done() for clip in self._clips.values()
@@ -476,9 +519,13 @@ class NativeAudioOwner:
             or unresolved
             or (self._close_task is not None and not self._close_task.done())
         )
+        transport_available = self._transport_available()
+        readiness_reason = self._readiness_reason()
         return {
             "configured": not self._closed,
             "available": self.available,
+            "transport_available": transport_available,
+            "readiness_reason": readiness_reason,
             "mode": "buffered_native_audio",
             "input_sample_rate": INPUT_RATE,
             "max_seconds": MAX_SECONDS,
