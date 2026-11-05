@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+
 from services.agent.sam_video import SamVideoProfile, SamVideoProjector
 
 SAMPLE = (
@@ -127,6 +128,8 @@ async def test_actual_synthetic_mask_decode_and_isolated_video_render(tmp_path, 
 
 @pytest.mark.sandbox
 async def test_720p_png_overlay_codec_under_unchanged_address_space_cap(tmp_path):
+    if not __import__("pathlib").Path("/usr/bin/ffmpeg").exists():
+        pytest.skip("requires /usr/bin/ffmpeg (native SAM render)")
     source_path = tmp_path / "synthetic-720p.mp4"
     subprocess.run(
         [
