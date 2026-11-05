@@ -2,7 +2,9 @@
 library;
 
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
 import '../api/agent_control.dart';
 import '../api/agent_control_client.dart';
 
@@ -149,8 +151,7 @@ class AgentModeWrites extends ChangeNotifier {
     if (outcome == AgentModeOutcome.recorded) {
       // This is historical proof. Only a fresh snapshot may update mode.
       scope.selection = scope.snapshot.mode;
-      scope.notice =
-          'Agent mode save confirmed in history. Refresh to inspect the current mode.';
+      scope.notice = 'Agent mode save confirmed in history. Refresh to inspect the current mode.';
     } else {
       scope.notice =
           'The earlier mode save was not applied and is permanently fenced. '
@@ -231,8 +232,7 @@ class AgentModeWrites extends ChangeNotifier {
     final display = Timer(displayDeadline, () {
       if (_registered(operation) && operation.lookupOwners > 0) {
         operation.uncertain = true;
-        operation.notice =
-            'Still waiting for save status. The earlier mode save remains unknown.';
+        operation.notice = 'Still waiting for save status. The earlier mode save remains unknown.';
         _changed(operation);
       }
     });
@@ -253,8 +253,7 @@ class AgentModeWrites extends ChangeNotifier {
     }
     if (_registered(operation)) {
       operation.uncertain = true;
-      operation.notice =
-          'No settled result is confirmed. The earlier mode save remains unknown.';
+      operation.notice = 'No settled result is confirmed. The earlier mode save remains unknown.';
       _changed(operation);
     }
     return null;

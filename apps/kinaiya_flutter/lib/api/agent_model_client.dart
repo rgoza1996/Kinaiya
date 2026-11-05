@@ -2,7 +2,9 @@
 library;
 
 import 'dart:async';
+
 import 'package:http/http.dart' as http;
+
 import 'agent_model_settings.dart';
 import 'owned_settings_client.dart';
 

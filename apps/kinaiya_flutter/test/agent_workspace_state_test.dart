@@ -184,28 +184,25 @@ AppState wired(WorkspaceApi api) =>
     AppState()..connect(ConnectionProfile.defaults(), injected: api);
 
 void main() {
-  test(
-    'catalog and harness inspection only read; native eligibility gates creation',
-    () async {
-      final api = WorkspaceApi();
-      final state = wired(api);
-      addTearDown(state.dispose);
-      await state.refreshAgentHarnesses();
-      expect(state.selectedAgentHarness, 'seed-v1');
-      expect(state.canCreateAgentSession, isTrue);
-      await state.selectAgentHarness('unapproved');
-      expect(state.selectedAgentHarness, 'unapproved');
-      expect(state.canCreateAgentSession, isFalse);
-      await state.createSelectedAgentSession();
-      expect(api.creates, 0);
-      expect(state.agentSession, isNull);
-      await state.selectAgentHarness('unassociated');
-      expect(state.agentWorkspaceSessions.single.sessionId, 'old');
-      expect(state.canCreateAgentSession, isFalse);
-      await state.selectAgentSession('old');
-      expect(state.agentSession!.harnessVersion, isNull);
-    },
-  );
+  test('catalog and harness inspection only read; native eligibility gates creation', () async {
+    final api = WorkspaceApi();
+    final state = wired(api);
+    addTearDown(state.dispose);
+    await state.refreshAgentHarnesses();
+    expect(state.selectedAgentHarness, 'seed-v1');
+    expect(state.canCreateAgentSession, isTrue);
+    await state.selectAgentHarness('unapproved');
+    expect(state.selectedAgentHarness, 'unapproved');
+    expect(state.canCreateAgentSession, isFalse);
+    await state.createSelectedAgentSession();
+    expect(api.creates, 0);
+    expect(state.agentSession, isNull);
+    await state.selectAgentHarness('unassociated');
+    expect(state.agentWorkspaceSessions.single.sessionId, 'old');
+    expect(state.canCreateAgentSession, isFalse);
+    await state.selectAgentSession('old');
+    expect(state.agentSession!.harnessVersion, isNull);
+  });
   test(
     'session drafts and authoritative journal histories restore independently',
     () async {
@@ -320,26 +317,23 @@ void main() {
       expect(activity.output!.length, lessThan(8100));
     },
   );
-  test(
-    'pending identity restore preserves a newly revised draft over target snapshot',
-    () async {
-      final api = WorkspaceApi();
-      final state = wired(api);
-      addTearDown(state.dispose);
-      await state.selectAgentSession('b');
-      state.setDraft(AppView.agent, 'Saved B draft');
-      await state.selectAgentSession('a');
-      final gate = Completer<SessionInfo>();
-      api.getHook = (id) async => id == 'b' ? gate.future : api.sessions[id]!;
-      final pending = state.selectAgentSession('b');
-      state.setDraft(AppView.agent, 'New draft while B lookup is pending');
-      gate.complete(api.sessions['b']);
-      await pending;
-      expect(state.agentDraft, 'New draft while B lookup is pending');
-      expect(state.agentSession!.sessionId, 'b');
-      expect(state.agentIdentitySelecting, isFalse);
-    },
-  );
+  test('pending identity restore preserves a newly revised draft over target snapshot', () async {
+    final api = WorkspaceApi();
+    final state = wired(api);
+    addTearDown(state.dispose);
+    await state.selectAgentSession('b');
+    state.setDraft(AppView.agent, 'Saved B draft');
+    await state.selectAgentSession('a');
+    final gate = Completer<SessionInfo>();
+    api.getHook = (id) async => id == 'b' ? gate.future : api.sessions[id]!;
+    final pending = state.selectAgentSession('b');
+    state.setDraft(AppView.agent, 'New draft while B lookup is pending');
+    gate.complete(api.sessions['b']);
+    await pending;
+    expect(state.agentDraft, 'New draft while B lookup is pending');
+    expect(state.agentSession!.sessionId, 'b');
+    expect(state.agentIdentitySelecting, isFalse);
+  });
   test('late session identity cannot replace a newer selection', () async {
     final gate = Completer<SessionInfo>();
     final api = WorkspaceApi();
@@ -401,50 +395,44 @@ void main() {
       expect(state.agentHistoryError, isNotNull);
     },
   );
-  test(
-    'session page and catalog failures are explicit; stale pages do not mix harnesses',
-    () async {
-      final gate = Completer<AgentSessionPage>();
-      final api = WorkspaceApi();
-      final state = wired(api);
-      addTearDown(state.dispose);
-      await state.refreshAgentHarnesses();
-      api.pageHook = (harness, _) async =>
-          harness == 'seed-v1' ? gate.future : page([]);
-      final pending = state.refreshAgentSessions();
-      await state.selectAgentHarness('unapproved');
-      gate.complete(page([api.sessions['a']!]));
-      await pending;
-      expect(state.agentWorkspaceSessions, isEmpty);
-      api.catalogHook = () async => throw StateError('synthetic failure');
-      await state.refreshAgentHarnesses();
-      expect(state.agentHarnessError, isNotNull);
-      expect(state.canCreateAgentSession, isFalse);
-    },
-  );
-  test(
-    'uncertain creation is retained across reconnect and never automatically replayed',
-    () async {
-      final api = WorkspaceApi()
-        ..createHook = () async => throw TimeoutException('synthetic');
-      final state = wired(api);
-      addTearDown(state.dispose);
-      await state.refreshAgentHarnesses();
-      await state.createSelectedAgentSession();
-      expect(api.creates, 1);
-      expect(state.agentCreationUncertain, isTrue);
-      state.disconnect();
-      final next = WorkspaceApi();
-      state.connect(ConnectionProfile.defaults(), injected: next);
-      await state.refreshAgentHarnesses();
-      await state.createSelectedAgentSession();
-      expect(next.creates, 0);
-      state.acknowledgeAgentCreationUncertainty();
-      await state.createSelectedAgentSession();
-      expect(next.creates, 1);
-      expect(state.agentSession!.harnessVersion, 'seed-v1');
-    },
-  );
+  test('session page and catalog failures are explicit; stale pages do not mix harnesses', () async {
+    final gate = Completer<AgentSessionPage>();
+    final api = WorkspaceApi();
+    final state = wired(api);
+    addTearDown(state.dispose);
+    await state.refreshAgentHarnesses();
+    api.pageHook = (harness, _) async =>
+        harness == 'seed-v1' ? gate.future : page([]);
+    final pending = state.refreshAgentSessions();
+    await state.selectAgentHarness('unapproved');
+    gate.complete(page([api.sessions['a']!]));
+    await pending;
+    expect(state.agentWorkspaceSessions, isEmpty);
+    api.catalogHook = () async => throw StateError('synthetic failure');
+    await state.refreshAgentHarnesses();
+    expect(state.agentHarnessError, isNotNull);
+    expect(state.canCreateAgentSession, isFalse);
+  });
+  test('uncertain creation is retained across reconnect and never automatically replayed', () async {
+    final api = WorkspaceApi()
+      ..createHook = () async => throw TimeoutException('synthetic');
+    final state = wired(api);
+    addTearDown(state.dispose);
+    await state.refreshAgentHarnesses();
+    await state.createSelectedAgentSession();
+    expect(api.creates, 1);
+    expect(state.agentCreationUncertain, isTrue);
+    state.disconnect();
+    final next = WorkspaceApi();
+    state.connect(ConnectionProfile.defaults(), injected: next);
+    await state.refreshAgentHarnesses();
+    await state.createSelectedAgentSession();
+    expect(next.creates, 0);
+    state.acknowledgeAgentCreationUncertainty();
+    await state.createSelectedAgentSession();
+    expect(next.creates, 1);
+    expect(state.agentSession!.harnessVersion, 'seed-v1');
+  });
   test(
     'creation receipt cannot redirect work after the selected session changes',
     () async {

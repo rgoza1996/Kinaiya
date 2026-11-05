@@ -279,9 +279,9 @@ class _CharacterViewState extends State<CharacterView> {
                             'Converse chat',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(
-                              dialogContext,
-                            ).textTheme.titleMedium,
+                            style: Theme.of(dialogContext)
+                                .textTheme
+                                .titleMedium,
                           ),
                         ),
                         IconButton(
@@ -541,8 +541,7 @@ class _CharacterViewState extends State<CharacterView> {
       if (mounted && dialogContext.mounted) Navigator.of(dialogContext).pop();
     } catch (_) {
       if (mounted && identical(_s, owner)) {
-        _newConversationNotice =
-            'New conversation selection was not confirmed. Previous conversations remain available; check history before trying again.';
+        _newConversationNotice = 'New conversation selection was not confirmed. Previous conversations remain available; check history before trying again.';
         _voiceOptionsUpdates.value++;
       }
     }
@@ -601,14 +600,12 @@ class _CharacterViewState extends State<CharacterView> {
         if (!mounted) return;
         if (status != null) {
           _audioInputNotice = switch (status) {
-            'selected' =>
-              'Audio input selected for the next Call or recording in this session.',
+            'selected' => 'Audio input selected for the next Call or recording in this session.',
             'default' =>
               'The next recording will use the browser default input.',
             'busy' =>
               'End microphone capture or the pending input change first.',
-            _ =>
-              'Audio input selection is unavailable. Refresh inputs and choose again.',
+            _ => 'Audio input selection is unavailable. Refresh inputs and choose again.',
           };
           if (status != 'selected' && status != 'default') return;
         }
@@ -621,15 +618,13 @@ class _CharacterViewState extends State<CharacterView> {
         if (mounted) {
           _audioInputs = null;
           _audioInputNotice = switch (error.reason) {
-            AudioInputDiscoveryReason.identifiersUnavailable =>
-              'Browser has not provided selectable microphone identifiers. Check this site’s microphone permission, then refresh inputs. No microphone was activated by this refresh.',
+            AudioInputDiscoveryReason.identifiersUnavailable => 'Browser has not provided selectable microphone identifiers. Check this site’s microphone permission, then refresh inputs. No microphone was activated by this refresh.',
           };
         }
       } catch (_) {
         if (mounted) {
           _audioInputs = null;
-          _audioInputNotice =
-              'Audio input selection is unconfirmed. Refresh inputs and choose again.';
+          _audioInputNotice = 'Audio input selection is unconfirmed. Refresh inputs and choose again.';
         }
       } finally {
         if (identical(_audioInputOperation, operation)) {
@@ -689,8 +684,7 @@ class _CharacterViewState extends State<CharacterView> {
             'cancelled' => 'Audio output selection cancelled.',
             'busy' => 'Finish playback or the pending output change first.',
             'stopped' => 'Audio output selection was not confirmed.',
-            _ =>
-              'Audio output selection is unavailable. Refresh devices or choose an output.',
+            _ => 'Audio output selection is unavailable. Refresh devices or choose an output.',
           };
           if (status != 'selected' && status != 'default') {
             if (status != 'busy' && status != 'cancelled') {
@@ -720,8 +714,7 @@ class _CharacterViewState extends State<CharacterView> {
       } catch (_) {
         if (mounted) {
           _audioOutputs = null;
-          _audioOutputNotice =
-              'Audio output is unconfirmed. Refresh devices or choose an output.';
+          _audioOutputNotice = 'Audio output is unconfirmed. Refresh devices or choose an output.';
           _audioOutputTimer?.cancel();
           _audioOutputTimer = null;
         }
@@ -774,9 +767,8 @@ class _CharacterViewState extends State<CharacterView> {
               : 'Calibration will start when you next turn Call on.';
         }
       } else if (settings != null) {
-        final applied = await _configureVad(
-          settings,
-        ).timeout(const Duration(seconds: 2));
+        final applied = await _configureVad(settings)
+            .timeout(const Duration(seconds: 2));
         if (current()) {
           _vadSettings = applied;
           _vadNotice = 'Microphone settings applied for this session.';
@@ -1250,8 +1242,7 @@ class _CharacterViewState extends State<CharacterView> {
           AppView.character,
           ChatMsg(
             role: 'system',
-            text:
-                'Kinaiya is not ready to chat right now. Direct Agent Chat remains available.',
+            text: 'Kinaiya is not ready to chat right now. Direct Agent Chat remains available.',
           ),
         );
       }
@@ -2109,8 +2100,7 @@ class _CharacterViewState extends State<CharacterView> {
               AppView.character,
               ChatMsg(
                 role: 'system',
-                text:
-                    'A live transcript window could not be received. Listening continues.',
+                text: 'A live transcript window could not be received. Listening continues.',
               ),
             );
           }
@@ -2169,10 +2159,8 @@ class _CharacterViewState extends State<CharacterView> {
     _publishVoiceActivity();
     _nativeCallMessage(notice);
     if (_nativeCaptureStop != null) return;
-    final original = Future.wait([
-      _audio.stopArmed(),
-      _audio.cancelRecording(),
-    ]).then<void>((_) {});
+    final original = Future.wait([_audio.stopArmed(), _audio.cancelRecording()])
+        .then<void>((_) {});
     _nativeCaptureStop = original;
     unawaited(
       original.then<void>(
@@ -2380,8 +2368,7 @@ class _CharacterViewState extends State<CharacterView> {
           AppView.character,
           ChatMsg(
             role: 'system',
-            text:
-                'Audio input configuration is unavailable. Refresh the connection before importing.',
+            text: 'Audio input configuration is unavailable. Refresh the connection before importing.',
           ),
         );
         return;
@@ -2394,8 +2381,7 @@ class _CharacterViewState extends State<CharacterView> {
         AppView.character,
         ChatMsg(
           role: 'system',
-          text:
-              'Native audio is configured but unavailable. Review the host connection.',
+          text: 'Native audio is configured but unavailable. Review the host connection.',
         ),
       );
       return;
@@ -2616,8 +2602,7 @@ class _CharacterViewState extends State<CharacterView> {
             AppView.character,
             ChatMsg(
               role: 'system',
-              text:
-                  'Native audio clip admission was not confirmed. Check conversation history before submitting again.',
+              text: 'Native audio clip admission was not confirmed. Check conversation history before submitting again.',
             ),
           );
         }
@@ -2674,8 +2659,7 @@ class _CharacterViewState extends State<CharacterView> {
           AppView.character,
           ChatMsg(
             role: 'system',
-            text:
-                'Recording unfinished (too short or undecodable); nothing sent.',
+            text: 'Recording unfinished (too short or undecodable); nothing sent.',
           ),
         );
         return;

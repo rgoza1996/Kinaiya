@@ -135,8 +135,7 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
         _snapshot = next;
         _draft = draft;
         if (draft == null) {
-          _error =
-              'Retained draft capacity is full. Resolve or discard an earlier classifier draft.';
+          _error = 'Retained draft capacity is full. Resolve or discard an earlier classifier draft.';
         }
       });
       _changes.value++;
@@ -144,8 +143,7 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _snapshot = null;
-          _error =
-              'Decisions model options are unavailable. Drafts and unconfirmed saves are retained.';
+          _error = 'Decisions model options are unavailable. Drafts and unconfirmed saves are retained.';
         });
       }
     } finally {
@@ -300,15 +298,13 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
         item.lookup = lookup;
         if (release) {
           if (!lookup.fenced) {
-            item.notice =
-                'The earlier outcome is unknown. The original request is not natively fenced.';
+            item.notice = 'The earlier outcome is unknown. The original request is not natively fenced.';
             return;
           }
           api.releaseFenced(item.body, lookup);
           _pending.remove(item);
           setState(
-            () => _notice =
-                'Local tracking released. The earlier outcome remains unknown; the unchanged request can make no new commit. No work was cancelled or rolled back.',
+            () => _notice = 'Local tracking released. The earlier outcome remains unknown; the unchanged request can make no new commit. No work was cancelled or rolled back.',
           );
           unawaited(_load());
           widget.onChanged();
@@ -346,13 +342,11 @@ class _OptionsDecisionsModelState extends State<OptionsDecisionsModel> {
           widget.onChanged();
         }
       } else {
-        item.notice =
-            'The save outcome is unknown. Its exact original request is retained for native lookup.';
+        item.notice = 'The save outcome is unknown. Its exact original request is retained for native lookup.';
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice =
-          'The response could not be confirmed. The exact original request is retained.';
+      item.notice = 'The response could not be confirmed. The exact original request is retained.';
     } finally {
       item.inFlight = false;
       _changes.value++;

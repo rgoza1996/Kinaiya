@@ -90,8 +90,7 @@ class _OptionsSttAdmissionsState extends State<OptionsSttAdmissions> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _inventory = null;
-          _error =
-              'Speech cleanup records are unavailable. Earlier checks are retained.';
+          _error = 'Speech cleanup records are unavailable. Earlier checks are retained.';
         });
       }
     } finally {
@@ -149,8 +148,7 @@ class _OptionsSttAdmissionsState extends State<OptionsSttAdmissions> {
           ? 'The cleanup check was not confirmed. Check the same operation again.'
           : 'The cleanup check could not start. The original operation is retained.';
     } catch (_) {
-      record.notice =
-          'The cleanup check was not confirmed. The original operation is retained.';
+      record.notice = 'The cleanup check was not confirmed. The original operation is retained.';
     } finally {
       record.inFlight = false;
       _changes.value++;

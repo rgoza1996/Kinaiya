@@ -125,31 +125,28 @@ void main() {
     },
   );
 
-  test(
-    'task activity preserves native work facts, including multiple tasks and stale snapshots',
-    () {
-      final state = AppState()..sessionAuthenticated = true;
-      state.setTasks([task('first', 'running'), task('second', 'verifying')]);
-      expect(state.characterWorkActivity, 'working.generic');
-      state.setTasks([
-        task('first', 'running'),
-        task('second', 'awaiting_approval'),
-      ]);
-      expect(state.characterWorkActivity, 'blocked');
-      state.setTasks([task('second', 'paused'), task('first', 'running')]);
-      expect(state.characterWorkActivity, 'blocked');
-      state.markTasksUnavailable();
-      expect(state.tasks, hasLength(2));
-      expect(state.characterWorkActivity, 'idle');
-      state.setTasks([task('first', 'failed'), task('second', 'succeeded')]);
-      expect(state.characterWorkActivity, 'idle');
-      state.setTasks([task('first', 'running')]);
-      state.disconnect();
-      expect(state.tasksStatusStale, isTrue);
-      expect(state.characterWorkActivity, 'idle');
-      state.dispose();
-    },
-  );
+  test('task activity preserves native work facts, including multiple tasks and stale snapshots', () {
+    final state = AppState()..sessionAuthenticated = true;
+    state.setTasks([task('first', 'running'), task('second', 'verifying')]);
+    expect(state.characterWorkActivity, 'working.generic');
+    state.setTasks([
+      task('first', 'running'),
+      task('second', 'awaiting_approval'),
+    ]);
+    expect(state.characterWorkActivity, 'blocked');
+    state.setTasks([task('second', 'paused'), task('first', 'running')]);
+    expect(state.characterWorkActivity, 'blocked');
+    state.markTasksUnavailable();
+    expect(state.tasks, hasLength(2));
+    expect(state.characterWorkActivity, 'idle');
+    state.setTasks([task('first', 'failed'), task('second', 'succeeded')]);
+    expect(state.characterWorkActivity, 'idle');
+    state.setTasks([task('first', 'running')]);
+    state.disconnect();
+    expect(state.tasksStatusStale, isTrue);
+    expect(state.characterWorkActivity, 'idle');
+    state.dispose();
+  });
 
   testWidgets(
     'current work and blocked status paint the actual activity atlas; read failure removes current-activity claim',

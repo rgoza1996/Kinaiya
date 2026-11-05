@@ -253,9 +253,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
         except Exception as error:
             await asyncio.shield(self._start_failure(error))
 
-    def _accept(
-        self, event: ResponsesEventLike, *, emit: bool
-    ) -> ResponseStreamOutcome | None:
+    def _accept(self, event: ResponsesEventLike, *, emit: bool) -> ResponseStreamOutcome | None:
         event_type = _field(event, "type")
         assert isinstance(event_type, str)
         if event_type == "response.output_text.delta":
@@ -287,9 +285,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
                 self._finalize_output_text(event, _field(part, "text"), emit=emit)
             elif part_type == "refusal":
                 refusal = _field(part, "refusal")
-                message = (
-                    refusal if isinstance(refusal, str) else "The response was refused."
-                )
+                message = refusal if isinstance(refusal, str) else "The response was refused."
                 raise ResponsesStreamRefusalError(message, event)
             return None
         if event_type in ("response.refusal.delta", "response.refusal.done"):
@@ -314,8 +310,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
         if event_type == "response.incomplete":
             if self._lane is None or not self._lane_done:
                 raise ResponsesStreamLaneError(
-                    "The response became incomplete before finalizing one "
-                    "output text lane.",
+                    "The response became incomplete before finalizing one output text lane.",
                     self._lane,
                     None,
                 )
@@ -335,9 +330,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
             raise ResponsesStreamEventError(event_message, event)
         return None
 
-    def _finalize_output_text(
-        self, event: ResponsesEventLike, text: object, *, emit: bool
-    ) -> None:
+    def _finalize_output_text(self, event: ResponsesEventLike, text: object, *, emit: bool) -> None:
         lane = self._accept_lane(event)
         event_type = _field(event, "type")
         assert isinstance(event_type, str)
@@ -356,8 +349,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
         if self._lane_done:
             if text != self._text:
                 raise ResponsesStreamLaneError(
-                    "The response finalized its output text lane twice with "
-                    "conflicting text.",
+                    "The response finalized its output text lane twice with conflicting text.",
                     self._lane,
                     lane,
                 )
@@ -466,18 +458,14 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
         if self._failure_task is not None:
             return self._failure_task
         failure = (
-            error
-            if isinstance(error, ResponsesStreamError)
-            else ResponsesStreamParserError(error)
+            error if isinstance(error, ResponsesStreamError) else ResponsesStreamParserError(error)
         )
         # Stop admitting reads before yielding, and hand the current read to
         # the one cleanup task. Consumer cancellation must not cancel it again.
         self._interrupt_reads(failure)
         active = self._active_read
         self._failure_task = self._ensure_loop().create_task(
-            self._fail_and_close(
-                failure, active, cancel_read=active is not asyncio.current_task()
-            )
+            self._fail_and_close(failure, active, cancel_read=active is not asyncio.current_task())
         )
         self._observe(self._failure_task)
         return self._failure_task
@@ -499,9 +487,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
             except (asyncio.CancelledError, StopAsyncIteration):
                 pass
             except BaseException as error:
-                failure = ResponsesStreamSourceError(
-                    "return", error, prior_error=failure
-                )
+                failure = ResponsesStreamSourceError("return", error, prior_error=failure)
             finally:
                 if self._active_read is active:
                     self._active_read = None
@@ -590,9 +576,7 @@ class ParsedResponsesStream(AsyncIterator[EventT], Generic[EventT, ResultT]):
             except Exception as error:
                 raise ResponsesStreamSourceError("next", error) from error
             if not isinstance(event_type, str):
-                shape_error = TypeError(
-                    "The event source yielded an invalid Responses event."
-                )
+                shape_error = TypeError("The event source yielded an invalid Responses event.")
                 raise ResponsesStreamSourceError("next", shape_error) from shape_error
             return False, event
         except asyncio.CancelledError:

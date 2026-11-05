@@ -36,30 +36,31 @@ Future<void> _pumpSheet(
 
 void main() {
   for (final windowMode in [true, false]) {
-    testWidgets('timing mode $windowMode stays readable at 320px2x with keyboard', (
-      tester,
-    ) async {
-      var calls = 0;
-      await _pumpSheet(
-        tester,
-        windowMode: windowMode,
-        scale: 2,
-        keyboard: 320,
-        endSilenceMs: 1500,
-        onSilenceChanged: (_) => calls++,
-      );
-      expect(
-        find.byTooltip('Close voice options').hitTestable(),
-        findsOneWidget,
-      );
-      final explanation = windowMode
-          ? 'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.'
-          : 'Fallback clip capture: silence ends the clip. Not live model timing.';
-      await tester.ensureVisible(find.text(explanation));
-      await tester.pumpAndSettle();
-      expect(calls, 0);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'timing mode $windowMode stays readable at 320px2x with keyboard',
+      (tester) async {
+        var calls = 0;
+        await _pumpSheet(
+          tester,
+          windowMode: windowMode,
+          scale: 2,
+          keyboard: 320,
+          endSilenceMs: 1500,
+          onSilenceChanged: (_) => calls++,
+        );
+        expect(
+          find.byTooltip('Close voice options').hitTestable(),
+          findsOneWidget,
+        );
+        final explanation = windowMode
+            ? 'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.'
+            : 'Fallback clip capture: silence ends the clip. Not live model timing.';
+        await tester.ensureVisible(find.text(explanation));
+        await tester.pumpAndSettle();
+        expect(calls, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   testWidgets(

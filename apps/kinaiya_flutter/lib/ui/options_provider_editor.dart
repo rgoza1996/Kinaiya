@@ -248,8 +248,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     } catch (_) {
       if (_current(api, active) && version == _readVersion) {
         setState(() {
-          _error =
-              'Provider catalog could not be read. Existing role settings have not been changed.';
+          _error = 'Provider catalog could not be read. Existing role settings have not been changed.';
         });
       }
     } finally {
@@ -313,8 +312,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         }
       } else {
         pending.uncertain = true;
-        pending.message =
-            'Save outcome is unconfirmed. Reconcile this exact request before making another change.';
+        pending.message = 'Save outcome is unconfirmed. Reconcile this exact request before making another change.';
       }
     } catch (_) {
       pending.uncertain = true;
@@ -344,16 +342,14 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       if (!receipt.matches(pending.body)) throw const FormatException();
       if (pending.operation == 'credential_import' ||
           pending.operation == 'credential_reference') {
-        pending.message =
-            'A receipt exists. Retry the same request to verify its exact credential registration; this cannot create a second generation.';
+        pending.message = 'A receipt exists. Retry the same request to verify its exact credential registration; this cannot create a second generation.';
       } else {
         pending.confirmed = true;
         _clearPending(pending);
         if (_current(api, active)) {
           setState(() {
             _screen = 'list';
-            _notice =
-                'Confirmed saved catalog change. Active role state is separate.';
+            _notice = 'Confirmed saved catalog change. Active role state is separate.';
           });
         }
       }
@@ -362,8 +358,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           ? 'No committed receipt is visible yet. The earlier request may still commit. Retry only this same request.'
           : 'Receipt inspection is unavailable. The save outcome remains unconfirmed.';
     } catch (_) {
-      pending.message =
-          'Receipt did not establish this save. Keep the exact request for reconciliation.';
+      pending.message = 'Receipt did not establish this save. Keep the exact request for reconciliation.';
     } finally {
       pending.inFlight = false;
       _pendingEvents.value++;
@@ -525,8 +520,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       });
     } on FormatException {
       setState(() {
-        _formError =
-            'Check the endpoint, required credential and native limits. Cloud origins require HTTPS and explicit authorization. URLs cannot contain credentials, queries or fragments.';
+        _formError = 'Check the endpoint, required credential and native limits. Cloud origins require HTTPS and explicit authorization. URLs cannot contain credentials, queries or fragments.';
       });
     }
   }
@@ -941,8 +935,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'Maximum output tokens',
             maxLength: 5,
             numeric: true,
-            help:
-                'Optional — leave blank to let the model decide its own maximum output tokens.',
+            help: 'Optional — leave blank to let the model decide its own maximum output tokens.',
             validator: (v) => _number(
               v,
               16,
@@ -970,8 +963,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               providerMaxRevision,
               optional: _kind != 'measured_chat',
             ),
-            help:
-                'An explicit declaration is not an actual prompt count or model qualification.',
+            help: 'An explicit declaration is not an actual prompt count or model qualification.',
           ),
         if (_kind != 'meta')
           _field(
@@ -1138,8 +1130,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'API key / access token',
             maxLength: 16384,
             secret: true,
-            help:
-                'Sent once to the authenticated native owner. Never stored in browser preferences or exports.',
+            help: 'Sent once to the authenticated native owner. Never stored in browser preferences or exports.',
             validator: (value) =>
                 value == null ||
                     value.isEmpty ||
@@ -1297,13 +1288,11 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         }
       } else {
         pending.uncertain = true;
-        pending.message =
-            'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
+        pending.message = 'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
       }
     } catch (_) {
       pending.uncertain = true;
-      pending.message =
-          'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
+      pending.message = 'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
     } finally {
       pending.inFlight = false;
       _pendingEvents.value++;
@@ -1357,8 +1346,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           ? 'No committed receipt is visible yet. The earlier request may still commit; retry only this same request.'
           : 'Custom provider receipt inspection is unavailable. The save outcome remains unconfirmed.';
     } catch (_) {
-      pending.message =
-          'Custom provider receipt did not establish this save. Keep the exact request for reconciliation.';
+      pending.message = 'Custom provider receipt did not establish this save. Keep the exact request for reconciliation.';
     } finally {
       pending.inFlight = false;
       _pendingEvents.value++;
@@ -1444,8 +1432,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       maxOutputTokens = int.tryParse(maxTokensRaw);
       if (maxOutputTokens == null || maxOutputTokens < 1) {
         setState(
-          () => _formError =
-              'Maximum Output Tokens must be a positive integer or left blank for model default.',
+          () => _formError = 'Maximum Output Tokens must be a positive integer or left blank for model default.',
         );
         return;
       }
@@ -1704,15 +1691,13 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         _customName,
         'Custom Provider Name',
         maxLength: 96,
-        help:
-            'Display name (e.g. OpenRouter, Together AI, Groq, Local llama.cpp, LM Studio).',
+        help: 'Display name (e.g. OpenRouter, Together AI, Groq, Local llama.cpp, LM Studio).',
       ),
       _field(
         _customBaseUrl,
         'OpenAI-Compatible Base URL',
         maxLength: 512,
-        help:
-            'Normalized automatically so GET {base_url}/models never duplicates /v1 or /models.',
+        help: 'Normalized automatically so GET {base_url}/models never duplicates /v1 or /models.',
       ),
       _field(
         _customChatPath,
@@ -1730,16 +1715,14 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         _customEndpoints,
         'Custom / Engine-Specific Endpoints · optional',
         maxLength: 256,
-        help:
-            'Optional extra routes supported by this inference engine — e.g. /v1/systemone for llama.cpp; leave blank for LM Studio.',
+        help: 'Optional extra routes supported by this inference engine — e.g. /v1/systemone for llama.cpp; leave blank for LM Studio.',
       ),
       _field(
         _customMaxOutputTokens,
         'Maximum Output Tokens · optional (blank = up to model)',
         maxLength: 7,
         numeric: true,
-        help:
-            'Leave blank so the model uses its own native maximum output tokens. LLMs vary widely in max output tokens.',
+        help: 'Leave blank so the model uses its own native maximum output tokens. LLMs vary widely in max output tokens.',
       ),
       _field(
         _customApiKey,
@@ -1783,8 +1766,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         _customModel,
         'Manual or Selected Model ID',
         maxLength: 160,
-        help:
-            'Qualified as (profile_id, model_id) so identical model IDs across providers never collide. Works even when GET /models is unsupported.',
+        help: 'Qualified as (profile_id, model_id) so identical model IDs across providers never collide. Works even when GET /models is unsupported.',
       ),
       if (editing != null)
         Align(
@@ -1943,8 +1925,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   : 'medium',
               decoration: const InputDecoration(
                 labelText: 'Global Reasoning Effort (default across models)',
-                helperText:
-                    'Applies globally unless overridden per model when binding a role.',
+                helperText: 'Applies globally unless overridden per model when binding a role.',
                 border: OutlineInputBorder(),
               ),
               items: const [
@@ -1975,8 +1956,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               initialValue: _customRoleReasoningOverride ?? 'global',
               decoration: const InputDecoration(
                 labelText: 'Per-Model Reasoning Override (for role binding)',
-                helperText:
-                    'Optional per-model reasoning effort when clicking Use for Converse / Agent.',
+                helperText: 'Optional per-model reasoning effort when clicking Use for Converse / Agent.',
                 border: OutlineInputBorder(),
               ),
               items: const [

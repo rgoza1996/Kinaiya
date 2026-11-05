@@ -63,9 +63,8 @@ class GeneratedOutput {
     taskId = workspaceText(value['task_id'], max: 128);
     sessionId = workspaceText(value['session_id'], max: 128);
     createdAt = _created(value['created_at']);
-    if (!RegExp(
-      r'^[a-f0-9]{64}$',
-    ).hasMatch(workspaceText(value['sha256'], max: 64))) {
+    if (!RegExp(r'^[a-f0-9]{64}$')
+        .hasMatch(workspaceText(value['sha256'], max: 64))) {
       throw const FormatException();
     }
   }

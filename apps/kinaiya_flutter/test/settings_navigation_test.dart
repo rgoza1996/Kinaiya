@@ -693,48 +693,45 @@ void main() {
     },
   );
 
-  test(
-    'searchOptionsPages resolves setting names, descriptions, and synonyms with ranking and deduping',
-    () {
-      List<OptionsPage> pagesFor(String query) =>
-          searchOptionsPages(query).map((r) => r.page).toList();
+  test('searchOptionsPages resolves setting names, descriptions, and synonyms with ranking and deduping', () {
+    List<OptionsPage> pagesFor(String query) =>
+        searchOptionsPages(query).map((r) => r.page).toList();
 
-      for (final query in ['mic', 'microphone']) {
-        final pages = pagesFor(query);
-        expect(pages, containsAll([OptionsPage.voice, OptionsPage.audio]));
-        expect(pages.toSet().length, pages.length);
-      }
+    for (final query in ['mic', 'microphone']) {
+      final pages = pagesFor(query);
+      expect(pages, containsAll([OptionsPage.voice, OptionsPage.audio]));
+      expect(pages.toSet().length, pages.length);
+    }
 
-      final apiKeyPages = pagesFor('API key');
-      expect(
-        apiKeyPages,
-        containsAll([OptionsPage.providers, OptionsPage.connection]),
-      );
+    final apiKeyPages = pagesFor('API key');
+    expect(
+      apiKeyPages,
+      containsAll([OptionsPage.providers, OptionsPage.connection]),
+    );
 
-      for (final query in [
-        'captions',
-        'subtitles',
-        'reduced motion',
-        'animation',
-      ]) {
-        expect(pagesFor(query), contains(OptionsPage.accessibility));
-      }
+    for (final query in [
+      'captions',
+      'subtitles',
+      'reduced motion',
+      'animation',
+    ]) {
+      expect(pagesFor(query), contains(OptionsPage.accessibility));
+    }
 
-      expect(pagesFor('change character').first, OptionsPage.character);
-      expect(pagesFor('Voice').first, OptionsPage.voice);
+    expect(pagesFor('change character').first, OptionsPage.character);
+    expect(pagesFor('Voice').first, OptionsPage.voice);
 
-      final partial = searchOptionsPages('microphone nonexistenttokenxyz');
-      expect(partial, isNotEmpty);
-      expect(partial.every((r) => r.isPartial), isTrue);
-      expect(
-        partial.map((r) => r.page),
-        containsAll([OptionsPage.voice, OptionsPage.audio]),
-      );
+    final partial = searchOptionsPages('microphone nonexistenttokenxyz');
+    expect(partial, isNotEmpty);
+    expect(partial.every((r) => r.isPartial), isTrue);
+    expect(
+      partial.map((r) => r.page),
+      containsAll([OptionsPage.voice, OptionsPage.audio]),
+    );
 
-      expect(searchOptionsPages('nonexistenttokenxyz'), isEmpty);
-      expect(searchOptionsPages('   '), isEmpty);
-    },
-  );
+    expect(searchOptionsPages('nonexistenttokenxyz'), isEmpty);
+    expect(searchOptionsPages('   '), isEmpty);
+  });
 
   testWidgets(
     'Options search finds synonym destinations, shows partial/empty states, and restores categories on clear without network or mutation',

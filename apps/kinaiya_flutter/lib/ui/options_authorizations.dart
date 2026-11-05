@@ -101,8 +101,7 @@ class _OptionsAuthorizationsState extends State<OptionsAuthorizations> {
     } catch (_) {
       if (_current(api, active) && read == _read) {
         setState(
-          () => _error =
-              'Authorization activity is unavailable. Existing requests remain retained.',
+          () => _error = 'Authorization activity is unavailable. Existing requests remain retained.',
         );
       }
     } finally {
@@ -186,8 +185,7 @@ class _OptionsAuthorizationsState extends State<OptionsAuthorizations> {
         receipt = lookup.receipt;
         if (receipt == null &&
             lookup.instance != item.body['broker_instance']) {
-          item.notice =
-              'No exact historical receipt was observed. The original broker is unavailable; outcome remains unknown.';
+          item.notice = 'No exact historical receipt was observed. The original broker is unavailable; outcome remains unknown.';
           return;
         }
         if (!_current(api, active)) return;
@@ -209,12 +207,10 @@ class _OptionsAuthorizationsState extends State<OptionsAuthorizations> {
       if (first && !error.dispatched) {
         _pending.remove(item);
       } else {
-        item.notice =
-            'Outcome is unconfirmed. Check the exact original request; a missing row is not proof.';
+        item.notice = 'Outcome is unconfirmed. Check the exact original request; a missing row is not proof.';
       }
     } catch (_) {
-      item.notice =
-          'Outcome is unconfirmed. The exact original request remains retained.';
+      item.notice = 'Outcome is unconfirmed. The exact original request remains retained.';
     } finally {
       item.inFlight = false;
       _changes.value++;

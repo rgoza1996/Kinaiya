@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +10,7 @@ import 'package:kinaiya_flutter/api/memory_models.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
+
 import 'converse_memory_test.dart' as fixture;
 import 'converse_memory_regression_test.dart' as helpers;
 

@@ -219,9 +219,7 @@ class ResponseFormatParser(Protocol[EventT_co, ResultT_co]):
 
     def push(self, chunk: str, *, emit: bool = True) -> tuple[EventT_co, ...]: ...
 
-    def finish(
-        self, outcome: ResponseStreamOutcome
-    ) -> ParserFinish[EventT_co, ResultT_co]: ...
+    def finish(self, outcome: ResponseStreamOutcome) -> ParserFinish[EventT_co, ResultT_co]: ...
 
 
 class ResponseFormat(Protocol[EventT_co, ResultT_co]):

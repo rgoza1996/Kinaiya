@@ -270,11 +270,9 @@ void main() {
     final wire = utf8.encode(jsonEncode(nativeProfile(config)));
     final profile = ProviderProfile.fromJson(providerJsonDecode(wire));
     expect(profile.config['min_confidence'], 0.67);
-    final reversed =
-        providerJsonDecode(
-              utf8.encode('{"min_confidence":6.7e-1,"kind":"native_d1"}'),
-            )
-            as Map<String, Object?>;
+    final reversed = providerJsonDecode(
+      utf8.encode('{"min_confidence":6.7e-1,"kind":"native_d1"}'),
+    ) as Map<String, Object?>;
     expect(reversed['min_confidence'], 0.67);
     for (final raw in [
       '{"kind":"laya","min_confidence":0.67}',
@@ -289,23 +287,20 @@ void main() {
       expect(() => providerJsonDecode(utf8.encode(raw)), throwsFormatException);
     }
   });
-  test(
-    'native metadata does not claim cloud, streaming or a different alias grammar',
-    () {
-      for (final update in [
-        {'local': false},
-        {'streaming': true},
-        {'model': 'not an alias'},
-      ]) {
-        final value = decisionsSnapshot();
-        value['selected_info'] = {...decisionsProvider('native_d1'), ...update};
-        expect(
-          () => DecisionsModelsSnapshot.fromJson(value),
-          throwsFormatException,
-        );
-      }
-    },
-  );
+  test('native metadata does not claim cloud, streaming or a different alias grammar', () {
+    for (final update in [
+      {'local': false},
+      {'streaming': true},
+      {'model': 'not an alias'},
+    ]) {
+      final value = decisionsSnapshot();
+      value['selected_info'] = {...decisionsProvider('native_d1'), ...update};
+      expect(
+        () => DecisionsModelsSnapshot.fromJson(value),
+        throwsFormatException,
+      );
+    }
+  });
   test(
     'mixed native and legacy declarations keep their exact protocol pairs',
     () {
@@ -322,9 +317,8 @@ void main() {
       );
       for (final host in ['native_d1', 'laya', 'compatible']) {
         expect(
-          DecisionsModelsSnapshot.fromJson(
-            decisionsSnapshot(host: host),
-          ).hostSelectable,
+          DecisionsModelsSnapshot.fromJson(decisionsSnapshot(host: host))
+              .hostSelectable,
           true,
         );
       }

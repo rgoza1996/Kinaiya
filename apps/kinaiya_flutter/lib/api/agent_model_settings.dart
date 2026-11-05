@@ -167,9 +167,8 @@ class AgentModelChange {
         (raw['expected_revision'] as int) < 0 ||
         (raw['expected_revision'] as int) > agentModelMaxRevision ||
         raw['idempotency_key'] is! String ||
-        !RegExp(
-          r'^[A-Za-z0-9:._-]{1,128}$',
-        ).hasMatch(raw['idempotency_key'] as String)) {
+        !RegExp(r'^[A-Za-z0-9:._-]{1,128}$')
+            .hasMatch(raw['idempotency_key'] as String)) {
       throw const FormatException('Invalid model change');
     }
     _authorityId(raw['expected_backend']);

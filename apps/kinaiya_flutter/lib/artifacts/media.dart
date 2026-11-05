@@ -17,12 +17,11 @@ class ArtifactMedia {
   final String variant, sha256;
 }
 
-typedef ArtifactMediaLoader =
-    Future<ArtifactMedia> Function(
-      IntelligentArtifact artifact,
-      String assetId,
-      String variant,
-    );
+typedef ArtifactMediaLoader = Future<ArtifactMedia> Function(
+  IntelligentArtifact artifact,
+  String assetId,
+  String variant,
+);
 
 /// Bound the entire native player, including its controls, within the result.
 class ArtifactMediaFrame extends StatelessWidget {

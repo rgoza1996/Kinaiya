@@ -145,8 +145,7 @@ extension IntelligentUiState on AppState {
       d.items[artifact.artifactId] = artifact;
       d.selected = artifact.artifactId;
       d.highWater = artifact.taskSubmitSequence;
-      d.error =
-          'An earlier interaction is unconfirmed. Retry it to reconcile this view.';
+      d.error = 'An earlier interaction is unconfirmed. Retry it to reconcile this view.';
     }
   }
 
@@ -364,14 +363,12 @@ extension IntelligentUiState on AppState {
     }
     if (prior != null &&
         (prior.revision != artifact.revision || prior.value != value)) {
-      d.error =
-          'An earlier interaction is unconfirmed. Retry that value before changing it.';
+      d.error = 'An earlier interaction is unconfirmed. Retry that value before changing it.';
       touch();
       return;
     }
     if (prior == null && d.retainedIntents.length >= 32) {
-      d.error =
-          'Unconfirmed interactions have reached the local limit. Reconcile one before continuing.';
+      d.error = 'Unconfirmed interactions have reached the local limit. Reconcile one before continuing.';
       touch();
       return;
     }
@@ -411,8 +408,7 @@ extension IntelligentUiState on AppState {
       d.error = failure.message;
     } catch (_) {
       if (_artifactScope(session, generation, api, read)) {
-        d.error =
-            'Interaction result is unconfirmed. Retry the same value to reconcile it.';
+        d.error = 'Interaction result is unconfirmed. Retry the same value to reconcile it.';
       }
     } finally {
       if (_artifactScope(session, generation, api, read)) {

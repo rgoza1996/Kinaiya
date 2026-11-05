@@ -112,9 +112,7 @@ class PromptObject:
 
 def _is_non_negative_integer(value: object) -> bool:
     return (
-        isinstance(value, int)
-        and not isinstance(value, bool)
-        and 0 <= value <= _MAX_SAFE_INTEGER
+        isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= _MAX_SAFE_INTEGER
     )
 
 
@@ -136,14 +134,11 @@ def _object_id_text(object_id: object) -> str:
 def _box_token(box: object, width: int, height: int, view: str) -> str:
     edges = [getattr(box, name, None) for name in ("left", "top", "right", "bottom")]
     if not all(_is_non_negative_integer(edge) for edge in edges):
-        raise ObjectPromptError(
-            f"Box {box!r} must have non-negative integer edges.", "invalid_box"
-        )
+        raise ObjectPromptError(f"Box {box!r} must have non-negative integer edges.", "invalid_box")
     left, top, right, bottom = (int(edge) for edge in edges)  # type: ignore[arg-type]
     if not (left < right <= width and top < bottom <= height):
         raise ObjectPromptError(
-            f"Box {box!r} must have left < right <= {width} "
-            f"and top < bottom <= {height}.",
+            f"Box {box!r} must have left < right <= {width} and top < bottom <= {height}.",
             "invalid_box",
         )
     return f"<|box;x1={left};y1={top};x2={right - 1};y2={bottom - 1};{view}|>"
@@ -159,8 +154,7 @@ def _point_token(point: object, width: int, height: int, view: str) -> str:
         and int(y) < height  # type: ignore[arg-type]
     ):
         raise ObjectPromptError(
-            f"Point {point!r} must have integer coordinates "
-            f"inside the {width}x{height} media.",
+            f"Point {point!r} must have integer coordinates inside the {width}x{height} media.",
             "invalid_point",
         )
     label = getattr(point, "label", "positive")
@@ -173,9 +167,7 @@ def _point_token(point: object, width: int, height: int, view: str) -> str:
     return f"{prefix}<|point;x={x};y={y};{view}|>"
 
 
-def build_object_prompt(
-    *, size: tuple[int, int], objects: Sequence[PromptObject]
-) -> str:
+def build_object_prompt(*, size: tuple[int, int], objects: Sequence[PromptObject]) -> str:
     """Build object-prompt text for a SAM API request.
 
     ``size`` is the media's ``(width, height)`` in pixels, as displayed after any
@@ -216,16 +208,13 @@ def build_object_prompt(
         seen_ids.add(object_id)
         prompts = getattr(prompt_object, "prompts", ())
         if isinstance(prompts, (str, bytes)) or len(prompts) == 0:
-            raise ObjectPromptError(
-                f"Object {object_id} has no prompts.", "empty_object"
-            )
+            raise ObjectPromptError(f"Object {object_id} has no prompts.", "empty_object")
         seen_frames: set[int] = set()
         for prompt in prompts:
             frame = getattr(prompt, "frame", 0)
             if not _is_non_negative_integer(frame):
                 raise ObjectPromptError(
-                    f"Frame {frame!r} of object {object_id} "
-                    "is not a non-negative integer.",
+                    f"Frame {frame!r} of object {object_id} is not a non-negative integer.",
                     "invalid_frame",
                 )
             if frame in seen_frames:
@@ -238,8 +227,7 @@ def build_object_prompt(
             points = getattr(prompt, "points", ()) or ()
             if box is None and len(points) == 0:
                 raise ObjectPromptError(
-                    f"Object {object_id} has neither a box nor points "
-                    f"on frame {frame}.",
+                    f"Object {object_id} has neither a box nor points on frame {frame}.",
                     "empty_prompt",
                 )
             tokens = ([] if box is None else [_box_token(box, width, height, view)]) + [
@@ -247,6 +235,5 @@ def build_object_prompt(
             ]
             segments_by_frame.setdefault(frame, []).append(object_id + "".join(tokens))
     return "".join(
-        f"<{frame}f>" + ",".join(segments_by_frame[frame])
-        for frame in sorted(segments_by_frame)
+        f"<{frame}f>" + ",".join(segments_by_frame[frame]) for frame in sorted(segments_by_frame)
     )

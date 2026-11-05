@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../api/auxiliary_routes.dart';
 import '../api/auxiliary_route_client.dart';
 import '../api/converse_models.dart' show ConverseCatalogProfile;
@@ -126,8 +128,7 @@ class _OptionsAuxiliaryRoutesState extends State<OptionsAuxiliaryRoutes> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _snapshot = null;
-          _error =
-              'Ordered auxiliary routes are unavailable. Existing drafts and unresolved saves are retained; an unreadable route store cannot authorize a legacy replacement.';
+          _error = 'Ordered auxiliary routes are unavailable. Existing drafts and unresolved saves are retained; an unreadable route store cannot authorize a legacy replacement.';
         });
       }
     } finally {
@@ -238,8 +239,7 @@ class _OptionsAuxiliaryRoutesState extends State<OptionsAuxiliaryRoutes> {
         if (lookup.fenced) {
           item.fence = lookup;
           item.fenceOwner = api;
-          item.notice =
-              'The historical outcome remains unknown. Native authority confirms the unchanged original request can make no new commit.';
+          item.notice = 'The historical outcome remains unknown. Native authority confirms the unchanged original request can make no new commit.';
           if (release) {
             api.releaseFenced(item.body, lookup);
             _pending.remove(item);
@@ -251,8 +251,7 @@ class _OptionsAuxiliaryRoutesState extends State<OptionsAuxiliaryRoutes> {
                 _scope.matches(originalScope) &&
                 auxiliaryRouteSame(_draft, originalRoute);
             setState(() {
-              _notice =
-                  'Local blocking released. The earlier outcome is still unknown; nothing was cancelled or rolled back.';
+              _notice = 'Local blocking released. The earlier outcome is still unknown; nothing was cancelled or rolled back.';
               if (ownDraft) {
                 _base = null;
                 _draft = null;
@@ -262,8 +261,7 @@ class _OptionsAuxiliaryRoutesState extends State<OptionsAuxiliaryRoutes> {
           }
           return;
         }
-        item.notice =
-            'The original outcome remains unknown and its CAS has not been fenced. Check again or retry the unchanged save.';
+        item.notice = 'The original outcome remains unknown and its CAS has not been fenced. Check again or retry the unchanged save.';
         if (!retry) return;
       }
       if (!_current(api, active)) return;
@@ -280,13 +278,11 @@ class _OptionsAuxiliaryRoutesState extends State<OptionsAuxiliaryRoutes> {
           );
         }
       } else {
-        item.notice =
-            'The save outcome is unconfirmed. Its original scope, body and request key remain retained.';
+        item.notice = 'The save outcome is unconfirmed. Its original scope, body and request key remain retained.';
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice =
-          'The original save could not be confirmed. Inspect its exact native receipt before retrying.';
+      item.notice = 'The original save could not be confirmed. Inspect its exact native receipt before retrying.';
     } finally {
       item.inFlight = false;
       _changes.value++;

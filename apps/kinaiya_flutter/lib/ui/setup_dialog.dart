@@ -401,8 +401,7 @@ class _SetupDialogState extends State<SetupDialog> {
                   controller: _decisions,
                   decoration: const InputDecoration(
                     labelText: 'Decisions service URL (optional)',
-                    helperText:
-                        'Use its explicit independent URL. Blank leaves Decisions model options unconfigured.',
+                    helperText: 'Use its explicit independent URL. Blank leaves Decisions model options unconfigured.',
                   ),
                   keyboardType: TextInputType.url,
                 ),
@@ -411,8 +410,7 @@ class _SetupDialogState extends State<SetupDialog> {
                   controller: _token,
                   decoration: const InputDecoration(
                     labelText: 'Owner access token',
-                    helperText:
-                        'Export with kinaiya --data-dir <dir> owner-login (owner-login.txt) or use Load local access token. Memory only: never stored, logged, or put in URLs.',
+                    helperText: 'Export with kinaiya --data-dir <dir> owner-login (owner-login.txt) or use Load local access token. Memory only: never stored, logged, or put in URLs.',
                   ),
                   obscureText: true,
                   enableSuggestions: false,

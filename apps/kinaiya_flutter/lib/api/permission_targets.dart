@@ -2,7 +2,9 @@
 library;
 
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
+
 import 'tool_permissions.dart';
 
 const nativePermissionTargets = {

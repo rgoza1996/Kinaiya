@@ -9,15 +9,13 @@ enum OptionsPage {
   models(
     'Models',
     description: 'Select Converse, Agent, Decisions, STT, and TTS model roles.',
-    keywords:
-        'llm model role defaults reasoning converse agent decisions stt tts speech recognition synthesis',
+    keywords: 'llm model role defaults reasoning converse agent decisions stt tts speech recognition synthesis',
   ),
   providers(
     'Providers',
     description:
         'Configure model providers, service endpoints, and API credentials.',
-    keywords:
-        'api key token secret credential endpoint ollama openai anthropic gemini cloud local provider catalog',
+    keywords: 'api key token secret credential endpoint ollama openai anthropic gemini cloud local provider catalog',
   ),
   harnesses(
     'Harness Customization',
@@ -26,16 +24,13 @@ enum OptionsPage {
   ),
   voice(
     'Voice',
-    description:
-        'Configure speech recognition, synthesis, microphone silence, and live timing.',
-    keywords:
-        'mic microphone speech stt tts call tell live listen silence vad voice turn timing',
+    description: 'Configure speech recognition, synthesis, microphone silence, and live timing.',
+    keywords: 'mic microphone speech stt tts call tell live listen silence vad voice turn timing',
   ),
   audio(
     'Audio',
     description: 'Inspect microphone capture and audio playback support.',
-    keywords:
-        'mic microphone speaker input output recording playback sound volume device',
+    keywords: 'mic microphone speaker input output recording playback sound volume device',
   ),
   agent(
     'Agent',
@@ -100,30 +95,23 @@ enum OptionsPage {
   ),
   resources(
     'Resources',
-    description:
-        'Inspect host resource health, GPU/CPU admission, and voice restoration.',
+    description: 'Inspect host resource health, GPU/CPU admission, and voice restoration.',
     keywords: 'gpu cpu vram ram memory health admission phase restore',
   ),
   appearance(
     'Appearance',
-    description:
-        'Customize interface theme colors, stage background, and Converse view visibility.',
-    keywords:
-        'theme color palette dark light background stage layout visual converse hide unhide show page view navigation',
+    description: 'Customize interface theme colors, stage background, and Converse view visibility.',
+    keywords: 'theme color palette dark light background stage layout visual converse hide unhide show page view navigation',
   ),
   character(
     'Character',
-    description:
-        'Change character pack, mascot visibility, or import and export character packages.',
-    keywords:
-        'change character mascot avatar sprite pack bundle import export hide show portrait converse page view',
+    description: 'Change character pack, mascot visibility, or import and export character packages.',
+    keywords: 'change character mascot avatar sprite pack bundle import export hide show portrait converse page view',
   ),
   connection(
     'Connection',
-    description:
-        'Connect to Session, Agent, and Converse host URLs with your owner token.',
-    keywords:
-        'host url endpoint port owner token api key auth credential connect reconnect',
+    description: 'Connect to Session, Agent, and Converse host URLs with your owner token.',
+    keywords: 'host url endpoint port owner token api key auth credential connect reconnect',
   ),
   privacy(
     'Privacy',
@@ -132,10 +120,8 @@ enum OptionsPage {
   ),
   accessibility(
     'Accessibility',
-    description:
-        'Configure captions, subtitles, reduced motion, and speech mouth animation.',
-    keywords:
-        'captions subtitles reduced motion animation transitions mouth viseme screen reader a11y text scale',
+    description: 'Configure captions, subtitles, reduced motion, and speech mouth animation.',
+    keywords: 'captions subtitles reduced motion animation transitions mouth viseme screen reader a11y text scale',
   ),
   about(
     'About',

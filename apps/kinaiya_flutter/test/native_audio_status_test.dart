@@ -280,58 +280,52 @@ void main() {
     );
   }
 
-  test(
-    'status quarantine coalesces highest sequence and captures immutable scalar data',
-    () {
-      final owner = _owner();
-      final original = source();
-      owner.deferStatus(_routing(original, sequence: 7, phase: 'busy'));
-      final latest = _routing(original, sequence: 9, phase: 'retrying');
-      owner.deferStatus(latest);
-      owner.deferStatus(_routing(original, sequence: 8, phase: 'classifying'));
-      latest.payload['phase'] = _marker;
-      owner.confirm(original);
-      final pending = owner.takePending();
-      expect(pending.length, 1);
-      expect(pending.single.sequence, 9);
-      expect(pending.single.payload['phase'], 'retrying');
-      expect(
-        () => pending.single.payload['phase'] = _marker,
-        throwsUnsupportedError,
-      );
-      expect(owner.takePending(), isEmpty);
-    },
-  );
+  test('status quarantine coalesces highest sequence and captures immutable scalar data', () {
+    final owner = _owner();
+    final original = source();
+    owner.deferStatus(_routing(original, sequence: 7, phase: 'busy'));
+    final latest = _routing(original, sequence: 9, phase: 'retrying');
+    owner.deferStatus(latest);
+    owner.deferStatus(_routing(original, sequence: 8, phase: 'classifying'));
+    latest.payload['phase'] = _marker;
+    owner.confirm(original);
+    final pending = owner.takePending();
+    expect(pending.length, 1);
+    expect(pending.single.sequence, 9);
+    expect(pending.single.payload['phase'], 'retrying');
+    expect(
+      () => pending.single.payload['phase'] = _marker,
+      throwsUnsupportedError,
+    );
+    expect(owner.takePending(), isEmpty);
+  });
 
-  test(
-    'four-group quarantine overflow stays bounded and retains the unadmitted owner',
-    () {
-      final owner = _owner();
-      final original = source();
-      for (var index = 0; index < 5; index++) {
-        expect(
-          () => owner.deferStatus(
-            _routing(
-              original,
-              sourceId: 'public-source-$index',
-              sequence: 6 + index,
-            ),
-          ),
-          returnsNormally,
-        );
-      }
-      expect(owner.statusOverflowed, true);
-      expect(owner.admitted, false);
-      owner.confirm(original);
-      expect(owner.admitted, true);
-      expect(owner.takePending().length, lessThanOrEqualTo(4));
+  test('four-group quarantine overflow stays bounded and retains the unadmitted owner', () {
+    final owner = _owner();
+    final original = source();
+    for (var index = 0; index < 5; index++) {
       expect(
-        owner.bindReply(output()),
-        true,
-        reason: 'Overflow does not discard original playback ownership',
+        () => owner.deferStatus(
+          _routing(
+            original,
+            sourceId: 'public-source-$index',
+            sequence: 6 + index,
+          ),
+        ),
+        returnsNormally,
       );
-    },
-  );
+    }
+    expect(owner.statusOverflowed, true);
+    expect(owner.admitted, false);
+    owner.confirm(original);
+    expect(owner.admitted, true);
+    expect(owner.takePending().length, lessThanOrEqualTo(4));
+    expect(
+      owner.bindReply(output()),
+      true,
+      reason: 'Overflow does not discard original playback ownership',
+    );
+  });
 
   for (final sample in [
     ('classifying', 'public', NativeAudioNotice.classifying),
@@ -418,29 +412,26 @@ void main() {
     );
   }
 
-  test(
-    'duplicate/out-of-order notices and any status after reply binding have no effects',
-    () {
-      final owner = _owner()..confirm(source());
-      final busy = _routing(source(), phase: 'busy', sequence: 9);
-      expect(owner.observeStatus(busy), NativeAudioNotice.busy);
-      expect(owner.observeStatus(busy), isNull);
-      expect(
-        owner.observeStatus(
-          _routing(source(), phase: 'classifying', sequence: 8),
-        ),
-        isNull,
-      );
-      expect(
-        owner.observeStatus(_routing(source(), phase: 'busy', sequence: 10)),
-        isNull,
-      );
-      expect(owner.bindReply(output()), true);
-      expect(owner.hasReply, true);
-      expect(owner.observeStatus(_decision(source(), sequence: 11)), isNull);
-      expect(owner.ownsReply(output()), true);
-    },
-  );
+  test('duplicate/out-of-order notices and any status after reply binding have no effects', () {
+    final owner = _owner()..confirm(source());
+    final busy = _routing(source(), phase: 'busy', sequence: 9);
+    expect(owner.observeStatus(busy), NativeAudioNotice.busy);
+    expect(owner.observeStatus(busy), isNull);
+    expect(
+      owner.observeStatus(
+        _routing(source(), phase: 'classifying', sequence: 8),
+      ),
+      isNull,
+    );
+    expect(
+      owner.observeStatus(_routing(source(), phase: 'busy', sequence: 10)),
+      isNull,
+    );
+    expect(owner.bindReply(output()), true);
+    expect(owner.hasReply, true);
+    expect(owner.observeStatus(_decision(source(), sequence: 11)), isNull);
+    expect(owner.ownsReply(output()), true);
+  });
 
   for (final change in [
     'origin',
@@ -529,9 +520,9 @@ void main() {
       expect(audio.queued, 0);
       await _confirm(tester, api);
       expect(
-        _messages(
-          state,
-        ).where((text) => text == NativeAudioNotice.noReply.message).length,
+        _messages(state)
+            .where((text) => text == NativeAudioNotice.noReply.message)
+            .length,
         1,
       );
       expect(find.byTooltip('Stop speech'), findsNothing);

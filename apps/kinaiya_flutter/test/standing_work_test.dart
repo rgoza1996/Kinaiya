@@ -33,12 +33,14 @@ String digest(String domain, Object? value) =>
 
 void rehashReceipt(Map<String, Object?> receipt) {
   final request = object(receipt['request']);
-  receipt['authorization_digest'] =
-      digest('kinaiya.standing.authorization.v1', {
-        'responsibility_id': request['responsibility_id'],
-        'revision': receipt['revision'],
-        'request': request,
-      });
+  receipt['authorization_digest'] = digest(
+    'kinaiya.standing.authorization.v1',
+    {
+      'responsibility_id': request['responsibility_id'],
+      'revision': receipt['revision'],
+      'request': request,
+    },
+  );
 }
 
 void rehashRecord(Map<String, Object?> record) {
@@ -65,9 +67,8 @@ void main() {
   setUpAll(() {
     fixture = object(
       jsonDecode(
-        File(
-          'test/fixtures/standing-owner-independent-v1.json',
-        ).readAsStringSync(),
+        File('test/fixtures/standing-owner-independent-v1.json')
+            .readAsStringSync(),
       ),
     );
   });
@@ -114,9 +115,12 @@ void main() {
       expect(lookup.current.revision, 1);
       expect(lookup.current.json.containsKey('record'), isFalse);
       expect(
-        StandingResponsibilityPage.fromJson(
-          specimen('page'),
-        ).items.single.receipt.request.matches(original),
+        StandingResponsibilityPage.fromJson(specimen('page'))
+            .items
+            .single
+            .receipt
+            .request
+            .matches(original),
         isTrue,
       );
     },
@@ -250,10 +254,8 @@ void main() {
   test('snapshot absent revision is exactly zero with no record', () {
     final absent = specimen('current')..['revision'] = 0;
     expect(
-      StandingResponsibilitySnapshot.fromJson({
-        ...absent,
-        'record': null,
-      }).revision,
+      StandingResponsibilitySnapshot.fromJson({...absent, 'record': null})
+          .revision,
       0,
     );
     expect(

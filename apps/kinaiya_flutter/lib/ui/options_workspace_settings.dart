@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../api/workspace_settings.dart';
 import '../api/workspace_settings_client.dart';
 import 'design_tokens.dart';
@@ -176,8 +178,7 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
           }
           if (_drafts.length >= 16) {
             _draft = null;
-            _error =
-                'Workspace draft storage is full. Existing drafts are retained.';
+            _error = 'Workspace draft storage is full. Existing drafts are retained.';
           } else {
             _draft = _WorkspaceDraft(api, page);
             _drafts.add(_draft!);
@@ -192,8 +193,7 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _snapshot = null;
-          _error =
-              'Workspace authority could not be inspected. Drafts and unconfirmed saves are retained.';
+          _error = 'Workspace authority could not be inspected. Drafts and unconfirmed saves are retained.';
         });
       }
     } finally {
@@ -274,8 +274,7 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
     } catch (_) {
       if (mounted && widget.active()) {
         setState(
-          () => _error =
-              'Use an absolute root and up to 32 unique relative read-only paths. Paths are preserved exactly; the native owner checks their existence and safety.',
+          () => _error = 'Use an absolute root and up to 32 unique relative read-only paths. Paths are preserved exactly; the native owner checks their existence and safety.',
         );
       }
     }
@@ -343,22 +342,19 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
         if (lookup.fenced) {
           item.fence = lookup;
           item.fenceOwner = api;
-          item.notice =
-              'The historical outcome is unknown. Native authority confirms this unchanged request can make no new commit.';
+          item.notice = 'The historical outcome is unknown. Native authority confirms this unchanged request can make no new commit.';
           if (release) {
             api.releaseFenced(item.body, lookup);
             _pending.remove(item);
             setState(
-              () => _notice =
-                  'Local tracking released. The outcome remains unknown; the draft is retained. No work was cancelled or rolled back.',
+              () => _notice = 'Local tracking released. The outcome remains unknown; the draft is retained. No work was cancelled or rolled back.',
             );
             widget.onChanged?.call();
             unawaited(_load());
           }
           return;
         }
-        item.notice =
-            'Outcome unknown. The original request is not fenced; check again or retry it unchanged.';
+        item.notice = 'Outcome unknown. The original request is not fenced; check again or retry it unchanged.';
         if (!retry) return;
       }
       if (!_current(api, active)) return;
@@ -370,18 +366,15 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
         _pending.remove(item);
         if (_current(api, active)) {
           setState(
-            () => _error =
-                'The workspace save was not dispatched. Your draft is retained.',
+            () => _error = 'The workspace save was not dispatched. Your draft is retained.',
           );
         }
       } else {
-        item.notice =
-            'The save is unconfirmed. Its original root, restrictions, authority and request key remain retained.';
+        item.notice = 'The save is unconfirmed. Its original root, restrictions, authority and request key remain retained.';
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice =
-          'The original save could not be confirmed. Look up that exact request before retrying.';
+      item.notice = 'The original save could not be confirmed. Look up that exact request before retrying.';
     } finally {
       item.busy = false;
       _changes.value++;
@@ -544,8 +537,7 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
               maxLength: 4096,
               decoration: const InputDecoration(
                 labelText: 'Workspace root',
-                helperText:
-                    'Existing absolute canonical directory. Saving this form grants access.',
+                helperText: 'Existing absolute canonical directory. Saving this form grants access.',
                 helperMaxLines: 3,
                 border: OutlineInputBorder(),
               ),
@@ -562,8 +554,7 @@ class _OptionsWorkspaceSettingsState extends State<OptionsWorkspaceSettings> {
               maxLength: 16416,
               decoration: const InputDecoration(
                 labelText: 'Additional read-only paths',
-                helperText:
-                    'One existing relative directory per line, up to 32. Use . for the whole root. Host restrictions still apply.',
+                helperText: 'One existing relative directory per line, up to 32. Use . for the whole root. Host restrictions still apply.',
                 helperMaxLines: 3,
                 border: OutlineInputBorder(),
               ),

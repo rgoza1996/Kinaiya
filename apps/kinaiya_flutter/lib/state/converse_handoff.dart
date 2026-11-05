@@ -376,8 +376,7 @@ class ConverseHandoffTracker {
           entry.payload['reason'] == 'agent_status_unavailable' &&
           !_accepted.contains(id)) {
         status = HandoffStatus.unavailable;
-        text =
-            'Agent status is unavailable. This request has no confirmed acceptance.';
+        text = 'Agent status is unavailable. This request has no confirmed acceptance.';
       }
     } else {
       final decisionId = entry.payload['decision_id'];
@@ -480,8 +479,7 @@ class ConverseHandoffTracker {
             text = 'Agent did not accept this request.';
           case 'unknown':
             status = HandoffStatus.unknown;
-            text =
-                'Agent acceptance is unconfirmed. Check Agent Chat before retrying.';
+            text = 'Agent acceptance is unconfirmed. Check Agent Chat before retrying.';
           case 'not_applied':
             status = HandoffStatus.notApplied;
             text = 'This request was not applied to Agent.';

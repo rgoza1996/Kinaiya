@@ -167,8 +167,7 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
       if (_current(api, active) && read == _read) {
         setState(() {
           _snapshot = null;
-          _error =
-              'Converse model options are unavailable. Your draft and any unresolved save are retained.';
+          _error = 'Converse model options are unavailable. Your draft and any unresolved save are retained.';
         });
       }
     } finally {
@@ -215,8 +214,7 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
     } catch (_) {
       if (_current(api, active)) {
         setState(
-          () => _error =
-              'The model choice was not dispatched. Review the current native revision and selection.',
+          () => _error = 'The model choice was not dispatched. Review the current native revision and selection.',
         );
       }
     }
@@ -301,13 +299,11 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
         }
         unawaited(settled());
       } else {
-        item.notice =
-            'The model save outcome remains unknown. Keep its original body and key; check the receipt or retry the exact save.';
+        item.notice = 'The model save outcome remains unknown. Keep its original body and key; check the receipt or retry the exact save.';
       }
     } catch (_) {
       item.dispatched = true;
-      item.notice =
-          'The model save response could not be confirmed. The original request is retained.';
+      item.notice = 'The model save response could not be confirmed. The original request is retained.';
     } finally {
       item.inFlight = false;
       _changes.value++;
@@ -329,8 +325,7 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
       if (!_current(api, active) || !_pending.contains(item)) return;
       if (fresh.instanceId != item.snapshot.instanceId ||
           fresh.revision <= (item.body['expected_revision'] as int)) {
-        item.notice =
-            'The earlier save outcome remains unknown. This host has not confirmed that the original request can no longer change the selection.';
+        item.notice = 'The earlier save outcome remains unknown. This host has not confirmed that the original request can no longer change the selection.';
         return;
       }
       item.fenceOwner = api;
@@ -350,8 +345,7 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
       }
     } catch (_) {
       if (_current(api, active) && _pending.contains(item)) {
-        item.notice =
-            'The earlier outcome remains unknown. Its receipt or revision fence could not be confirmed.';
+        item.notice = 'The earlier outcome remains unknown. Its receipt or revision fence could not be confirmed.';
       }
     }
   }
@@ -580,8 +574,7 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  selectedProfile?.reason ??
-                      'This exact provider generation is unavailable. A newer generation is a separate explicit choice.',
+                  selectedProfile?.reason ?? 'This exact provider generation is unavailable. A newer generation is a separate explicit choice.',
                 ),
                 ExpansionTile(
                   tilePadding: EdgeInsets.zero,

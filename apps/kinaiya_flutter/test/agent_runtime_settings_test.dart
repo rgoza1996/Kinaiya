@@ -140,109 +140,94 @@ Map<String, Object?> runtimeLookupJson(
 };
 
 void main() {
-  test(
-    'legacy opaque instance snapshots remain readable and unsupported authority cannot write',
-    () {
-      final old = AgentRuntimeSnapshot.fromJson(
-        runtimeSnapshotJson(instance: 'legacy-opaque-instance', bound: false),
-      );
-      expect(old.instanceId, 'legacy-opaque-instance');
-      expect(old.writeAuthority, isNull);
-      expect(
-        AgentRuntimeSnapshot.fromJson({
-          ...runtimeSnapshotJson(),
-          'write_authority': {'mutation_version': 'next'},
-        }).writeAuthority,
-        isNull,
-      );
-      for (final bad in [
-        {...runtimeAuthorityJson(), 'instance_id': '1' * 32},
-        {
-          ...runtimeAuthorityJson(),
-          'backend_id': runtimeBackendA.toUpperCase(),
-        },
-        {...runtimeAuthorityJson(), 'writable': 1},
-        {...runtimeAuthorityJson(), 'extra': null},
-        {...runtimeAuthorityJson()}..remove('instance_id'),
-      ]) {
-        expect(
-          () => AgentRuntimeSnapshot.fromJson({
-            ...runtimeSnapshotJson(),
-            'write_authority': bad,
-          }),
-          throwsFormatException,
-        );
-      }
+  test('legacy opaque instance snapshots remain readable and unsupported authority cannot write', () {
+    final old = AgentRuntimeSnapshot.fromJson(
+      runtimeSnapshotJson(instance: 'legacy-opaque-instance', bound: false),
+    );
+    expect(old.instanceId, 'legacy-opaque-instance');
+    expect(old.writeAuthority, isNull);
+    expect(
+      AgentRuntimeSnapshot.fromJson({
+        ...runtimeSnapshotJson(),
+        'write_authority': {'mutation_version': 'next'},
+      }).writeAuthority,
+      isNull,
+    );
+    for (final bad in [
+      {...runtimeAuthorityJson(), 'instance_id': '1' * 32},
+      {...runtimeAuthorityJson(), 'backend_id': runtimeBackendA.toUpperCase()},
+      {...runtimeAuthorityJson(), 'writable': 1},
+      {...runtimeAuthorityJson(), 'extra': null},
+      {...runtimeAuthorityJson()}..remove('instance_id'),
+    ]) {
       expect(
         () => AgentRuntimeSnapshot.fromJson({
           ...runtimeSnapshotJson(),
-          'write_authority': runtimeAuthorityJson(instance: runtimeInstanceB),
+          'write_authority': bad,
         }),
         throwsFormatException,
       );
-      expect(
-        runtimeSnapshot(writable: false).writeAuthority!.writable,
-        isFalse,
-      );
-    },
-  );
+    }
+    expect(
+      () => AgentRuntimeSnapshot.fromJson({
+        ...runtimeSnapshotJson(),
+        'write_authority': runtimeAuthorityJson(instance: runtimeInstanceB),
+      }),
+      throwsFormatException,
+    );
+    expect(runtimeSnapshot(writable: false).writeAuthority!.writable, isFalse);
+  });
 
-  test(
-    'canonical immutable native relative paths retain backslash whitespace and Unicode codepoints',
-    () {
-      final cases = {
-        './a//./b/': 'a/b',
-        './//./': '.',
-        r' ./folder\name//模型 /': r' ./folder\name/模型 ',
-        '😀' * 512: '😀' * 512,
-      };
-      for (final entry in cases.entries) {
-        final source = runtimeChangeJson(directory: entry.key);
-        final request = AgentRuntimeChange.fromJson(source);
-        final settings = request.body['settings'] as Map<String, Object?>;
-        expect(settings['working_directory'], entry.value);
-        (source['settings'] as Map<String, Object?>)['working_directory'] =
-            'changed';
-        expect(settings['working_directory'], entry.value);
-        expect(() => settings['max_steps'] = 9, throwsUnsupportedError);
-        expect(() => request.body['yolo'] = true, throwsUnsupportedError);
-        final receipt = AgentRuntimeReceipt.fromJson(
-          runtimeReceiptJson(request.body),
-          request,
-        );
-        expect(receipt.json['settings'], settings);
-        expect(
-          () =>
-              (receipt.json['settings'] as Map<String, Object?>)['max_steps'] =
-                  9,
-          throwsUnsupportedError,
-        );
-      }
-      final draft = AgentRuntimeDraft(
-        AgentRuntimeSnapshot.fromJson(
-          runtimeSnapshotJson(directory: '😀' * 512),
-        ),
+  test('canonical immutable native relative paths retain backslash whitespace and Unicode codepoints', () {
+    final cases = {
+      './a//./b/': 'a/b',
+      './//./': '.',
+      r' ./folder\name//模型 /': r' ./folder\name/模型 ',
+      '😀' * 512: '😀' * 512,
+    };
+    for (final entry in cases.entries) {
+      final source = runtimeChangeJson(directory: entry.key);
+      final request = AgentRuntimeChange.fromJson(source);
+      final settings = request.body['settings'] as Map<String, Object?>;
+      expect(settings['working_directory'], entry.value);
+      (source['settings'] as Map<String, Object?>)['working_directory'] =
+          'changed';
+      expect(settings['working_directory'], entry.value);
+      expect(() => settings['max_steps'] = 9, throwsUnsupportedError);
+      expect(() => request.body['yolo'] = true, throwsUnsupportedError);
+      final receipt = AgentRuntimeReceipt.fromJson(
+        runtimeReceiptJson(request.body),
+        request,
       );
-      expect(draft.dirty, isFalse);
-      expect(draft.settings!['working_directory'], '😀' * 512);
-      for (final path in [
-        '',
-        '/x',
-        '//x',
-        '../x',
-        'x/../y',
-        'a\u0000b',
-        'a\u007fb',
-        '😀' * 513,
-        '\ud800',
-      ]) {
-        expect(
-          () => AgentRuntimeChange.fromJson(runtimeChangeJson(directory: path)),
-          throwsFormatException,
-        );
-      }
-    },
-  );
+      expect(receipt.json['settings'], settings);
+      expect(
+        () =>
+            (receipt.json['settings'] as Map<String, Object?>)['max_steps'] = 9,
+        throwsUnsupportedError,
+      );
+    }
+    final draft = AgentRuntimeDraft(
+      AgentRuntimeSnapshot.fromJson(runtimeSnapshotJson(directory: '😀' * 512)),
+    );
+    expect(draft.dirty, isFalse);
+    expect(draft.settings!['working_directory'], '😀' * 512);
+    for (final path in [
+      '',
+      '/x',
+      '//x',
+      '../x',
+      'x/../y',
+      'a\u0000b',
+      'a\u007fb',
+      '😀' * 513,
+      '\ud800',
+    ]) {
+      expect(
+        () => AgentRuntimeChange.fromJson(runtimeChangeJson(directory: path)),
+        throwsFormatException,
+      );
+    }
+  });
 
   test(
     'bound request strictly requires every original state and setting field',
@@ -292,86 +277,80 @@ void main() {
     },
   );
 
-  test(
-    'recorded proof binds exact canonical original state and historic requested YOLO',
-    () {
-      final original = AgentRuntimeChange.fromJson(
-        runtimeChangeJson(yolo: true, directory: './a//b/'),
-      );
-      final receipt = runtimeReceiptJson(original.body);
-      for (final key in receipt.keys) {
-        expect(
-          () => AgentRuntimeReceipt.fromJson({
-            ...receipt,
-            key: 'wrong',
-          }, original),
-          throwsFormatException,
-        );
-        expect(
-          () =>
-              AgentRuntimeReceipt.fromJson({...receipt}..remove(key), original),
-          throwsFormatException,
-        );
-      }
-      final proof = runtimeLookupJson(original.body);
-      for (final bad in [
-        {...proof, 'mutation_fenced': false},
-        {...proof, 'mutation_fenced': 1},
-        {...proof, 'backend_id': runtimeBackendB},
-        {...proof, 'extra': true},
-        {
-          ...proof,
-          'request': {...original.body, 'expected_state': 'f' * 64},
-        },
-        {
-          ...proof,
-          'request': {...original.body, 'expected_instance': runtimeInstanceB},
-        },
-        {
-          ...proof,
-          'request': {...original.body, 'expected_revision': 0.0},
-        },
-        {
-          ...proof,
-          'request': {
-            ...original.body,
-            'settings': runtimeSettingsJson(directory: './a//b/'),
-          },
-        },
-        {
-          ...proof,
-          'receipt': {
-            ...receipt,
-            'settings': runtimeSettingsJson(directory: './a//b/'),
-          },
-        },
-        {
-          ...proof,
-          'receipt': {...receipt, 'requested_yolo': false},
-        },
-      ]) {
-        expect(
-          () => AgentRuntimeLookup.fromJson(bad, original),
-          throwsFormatException,
-        );
-      }
-      final recorded = AgentRuntimeLookup.fromJson(proof, original);
-      expect(recorded.receipt!.json['requested_yolo'], isTrue);
-      expect(recorded.json['request'], original.body);
+  test('recorded proof binds exact canonical original state and historic requested YOLO', () {
+    final original = AgentRuntimeChange.fromJson(
+      runtimeChangeJson(yolo: true, directory: './a//b/'),
+    );
+    final receipt = runtimeReceiptJson(original.body);
+    for (final key in receipt.keys) {
       expect(
-        AgentRuntimeLookup.fromJson(
-          runtimeLookupJson(original.body, recorded: false, fenced: false),
-          original,
-        ).refused,
-        isFalse,
+        () =>
+            AgentRuntimeReceipt.fromJson({...receipt, key: 'wrong'}, original),
+        throwsFormatException,
       );
       expect(
-        AgentRuntimeLookup.fromJson(
-          runtimeLookupJson(original.body, recorded: false),
-          original,
-        ).refused,
-        isTrue,
+        () => AgentRuntimeReceipt.fromJson({...receipt}..remove(key), original),
+        throwsFormatException,
       );
-    },
-  );
+    }
+    final proof = runtimeLookupJson(original.body);
+    for (final bad in [
+      {...proof, 'mutation_fenced': false},
+      {...proof, 'mutation_fenced': 1},
+      {...proof, 'backend_id': runtimeBackendB},
+      {...proof, 'extra': true},
+      {
+        ...proof,
+        'request': {...original.body, 'expected_state': 'f' * 64},
+      },
+      {
+        ...proof,
+        'request': {...original.body, 'expected_instance': runtimeInstanceB},
+      },
+      {
+        ...proof,
+        'request': {...original.body, 'expected_revision': 0.0},
+      },
+      {
+        ...proof,
+        'request': {
+          ...original.body,
+          'settings': runtimeSettingsJson(directory: './a//b/'),
+        },
+      },
+      {
+        ...proof,
+        'receipt': {
+          ...receipt,
+          'settings': runtimeSettingsJson(directory: './a//b/'),
+        },
+      },
+      {
+        ...proof,
+        'receipt': {...receipt, 'requested_yolo': false},
+      },
+    ]) {
+      expect(
+        () => AgentRuntimeLookup.fromJson(bad, original),
+        throwsFormatException,
+      );
+    }
+    final recorded = AgentRuntimeLookup.fromJson(proof, original);
+    expect(recorded.receipt!.json['requested_yolo'], isTrue);
+    expect(recorded.json['request'], original.body);
+    expect(
+      AgentRuntimeLookup.fromJson(
+        runtimeLookupJson(original.body, recorded: false, fenced: false),
+        original,
+      ).refused,
+      isFalse,
+    );
+    expect(
+      AgentRuntimeLookup.fromJson(
+        runtimeLookupJson(original.body, recorded: false),
+        original,
+      ).refused,
+      isTrue,
+    );
+  });
 }

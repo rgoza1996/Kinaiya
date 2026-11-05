@@ -141,253 +141,241 @@ AppState _connectedState(
 void main() {
   setUp(resetCompanionUncertaintyForTest);
 
-  test(
-    'OwnerCompanionBinding projects Converse session without leaking channel or harness fields',
-    () {
-      final converse = SessionInfo(
-        sessionId: 'session-1',
-        threadId: 'thread-1',
-        channel: 'converse',
-        epoch: 2,
-        name: 'My session',
-        harnessVersion: 'seed-v1',
-      );
-      final binding = OwnerCompanionBinding.fromSession(converse);
-      expect(binding.toJson(), <String, Object?>{
-        'schema_version': '1.0',
-        'session_id': 'session-1',
-        'thread_id': 'thread-1',
-        'epoch': 2,
-      });
+  test('OwnerCompanionBinding projects Converse session without leaking channel or harness fields', () {
+    final converse = SessionInfo(
+      sessionId: 'session-1',
+      threadId: 'thread-1',
+      channel: 'converse',
+      epoch: 2,
+      name: 'My session',
+      harnessVersion: 'seed-v1',
+    );
+    final binding = OwnerCompanionBinding.fromSession(converse);
+    expect(binding.toJson(), <String, Object?>{
+      'schema_version': '1.0',
+      'session_id': 'session-1',
+      'thread_id': 'thread-1',
+      'epoch': 2,
+    });
 
-      final agent = SessionInfo(
-        sessionId: 'agent-1',
-        threadId: 'thread-a',
-        channel: 'agent',
-        epoch: 1,
-        harnessVersion: 'seed-v1',
-      );
+    final agent = SessionInfo(
+      sessionId: 'agent-1',
+      threadId: 'thread-a',
+      channel: 'agent',
+      epoch: 1,
+      harnessVersion: 'seed-v1',
+    );
+    expect(
+      () => OwnerCompanionBinding.fromSession(agent),
+      throwsFormatException,
+    );
+  });
+
+  test('owner DTOs parse active, expired, revoked, and stale devices while device parser stays active-only', () {
+    final directory = decodeOwnerCompanionDevicePage(<String, Object?>{
+      'schema_version': '1.0',
+      'devices': <Object?>[
+        _deviceJson(id: 'd-active', status: 'active'),
+        _deviceJson(id: 'd-expired', status: 'expired'),
+        _deviceJson(id: 'd-revoked', status: 'revoked', revokedAt: 2000),
+        _deviceJson(id: 'd-stale', status: 'stale', epoch: 9),
+      ],
+    });
+    expect(
+      directory.map((d) => d.status).toList(),
+      <OwnerCompanionDeviceStatus>[
+        OwnerCompanionDeviceStatus.active,
+        OwnerCompanionDeviceStatus.expired,
+        OwnerCompanionDeviceStatus.revoked,
+        OwnerCompanionDeviceStatus.stale,
+      ],
+    );
+    // Phone CompanionDevice parser still rejects non-active grants.
+    for (final status in const <String>['expired', 'revoked', 'stale']) {
       expect(
-        () => OwnerCompanionBinding.fromSession(agent),
+        () => CompanionDevice.fromJson(
+          _deviceJson(
+            id: 'd-$status',
+            status: status,
+            revokedAt: status == 'revoked' ? 2000 : null,
+          ),
+        ),
         throwsFormatException,
       );
-    },
-  );
+    }
+  });
 
-  test(
-    'owner DTOs parse active, expired, revoked, and stale devices while device parser stays active-only',
-    () {
-      final directory = decodeOwnerCompanionDevicePage(<String, Object?>{
-        'schema_version': '1.0',
-        'devices': <Object?>[
-          _deviceJson(id: 'd-active', status: 'active'),
-          _deviceJson(id: 'd-expired', status: 'expired'),
-          _deviceJson(id: 'd-revoked', status: 'revoked', revokedAt: 2000),
-          _deviceJson(id: 'd-stale', status: 'stale', epoch: 9),
-        ],
-      });
-      expect(
-        directory.map((d) => d.status).toList(),
-        <OwnerCompanionDeviceStatus>[
-          OwnerCompanionDeviceStatus.active,
-          OwnerCompanionDeviceStatus.expired,
-          OwnerCompanionDeviceStatus.revoked,
-          OwnerCompanionDeviceStatus.stale,
-        ],
-      );
-      // Phone CompanionDevice parser still rejects non-active grants.
-      for (final status in const <String>['expired', 'revoked', 'stale']) {
-        expect(
-          () => CompanionDevice.fromJson(
-            _deviceJson(
-              id: 'd-$status',
-              status: status,
-              revokedAt: status == 'revoked' ? 2000 : null,
-            ),
+  test('OwnerCompanionApi enforces JSON/wire bounds, monotonic paging, and bounded stream-cancel ownership', () async {
+    final binding = OwnerCompanionBinding('session-1', 'thread-1', 1);
+    final held = _HeldCancelTransport();
+    final heldApi = OwnerCompanionApi(
+      sessionBase: 'https://host.invalid',
+      ownerToken: 'o' * 32,
+      clientFactory: () => held,
+      cleanupTimeout: const Duration(milliseconds: 50),
+    );
+    await expectLater(
+      heldApi.inviteCall(
+        binding,
+        deviceId: 'device-1',
+        title: 'Synthetic invite',
+        idempotencyKey: 'key-1',
+      ),
+      throwsA(
+        isA<OwnerCompanionFailure>().having(
+          (e) => e.unconfirmed,
+          'unconfirmed',
+          isTrue,
+        ),
+      ),
+    );
+    expect(held.closed, isTrue);
+    held.cancelCompleter.complete();
+    await heldApi.close();
+
+    // Duplicate JSON key rejection and 5-page 100-call monotonic paging.
+    final duplicateApi = OwnerCompanionApi(
+      sessionBase: 'https://host.invalid',
+      ownerToken: 'o' * 32,
+      clientFactory: () => MockClient(
+        (_) async => http.Response(
+          '{"schema_version":"1.0","devices":[],"devices":[]}',
+          200,
+          headers: const <String, String>{'content-type': 'application/json'},
+        ),
+      ),
+    );
+    await expectLater(
+      duplicateApi.listDevices(),
+      throwsA(isA<OwnerCompanionFailure>()),
+    );
+    await duplicateApi.close();
+
+    final pagedApi = OwnerCompanionApi(
+      sessionBase: 'https://host.invalid',
+      ownerToken: 'o' * 32,
+      clientFactory: () => MockClient((req) async {
+        final after = int.parse(req.url.queryParameters['after'] ?? '0');
+        final rows = List<Map<String, Object?>>.generate(
+          20,
+          (i) => _callJson(
+            id: 'call-${after + i + 1}',
+            sequence: after + i + 1,
+            note: '"' * 4096,
           ),
-          throwsFormatException,
         );
-      }
-    },
-  );
+        final nextAfter = after + 20 < 100 ? after + 20 : null;
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'calls': rows,
+          'next_after': nextAfter,
+        });
+      }),
+    );
+    final allCalls = await pagedApi.listCalls(binding);
+    expect(allCalls.length, 100);
+    expect(allCalls.first.sequence, 1);
+    expect(allCalls.last.sequence, 100);
+    await pagedApi.close();
 
-  test(
-    'OwnerCompanionApi enforces JSON/wire bounds, monotonic paging, and bounded stream-cancel ownership',
-    () async {
-      final binding = OwnerCompanionBinding('session-1', 'thread-1', 1);
-      final held = _HeldCancelTransport();
-      final heldApi = OwnerCompanionApi(
-        sessionBase: 'https://host.invalid',
-        ownerToken: 'o' * 32,
-        clientFactory: () => held,
-        cleanupTimeout: const Duration(milliseconds: 50),
-      );
-      await expectLater(
-        heldApi.inviteCall(
-          binding,
-          deviceId: 'device-1',
-          title: 'Synthetic invite',
-          idempotencyKey: 'key-1',
-        ),
-        throwsA(
-          isA<OwnerCompanionFailure>().having(
-            (e) => e.unconfirmed,
-            'unconfirmed',
-            isTrue,
-          ),
-        ),
-      );
-      expect(held.closed, isTrue);
-      held.cancelCompleter.complete();
-      await heldApi.close();
-
-      // Duplicate JSON key rejection and 5-page 100-call monotonic paging.
-      final duplicateApi = OwnerCompanionApi(
-        sessionBase: 'https://host.invalid',
-        ownerToken: 'o' * 32,
-        clientFactory: () => MockClient(
-          (_) async => http.Response(
-            '{"schema_version":"1.0","devices":[],"devices":[]}',
-            200,
-            headers: const <String, String>{'content-type': 'application/json'},
-          ),
-        ),
-      );
-      await expectLater(
-        duplicateApi.listDevices(),
-        throwsA(isA<OwnerCompanionFailure>()),
-      );
-      await duplicateApi.close();
-
-      final pagedApi = OwnerCompanionApi(
-        sessionBase: 'https://host.invalid',
-        ownerToken: 'o' * 32,
-        clientFactory: () => MockClient((req) async {
-          final after = int.parse(req.url.queryParameters['after'] ?? '0');
-          final rows = List<Map<String, Object?>>.generate(
-            20,
-            (i) => _callJson(
-              id: 'call-${after + i + 1}',
-              sequence: after + i + 1,
-              note: '"' * 4096,
-            ),
+    // Unfiltered listCalls pages across >5 pages (101 calls across 2 devices,
+    // and 3,200 calls across 32 devices with 100 calls per device) while
+    // enforcing the 100-per-device and 3,200-total bounds.
+    OwnerCompanionApi makeMultiDeviceApi(
+      int totalCalls, {
+      int callsPerDevice = 100,
+    }) => OwnerCompanionApi(
+      sessionBase: 'https://host.invalid',
+      ownerToken: 'o' * 32,
+      clientFactory: () => MockClient((req) async {
+        final after = int.parse(req.url.queryParameters['after'] ?? '0');
+        final remaining = totalCalls - after;
+        final count = remaining > 20 ? 20 : (remaining > 0 ? remaining : 0);
+        final rows = List<Map<String, Object?>>.generate(count, (i) {
+          final seq = after + i + 1;
+          final deviceIndex = ((seq - 1) ~/ callsPerDevice) + 1;
+          return _callJson(
+            id: 'call-$seq',
+            sequence: seq,
+            deviceId: 'device-$deviceIndex',
+            state: seq == totalCalls ? 'ringing' : 'ended',
+            endReason: seq == totalCalls ? null : 'owner_ended',
           );
-          final nextAfter = after + 20 < 100 ? after + 20 : null;
-          return _jsonRes(<String, Object?>{
-            'schema_version': '1.0',
-            'calls': rows,
-            'next_after': nextAfter,
-          });
-        }),
-      );
-      final allCalls = await pagedApi.listCalls(binding);
-      expect(allCalls.length, 100);
-      expect(allCalls.first.sequence, 1);
-      expect(allCalls.last.sequence, 100);
-      await pagedApi.close();
+        });
+        final nextAfter = after + count < totalCalls ? after + count : null;
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'calls': rows,
+          'next_after': nextAfter,
+        });
+      }),
+    );
 
-      // Unfiltered listCalls pages across >5 pages (101 calls across 2 devices,
-      // and 3,200 calls across 32 devices with 100 calls per device) while
-      // enforcing the 100-per-device and 3,200-total bounds.
-      OwnerCompanionApi makeMultiDeviceApi(
-        int totalCalls, {
-        int callsPerDevice = 100,
-      }) => OwnerCompanionApi(
-        sessionBase: 'https://host.invalid',
-        ownerToken: 'o' * 32,
-        clientFactory: () => MockClient((req) async {
-          final after = int.parse(req.url.queryParameters['after'] ?? '0');
-          final remaining = totalCalls - after;
-          final count = remaining > 20 ? 20 : (remaining > 0 ? remaining : 0);
-          final rows = List<Map<String, Object?>>.generate(count, (i) {
-            final seq = after + i + 1;
-            final deviceIndex = ((seq - 1) ~/ callsPerDevice) + 1;
-            return _callJson(
-              id: 'call-$seq',
-              sequence: seq,
-              deviceId: 'device-$deviceIndex',
-              state: seq == totalCalls ? 'ringing' : 'ended',
-              endReason: seq == totalCalls ? null : 'owner_ended',
-            );
-          });
-          final nextAfter = after + count < totalCalls ? after + count : null;
-          return _jsonRes(<String, Object?>{
-            'schema_version': '1.0',
-            'calls': rows,
-            'next_after': nextAfter,
-          });
-        }),
-      );
+    final api101 = makeMultiDeviceApi(101);
+    final calls101 = await api101.listCalls(binding);
+    expect(calls101.length, 101);
+    expect(calls101.last.callId, 'call-101');
+    expect(calls101.last.deviceId, 'device-2');
+    expect(calls101.last.state, OwnerCompanionCallState.ringing);
+    await api101.close();
 
-      final api101 = makeMultiDeviceApi(101);
-      final calls101 = await api101.listCalls(binding);
-      expect(calls101.length, 101);
-      expect(calls101.last.callId, 'call-101');
-      expect(calls101.last.deviceId, 'device-2');
-      expect(calls101.last.state, OwnerCompanionCallState.ringing);
-      await api101.close();
+    final api3200 = makeMultiDeviceApi(3200);
+    final calls3200 = await api3200.listCalls(binding);
+    expect(calls3200.length, 3200);
+    expect(calls3200.last.sequence, 3200);
+    expect(calls3200.last.deviceId, 'device-32');
+    expect(calls3200.last.state, OwnerCompanionCallState.ringing);
+    await api3200.close();
 
-      final api3200 = makeMultiDeviceApi(3200);
-      final calls3200 = await api3200.listCalls(binding);
-      expect(calls3200.length, 3200);
-      expect(calls3200.last.sequence, 3200);
-      expect(calls3200.last.deviceId, 'device-32');
-      expect(calls3200.last.state, OwnerCompanionCallState.ringing);
-      await api3200.close();
+    final apiSingleDevice101 = makeMultiDeviceApi(101, callsPerDevice: 101);
+    await expectLater(
+      apiSingleDevice101.listCalls(binding),
+      throwsA(isA<OwnerCompanionFailure>()),
+    );
+    await apiSingleDevice101.close();
 
-      final apiSingleDevice101 = makeMultiDeviceApi(101, callsPerDevice: 101);
-      await expectLater(
-        apiSingleDevice101.listCalls(binding),
-        throwsA(isA<OwnerCompanionFailure>()),
-      );
-      await apiSingleDevice101.close();
+    final api3201 = makeMultiDeviceApi(3201);
+    await expectLater(
+      api3201.listCalls(binding),
+      throwsA(isA<OwnerCompanionFailure>()),
+    );
+    await api3201.close();
+  });
 
-      final api3201 = makeMultiDeviceApi(3201);
-      await expectLater(
-        api3201.listCalls(binding),
-        throwsA(isA<OwnerCompanionFailure>()),
-      );
-      await api3201.close();
-    },
-  );
-
-  test(
-    'owner inventory validates history before projecting current epoch',
-    () async {
-      final binding = OwnerCompanionBinding('session-1', 'thread-1', 2);
-      final api = OwnerCompanionApi(
-        sessionBase: 'https://host.invalid',
-        ownerToken: 'o' * 32,
-        clientFactory: () => MockClient((req) async {
-          final after = int.parse(req.url.queryParameters['after']!);
-          final end = after + 20 < 101 ? after + 20 : 101;
-          return _jsonRes(<String, Object?>{
-            'schema_version': '1.0',
-            'calls': <Object?>[
-              for (var index = after; index < end; index++)
-                _callJson(
-                  id: 'call-${index + 1}',
-                  sequence: index + 1,
-                  deviceId: index < 100 ? 'old-device' : 'current-device',
-                  epoch: index < 100 ? 1 : 2,
-                  state: index < 100 ? 'ended' : 'ringing',
-                  endReason: index < 100 ? 'session_invalidated' : null,
-                ),
-            ],
-            'next_after': end < 101 ? end : null,
-          });
-        }),
-      );
-      addTearDown(api.close);
-      final calls = await api.listCalls(binding);
-      expect(calls.single.callId, 'call-101');
-      // The public page method continues to require the exact requested binding.
-      await expectLater(
-        api.listCallsPage(binding),
-        throwsA(isA<OwnerCompanionFailure>()),
-      );
-    },
-  );
+  test('owner inventory validates history before projecting current epoch', () async {
+    final binding = OwnerCompanionBinding('session-1', 'thread-1', 2);
+    final api = OwnerCompanionApi(
+      sessionBase: 'https://host.invalid',
+      ownerToken: 'o' * 32,
+      clientFactory: () => MockClient((req) async {
+        final after = int.parse(req.url.queryParameters['after']!);
+        final end = after + 20 < 101 ? after + 20 : 101;
+        return _jsonRes(<String, Object?>{
+          'schema_version': '1.0',
+          'calls': <Object?>[
+            for (var index = after; index < end; index++)
+              _callJson(
+                id: 'call-${index + 1}',
+                sequence: index + 1,
+                deviceId: index < 100 ? 'old-device' : 'current-device',
+                epoch: index < 100 ? 1 : 2,
+                state: index < 100 ? 'ended' : 'ringing',
+                endReason: index < 100 ? 'session_invalidated' : null,
+              ),
+          ],
+          'next_after': end < 101 ? end : null,
+        });
+      }),
+    );
+    addTearDown(api.close);
+    final calls = await api.listCalls(binding);
+    expect(calls.single.callId, 'call-101');
+    // The public page method continues to require the exact requested binding.
+    await expectLater(
+      api.listCallsPage(binding),
+      throwsA(isA<OwnerCompanionFailure>()),
+    );
+  });
 
   test(
     'owner inventory refuses foreign rows and native capacity violations',
@@ -1270,9 +1258,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: const TextScaler.linear(2.0)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2.0)),
             child: child!,
           ),
           home: Scaffold(

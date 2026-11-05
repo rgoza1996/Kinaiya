@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../api/client.dart';
 import '../api/decisions_client.dart';
 import '../api/decisions_models.dart';
@@ -327,9 +329,9 @@ class _DecisionsViewState extends State<DecisionsView> {
                 builder: (context, box) {
                   final wide =
                       box.maxWidth /
-                          MediaQuery.textScalerOf(
-                            context,
-                          ).scale(1).clamp(1, 2) >=
+                          MediaQuery.textScalerOf(context)
+                              .scale(1)
+                              .clamp(1, 2) >=
                       1050;
                   final filters = Wrap(
                     spacing: 12,
@@ -504,9 +506,9 @@ class _DecisionsViewState extends State<DecisionsView> {
                               cells: [
                                 DataCell(
                                   Text(
-                                    DateTime.parse(
-                                      r.createdAt,
-                                    ).toUtc().toIso8601String(),
+                                    DateTime.parse(r.createdAt)
+                                        .toUtc()
+                                        .toIso8601String(),
                                   ),
                                 ),
                                 DataCell(_cell(r.sessionId, 110)),

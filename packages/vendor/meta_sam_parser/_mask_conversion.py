@@ -162,24 +162,16 @@ def _rle_to_string(R: _RLE) -> str:
 
 
 def _to_string(rles: _RLEs) -> list[RLEObject]:
-    return [
-        RLEObject(size=(rle.h, rle.w), counts=_rle_to_string(rle)) for rle in rles.R
-    ]
+    return [RLEObject(size=(rle.h, rle.w), counts=_rle_to_string(rle)) for rle in rles.R]
 
 
 def _from_string(
     input_rle_objects: RLEObject | list[RLEObject],
 ) -> _RLEs:
-    rle_objects = (
-        input_rle_objects
-        if isinstance(input_rle_objects, list)
-        else [input_rle_objects]
-    )
+    rle_objects = input_rle_objects if isinstance(input_rle_objects, list) else [input_rle_objects]
     rles = _RLEs(len(rle_objects))
     for index, rle_object in enumerate(rle_objects):
-        _rle_from_string(
-            rles.R[index], rle_object.counts, rle_object.size[0], rle_object.size[1]
-        )
+        _rle_from_string(rles.R[index], rle_object.counts, rle_object.size[0], rle_object.size[1])
     return rles
 
 
@@ -268,9 +260,7 @@ def _trace_contours(mask: bytes, height: int, width: int) -> str:
         if len(path) < 2:
             continue
         commands = [f"M{_number(path[0][0])} {_number(path[0][1])}"]
-        commands.extend(
-            f"L{_number(point[0])} {_number(point[1])}" for point in path[1:]
-        )
+        commands.extend(f"L{_number(point[0])} {_number(point[1])}" for point in path[1:])
         commands.append("Z")
         svg_paths.append("".join(commands))
     return "".join(svg_paths)
@@ -325,9 +315,7 @@ def _connect_segments(segments: list[_Segment]) -> list[list[_Point]]:
 
             next_neighbors = adjacency.get(next_)
             if next_neighbors is not None:
-                next_filtered = [
-                    neighbor for neighbor in next_neighbors if neighbor != current
-                ]
+                next_filtered = [neighbor for neighbor in next_neighbors if neighbor != current]
                 if next_filtered:
                     adjacency[next_] = next_filtered
                 else:

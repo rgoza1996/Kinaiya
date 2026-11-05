@@ -176,42 +176,35 @@ AppState _owner(_Api api) {
 }
 
 void main() {
-  test(
-    'known authenticated typed source gets conservative refusal, never acceptance',
-    () {
-      final tracker = ConverseHandoffTracker();
-      tracker.observe(old.source(), _scope);
-      final refusal = _refusal();
-      expect(refusal.payload.containsKey('source_sequence'), isFalse);
-      _expectConservative(tracker.observe(refusal, _scope));
-      _expectConservative(tracker.noticeForSource('source', _scope));
-      expect(
-        tracker.noticeForTurn(
-          current: _scope,
-          role: 'kinaiya',
-          eventId: 'source',
-        ),
-        isNull,
-      );
-      expect(tracker.observe(refusal, _scope), isNull);
-      expect(tracker.notices, hasLength(1));
-    },
-  );
+  test('known authenticated typed source gets conservative refusal, never acceptance', () {
+    final tracker = ConverseHandoffTracker();
+    tracker.observe(old.source(), _scope);
+    final refusal = _refusal();
+    expect(refusal.payload.containsKey('source_sequence'), isFalse);
+    _expectConservative(tracker.observe(refusal, _scope));
+    _expectConservative(tracker.noticeForSource('source', _scope));
+    expect(
+      tracker.noticeForTurn(
+        current: _scope,
+        role: 'kinaiya',
+        eventId: 'source',
+      ),
+      isNull,
+    );
+    expect(tracker.observe(refusal, _scope), isNull);
+    expect(tracker.notices, hasLength(1));
+  });
 
-  test(
-    'optimistic accepted-source ID alone is not authenticated source provenance',
-    () {
-      final tracker = ConverseHandoffTracker()
-        ..acceptedSource(_scope, 'source');
-      expect(tracker.observe(_refusal(), _scope), isNull);
-      expect(tracker.noticeForSource('source', _scope), isNull);
-      expect(tracker.pendingReceipts, isNotEmpty);
-      tracker.observe(old.source(), _scope);
-      final recovered = tracker.drainPending(_scope);
-      expect(recovered, hasLength(1));
-      _expectConservative(recovered.single);
-    },
-  );
+  test('optimistic accepted-source ID alone is not authenticated source provenance', () {
+    final tracker = ConverseHandoffTracker()..acceptedSource(_scope, 'source');
+    expect(tracker.observe(_refusal(), _scope), isNull);
+    expect(tracker.noticeForSource('source', _scope), isNull);
+    expect(tracker.pendingReceipts, isNotEmpty);
+    tracker.observe(old.source(), _scope);
+    final recovered = tracker.drainPending(_scope);
+    expect(recovered, hasLength(1));
+    _expectConservative(recovered.single);
+  });
 
   test(
     'malformed foreign and unrelated refusal lineage cannot publish a notice',
@@ -304,62 +297,104 @@ void main() {
     expect(retained.text, accepted.text);
   });
 
-  test(
-    'older authentic acceptance observed after refusal supersedes unconfirmed notice',
-    () {
-      final tracker = ConverseHandoffTracker()
-        ..observe(old.source(), _scope)
-        ..observe(old.decision(), _scope);
-      final refusal = _refusal(sequence: 20);
-      final acceptedReceipt = old.receipt('accepted', sequence: 3);
-      expect(acceptedReceipt.sequence, lessThan(refusal.sequence));
-      _expectConservative(tracker.observe(refusal, _scope));
-      final accepted = tracker.observe(acceptedReceipt, _scope);
-      expect(accepted, isNotNull);
-      final confirmed = accepted!;
-      expect(confirmed.hasConfirmedTaskIdentifier, isTrue);
-      expect(confirmed.status, HandoffStatus.accepted);
-      expect(confirmed.nativeTaskId, 'task-1');
-      expect(confirmed.text, 'Agent accepted the request · Task task-1');
-      final retained = tracker.noticeForSource('source', _scope)!;
-      expect(retained.hasConfirmedTaskIdentifier, isTrue);
-      expect(retained.nativeTaskId, 'task-1');
-      expect(retained.text, confirmed.text);
-    },
-  );
+  test('older authentic acceptance observed after refusal supersedes unconfirmed notice', () {
+    final tracker = ConverseHandoffTracker()
+      ..observe(old.source(), _scope)
+      ..observe(old.decision(), _scope);
+    final refusal = _refusal(sequence: 20);
+    final acceptedReceipt = old.receipt('accepted', sequence: 3);
+    expect(acceptedReceipt.sequence, lessThan(refusal.sequence));
+    _expectConservative(tracker.observe(refusal, _scope));
+    final accepted = tracker.observe(acceptedReceipt, _scope);
+    expect(accepted, isNotNull);
+    final confirmed = accepted!;
+    expect(confirmed.hasConfirmedTaskIdentifier, isTrue);
+    expect(confirmed.status, HandoffStatus.accepted);
+    expect(confirmed.nativeTaskId, 'task-1');
+    expect(confirmed.text, 'Agent accepted the request · Task task-1');
+    final retained = tracker.noticeForSource('source', _scope)!;
+    expect(retained.hasConfirmedTaskIdentifier, isTrue);
+    expect(retained.nativeTaskId, 'task-1');
+    expect(retained.text, confirmed.text);
+  });
 
-  test(
-    'fresh poll recovers absent source through bounded native reads without decision',
-    () async {
+  test('fresh poll recovers absent source through bounded native reads without decision', () async {
+    final api = _Api()
+      ..entries = [_refusal()]
+      ..references = {'source': old.source()};
+    final state = _owner(api);
+    await state.refreshNotices();
+    _expectConservative(state.handoffNotice('source'));
+    expect(api.nativeReads, contains(('source', true)));
+    expect(api.nativeReads.length, lessThanOrEqualTo(8));
+    expect(api.transcriptLimits, everyElement(lessThanOrEqualTo(200)));
+    expect(
+      state.converseHistory.where((m) => m.text == _unavailable),
+      hasLength(1),
+    );
+    await state.refreshNotices();
+    expect(
+      state.converseHistory.where((m) => m.text == _unavailable),
+      hasLength(1),
+    );
+    expect(state.tasks, isEmpty);
+  });
+
+  test('failed source lookup stays unconfirmed and later GET recovery uses original refusal', () async {
+    final api = _Api()
+      ..entries = [_refusal()]
+      ..references = {'source': old.source()}
+      ..failLookup = true;
+    final state = _owner(api);
+    await state.refreshNotices();
+    expect(state.handoffNotice('source'), isNull);
+    expect(state.converseHistory.where((m) => m.text == _unavailable), isEmpty);
+    expect(api.nativeReads.length, inInclusiveRange(1, 8));
+    api.failLookup = false;
+    final before = api.nativeReads.length;
+    await state.refreshNotices();
+    _expectConservative(state.handoffNotice('source'));
+    expect(api.nativeReads.length - before, inInclusiveRange(1, 8));
+    expect(state.tasks, isEmpty);
+  });
+
+  test('resolved source must still be exact original authenticated USER and current revision', () async {
+    for (final source in [
+      old.source(id: 'wrong-id'),
+      old.event(
+        'conversation.user',
+        1,
+        {'revision': 1, 'text': 'Synthetic'},
+        id: 'source',
+        origin: 'converse',
+      ),
+      old.event(
+        'conversation.user',
+        1,
+        {'revision': 1, 'text': 'Synthetic'},
+        id: 'source',
+        thread: 'foreign',
+      ),
+      old.event(
+        'conversation.user',
+        1,
+        {'revision': 1, 'text': 'Synthetic'},
+        id: 'source',
+        epoch: 4,
+      ),
+      old.event(
+        'conversation.converse',
+        1,
+        {'revision': 1, 'text': 'Synthetic'},
+        id: 'source',
+        origin: 'converse',
+      ),
+      old.source(sequence: 20),
+      old.source(revision: 2),
+    ]) {
       final api = _Api()
         ..entries = [_refusal()]
-        ..references = {'source': old.source()};
-      final state = _owner(api);
-      await state.refreshNotices();
-      _expectConservative(state.handoffNotice('source'));
-      expect(api.nativeReads, contains(('source', true)));
-      expect(api.nativeReads.length, lessThanOrEqualTo(8));
-      expect(api.transcriptLimits, everyElement(lessThanOrEqualTo(200)));
-      expect(
-        state.converseHistory.where((m) => m.text == _unavailable),
-        hasLength(1),
-      );
-      await state.refreshNotices();
-      expect(
-        state.converseHistory.where((m) => m.text == _unavailable),
-        hasLength(1),
-      );
-      expect(state.tasks, isEmpty);
-    },
-  );
-
-  test(
-    'failed source lookup stays unconfirmed and later GET recovery uses original refusal',
-    () async {
-      final api = _Api()
-        ..entries = [_refusal()]
-        ..references = {'source': old.source()}
-        ..failLookup = true;
+        ..references = {'source': source};
       final state = _owner(api);
       await state.refreshNotices();
       expect(state.handoffNotice('source'), isNull);
@@ -367,66 +402,9 @@ void main() {
         state.converseHistory.where((m) => m.text == _unavailable),
         isEmpty,
       );
-      expect(api.nativeReads.length, inInclusiveRange(1, 8));
-      api.failLookup = false;
-      final before = api.nativeReads.length;
-      await state.refreshNotices();
-      _expectConservative(state.handoffNotice('source'));
-      expect(api.nativeReads.length - before, inInclusiveRange(1, 8));
-      expect(state.tasks, isEmpty);
-    },
-  );
-
-  test(
-    'resolved source must still be exact original authenticated USER and current revision',
-    () async {
-      for (final source in [
-        old.source(id: 'wrong-id'),
-        old.event(
-          'conversation.user',
-          1,
-          {'revision': 1, 'text': 'Synthetic'},
-          id: 'source',
-          origin: 'converse',
-        ),
-        old.event(
-          'conversation.user',
-          1,
-          {'revision': 1, 'text': 'Synthetic'},
-          id: 'source',
-          thread: 'foreign',
-        ),
-        old.event(
-          'conversation.user',
-          1,
-          {'revision': 1, 'text': 'Synthetic'},
-          id: 'source',
-          epoch: 4,
-        ),
-        old.event(
-          'conversation.converse',
-          1,
-          {'revision': 1, 'text': 'Synthetic'},
-          id: 'source',
-          origin: 'converse',
-        ),
-        old.source(sequence: 20),
-        old.source(revision: 2),
-      ]) {
-        final api = _Api()
-          ..entries = [_refusal()]
-          ..references = {'source': source};
-        final state = _owner(api);
-        await state.refreshNotices();
-        expect(state.handoffNotice('source'), isNull);
-        expect(
-          state.converseHistory.where((m) => m.text == _unavailable),
-          isEmpty,
-        );
-        expect(api.nativeReads.length, lessThanOrEqualTo(8));
-      }
-    },
-  );
+      expect(api.nativeReads.length, lessThanOrEqualTo(8));
+    }
+  });
 
   for (final change in ['connection', 'session']) {
     test(
@@ -465,87 +443,79 @@ void main() {
     );
   }
 
-  test(
-    'recovery stays within the existing eight-read budget across several refusals',
-    () async {
-      final api = _Api();
-      for (var i = 0; i < 12; i++) {
-        final id = 'source-$i';
-        api.references[id] = old.source(id: id, sequence: i + 1);
-        api.entries.add(
-          _refusal(id: 'refusal-$i', source: id, sequence: 20 + i),
-        );
-      }
-      final state = _owner(api);
-      for (var poll = 0; poll < 12; poll++) {
-        final before = api.nativeReads.length;
-        await state.refreshNotices();
-        expect(api.nativeReads.length - before, lessThanOrEqualTo(8));
-      }
-      for (var i = 0; i < 12; i++) {
-        _expectConservative(state.handoffNotice('source-$i'));
-      }
-      expect(
-        state.converseHistory.where((m) => m.text == _unavailable),
-        hasLength(12),
-      );
-    },
-  );
+  test('recovery stays within the existing eight-read budget across several refusals', () async {
+    final api = _Api();
+    for (var i = 0; i < 12; i++) {
+      final id = 'source-$i';
+      api.references[id] = old.source(id: id, sequence: i + 1);
+      api.entries.add(_refusal(id: 'refusal-$i', source: id, sequence: 20 + i));
+    }
+    final state = _owner(api);
+    for (var poll = 0; poll < 12; poll++) {
+      final before = api.nativeReads.length;
+      await state.refreshNotices();
+      expect(api.nativeReads.length - before, lessThanOrEqualTo(8));
+    }
+    for (var i = 0; i < 12; i++) {
+      _expectConservative(state.handoffNotice('source-$i'));
+    }
+    expect(
+      state.converseHistory.where((m) => m.text == _unavailable),
+      hasLength(12),
+    );
+  });
 
-  test(
-    'refusal preserves accepted tasks and independently published artifact metadata',
-    () async {
-      final published = artifactFixture(
-        sessionId: 's',
-        threadId: 't',
-        taskId: 'task-1',
-      )..['epoch'] = 3;
-      final api = _Api(artifacts: [published])
-        ..entries = [
-          old.source(),
-          old.decision(),
-          old.receipt('accepted'),
-          old.source(id: 'other-source', sequence: 4),
-        ];
-      final state = _owner(api)..sessionAuthenticated = true;
-      final task = AgentTask(
-        taskId: 'task-1',
-        sessionId: 'agent-session',
-        threadId: 'agent-thread',
-        epoch: 1,
-        objective: 'Synthetic accepted task',
-        objectiveRevision: 1,
-        state: 'running',
-        idempotencyKey: 'synthetic-task',
-      );
-      state.setTasks([task]);
-      await state.refreshArtifacts();
-      final retainedArtifact = state.converseArtifacts.single;
-      await state.refreshNotices();
-      expect(state.handoffNotice('source')!.hasConfirmedTaskIdentifier, isTrue);
-      api.entries.addAll([
-        _refusal(id: 'late-refusal', sequence: 20),
-        _refusal(id: 'other-refusal', source: 'other-source', sequence: 21),
-      ]);
-      api.references = {
-        'source': old.source(),
-        'other-source': old.source(id: 'other-source', sequence: 4),
-      };
-      await state.refreshNotices();
-      _expectConservative(state.handoffNotice('other-source'));
-      expect(state.handoffNotice('source')!.nativeTaskId, 'task-1');
-      expect(state.tasks.single, same(task));
-      expect(state.tasks.single.state, 'running');
-      expect(
-        state.converseArtifacts.single.artifactId,
-        retainedArtifact.artifactId,
-      );
-      expect(
-        state.converseArtifacts.single.contentSha256,
-        retainedArtifact.contentSha256,
-      );
-    },
-  );
+  test('refusal preserves accepted tasks and independently published artifact metadata', () async {
+    final published = artifactFixture(
+      sessionId: 's',
+      threadId: 't',
+      taskId: 'task-1',
+    )..['epoch'] = 3;
+    final api = _Api(artifacts: [published])
+      ..entries = [
+        old.source(),
+        old.decision(),
+        old.receipt('accepted'),
+        old.source(id: 'other-source', sequence: 4),
+      ];
+    final state = _owner(api)..sessionAuthenticated = true;
+    final task = AgentTask(
+      taskId: 'task-1',
+      sessionId: 'agent-session',
+      threadId: 'agent-thread',
+      epoch: 1,
+      objective: 'Synthetic accepted task',
+      objectiveRevision: 1,
+      state: 'running',
+      idempotencyKey: 'synthetic-task',
+    );
+    state.setTasks([task]);
+    await state.refreshArtifacts();
+    final retainedArtifact = state.converseArtifacts.single;
+    await state.refreshNotices();
+    expect(state.handoffNotice('source')!.hasConfirmedTaskIdentifier, isTrue);
+    api.entries.addAll([
+      _refusal(id: 'late-refusal', sequence: 20),
+      _refusal(id: 'other-refusal', source: 'other-source', sequence: 21),
+    ]);
+    api.references = {
+      'source': old.source(),
+      'other-source': old.source(id: 'other-source', sequence: 4),
+    };
+    await state.refreshNotices();
+    _expectConservative(state.handoffNotice('other-source'));
+    expect(state.handoffNotice('source')!.nativeTaskId, 'task-1');
+    expect(state.tasks.single, same(task));
+    expect(state.tasks.single.state, 'running');
+    expect(
+      state.converseArtifacts.single.artifactId,
+      retainedArtifact.artifactId,
+    );
+    expect(
+      state.converseArtifacts.single.contentSha256,
+      retainedArtifact.contentSha256,
+    );
+  });
 
   testWidgets(
     'ordinary typed refusal is visibly labelled beside its original user turn',

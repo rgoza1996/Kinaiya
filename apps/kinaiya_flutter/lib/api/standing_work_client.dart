@@ -2,6 +2,7 @@
 library;
 
 import 'package:http/http.dart' as http;
+
 import 'owned_settings_client.dart';
 import 'standing_work.dart';
 
@@ -77,9 +78,9 @@ class StandingOwnerApi {
   );
 
   bool _id(String value) =>
-      RegExp(
-        r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}',
-      ).matchAsPrefix(value)?.end ==
+      RegExp(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}')
+          .matchAsPrefix(value)
+          ?.end ==
       value.length;
 
   StandingOwnerAttempt<StandingResponsibilitySnapshot> snapshot(

@@ -541,8 +541,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (runner == null) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
       notifyListeners();
       return false;
     }
@@ -577,8 +576,7 @@ class AppState extends ChangeNotifier {
       return false;
     } catch (_) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
       notifyListeners();
       return false;
     }
@@ -588,8 +586,7 @@ class AppState extends ChangeNotifier {
     _decisionsModelOptionsRead++;
     decisionsModelOptions = null;
     decisionsModelOptionsLoading = false;
-    decisionsModelOptionsStatus =
-        'Decisions selection save is unconfirmed. Check the original request in Models.';
+    decisionsModelOptionsStatus = 'Decisions selection save is unconfirmed. Check the original request in Models.';
     notifyListeners();
   }
 
@@ -624,8 +621,7 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       if (!current()) return;
       decisionsModelOptions = null;
-      decisionsModelOptionsStatus =
-          'Decisions model options are unavailable. Other roles remain independent.';
+      decisionsModelOptionsStatus = 'Decisions model options are unavailable. Other roles remain independent.';
     } finally {
       if (current()) {
         decisionsModelOptionsLoading = false;
@@ -746,8 +742,7 @@ class AppState extends ChangeNotifier {
         if (agentOnline || converseOnline) {
           // At least one service answered but no role earned consent:
           // disclosure, malformed, or missing provider metadata.
-          connectionError =
-              'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
+          connectionError = 'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
         } else {
           connectionError =
               'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';
