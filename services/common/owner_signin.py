@@ -29,9 +29,15 @@ HANDOFF_COOKIE_NAME = "kinaiya_local_handoff"
 HANDOFF_PATHS: tuple[str, ...] = ("/__kinaiya/local-signin", "/api/local-owner-handoff")
 HANDOFF_FILE_NAME = "local-owner-handoff.json"
 SESSIONS_FILE_NAME = "local-owner-sessions.json"
+RECOVERY_CHALLENGE_FILE_NAME = "local-recovery-challenge.json"
 SESSION_TOKEN_PREFIX = "kny_sess_"
 DEFAULT_HANDOFF_TTL_S = 60.0
 DEFAULT_SESSION_TTL_S = 8 * 3600.0
+DEFAULT_RECOVERY_CHALLENGE_TTL_S = 120.0
+RECOVERY_PATHS: tuple[str, ...] = ("/__kinaiya/recover-access", "/api/recover-access")
+CHALLENGE_PATHS: tuple[str, ...] = ("/__kinaiya/recovery/challenge", "/api/recovery/challenge")
+ROTATION_PATHS: tuple[str, ...] = ("/__kinaiya/rotate-owner", "/api/rotate-owner")
+STORAGE_STATUS_PATHS: tuple[str, ...] = ("/__kinaiya/storage-status", "/api/storage-status")
 
 
 class LocalSignInError(RuntimeError, ValueError):
@@ -56,6 +62,12 @@ class LocalSignInStale(LocalSignInError):
     """Host generation changed or underlying owner credential was rotated."""
 
     status_code: int = 401
+
+
+class StorageUnavailable(LocalSignInError):
+    """Underlying private credential storage is missing, inaccessible, or corrupt."""
+
+    status_code: int = 503
 
 
 def is_loopback_host(host: str | None) -> bool:
@@ -558,3 +570,297 @@ class LocalOwnerSignInBroker:
                 "converse_url": self.converse_url,
                 "decisions_url": self.decisions_url,
             }
+
+    def check_storage_status(self) -> dict[str, Any]:
+        """Check underlying private storage health without modifying or reinitializing it."""
+        try:
+            tokens = _read_validated_tokens(self.tokens_path)
+            return {
+                "status": "ready",
+                "owner_epoch": tokens.owner_epoch,
+                "rotated_at": getattr(tokens, "rotated_at", None),
+                "tokens_path": str(self.tokens_path.resolve()),
+            }
+        except FileNotFoundError:
+            return {
+                "status": "missing",
+                "detail": f"Private credential storage does not exist: {self.tokens_path}. Run kinaiya init first.",
+                "tokens_path": str(self.tokens_path),
+            }
+        except PermissionError as exc:
+            return {
+                "status": "permission_denied",
+                "detail": f"Private credential storage permission failure: {exc}",
+                "tokens_path": str(self.tokens_path),
+            }
+        except ValueError as exc:
+            return {
+                "status": "corrupt",
+                "detail": f"Private credential storage is corrupt or malformed: {exc}",
+                "tokens_path": str(self.tokens_path),
+            }
+
+    def create_recovery_challenge(
+        self,
+        *,
+        client_host: str | None,
+        origin: str | None,
+        csrf_header: str | None,
+        sec_fetch_site: str | None = None,
+        server_port: int | None = None,
+    ) -> dict[str, Any]:
+        """Generate a single-use local recovery challenge written to private local storage."""
+        if not is_loopback_host(client_host):
+            raise LocalSignInDenied("Recovery challenge requires a loopback client address")
+        if csrf_header not in {"1", "true"}:
+            raise LocalSignInDenied("Missing required X-Kinaiya-Local-Handoff header")
+        if sec_fetch_site is not None and sec_fetch_site.strip().lower() != "same-origin":
+            raise LocalSignInDenied("Cross-site recovery challenge request refused")
+        permitted = self.permitted_origins_for_port(server_port)
+        if not origin or origin not in permitted:
+            raise LocalSignInDenied("Browser origin is not permitted for recovery challenge")
+
+        storage = self.check_storage_status()
+        if storage["status"] != "ready":
+            raise StorageUnavailable(storage["detail"])
+
+        with _store_lock(self.directory):
+            now = float(self.clock())
+            challenge_id = uuid.uuid4().hex
+            auth_code = "kny_rec_" + secrets.token_urlsafe(32)
+            code_sha256 = hashlib.sha256(auth_code.encode("utf-8")).hexdigest()
+            payload = {
+                "schema_version": 1,
+                "challenge_id": challenge_id,
+                "code_sha256": code_sha256,
+                "code": auth_code,
+                "issued_at": now,
+                "expires_at": now + DEFAULT_RECOVERY_CHALLENGE_TTL_S,
+                "ttl_seconds": DEFAULT_RECOVERY_CHALLENGE_TTL_S,
+                "host_generation": self.host_generation,
+            }
+            challenge_path = self.directory / RECOVERY_CHALLENGE_FILE_NAME
+            _write_private_json(challenge_path, payload)
+            return {
+                "challenge_id": challenge_id,
+                "challenge_path": str(challenge_path.resolve()),
+                "expires_at": now + DEFAULT_RECOVERY_CHALLENGE_TTL_S,
+                "ttl_seconds": DEFAULT_RECOVERY_CHALLENGE_TTL_S,
+            }
+
+    def verify_local_authorization(
+        self,
+        authorization_proof: str,
+        *,
+        client_host: str | None,
+        origin: str | None,
+        csrf_header: str | None,
+        sec_fetch_site: str | None = None,
+        server_port: int | None = None,
+    ) -> tuple[Any, str]:
+        """Verify that the caller possesses local host control or valid owner authority."""
+        if not is_loopback_host(client_host):
+            raise LocalSignInDenied("Local authorization requires a loopback client address")
+        if csrf_header not in {"1", "true"}:
+            raise LocalSignInDenied("Missing required X-Kinaiya-Local-Handoff header")
+        if sec_fetch_site is not None and sec_fetch_site.strip().lower() != "same-origin":
+            raise LocalSignInDenied("Cross-site request refused")
+        permitted = self.permitted_origins_for_port(server_port)
+        if not origin or origin not in permitted:
+            raise LocalSignInDenied("Browser origin is not permitted")
+
+        storage = self.check_storage_status()
+        if storage["status"] != "ready":
+            raise StorageUnavailable(storage["detail"])
+
+        if not authorization_proof or not isinstance(authorization_proof, str):
+            raise LocalSignInDenied("Missing local authorization proof")
+
+        cleaned = authorization_proof.strip()
+        now = float(self.clock())
+
+        # 1. Check if proof matches a challenge in local-recovery-challenge.json
+        challenge_path = self.directory / RECOVERY_CHALLENGE_FILE_NAME
+        if challenge_path.exists():
+            try:
+                challenge = _read_private_json(challenge_path, label="Recovery challenge")
+                expires_at = float(challenge.get("expires_at", 0))
+                if now < expires_at and challenge.get("host_generation") == self.host_generation:
+                    stored_code_sha = challenge.get("code_sha256")
+                    candidate_code = cleaned
+                    if cleaned.startswith("{") and cleaned.endswith("}"):
+                        try:
+                            parsed_proof = json.loads(cleaned)
+                            if isinstance(parsed_proof, dict):
+                                candidate_code = str(
+                                    parsed_proof.get("code") or parsed_proof.get("auth_code") or ""
+                                ).strip()
+                        except Exception:
+                            pass
+                    candidate_code_sha = hashlib.sha256(candidate_code.encode("utf-8")).hexdigest()
+                    if stored_code_sha and secrets.compare_digest(
+                        stored_code_sha, candidate_code_sha
+                    ):
+                        # Consume single-use challenge
+                        try:
+                            challenge_path.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+                        tokens = _read_validated_tokens(self.tokens_path)
+                        return tokens, "challenge"
+            except Exception:
+                pass
+
+        # 2. Check if proof matches active owner token (or JSON with "owner" key)
+        tokens = _read_validated_tokens(self.tokens_path)
+        candidate_owner = cleaned
+        if cleaned.startswith("{") and cleaned.endswith("}"):
+            try:
+                parsed_proof = json.loads(cleaned)
+                if isinstance(parsed_proof, dict) and "owner" in parsed_proof:
+                    candidate_owner = str(parsed_proof["owner"]).strip()
+            except Exception:
+                pass
+        if secrets.compare_digest(candidate_owner, tokens["owner"]):
+            return tokens, "owner_credential"
+
+        # 3. Check if proof is an active scoped session token
+        if cleaned.startswith(SESSION_TOKEN_PREFIX):
+            try:
+                role = self.session_manager.verify_session_token(
+                    cleaned,
+                    expected_owner_epoch=tokens.owner_epoch,
+                    expected_host_generation=self.host_generation,
+                )
+                if role == "owner":
+                    return tokens, "scoped_session"
+            except Exception:
+                pass
+
+        raise LocalSignInDenied("Invalid local authorization proof")
+
+    def recover_access(
+        self,
+        *,
+        authorization_proof: str,
+        client_host: str | None,
+        origin: str | None,
+        csrf_header: str | None,
+        sec_fetch_site: str | None = None,
+        server_port: int | None = None,
+    ) -> dict[str, Any]:
+        """Recover an owner session using verified local host authorization without credential rotation."""
+        tokens, proof_kind = self.verify_local_authorization(
+            authorization_proof,
+            client_host=client_host,
+            origin=origin,
+            csrf_header=csrf_header,
+            sec_fetch_site=sec_fetch_site,
+            server_port=server_port,
+        )
+        with _store_lock(self.directory):
+            current_owner_sha = hashlib.sha256(tokens["owner"].encode("utf-8")).hexdigest()
+            issued = self.session_manager.issue_session_token(
+                host_generation=self.host_generation,
+                owner_epoch=tokens.owner_epoch,
+                owner_token_sha256=current_owner_sha,
+                ttl_seconds=self.session_ttl_seconds,
+            )
+            return {
+                "status": "authenticated",
+                "role": "owner",
+                "credential_kind": "scoped_owner_session",
+                "owner_token": issued["session_token"],
+                "session_token": issued["session_token"],
+                "host_generation": issued["host_generation"],
+                "owner_epoch": issued["owner_epoch"],
+                "expires_at": issued["expires_at"],
+                "proof_kind": proof_kind,
+                "session_url": self.session_url,
+                "agent_url": self.agent_url,
+                "converse_url": self.converse_url,
+                "decisions_url": self.decisions_url,
+            }
+
+    def rotate_owner_credential(
+        self,
+        *,
+        authorization_proof: str,
+        confirm: bool,
+        return_exported_token: bool = False,
+        client_host: str | None,
+        origin: str | None,
+        csrf_header: str | None,
+        sec_fetch_site: str | None = None,
+        server_port: int | None = None,
+    ) -> dict[str, Any]:
+        """Atomically rotate the owner credential, invalidate prior sessions and handoffs, and issue new session."""
+        if not confirm:
+            raise LocalSignInDenied("Owner credential replacement requires explicit confirmation")
+        tokens, proof_kind = self.verify_local_authorization(
+            authorization_proof,
+            client_host=client_host,
+            origin=origin,
+            csrf_header=csrf_header,
+            sec_fetch_site=sec_fetch_site,
+            server_port=server_port,
+        )
+        from services.common.auth import rotate_owner_token
+
+        rotation_result = rotate_owner_token(self.directory)
+        with _store_lock(self.directory):
+            new_tokens = _read_validated_tokens(self.tokens_path)
+            new_owner_sha = hashlib.sha256(new_tokens["owner"].encode("utf-8")).hexdigest()
+            self.owner_epoch = new_tokens.owner_epoch
+            self.owner_token_sha256 = new_owner_sha
+
+            # Invalidate all prior sessions in local-owner-sessions.json
+            sessions_path = self.directory / SESSIONS_FILE_NAME
+            if sessions_path.exists():
+                _write_private_json(
+                    sessions_path,
+                    {
+                        "schema_version": 1,
+                        "host_generation": self.host_generation,
+                        "owner_epoch": self.owner_epoch,
+                        "sessions": [],
+                    },
+                )
+
+            # Invalidate any outstanding handoff in local-owner-handoff.json
+            handoff_path = self.directory / HANDOFF_FILE_NAME
+            if handoff_path.exists():
+                try:
+                    handoff = _read_private_json(handoff_path, label="Handoff state")
+                    handoff["state"] = "expired"
+                    handoff["seal_sha256"] = None
+                    _write_private_json(handoff_path, handoff)
+                except Exception:
+                    pass
+
+            # Mint a new session token for the new epoch
+            issued = self.session_manager.issue_session_token(
+                host_generation=self.host_generation,
+                owner_epoch=self.owner_epoch,
+                owner_token_sha256=new_owner_sha,
+                ttl_seconds=self.session_ttl_seconds,
+            )
+            response: dict[str, Any] = {
+                "status": "rotated",
+                "role": "owner",
+                "credential_kind": "scoped_owner_session",
+                "owner_token": issued["session_token"],
+                "session_token": issued["session_token"],
+                "host_generation": issued["host_generation"],
+                "owner_epoch": self.owner_epoch,
+                "rotated_at": rotation_result.get("rotated_at"),
+                "expires_at": issued["expires_at"],
+                "proof_kind": proof_kind,
+                "session_url": self.session_url,
+                "agent_url": self.agent_url,
+                "converse_url": self.converse_url,
+                "decisions_url": self.decisions_url,
+            }
+            if return_exported_token:
+                response["new_owner_token"] = new_tokens["owner"]
+            return response

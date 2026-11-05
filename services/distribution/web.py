@@ -10,8 +10,12 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from services.common.owner_signin import (
+    CHALLENGE_PATHS,
     HANDOFF_COOKIE_NAME,
     HANDOFF_PATHS,
+    RECOVERY_PATHS,
+    ROTATION_PATHS,
+    STORAGE_STATUS_PATHS,
     LocalOwnerSignInBroker,
     LocalSignInError,
     parse_handoff_cookie,
@@ -23,6 +27,7 @@ FORBIDDEN_ASSET_NAMES = frozenset(
         "service-tokens.json",
         "local-owner-handoff.json",
         "local-owner-sessions.json",
+        "local-recovery-challenge.json",
         "owner-login.txt",
     }
 )
@@ -89,12 +94,19 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
         def do_POST(self):
             parsed_url = urlsplit(self.path)
             raw_path = unquote(parsed_url.path)
-            if raw_path not in HANDOFF_PATHS:
+            valid_post_paths = (
+                *HANDOFF_PATHS,
+                *CHALLENGE_PATHS,
+                *RECOVERY_PATHS,
+                *ROTATION_PATHS,
+            )
+            if raw_path not in valid_post_paths:
                 self._write_json(404, {"detail": "Not found"})
                 return
             if parsed_url.query or parsed_url.fragment:
                 self._write_json(
-                    403, {"detail": "Query parameters are not permitted on local sign-in"}
+                    403,
+                    {"detail": "Query parameters are not permitted on local sign-in or recovery"},
                 )
                 return
             try:
@@ -102,11 +114,22 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
             except ValueError:
                 self._write_json(400, {"detail": "Invalid Content-Length"})
                 return
-            if content_len < 0 or content_len > 4096:
-                self._write_json(413, {"detail": "Local sign-in request body too large"})
+            if content_len < 0 or content_len > 8192:
+                self._write_json(413, {"detail": "Request body too large"})
                 return
+            body_bytes = b""
             if content_len > 0:
-                _ = self.rfile.read(content_len)
+                body_bytes = self.rfile.read(content_len)
+            body_json: dict[str, Any] = {}
+            if body_bytes:
+                try:
+                    body_json = json.loads(body_bytes.decode("utf-8"))
+                    if not isinstance(body_json, dict):
+                        self._write_json(400, {"detail": "Request body must be a JSON object"})
+                        return
+                except Exception:
+                    self._write_json(400, {"detail": "Invalid JSON in request body"})
+                    return
 
             if broker is None:
                 self._write_json(403, {"detail": "Local sign-in handoff is not configured"})
@@ -118,12 +141,74 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
             csrf_header = self.headers.get("X-Kinaiya-Local-Handoff") or self.headers.get(
                 "X-Kinaiya-Local-UI"
             )
-            cookie_seal = parse_handoff_cookie(self.headers.get("Cookie"))
             server_port = getattr(self.server, "server_port", None)
             clear_cookie = (
                 f"{HANDOFF_COOKIE_NAME}=; HttpOnly; SameSite=Strict; "
                 "Path=/__kinaiya/local-signin; Max-Age=0"
             )
+
+            if raw_path in CHALLENGE_PATHS:
+                try:
+                    result = broker.create_recovery_challenge(
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result)
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                    )
+                return
+
+            if raw_path in RECOVERY_PATHS:
+                proof = str(body_json.get("authorization_proof", "")).strip()
+                try:
+                    result = broker.recover_access(
+                        authorization_proof=proof,
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result, extra_headers=(("Set-Cookie", clear_cookie),))
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                        extra_headers=(("Set-Cookie", clear_cookie),),
+                    )
+                return
+
+            if raw_path in ROTATION_PATHS:
+                proof = str(body_json.get("authorization_proof", "")).strip()
+                confirm = bool(body_json.get("confirm", False))
+                return_exported = bool(body_json.get("return_exported_token", False))
+                try:
+                    result = broker.rotate_owner_credential(
+                        authorization_proof=proof,
+                        confirm=confirm,
+                        return_exported_token=return_exported,
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result, extra_headers=(("Set-Cookie", clear_cookie),))
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                        extra_headers=(("Set-Cookie", clear_cookie),),
+                    )
+                return
+
+            cookie_seal = parse_handoff_cookie(self.headers.get("Cookie"))
             try:
                 result = broker.consume_handoff(
                     cookie_seal=cookie_seal,
@@ -136,7 +221,7 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
             except LocalSignInError as exc:
                 self._write_json(
                     exc.status_code,
-                    {"detail": str(exc)},
+                    {"detail": str(exc), "code": exc.__class__.__name__},
                     extra_headers=(("Set-Cookie", clear_cookie),),
                 )
                 return
@@ -150,8 +235,25 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
         def send_head(self):
             parsed = urlsplit(self.path)
             raw_path = unquote(parsed.path)
-            if raw_path in HANDOFF_PATHS:
+            action_paths = (
+                *HANDOFF_PATHS,
+                *CHALLENGE_PATHS,
+                *RECOVERY_PATHS,
+                *ROTATION_PATHS,
+            )
+            if raw_path in action_paths:
                 self.send_error(405)
+                return None
+            if raw_path in STORAGE_STATUS_PATHS:
+                if broker is None:
+                    self._write_json(
+                        503,
+                        {"status": "unavailable", "detail": "Local broker not configured"},
+                    )
+                    return None
+                status = broker.check_storage_status()
+                status_code = 200 if status.get("status") == "ready" else 503
+                self._write_json(status_code, status)
                 return None
             path = PurePosixPath(raw_path)
             if path == PurePosixPath("/health"):

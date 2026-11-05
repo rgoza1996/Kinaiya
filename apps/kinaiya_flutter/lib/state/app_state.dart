@@ -21,8 +21,8 @@ import '../api/decisions_model_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/artifact_client.dart';
 import '../artifacts/models.dart';
-import '../artifacts/media.dart';
 import '../config/connection.dart';
+import '../config/credential_picker.dart';
 import 'converse_handoff.dart';
 import 'native_audio_clip.dart';
 
@@ -176,9 +176,6 @@ class AppState extends ChangeNotifier {
   AppView view = AppView.character;
 
   SessionInfo? converseSession;
-  Future<SessionInfo>? _newConverseSession;
-  int _converseSessionSelection = 0;
-  bool get converseSessionCreating => _newConverseSession != null;
   SessionInfo? agentSession;
   final _agentWorkspace = _AgentWorkspaceData();
   final _artifacts = _ArtifactData();
@@ -541,7 +538,8 @@ class AppState extends ChangeNotifier {
     notifyListeners();
     if (runner == null) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      localSignInError =
+          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
       notifyListeners();
       return false;
     }
@@ -574,19 +572,188 @@ class AppState extends ChangeNotifier {
           connectionError ?? 'Local automatic sign-in unavailable.';
       notifyListeners();
       return false;
-    } catch (_) {
+    } catch (error) {
       localSignInState = LocalHostSignInState.unavailable;
-      localSignInError = 'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      if (error is LocalSignInException) {
+        if (error.code == 'LocalSignInExpired') {
+          localSignInError =
+              'Local sign-in handoff has expired. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInDenied' &&
+            error.message.contains('already been consumed')) {
+          localSignInError =
+              'Local sign-in handoff was already used. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInStale') {
+          localSignInError =
+              'Host was restarted or owner credential rotated. Click Recover access or enter updated credentials.';
+        } else if (error.code == 'StorageUnavailable') {
+          localSignInError =
+              'Private credential storage is missing or inaccessible. Check host permissions or run kinaiya init.';
+        } else {
+          localSignInError = error.message;
+        }
+      } else {
+        final errStr = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+        if (errStr.contains('Connection refused') ||
+            errStr.contains('SocketException') ||
+            errStr.contains('Failed to fetch') ||
+            errStr.contains('ClientException')) {
+          localSignInError =
+              'Local host service is unreachable at 127.0.0.1. Ensure kinaiya start or kinaiya serve host is running.';
+        } else {
+          localSignInError = errStr;
+        }
+      }
       notifyListeners();
       return false;
     }
+  }
+
+  /// Recovers local owner access using a verified local authorization proof
+  /// (e.g. from local credential file or challenge) without rotating credentials.
+  Future<bool> recoverAccess({
+    required String authorizationProof,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+    Future<LocalSignInResult> Function(String)? customRecovery,
+  }) async {
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+
+    try {
+      final result = customRecovery != null
+          ? await customRecovery(authorizationProof)
+          : await recoverLocalAccess(authorizationProof: authorizationProof);
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ??
+          'Local access recovery succeeded but session verification failed.';
+      notifyListeners();
+      return false;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        localSignInError = error.message;
+      } else {
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+      }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Atomically rotates the owner credential with explicit local authorization,
+  /// invalidating previous sessions, and reconnects with the new authority.
+  Future<LocalSignInResult?> rotateCredential({
+    required String authorizationProof,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+    Future<LocalSignInResult> Function(String)? customRotation,
+  }) async {
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+
+    try {
+      final result = customRotation != null
+          ? await customRotation(authorizationProof)
+          : await rotateOwnerCredential(authorizationProof: authorizationProof);
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return result;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return result;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ?? 'Credential rotated, but reconnect failed.';
+      notifyListeners();
+      return result;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        localSignInError = error.message;
+      } else {
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+      }
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Exports the owner token currently in memory to a browser file download.
+  Future<bool> exportCurrentCredential({
+    String filename = 'owner-login.txt',
+  }) async {
+    final token = connection?.ownerToken;
+    if (token == null || token.isEmpty) return false;
+    await exportCredential(filename, token);
+    return true;
   }
 
   void invalidateDecisionsModelOptions() {
     _decisionsModelOptionsRead++;
     decisionsModelOptions = null;
     decisionsModelOptionsLoading = false;
-    decisionsModelOptionsStatus = 'Decisions selection save is unconfirmed. Check the original request in Models.';
+    decisionsModelOptionsStatus =
+        'Decisions selection save is unconfirmed. Check the original request in Models.';
     notifyListeners();
   }
 
@@ -621,7 +788,8 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       if (!current()) return;
       decisionsModelOptions = null;
-      decisionsModelOptionsStatus = 'Decisions model options are unavailable. Other roles remain independent.';
+      decisionsModelOptionsStatus =
+          'Decisions model options are unavailable. Other roles remain independent.';
     } finally {
       if (current()) {
         decisionsModelOptionsLoading = false;
@@ -742,7 +910,8 @@ class AppState extends ChangeNotifier {
         if (agentOnline || converseOnline) {
           // At least one service answered but no role earned consent:
           // disclosure, malformed, or missing provider metadata.
-          connectionError = 'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
+          connectionError =
+              'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
         } else {
           connectionError =
               'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';
@@ -2101,63 +2270,6 @@ class AppState extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Explicit owner navigation creates a fresh identity; it never resets or
-  /// deletes the previous native session, history, or Agent work.
-  Future<SessionInfo> startNewConverseSession({required bool Function() idle}) {
-    final pending = _newConverseSession;
-    if (pending != null) return pending;
-    final api = client, previous = converseSession;
-    final generation = _connectionGeneration;
-    if (api == null || !sessionAuthenticated || busyConverse || !idle()) {
-      throw StateError('Conversation is not idle');
-    }
-    final selection = ++_converseSessionSelection;
-    bool current() =>
-        ownsConnection(generation, api) &&
-        selection == _converseSessionSelection &&
-        identical(converseSession, previous) &&
-        !busyConverse &&
-        idle();
-    late final Future<SessionInfo> original;
-    original = () async {
-      // Publish pending ownership before the only side-effecting request.
-      await Future<void>.value();
-      try {
-        if (!current()) throw StateError('Conversation changed');
-        final created = await api.createSession('converse', name: 'Converse');
-        if (!current() ||
-            created.channel != 'converse' ||
-            created.epoch < 1 ||
-            created.sessionId == previous?.sessionId) {
-          throw StateError('New conversation was not confirmed');
-        }
-        turnNonce++;
-        voiceNonce++;
-        speechEpoch = voiceEpoch = 0;
-        nativeAudioSourceGeneration++;
-        converseSession = created;
-        converseHistory.clear();
-        converseCursor = 0;
-        converseHistorySeededFor = null;
-        _noticeSession = created.sessionId;
-        _noticeCursor = 0;
-        _seenNotices.clear();
-        _handoffs.clear();
-        _resetArtifacts();
-        notifyListeners();
-        return created;
-      } finally {
-        if (identical(_newConverseSession, original)) {
-          _newConverseSession = null;
-          if (ownsConnection(generation, api)) notifyListeners();
-        }
-      }
-    }();
-    _newConverseSession = original;
-    notifyListeners();
-    return original;
-  }
-
   /// Reuses an existing named session for [channel] when the backend lists
   /// one, otherwise creates it. Explicit IDs persist across same-backend
   /// reconnect. A stale acquisition (old generation/client) never mutates
@@ -2167,12 +2279,6 @@ class AppState extends ChangeNotifier {
     final api = client;
     final generation = _connectionGeneration;
     if (api == null) throw StateError('Not connected');
-    if (channel == 'converse' && converseSessionCreating) {
-      throw StateError('New conversation is being created');
-    }
-    if (channel == 'converse' && converseSession != null) {
-      return converseSession!;
-    }
     if (channel == 'agent' && agentIdentitySelecting) {
       throw StateError('Agent session identity is being verified');
     }
@@ -2188,11 +2294,8 @@ class AppState extends ChangeNotifier {
       return created;
     }
     final selection = agentSelectionGeneration;
-    final converseSelection = _converseSessionSelection;
     bool current() =>
         ownsConnection(generation, api) &&
-        (channel != 'converse' ||
-            converseSelection == _converseSessionSelection) &&
         (channel != 'agent' || selection == agentSelectionGeneration);
     final listed = await api.listSessions();
     if (!current()) {
