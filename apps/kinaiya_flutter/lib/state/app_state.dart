@@ -592,7 +592,10 @@ class AppState extends ChangeNotifier {
           localSignInError = error.message;
         }
       } else {
-        final errStr = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+        final errStr = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
         if (errStr.contains('Connection refused') ||
             errStr.contains('SocketException') ||
             errStr.contains('Failed to fetch') ||
@@ -653,7 +656,8 @@ class AppState extends ChangeNotifier {
       }
       localSignInState = LocalHostSignInState.unavailable;
       localSignInError =
-          connectionError ?? 'Local access recovery succeeded but session verification failed.';
+          connectionError ??
+          'Local access recovery succeeded but session verification failed.';
       notifyListeners();
       return false;
     } catch (error) {
@@ -661,8 +665,10 @@ class AppState extends ChangeNotifier {
       if (error is LocalSignInException) {
         localSignInError = error.message;
       } else {
-        localSignInError =
-            error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
       }
       notifyListeners();
       return false;
@@ -722,8 +728,10 @@ class AppState extends ChangeNotifier {
       if (error is LocalSignInException) {
         localSignInError = error.message;
       } else {
-        localSignInError =
-            error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
       }
       notifyListeners();
       return null;
@@ -731,7 +739,9 @@ class AppState extends ChangeNotifier {
   }
 
   /// Exports the owner token currently in memory to a browser file download.
-  Future<bool> exportCurrentCredential({String filename = 'owner-login.txt'}) async {
+  Future<bool> exportCurrentCredential({
+    String filename = 'owner-login.txt',
+  }) async {
     final token = connection?.ownerToken;
     if (token == null || token.isEmpty) return false;
     await exportCredential(filename, token);

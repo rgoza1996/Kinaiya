@@ -551,7 +551,9 @@ class _SetupDialogState extends State<SetupDialog> {
                             if (token.isNotEmpty) {
                               await exportCredential('owner-login.txt', token);
                               if (mounted) {
-                                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                                ScaffoldMessenger.maybeOf(
+                                  context,
+                                )?.showSnackBar(
                                   const SnackBar(
                                     content: Text(
                                       'Owner credential exported to browser download (owner-login.txt). '

@@ -244,7 +244,8 @@ Future<LocalSignInResult> recoverLocalAccess({
   Uri? endpoint,
 }) async {
   final target =
-      endpoint ?? Uri.parse('${permittedWebOrigins.last}$localRecoverAccessPath');
+      endpoint ??
+      Uri.parse('${permittedWebOrigins.last}$localRecoverAccessPath');
   if (!ConnectionProfile._isLoopback(target.host)) {
     throw const LocalSignInException(
       'Access recovery is restricted to loopback origins.',
@@ -377,9 +378,7 @@ Future<Map<String, Object?>> checkStorageStatus({
     final response = await client
         .get(
           target,
-          headers: const <String, String>{
-            'Accept': 'application/json',
-          },
+          headers: const <String, String>{'Accept': 'application/json'},
         )
         .timeout(const Duration(seconds: 5));
     final decoded = jsonDecode(response.body);
