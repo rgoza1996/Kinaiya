@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 from services.agent.sam_video import SamVideoProfile, SamVideoProjector
 
 SAMPLE = (
