@@ -67,13 +67,31 @@ function unavailable(result,{reason,explicit=false,failed=false} = {}) {
   assert.equal(JSON.stringify(result).includes(marker),false);
 }
 
-test('redacted identifiers refuse a whole boundary-sized inventory without partial IDs',async()=>{
+test('mixed boundary-sized inventory retains only exposed identifiers without capture',async()=>{
   const rows = Array.from({length:128},(_,index)=>
     input(index === 0 ? '' : String(index).padEnd(4096,'x'),'L'.repeat(4096)));
   const f=fixture(rows);
   try {
-    unavailable(wire(await f.api.inputDevices()),{reason:'identifiers-unavailable'});
+    const result=wire(await f.api.inputDevices());
+    assert.equal(result.supported,true);
+    assert.equal(result.status,'ready');
+    assert.equal(result.pending,false);
+    assert.equal(result.explicit,false);
+    assert.equal(result.failed,false);
+    assert.equal(Object.hasOwn(result,'reason'),false);
+    assert.deepEqual(result.devices,rows.slice(1).map(row=>({
+      id:row.deviceId,label:row.label,selected:false})));
     assert.equal(f.seen.enumerations,1);
+    assert.equal(f.seen.gets.length,0);
+  } finally {await f.api.dispose();}
+});
+
+test('entirely hidden boundary-sized inventory stays explicitly unavailable without capture',async()=>{
+  const f=fixture(Array.from({length:128},()=>input('',marker)));
+  try {
+    unavailable(wire(await f.api.inputDevices()),{reason:'identifiers-unavailable'});
+    assert.equal(wire(await f.api.selectInput('mic-safe')).status,'unavailable');
+    assert.equal(f.seen.enumerations,2);
     assert.equal(f.seen.gets.length,0);
   } finally {await f.api.dispose();}
 });
@@ -118,14 +136,16 @@ for (const [name,error] of [
   });
 }
 
-test('redaction loses an explicit selection without implicit default or automatic healing',async()=>{
+for (const [name,rows,reason] of [
+  ['mixed inventory without selected ID',[input('mic-b'),input('',marker)],undefined],
+  ['entirely hidden inventory',[input('',marker)],'identifiers-unavailable'],
+]) test('lost explicit selection refuses default and automatic healing: '+name,async()=>{
   const f=fixture([input('mic-a'),input('mic-b')]);
   try {
     assert.equal(wire(await f.api.selectInput('mic-a')).status,'selected');
     assert.equal(f.seen.gets.length,0);
-    f.setRows([input('mic-b'),input('',marker)]);
-    unavailable(wire(await f.api.inputDevices()),{
-      reason:'identifiers-unavailable',explicit:true,failed:true});
+    f.setRows(rows);
+    unavailable(wire(await f.api.inputDevices()),{reason,explicit:true,failed:true});
     assert.equal(await f.api.startArmed(),'unavailable');
     assert.equal(f.seen.gets.length,0,'lost selected input cannot acquire default');
     f.setRows([input('mic-a'),input('mic-b')]);
@@ -137,6 +157,25 @@ test('redaction loses an explicit selection without implicit default or automati
     assert.equal(await f.api.startArmed(),'unavailable','synthetic capture trap refuses');
     assert.equal(f.seen.gets.length,1);
     assert.equal(f.seen.gets[0].audio.deviceId.exact,'mic-a');
+  } finally {await f.api.dispose();}
+});
+
+test('fresh mixed inventory selection and refresh retain the exact exposed input without warming permission',async()=>{
+  const f=fixture([input('',marker),input('mic-safe'),input('',marker)]);
+  try {
+    assert.equal(wire(await f.api.selectInput('')).status,'invalid');
+    assert.equal(wire(await f.api.selectInput('mic-safe')).status,'selected');
+    const result=wire(await f.api.inputDevices());
+    assert.equal(result.status,'ready');
+    assert.equal(result.explicit,true);
+    assert.equal(result.failed,false);
+    assert.deepEqual(result.devices,[{id:'mic-safe',label:'Synthetic input',selected:true}]);
+    assert.equal(JSON.stringify(result).includes(marker),false);
+    assert.equal(f.seen.enumerations,2);
+    assert.equal(f.seen.gets.length,0,'selection and refresh never request capture');
+    assert.equal(await f.api.startArmed(),'unavailable','synthetic capture trap refuses');
+    assert.equal(f.seen.gets.length,1);
+    assert.equal(f.seen.gets[0].audio.deviceId.exact,'mic-safe');
   } finally {await f.api.dispose();}
 });
 

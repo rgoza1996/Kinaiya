@@ -113,9 +113,12 @@ change system defaults, configure recording, or establish audible delivery.
 Web input selection separately uses explicit device enumeration and an exact
 audio-input ID for the next capture. Refresh and selection do not open a
 microphone; labels may remain unavailable until platform permission exists.
-If the browser withholds selectable input identifiers, the entire inventory
-stays unavailable. The notice offers a site-permission check and refresh without
-opening a microphone or asserting that permission was denied.
+Inputs with empty identifiers are omitted; valid exposed identifiers remain
+selectable after the complete inventory passes validation. If all input
+identifiers are empty, the inventory stays unavailable. Malformed metadata,
+duplicate nonempty identifiers or exceeded bounds still refuse the inventory.
+The unavailable-identifiers notice offers a site-permission check and refresh
+without opening a microphone or asserting that permission was denied.
 A missing or mismatched explicit input cannot silently become the default.
 Selection is blocked while capture is acquiring, armed or stopping, and IDs
 remain session-local. **Use system default** is an explicit browser-owner
