@@ -508,7 +508,7 @@ def _check_sandbox_isolation(*, runner: Any = subprocess.run) -> dict[str, Any]:
     py_major, py_minor = sys.version_info[:2]
     py_version = f"{py_major}.{py_minor}.{sys.version_info[2]}"
     py_bin = shutil.which("python3") or sys.executable
-    py_supported = (3, 11) <= (py_major, py_minor) <= (3, 13) and bool(py_bin)
+    py_supported = (3, 11) <= (py_major, py_minor) <= (3, 14) and bool(py_bin)
     venv_ok = _venv_available()
 
     bwrap_bin = shutil.which("bwrap")
@@ -522,9 +522,9 @@ def _check_sandbox_isolation(*, runner: Any = subprocess.run) -> dict[str, Any]:
     remediations: list[str] = []
 
     if not py_supported:
-        missing_prereqs.append("python3 (3.11-3.13)")
-        blockers.append(f"Python {py_major}.{py_minor} is unsupported (require Python 3.11-3.13).")
-        remediations.append("Install Python 3.11, 3.12, or 3.13 and set KINAIYA_PYTHON.")
+        missing_prereqs.append("python3 (3.11-3.14)")
+        blockers.append(f"Python {py_major}.{py_minor} is unsupported (require Python 3.11-3.14).")
+        remediations.append("Install Python 3.11, 3.12, 3.13, or 3.14 and set KINAIYA_PYTHON.")
     if not venv_ok:
         venv_pkg = f"python{py_major}.{py_minor}-venv"
         missing_prereqs.append(venv_pkg)
@@ -592,7 +592,7 @@ def _check_sandbox_isolation(*, runner: Any = subprocess.run) -> dict[str, Any]:
                     "bubblewrap unprivileged user namespace probe was denied by the host kernel/AppArmor."
                 )
                 remediations.append(
-                    "Configure host user namespaces (on Ubuntu 24.04 load "
+                    "Configure host user namespaces (on Ubuntu 24.04/26.04 load "
                     "`sudo install -m 0644 docs/examples/apparmor-bwrap /etc/apparmor.d/kinaiya-bwrap && "
                     "sudo apparmor_parser -r /etc/apparmor.d/kinaiya-bwrap`); never disable isolation."
                 )
@@ -629,7 +629,7 @@ def _check_sandbox_isolation(*, runner: Any = subprocess.run) -> dict[str, Any]:
 
     return {
         "status": "pass",
-        "summary": "Host prerequisites (python3 3.11-3.13, bwrap namespace probe, curl, sha256sum) passed.",
+        "summary": "Host prerequisites (python3 3.11-3.14, bwrap namespace probe, curl, sha256sum) passed.",
         "remediation": None,
         "next_step": None,
         "python_version": py_version,

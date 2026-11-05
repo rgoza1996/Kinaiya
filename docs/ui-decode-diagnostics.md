@@ -65,6 +65,12 @@ overflow and escaped surrogate remain the UI codec's responsibility to reject
 at its stricter serialization boundary. No Whistle framing, numerical policy,
 resource limit or transport authority changes.
 
+Nesting guards follow the installed interpreter's JSON parser and encoder. If a
+newer interpreter accepts a deeply nested value, the decoder preserves that
+behavior; an invalid UI object then reports the actual field/component rejection.
+Tests exercise both real interpreter behavior and a deterministic recursion
+failure, without adding a fixed depth limit or skipping the rejection checks.
+
 UI character and UTF-8 byte bounds, closed objects, duplicate-key checks,
 non-finite rejection, native metadata exclusion and final component validation
 remain required. Decoding failure stays terminal with no automatic inference,
