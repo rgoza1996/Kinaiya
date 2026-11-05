@@ -44,7 +44,9 @@ _ORDER_ONE_INITIAL = 1
 _MAXIMUM_SAFE_INTEGER = (1 << 53) - 1
 
 
-def _invalid(message: str, cause: BaseException | None = None) -> InvalidSegmentationMaskError:
+def _invalid(
+    message: str, cause: BaseException | None = None
+) -> InvalidSegmentationMaskError:
     return InvalidSegmentationMaskError(message, cause=cause)
 
 
@@ -119,7 +121,9 @@ def _pack(input_: Sequence[int]) -> str:
     if remainder > 0:
         value = 0
         for index in range(4):
-            value = _u32((value << 8) | (input_[offset + index] if index < remainder else 0))
+            value = _u32(
+                (value << 8) | (input_[offset + index] if index < remainder else 0)
+            )
         digits = [0] * 5
         for index in range(4, -1, -1):
             digits[index] = value % _RADIX
@@ -139,7 +143,9 @@ def _unpack(payload: str) -> bytes:
         raise _invalid("Mask payload length is unsupported.")
 
     remainder = length % 4
-    expected = _PREFIX_LENGTH + (length // 4) * 5 + (0 if remainder == 0 else remainder + 1)
+    expected = (
+        _PREFIX_LENGTH + (length // 4) * 5 + (0 if remainder == 0 else remainder + 1)
+    )
     if payload_length != expected:
         raise _invalid("Mask payload length does not match its prefix.")
 
@@ -308,7 +314,9 @@ def _zero_context(residuals: bytearray, offset: int, x: int, y: int, width: int)
     left = int(residuals[offset - 1] == 0) if x > 0 else 1
     up = int(residuals[offset - width] == 0) if y > 0 else 1
     upper_left = int(residuals[offset - width - 1] == 0) if x > 0 and y > 0 else 1
-    upper_right = int(residuals[offset - width + 1] == 0) if y > 0 and x < width - 1 else 1
+    upper_right = (
+        int(residuals[offset - width + 1] == 0) if y > 0 and x < width - 1 else 1
+    )
     return left | (up << 1) | (upper_left << 2) | (upper_right << 3)
 
 
@@ -340,7 +348,9 @@ def _decode_lossless_raster(payload: str, width: int, height: int) -> bytes:
         zero_frequency = decoder.get_freq(zero + nonzero)
         bit = 0 if zero_frequency < zero else 1
         decoder.decode(0 if bit == 0 else zero, zero if bit == 0 else nonzero)
-        zero_counts[zero_offset + bit] = _u32(zero_counts[zero_offset + bit] + _ZERO_INCREMENT)
+        zero_counts[zero_offset + bit] = _u32(
+            zero_counts[zero_offset + bit] + _ZERO_INCREMENT
+        )
         if zero_counts[zero_offset] + zero_counts[zero_offset + 1] >= _ZERO_LIMIT:
             zero_counts[zero_offset] = (zero_counts[zero_offset] >> 1) or 1
             zero_counts[zero_offset + 1] = (zero_counts[zero_offset + 1] >> 1) or 1
@@ -352,7 +362,10 @@ def _decode_lossless_raster(payload: str, width: int, height: int) -> bytes:
             first_offset = previous << 8
             excluded_zero = second[0] + order_one[first_offset] + order_zero[0]
             total = (
-                second[_TOTAL_INDEX] + order_one_totals[previous] + order_zero_total - excluded_zero
+                second[_TOTAL_INDEX]
+                + order_one_totals[previous]
+                + order_zero_total
+                - excluded_zero
             )
             target = decoder.get_freq(total)
             cumulative = 0
@@ -363,7 +376,11 @@ def _decode_lossless_raster(payload: str, width: int, height: int) -> bytes:
                 symbol += 1
                 if symbol >= _SYMBOLS:
                     raise _invalid("Lossless mask payload is malformed.")
-                frequency = second[symbol] + order_one[first_offset + symbol] + order_zero[symbol]
+                frequency = (
+                    second[symbol]
+                    + order_one[first_offset + symbol]
+                    + order_zero[symbol]
+                )
             decoder.decode(cumulative, frequency)
             second[symbol] = _u16(second[symbol] + _ORDER_TWO_STEP)
             second[_TOTAL_INDEX] = _u16(second[_TOTAL_INDEX] + _ORDER_TWO_STEP)
@@ -376,7 +393,9 @@ def _decode_lossless_raster(payload: str, width: int, height: int) -> bytes:
             order_one[first_offset + symbol] = _u16(
                 order_one[first_offset + symbol] + _ORDER_ONE_INCREMENT
             )
-            order_one_totals[previous] = _i32(order_one_totals[previous] + _ORDER_ONE_INCREMENT)
+            order_one_totals[previous] = _i32(
+                order_one_totals[previous] + _ORDER_ONE_INCREMENT
+            )
             if order_one_totals[previous] >= _ORDER_ONE_LIMIT:
                 total_after_scaling = 0
                 for value in range(_SYMBOLS):
@@ -393,7 +412,9 @@ def _decode_lossless_raster(payload: str, width: int, height: int) -> bytes:
                     total_after_scaling += order_zero[value]
                 order_zero_total = total_after_scaling
         residuals[offset] = symbol
-        output[offset] = _unzig(symbol, _predict_byte(output, offset, x, y, selector, width))
+        output[offset] = _unzig(
+            symbol, _predict_byte(output, offset, x, y, selector, width)
+        )
         previous = symbol
     return bytes(output)
 

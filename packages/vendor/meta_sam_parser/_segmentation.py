@@ -36,7 +36,9 @@ _JS_WHITESPACE = (
     "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
     "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
 )
-_JS_WHITESPACE_CLASS = r"\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+_JS_WHITESPACE_CLASS = (
+    r"\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
 _JS_DOT_PATTERN = r"[^\n\r\u2028\u2029]"
 # The SAM API record grammar. A line is a frame header ``<Nf>``, optionally with
 # ``;key=value`` fields before its ``>``, followed by records. A record is an
@@ -52,7 +54,9 @@ _RECORD_BOUNDARY = frozenset(",0123456789")
 _SIGNED_INTEGER_PATTERN = re.compile(r"-?[0-9]+")
 _UNSIGNED_INTEGER_PATTERN = re.compile(r"[0-9]+")
 _MASK_DATA_PATTERN = re.compile(r"([0-9]+),([0-9]+),([!~][^|]+)")
-_CONFIDENCE_PATTERN = re.compile(r"-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+_CONFIDENCE_PATTERN = re.compile(
+    r"-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+)
 _BOX_FIELD_KEYS = frozenset({"x1", "y1", "x2", "y2", "w", "h", "c"})
 _MASK_FIELD_KEYS = frozenset({"x", "y", "data", "c"})
 _FRAME_HEADER_FIELD_KEYS: frozenset[str] = frozenset()
@@ -138,7 +142,9 @@ def _read_fields(
     return _FieldRead(values=values, repeated_confidence=repeated_confidence)
 
 
-def _read_confidence(fields: _FieldRead, warnings: list[_PendingWarning]) -> float | None:
+def _read_confidence(
+    fields: _FieldRead, warnings: list[_PendingWarning]
+) -> float | None:
     """Read the optional ``c`` field.
 
     An absent field gives ``None``. A field that is not one finite decimal
@@ -160,7 +166,9 @@ def _read_confidence(fields: _FieldRead, warnings: list[_PendingWarning]) -> flo
             _PendingWarning(
                 code="ignored_confidence",
                 subject="c",
-                message=("Ignored a confidence value that is not a number from 0 through 1."),
+                message=(
+                    "Ignored a confidence value that is not a number from 0 through 1."
+                ),
             )
         )
         return None
@@ -262,7 +270,9 @@ class _SegmentationParser:
         self._line = 0
         self._revision = 0
 
-    def push(self, chunk: str, *, emit: bool = True) -> tuple[SegmentationSnapshot, ...]:
+    def push(
+        self, chunk: str, *, emit: bool = True
+    ) -> tuple[SegmentationSnapshot, ...]:
         if not isinstance(chunk, str):
             raise TypeError("Parser chunks must be strings.")
         self._raw_output_parts.append(chunk)
@@ -347,7 +357,9 @@ class _SegmentationParser:
         frame = FrameReference(frame_index) if self._media == "video" else None
         # Header warnings are reported with the line's first accepted record.
         header_warnings: list[_PendingWarning] = []
-        _read_fields(header.group(2), "frame header", _FRAME_HEADER_FIELD_KEYS, header_warnings)
+        _read_fields(
+            header.group(2), "frame header", _FRAME_HEADER_FIELD_KEYS, header_warnings
+        )
         body = header.group(3)
         if not body:
             self._diagnose(
@@ -370,7 +382,8 @@ class _SegmentationParser:
             record_warnings: list[_PendingWarning] = []
             record = (
                 None
-                if start is None or (end < len(body) and body[end] not in _RECORD_BOUNDARY)
+                if start is None
+                or (end < len(body) and body[end] not in _RECORD_BOUNDARY)
                 else _read_api_record(start.group(1), tokens, record_warnings)
             )
             if record is None:
@@ -383,7 +396,9 @@ class _SegmentationParser:
             object_id = record.object_id
             coordinate_values = tuple(_integer_text(value) for value in record.box)
             if any(value is None for value in coordinate_values):
-                self._diagnose("invalid_box", "SAM API box coordinates are invalid.", raw)
+                self._diagnose(
+                    "invalid_box", "SAM API box coordinates are invalid.", raw
+                )
                 return True
             (
                 left,
@@ -403,7 +418,9 @@ class _SegmentationParser:
                 or inclusive_right >= source_width
                 or inclusive_bottom >= source_height
             ):
-                self._diagnose("invalid_box", "SAM API box coordinates are invalid.", raw)
+                self._diagnose(
+                    "invalid_box", "SAM API box coordinates are invalid.", raw
+                )
                 return True
             self._warn(header_warnings, raw)
             header_warnings = []
@@ -455,7 +472,9 @@ class _SegmentationParser:
     ) -> None:
         area = mask.width * mask.height
         if mask.width <= 0 or mask.height <= 0 or area > _MAXIMUM_SAFE_INTEGER:
-            self._diagnose("invalid_mask_size", "Mask dimensions must be positive.", raw)
+            self._diagnose(
+                "invalid_mask_size", "Mask dimensions must be positive.", raw
+            )
             return
         try:
             decode_mask_to_raster(mask)
