@@ -3562,6 +3562,14 @@ class MediaSessionOwner:
             return source.delete_task
         if self._close_operation is not None and self._close_operation.sealed:
             refuse()
+        if (
+            source.delete_task is not None
+            and self._close_result(source.delete_task)
+            and source.upload.deleted
+            and self._cleanup_probe_joined(source)
+            and self._cleanup_continuation_joined(source)
+        ):
+            return source.delete_task
         if source.delete_task is None or source.delete_task.done():
             source.delete_task = asyncio.create_task(self._cleanup_source(source))
 
@@ -4548,6 +4556,15 @@ class MediaSessionOwner:
 
     def _dispatch_retirements(self):
         for original in tuple(self._retirement_requests.values()):
+            if (
+                original.source_id is None
+                and original.task is not None
+                and original.task.done()
+                and not original.unknown
+            ):
+                with self._mutex:
+                    self._retirement_requests.pop(id(original), None)
+                continue
             source = self._sources.get(original.source_id)
             if source is not None:
                 source.fenced.set()
