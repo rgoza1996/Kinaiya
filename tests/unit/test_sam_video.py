@@ -29,7 +29,9 @@ class Registry:
 
 @pytest.fixture
 def clip(tmp_path):
-    if not pathlib.Path("/usr/bin/ffmpeg").exists():
+    import pathlib as _pl
+
+    if not _pl.Path("/usr/bin/ffmpeg").exists():
         pytest.skip("requires /usr/bin/ffmpeg (native SAM render)")
     path = tmp_path / "synthetic.mp4"
     subprocess.run(
