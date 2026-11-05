@@ -52,6 +52,12 @@ from packages.contracts.agent_control import (
     AgentSteerSource,
     AgentTaskIdentity,
 )
+from packages.contracts.agent_outcome import (
+    OutcomeEvidenceIndex,
+    OutcomeEvidenceUnavailable,
+    bounded_outcome_request,
+    restore_outcome_task,
+)
 from packages.contracts.agent_submit import (
     AGENT_SUBMIT_ADMISSION_TIMEOUT_S,
     AGENT_SUBMIT_LOOKUP_TIMEOUT_S,
@@ -461,6 +467,7 @@ class _Record:
     # Set only by recover() for tasks reconstructed from the journal.
     recovered: bool = False
     submit_sequence: int = 0
+    outcome_evidence: OutcomeEvidenceIndex | None = None
     source_revisions: dict[str, int] = field(default_factory=dict)
     context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
@@ -470,10 +477,13 @@ class _Record:
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
     legacy_submit_scope: bool = False
-    # Once a final success append may have committed, only its exact native
+    # Once a final outcome append may have committed, only its exact native
     # confirmation or restart recovery can settle it. Never append a competing
     # cancellation/failure or accept another revision while it is uncertain.
     completion_pending: bool = False
+    # Exact attempted terminal metadata/evidence, retained on uncertainty. It
+    # is not a terminal result or permission to repeat the original append.
+    completion_snapshot: Task | None = None
     submit_confirmed: bool = False
     # Immutable native initial-entry identity, independent of later steering.
     submit_identity: str | None = None
@@ -962,9 +972,14 @@ class AgentRuntime:
         return owner.journal if owner is not None and owner.runtime is self else self.journal
 
     async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
-        entry = await self._claim_journal(rec).append(self._append_request(rec, kind, payload))
+        request = self._append_request(rec, kind, payload)
+        entry = await self._claim_journal(rec).append(request)
         if kind == "agent.command" and payload.get("op") == "submit":
             rec.submit_sequence = entry.sequence
+        if kind == "agent.tool" and "evidence" in payload:
+            if rec.outcome_evidence is None:
+                rec.outcome_evidence = OutcomeEvidenceIndex(rec.task, rec.submit_sequence)
+            rec.outcome_evidence.observe_ack(request, entry)
 
     def _outcome_payload(self, rec: _Record, state: str, extra: dict[str, Any]) -> dict[str, Any]:
         """Complete task snapshot for a terminal/awaiting outcome entry."""
@@ -1992,6 +2007,10 @@ class AgentRuntime:
             legacy_submit_scope="requested_content_scope" not in payload,
             explicit_skill=payload.get("explicit_skill"),
         )
+        rec.outcome_evidence = OutcomeEvidenceIndex(task, entry.sequence)
+        recovered_evidence = []
+        evidence_index_unavailable = False
+        snapshot_seen = False
         # Retain only typed retirement hashes, the latest snapshot/pins and the
         # cumulative scope. A byte-limited page is not evidence of final absence.
         retirements: dict[tuple[int, str], str] = {}
@@ -2038,13 +2057,26 @@ class AgentRuntime:
                 ):
                     raise AgentSubmitUnavailable
                 rec.plugin_versions = dict(pins)
+                if event.kind == "agent.tool" and "evidence" in event.payload:
+                    try:
+                        recovered_evidence.append(rec.outcome_evidence.observe(event))
+                    except OutcomeEvidenceUnavailable:
+                        # Old inline snapshots remain authoritative even when
+                        # their historic tool rows cannot form the new index.
+                        evidence_index_unavailable = True
                 prefix = f"agent:{task.task_id}:{event.kind}:"
                 if event.idempotency_key.startswith(prefix):
                     suffix = event.idempotency_key[len(prefix) :]
                     if suffix.isdecimal() and len(suffix) <= 19:
                         rec.journal_seq = max(rec.journal_seq, int(suffix))
                 if event.kind == "agent.outcome" and isinstance(event.payload.get("task"), dict):
-                    snapshot = Task.model_validate(event.payload["task"])
+                    if "evidence_ref" in event.payload and evidence_index_unavailable:
+                        raise OutcomeEvidenceUnavailable
+                    snapshot = (
+                        restore_outcome_task(event, rec.outcome_evidence, recovered_evidence)
+                        if "evidence_ref" in event.payload
+                        else Task.model_validate(event.payload["task"])
+                    )
                     if (
                         snapshot.task_id,
                         snapshot.session_id,
@@ -2076,10 +2108,19 @@ class AgentRuntime:
                         )
                     if task.state not in TERMINAL or snapshot.state in TERMINAL:
                         task = rec.task = snapshot
+                        snapshot_seen = True
             # Cooperative yielding makes the total deadline effective even for
             # adapters whose async reads return immediately on every page.
             await asyncio.sleep(0)
         check()
+        # Active/uncertain recovery retains actual durable receipts too. It
+        # never replays the effects represented by them.
+        if task.state not in TERMINAL and not snapshot_seen:
+            if evidence_index_unavailable:
+                raise OutcomeEvidenceUnavailable
+            task.evidence = list(recovered_evidence)
+        if evidence_index_unavailable:
+            rec.outcome_evidence = None
         if task.state not in TERMINAL:
             rec.retirement_keys = {
                 key: digest
@@ -3724,9 +3765,6 @@ class AgentRuntime:
                 response_diagnostic = response_error.for_record(rec)
             except Exception:
                 pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
-        rec.task.state = TaskState.FAILED
-        rec.task.content_scope = self._publication_task(rec).content_scope
-        rec.task.error = error
         extra: dict[str, Any] = {"error": error}
         if response_diagnostic is not None:
             extra["provider_response_diagnostic"] = response_diagnostic
@@ -3740,35 +3778,48 @@ class AgentRuntime:
                 ).diagnostic
             except Exception:
                 pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
-        try:
-            # A reset/deletion intentionally rejects old-epoch publication. Local
-            # waiters must still learn that execution stopped without a stale write.
-            await self._append(rec, "agent.outcome", self._outcome_payload(rec, "failed", extra))
-        finally:
-            rec.done.set()
+        await self._complete_terminal(rec, TaskState.FAILED, error=error, extra=extra)
 
     async def _succeed(self, rec: _Record, summary: str) -> None:
+        await self._complete_terminal(rec, TaskState.SUCCEEDED, summary=summary)
+
+    async def _complete_terminal(
+        self, rec: _Record, state: TaskState, *, summary=None, error=None, extra=None
+    ) -> None:
         rec.task.state = TaskState.VERIFYING
         # No await separates the final authority check in _finish from this
         # fence and frozen snapshot. The visible task is not successful yet.
         snapshot = rec.task.model_copy(
             deep=True,
             update={
-                "state": TaskState.SUCCEEDED,
-                "summary": summary,
-                "error": None,
+                "state": state,
+                "summary": rec.task.summary if summary is None else summary,
+                "error": error,
                 "content_scope": self._publication_task(rec).content_scope,
             },
         )
-        body = self._append_request(
-            rec,
-            "agent.outcome",
-            self._outcome_payload(
-                rec, "succeeded", {"summary": summary, "task": snapshot.model_dump(mode="json")}
-            ),
-        )
+        rec.completion_snapshot = snapshot
         rec.completion_pending = True
         try:
+            body = self._append_request(
+                rec,
+                "agent.outcome",
+                self._outcome_payload(
+                    rec,
+                    state.value,
+                    {
+                        **(extra or {}),
+                        **({"summary": summary} if summary is not None else {}),
+                        "task": snapshot.model_dump(mode="json"),
+                    },
+                ),
+            )
+            index = rec.outcome_evidence
+            if index is None:
+                index = OutcomeEvidenceIndex(rec.task, rec.submit_sequence)
+            body = bounded_outcome_request(
+                body, snapshot, index, allow_sparse=rec.standing_initial is None
+            )
             confirmed = await append_completion(
                 self._claim_journal(rec), body, after=rec.submit_sequence
             )
@@ -3782,6 +3833,7 @@ class AgentRuntime:
             return
         rec.task = snapshot
         rec.completion_pending = False
+        rec.completion_snapshot = None
         rec.done.set()
 
     async def _cancel(self, rec: _Record) -> None:
@@ -3790,11 +3842,7 @@ class AgentRuntime:
             return
         if rec.task.state in TERMINAL:
             return
-        rec.task.state = TaskState.CANCELLED
-        rec.task.content_scope = self._publication_task(rec).content_scope
-        rec.task.error = "cancelled by owner"
-        await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
-        rec.done.set()
+        await self._complete_terminal(rec, TaskState.CANCELLED, error="cancelled by owner")
 
     async def _complete(self, rec: _Record, tools: NativeToolSnapshot) -> str:
         """Admit one exact request, preserving whole native history exchanges.
@@ -4362,7 +4410,7 @@ class AgentRuntime:
                     else dict(action.arguments),
                     text,
                 )
-                if rec.task.state in TERMINAL:
+                if rec.completion_pending or rec.task.state in TERMINAL:
                     return
             await self._fail(rec, f"step budget exhausted after {self.max_steps} steps")
         except asyncio.CancelledError:

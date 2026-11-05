@@ -597,7 +597,11 @@ async def test_epoch_reset_during_inference_cannot_publish(env):
     env.journal.reset(env.session.session_id)
     gate.set()
     final = await env.runtime.wait(task.task_id, timeout=3)
-    assert final.state == TaskState.FAILED
+    assert final.state == TaskState.PAUSED and "unconfirmed" in final.error
+    rec = env.runtime._get(task.task_id)
+    assert rec.completion_pending and rec.completion_snapshot.state == TaskState.FAILED
+    assert rec.completion_snapshot.error
+    assert env.journal.read(task_id=task.task_id, kinds=["agent.outcome"]) == []
     assert env.artifacts.page(**scope(env))["items"] == []
 
 
@@ -708,7 +712,14 @@ async def test_final_source_authority_await_cannot_persist_stale_publication(
     )
     final = await env.runtime.wait(task.task_id, timeout=3)
     assert state.invalidated, "Test did not reach the final authority await"
-    assert final.state == TaskState.FAILED, final
+    if invalidation == "reset":
+        assert final.state == TaskState.PAUSED and "unconfirmed" in final.error
+        rec = env.runtime._get(task.task_id)
+        assert rec.completion_pending and rec.completion_snapshot.state == TaskState.FAILED
+        assert rec.completion_snapshot.error
+        assert env.journal.read(task_id=task.task_id, kinds=["agent.outcome"]) == []
+    else:
+        assert final.state == TaskState.FAILED, final
     assert env.artifacts.page(**scope(env))["items"] == []
     assert env.journal.read(task_id=task.task_id, kinds=["artifact.updated"]) == []
     assert not any(evidence.kind == "artifact" for evidence in final.evidence)

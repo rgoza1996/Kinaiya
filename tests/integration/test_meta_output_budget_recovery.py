@@ -395,7 +395,14 @@ async def test_owner_source_and_resource_changes_during_close_cannot_recover_old
         assert final.state == TaskState.SUCCEEDED and final.objective_revision == 2
         assert len(env.calls) == 3
     else:
-        assert final.state == (TaskState.CANCELLED if control == "cancel" else TaskState.FAILED)
+        if control == "reset":
+            assert final.state == TaskState.PAUSED and "unconfirmed" in final.error
+            rec = env.runtime._get(task.task_id)
+            assert rec.completion_pending and rec.completion_snapshot.state == TaskState.FAILED
+            assert rec.completion_snapshot.error
+            assert env.store.read(task_id=task.task_id, kinds=["agent.outcome"]) == []
+        else:
+            assert final.state == (TaskState.CANCELLED if control == "cancel" else TaskState.FAILED)
         assert len(env.calls) == len(env.counts) == 1
     redacted(env)
 

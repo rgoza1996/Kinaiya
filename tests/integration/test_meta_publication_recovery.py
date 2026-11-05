@@ -540,7 +540,14 @@ async def test_native_source_and_authority_changes_at_close_prevent_recovery(env
         env.store.reset(env.session.session_id)
     stream.release.set()
     final = await env.runtime.wait(task.task_id, timeout=5)
-    assert final.state == TaskState.FAILED
+    if mutation == "session_reset":
+        assert final.state == TaskState.PAUSED and "unconfirmed" in final.error
+        rec = env.runtime._get(task.task_id)
+        assert rec.completion_pending and rec.completion_snapshot.state == TaskState.FAILED
+        assert rec.completion_snapshot.error
+        assert env.store.read(task_id=task.task_id, kinds=["agent.outcome"]) == []
+    else:
+        assert final.state == TaskState.FAILED
     assert len(env.calls) == 1 and notices(env) == [] and final.evidence == []
     assert stream.closed and stream.close_count == 1
     assert_redacted(env)

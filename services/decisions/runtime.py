@@ -1029,6 +1029,13 @@ class OutcomeWorker:
         return len(entries)
 
     async def run(self):
+        from packages.contracts.agent_outcome import OutcomeEvidenceUnavailable
+
         while True:
-            if not await self.tick():
-                await asyncio.sleep(0.1)
+            try:
+                if not await self.tick():
+                    await asyncio.sleep(0.1)
+            except OutcomeEvidenceUnavailable:
+                # Cursor stays before the unavailable outcome. Retry only its
+                # authenticated evidence reads; no announcement was attempted.
+                await asyncio.sleep(1)
