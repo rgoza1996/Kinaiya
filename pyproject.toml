@@ -57,6 +57,7 @@ markers = ["live: opt-in real provider integration", "sandbox: requires Linux bu
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["packages/vendor/meta_sam_parser"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
