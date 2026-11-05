@@ -114,6 +114,47 @@ class CharacterView extends StatefulWidget {
 
 const List<int> endSilenceOptionsMs = <int>[800, 1500, 2500];
 
+enum _NativeAdmissionOutcome { notDispatched, accepted, unknown }
+
+class _NativeAdmissionIdentity {
+  _NativeAdmissionIdentity(NativeAudioClipOwner owner)
+    : client = owner.client,
+      connectionGeneration = owner.connectionGeneration,
+      sourceGeneration = owner.sourceGeneration,
+      sessionId = owner.sessionId,
+      threadId = owner.threadId,
+      epoch = owner.epoch,
+      utteranceId = owner.utteranceId,
+      requestId = owner.requestId,
+      turnNonce = owner.turnNonce,
+      contentScope = owner.contentScope;
+
+  final Object client;
+  final int connectionGeneration, sourceGeneration, epoch, turnNonce;
+  final String sessionId, threadId, utteranceId, requestId;
+  final ContentScope contentScope;
+}
+
+/// Settlement of one original upload, independent of permission to play its
+/// reply. Spoken interruption must not erase an attempted upload's identity.
+class _NativeAdmissionResult {
+  const _NativeAdmissionResult({
+    required this.outcome,
+    required this.callOwner,
+    required this.audioSha256,
+    required this.endMs,
+    this.identity,
+    this.receipt,
+  });
+
+  final _NativeAdmissionOutcome outcome;
+  final int? callOwner;
+  final String audioSha256;
+  final int endMs;
+  final _NativeAdmissionIdentity? identity;
+  final ({String eventId, int sequence, int revision})? receipt;
+}
+
 class _CharacterViewState extends State<CharacterView> {
   final _modelMenu = MenuController();
   ConverseViewControls? _registeredControls;
@@ -445,6 +486,19 @@ class _CharacterViewState extends State<CharacterView> {
   int _armOwner = 0;
   int _voiceRequest = 0;
   NativeAudioClipOwner? _nativeClipOwner;
+  int? _nativeClipArmOwner;
+  bool _nativeCallActive = false;
+  SessionInfo? _nativeCallSession;
+  KinaiyaClient? _nativeCallClient;
+  int _nativeCallConnection = 0, _nativeCallSource = 0;
+  int? _nativeBargedCapture;
+  ({List<int> wav, ContentScope scope, int owner})? _pendingNativeClip;
+  Future<_NativeAdmissionResult>? _nativeAdmission;
+  _NativeAdmissionResult? _nativeAdmissionResult;
+  Future<void>? _nativeCaptureStop;
+  Future<void>? _callStart;
+  bool _nativeDraining = false;
+  bool _nativeCallBlocked = false;
   bool _transcribing = false;
   RecordedAudio? _pendingClip;
   ContentScope _pendingClipScope = ContentScope.localOnly;
@@ -463,6 +517,82 @@ class _CharacterViewState extends State<CharacterView> {
   List<AudioOutputDevice>? _audioOutputs = const [];
   String? _audioOutputNotice;
   Timer? _audioOutputTimer;
+  Future<void>? _audioInputOperation;
+  List<AudioInputDevice>? _audioInputs = const [];
+  String? _audioInputNotice;
+
+  NativePcmCaptureAudio? get _nativeCaptureAudio =>
+      _audio is NativePcmCaptureAudio &&
+          (_audio as NativePcmCaptureAudio).supportsNativePcmCapture
+      ? _audio as NativePcmCaptureAudio
+      : null;
+
+  AudioInputSelection? get _inputAudio =>
+      _audio is AudioInputSelection ? _audio as AudioInputSelection : null;
+
+  Future<void> _changeAudioInput({String? id, bool useDefault = false}) {
+    final adapter = _inputAudio;
+    if (adapter == null || !mounted || _audioInputOperation != null) {
+      return Future.value();
+    }
+    if (_armed || _recording || _nativeCallActive || _micStopUnconfirmed) {
+      _audioInputNotice = 'End microphone capture before changing the input.';
+      _voiceOptionsUpdates.value++;
+      return Future.value();
+    }
+    late final Future<void> operation;
+    operation = () async {
+      await Future<void>.value();
+      try {
+        final status = useDefault
+            ? await adapter.useDefaultAudioInput()
+            : id != null
+            ? await adapter.selectAudioInput(id)
+            : null;
+        if (!mounted) return;
+        if (status != null) {
+          _audioInputNotice = switch (status) {
+            'selected' =>
+              'Audio input selected for the next Call or recording in this session.',
+            'default' =>
+              'The next recording will use the browser default input.',
+            'busy' =>
+              'End microphone capture or the pending input change first.',
+            _ =>
+              'Audio input selection is unavailable. Refresh inputs and choose again.',
+          };
+          if (status != 'selected' && status != 'default') return;
+        }
+        final devices = await adapter.audioInputs();
+        if (!mounted) return;
+        _audioInputs = devices;
+        _audioInputNotice ??=
+            'Available audio inputs refreshed. No microphone was activated.';
+      } on AudioInputDiscoveryUnavailable catch (error) {
+        if (mounted) {
+          _audioInputs = null;
+          _audioInputNotice = switch (error.reason) {
+            AudioInputDiscoveryReason.identifiersUnavailable =>
+              'Browser has not provided selectable microphone identifiers. Check this site’s microphone permission, then refresh inputs. No microphone was activated by this refresh.',
+          };
+        }
+      } catch (_) {
+        if (mounted) {
+          _audioInputs = null;
+          _audioInputNotice =
+              'Audio input selection is unconfirmed. Refresh inputs and choose again.';
+        }
+      } finally {
+        if (identical(_audioInputOperation, operation)) {
+          _audioInputOperation = null;
+          if (mounted) _voiceOptionsUpdates.value++;
+        }
+      }
+    }();
+    _audioInputOperation = operation;
+    _voiceOptionsUpdates.value++;
+    return operation;
+  }
 
   AudioOutputSelection? get _outputAudio =>
       _audio is AudioOutputSelection ? _audio as AudioOutputSelection : null;
@@ -634,9 +764,32 @@ class _CharacterViewState extends State<CharacterView> {
         endSilenceMs: _endSilenceMs,
         silenceChoices: endSilenceOptionsMs,
         windowMode: _windowMode,
+        nativeAudio: _s.nativeAudio.configured,
         vadSettings: _adaptiveAudio == null ? null : _vadSettings,
         busy: _vadBusy,
         notice: _vadNotice,
+        audioInputs: _inputAudio == null ? null : _audioInputs,
+        audioInputBusy:
+            _audioInputOperation != null ||
+            _armed ||
+            _recording ||
+            _nativeCallActive,
+        audioInputNotice: _audioInputNotice,
+        onAudioInputSelected: _inputAudio == null
+            ? null
+            : (id) {
+                if (current()) unawaited(_changeAudioInput(id: id));
+              },
+        onDefaultAudioInput: _inputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioInput(useDefault: true));
+              },
+        onRefreshAudioInputs: _inputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioInput());
+              },
         audioOutputs: _outputAudio == null ? null : _audioOutputs,
         audioOutputBusy: _audioOutputOperation != null,
         audioOutputNotice: _audioOutputNotice,
@@ -761,6 +914,10 @@ class _CharacterViewState extends State<CharacterView> {
       _armOwner++;
       _voiceRequest++;
       _nativeClipOwner = null;
+      _nativeClipArmOwner = null;
+      _nativeCallActive = false;
+      _nativeCallSession = null;
+      _pendingNativeClip = null;
       _pendingClip = null;
       _clearWindows();
       _armed = false;
@@ -811,6 +968,9 @@ class _CharacterViewState extends State<CharacterView> {
     _armOwner++;
     _voiceRequest++;
     _nativeClipOwner = null;
+    _nativeClipArmOwner = null;
+    _nativeCallActive = false;
+    _pendingNativeClip = null;
     // Invalidate every in-flight callback: stale completions must not
     // reset newer speaking/busy state or leak the mic.
     _s.turnNonce++;
@@ -842,11 +1002,32 @@ class _CharacterViewState extends State<CharacterView> {
   AppState get _s => widget.state;
   WindowSpeechAudio? get _windowAudio =>
       _audio is WindowSpeechAudio ? _audio as WindowSpeechAudio : null;
-  bool get _windowMode => _s.streamingWindows && _windowAudio != null;
+  bool get _windowMode =>
+      !_nativeCallActive && _s.streamingWindows && _windowAudio != null;
+
+  bool _nativeCallCurrent(int owner) {
+    final api = _nativeCallClient, session = _nativeCallSession;
+    return mounted &&
+        _nativeCallActive &&
+        owner == _armOwner &&
+        api != null &&
+        session != null &&
+        _s.ownsConnection(_nativeCallConnection, api) &&
+        _nativeCallSource == _s.nativeAudioSourceGeneration &&
+        _s.nativeAudio.configured &&
+        _s.nativeAudio.available &&
+        _converseAvailable &&
+        _s.converseCanDisclose(_captureScope) &&
+        _s.converseSession?.sessionId == session.sessionId &&
+        _s.converseSession?.threadId == session.threadId &&
+        _s.converseSession?.epoch == session.epoch;
+  }
 
   bool _nativeClipCurrent(NativeAudioClipOwner owner) =>
       mounted &&
       identical(_nativeClipOwner, owner) &&
+      (_nativeClipArmOwner == null ||
+          _nativeCallCurrent(_nativeClipArmOwner!)) &&
       _s.nativeAudio.configured &&
       _s.nativeAudio.available &&
       _converseAvailable &&
@@ -1443,11 +1624,13 @@ class _CharacterViewState extends State<CharacterView> {
     }
   }
 
-  Future<void> _onBarge() {
+  Future<void> _onBarge({bool nativeCapture = false}) {
     final expected = _s.speechEpoch;
     final owner = ++_s.turnNonce;
     _voiceRequest++;
     _nativeClipOwner = null;
+    _nativeClipArmOwner = null;
+    if (!nativeCapture) _pendingNativeClip = null;
     _pendingClip = null;
     _s.speechEpoch++;
     _s.busyConverse = false;
@@ -1498,13 +1681,21 @@ class _CharacterViewState extends State<CharacterView> {
     // that obligation so a retry must stop the same window speech as well.
     final stopWindowSpeech =
         stopSpeech ||
+        _nativeCallActive ||
         _nativeClipOwner != null ||
         _windowSpeechStopUnconfirmed ||
         (_armed && _windowMode);
+    final nativeInterrupt = _nativeCallCurrent(_armOwner)
+        ? _onBarge(nativeCapture: true)
+        : null;
     _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
     _voiceRequest++;
     _nativeClipOwner = null;
+    _nativeClipArmOwner = null;
+    _nativeCallActive = false;
+    _nativeCallSession = null;
+    _pendingNativeClip = null;
     _pendingClip = null;
     _s.voiceNonce++;
     _pollTimer?.cancel();
@@ -1526,6 +1717,8 @@ class _CharacterViewState extends State<CharacterView> {
       await Future.wait([
         _audio.stopArmed(),
         _audio.cancelRecording(),
+        if (_nativeCaptureStop != null) _nativeCaptureStop!,
+        if (nativeInterrupt != null) nativeInterrupt,
         if (stopWindowSpeech) _stopLocalPlayback(),
       ]).timeout(const Duration(seconds: 3));
       if (mounted && owner == _armOwner) {
@@ -1547,21 +1740,123 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   /// User-armed continuous listening toggle. The mic starts ONLY here.
+  Future<void> _startCall() {
+    if (_callStart != null) return _callStart!;
+    final original = _setArmed(true);
+    _callStart = original;
+    unawaited(
+      original.then<void>(
+        (_) {
+          if (identical(_callStart, original)) _callStart = null;
+          if (mounted) _voiceOptionsUpdates.value++;
+        },
+        onError: (Object error, StackTrace stack) {
+          if (identical(_callStart, original)) _callStart = null;
+          if (mounted) {
+            _nativeCallBlocked = true;
+            if (_nativeCallActive) {
+              _pauseNativeCapture(
+                'Microphone activation was not confirmed. End the Call and review Voice options.',
+              );
+            } else {
+              _nativeCallMessage(
+                'Microphone activation was not confirmed. Review Voice options.',
+              );
+              unawaited(_stopMicrophone());
+            }
+          }
+        },
+      ),
+    );
+    return original;
+  }
+
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
+    if (_nativeCallActive) {
+      if (_nativeCallBlocked) {
+        _nativeCallMessage(
+          'End the current Call before starting another native audio submission.',
+        );
+      }
+      return;
+    }
     if (_micStopUnconfirmed || _vadBusy) return;
+    if (_nativeAdmission != null || _nativeDraining) {
+      _nativeCallMessage(
+        'The previous native audio admission is still pending. Wait for its original result before calling again.',
+      );
+      return;
+    }
     if (_nativeClipOwner != null) await _onBarge();
     if (!mounted) return;
     final owner = ++_armOwner;
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
     }
+    final api = _s.client!;
+    final connection = _s.connectionGeneration;
+    final initialSession = _s.converseSession;
+    if (!_s.nativeAudio.known) await _s.refreshConverseAvailability();
+    if (!mounted || owner != _armOwner || !_s.ownsConnection(connection, api)) {
+      return;
+    }
+    if (!_s.nativeAudio.known) {
+      _nativeCallMessage(
+        'Audio input configuration is unavailable. Refresh the connection before calling.',
+      );
+      return;
+    }
+    final native = _s.nativeAudio.configured;
+    if (native &&
+        initialSession != null &&
+        (_s.converseSession?.sessionId != initialSession.sessionId ||
+            _s.converseSession?.threadId != initialSession.threadId ||
+            _s.converseSession?.epoch != initialSession.epoch)) {
+      return;
+    }
+    if (native && (!_s.nativeAudio.available || _nativeCaptureAudio == null)) {
+      _nativeCallMessage(
+        'Native microphone capture is unavailable. Review the host and browser connection.',
+      );
+      return;
+    }
+    _nativeCallActive = native;
+    _nativeCallBlocked = false;
+    _nativeAdmissionResult = null;
+    _nativeCallSession = null;
+    _nativeCallClient = api;
+    _nativeCallConnection = connection;
+    _nativeCallSource = _s.nativeAudioSourceGeneration;
+    _nativeBargedCapture = null;
     _captureScope = _s.selectedContentScope;
-    await _windowAudio?.configureWindows(_windowMode);
     try {
-      await _configureVad(_vadSettings).timeout(const Duration(seconds: 2));
+      if (native) {
+        final session =
+            initialSession ??
+            await _s.ensureSession('converse', name: 'Converse');
+        if (!mounted ||
+            owner != _armOwner ||
+            !_s.ownsConnection(connection, api)) {
+          return;
+        }
+        _s.converseSession ??= session;
+        _nativeCallSession = session;
+        if (!_nativeCallCurrent(owner)) {
+          _nativeCallActive = false;
+          return;
+        }
+      }
+      await _nativeCaptureAudio?.configureNativePcmCapture(native);
+      await _windowAudio?.configureWindows(native ? false : _windowMode);
+      if (native) {
+        await _configureVad(_vadSettings);
+      } else {
+        await _configureVad(_vadSettings).timeout(const Duration(seconds: 2));
+      }
     } catch (_) {
       if (mounted && owner == _armOwner) {
+        _nativeCallActive = false;
         setState(
           () => _vadNotice =
               'Microphone configuration is unavailable. Review Voice options.',
@@ -1570,10 +1865,22 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    if (!mounted || owner != _armOwner || !_converseAvailable) return;
+    if (!mounted ||
+        owner != _armOwner ||
+        !_converseAvailable ||
+        !_s.ownsConnection(connection, api) ||
+        (native && _nativeCallSource != _s.nativeAudioSourceGeneration)) {
+      return;
+    }
     final result = await _audio.startArmed();
     if (!mounted || owner != _armOwner) return;
+    if (native && !_nativeCallCurrent(owner)) {
+      _nativeCallActive = false;
+      await _audio.stopArmed();
+      return;
+    }
     if (result != 'armed') {
+      _nativeCallActive = false;
       _s.appendHistory(
         AppView.character,
         ChatMsg(
@@ -1590,7 +1897,7 @@ class _CharacterViewState extends State<CharacterView> {
       _mood = 'listening';
     });
     _publishVoiceActivity();
-    if (_windowMode) {
+    if (_windowMode || native) {
       try {
         final api = _s.client;
         final generation = _s.connectionGeneration;
@@ -1600,7 +1907,12 @@ class _CharacterViewState extends State<CharacterView> {
         );
         if (!_s.ownsConnection(generation, api)) return;
         if (!mounted || !_armed || owner != _armOwner) return;
-        await _nextWindowUtterance();
+        if (native) {
+          _nativeCallSession = _s.converseSession;
+          await _beginCapture();
+        } else {
+          await _nextWindowUtterance();
+        }
       } catch (_) {
         if (mounted && owner == _armOwner) await _setArmed(false);
         return;
@@ -1616,7 +1928,11 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _pollBridge() async {
-    if (!_armed || _pollingBridge || (!_windowMode && _voiceBusy)) return;
+    if (!_armed ||
+        _pollingBridge ||
+        (!_nativeCallActive && !_windowMode && _voiceBusy)) {
+      return;
+    }
     _pollingBridge = true;
     try {
       if (_windowMode) {
@@ -1631,10 +1947,43 @@ class _CharacterViewState extends State<CharacterView> {
       for (final event in events) {
         if (!_armed || !mounted) return;
         if (event['epoch'] != null && event['epoch'] != _captureEpoch) continue;
+        if (_nativeCallActive) {
+          if (event['type'] == 'native-clip-overflow') {
+            _pauseNativeCapture(
+              'Native speech exceeded 30 seconds. This utterance was not submitted; any earlier pending clip is retained.',
+            );
+            return;
+          }
+          if (event['type'] == 'native-input-unavailable' ||
+              event['type'] == 'native-capture-unavailable') {
+            _nativeCallBlocked = true;
+            _pauseNativeCapture(
+              'Native microphone capture is unavailable. The pending clip is retained; end the Call and review the selected input.',
+            );
+            return;
+          }
+          if (event['type'] == 'barge' || event['type'] == 'speech-start') {
+            if (event['type'] == 'barge' ||
+                _nativeBargedCapture != _captureEpoch) {
+              _nativeBargedCapture = _captureEpoch;
+              unawaited(_onBarge(nativeCapture: true));
+            }
+            if (_pendingNativeClip != null) {
+              _pauseNativeCapture(
+                'Native audio is busy. Microphone capture stopped; the earlier pending clip is retained and this additional utterance was not submitted.',
+              );
+              return;
+            }
+          }
+        }
         if (event['type'] == 'speech-end' || event['type'] == 'clip-cap') {
-          await _finishVoiceClip();
+          if (_nativeCallActive) {
+            unawaited(_finishNativeCallClip());
+          } else {
+            await _finishVoiceClip();
+          }
         } else if (event['type'] == 'barge') {
-          unawaited(_onBarge());
+          if (!_nativeCallActive) unawaited(_onBarge());
         } else if (event['type'] == 'speech-start') {
           setState(() => _mood = 'listening');
         }
@@ -1725,6 +2074,10 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _finishVoiceClip() async {
+    if (_nativeCallActive) {
+      await _finishNativeCallClip();
+      return;
+    }
     if (_voiceBusy || !_armed || !_clipOpen) return;
     _voiceBusy = true;
     final owner = _armOwner;
@@ -1742,6 +2095,153 @@ class _CharacterViewState extends State<CharacterView> {
       unawaited(_drainVoiceClips(owner));
     } finally {
       if (owner == _armOwner) _voiceBusy = false;
+    }
+  }
+
+  void _nativeCallMessage(String text) {
+    if (!mounted) return;
+    if (_s.converseHistory.isNotEmpty && _s.converseHistory.last.text == text) {
+      return;
+    }
+    _s.appendHistory(AppView.character, ChatMsg(role: 'system', text: text));
+  }
+
+  void _pauseNativeCapture(String notice) {
+    if (!mounted || !_nativeCallActive) return;
+    final owner = _armOwner;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    setState(() {
+      _armed = false;
+      _clipOpen = false;
+    });
+    _publishVoiceActivity();
+    _nativeCallMessage(notice);
+    if (_nativeCaptureStop != null) return;
+    final original = Future.wait([
+      _audio.stopArmed(),
+      _audio.cancelRecording(),
+    ]).then<void>((_) {});
+    _nativeCaptureStop = original;
+    unawaited(
+      original.then<void>(
+        (_) {
+          if (identical(_nativeCaptureStop, original)) {
+            _nativeCaptureStop = null;
+          }
+        },
+        onError: (Object error, StackTrace stack) {
+          if (mounted && owner == _armOwner) {
+            setState(() => _micStopUnconfirmed = true);
+            _publishVoiceActivity();
+          }
+          // The original failed stop remains retained and awaited by owner Stop.
+        },
+      ),
+    );
+  }
+
+  Future<void> _finishNativeCallClip() async {
+    final owner = _armOwner;
+    if (_voiceBusy || !_armed || !_clipOpen || !_nativeCallCurrent(owner)) {
+      return;
+    }
+    if (_pendingNativeClip != null) {
+      _pauseNativeCapture(
+        'Native audio is busy. Microphone capture stopped; the earlier pending clip is retained and this additional utterance was not submitted.',
+      );
+      return;
+    }
+    _voiceBusy = true;
+    try {
+      final recording = await _audio.finishClip();
+      if (!_nativeCallCurrent(owner) || !_armed) return;
+      _clipOpen = false;
+      if (recording != null && recording.bytes.isNotEmpty) {
+        final wav = canonicalNativeAudioWav(recording.bytes);
+        _pendingNativeClip = (wav: wav, scope: _captureScope, owner: owner);
+      }
+      // Keep genuine capture and VAD available for spoken interruption.
+      await _beginCapture();
+      if (_pendingNativeClip != null) unawaited(_drainNativeClips(owner));
+    } on FormatException {
+      if (_nativeCallCurrent(owner)) {
+        _pauseNativeCapture(
+          'Native microphone audio must be complete PCM16 mono16k WAV, at most 30 seconds. Nothing from this utterance was submitted.',
+        );
+      }
+    } catch (_) {
+      if (_nativeCallCurrent(owner)) {
+        _nativeCallBlocked = true;
+        _pauseNativeCapture(
+          'Native microphone capture could not be confirmed. The original operation is retained; end the Call before recording again.',
+        );
+      }
+    } finally {
+      if (owner == _armOwner) _voiceBusy = false;
+    }
+  }
+
+  Future<void> _drainNativeClips(int owner) async {
+    if (_nativeDraining) return;
+    _nativeDraining = true;
+    try {
+      while (_nativeCallCurrent(owner) &&
+          !_nativeCallBlocked &&
+          _pendingNativeClip?.owner == owner) {
+        // This is the same original admission and interrupt cleanup, not a
+        // timed-out observer or permission to replay a request.
+        final previous = _nativeAdmission;
+        if (previous != null) {
+          final result = await previous;
+          _nativeAdmissionResult = result;
+        }
+        if (_nativeAdmissionResult?.outcome ==
+            _NativeAdmissionOutcome.unknown) {
+          if (_nativeCallCurrent(owner)) {
+            _nativeCallBlocked = true;
+            _pauseNativeCapture(
+              'Native audio admission is unconfirmed. Microphone capture stopped; the pending clip is retained. Check the original result before another submission.',
+            );
+          }
+          return;
+        }
+        await _interruptBarrier;
+        if (!_nativeCallCurrent(owner) || _nativeCallBlocked) return;
+        final clip = _pendingNativeClip;
+        if (clip == null || clip.owner != owner) return;
+        _pendingNativeClip = null;
+        final original = _submitNativeRecording(
+          clip.wav,
+          clip.scope,
+          callOwner: owner,
+        );
+        _nativeAdmission = original;
+        late final _NativeAdmissionResult result;
+        try {
+          result = await original;
+          _nativeAdmissionResult = result;
+        } finally {
+          if (identical(_nativeAdmission, original)) _nativeAdmission = null;
+        }
+        if (_nativeCallCurrent(owner) &&
+            result.outcome == _NativeAdmissionOutcome.unknown) {
+          _nativeCallBlocked = true;
+          _pauseNativeCapture(
+            'Native audio admission is unconfirmed. Microphone capture stopped; the pending clip is retained. Check the original result before another submission.',
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      if (_nativeCallCurrent(owner)) {
+        _nativeCallBlocked = true;
+        _pauseNativeCapture(
+          'Native audio could not be confirmed. Microphone capture stopped; check the original result before another submission.',
+        );
+      }
+    } finally {
+      _nativeDraining = false;
     }
   }
 
@@ -1806,6 +2306,10 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _importRecording() async {
+    if (_nativeCallActive) {
+      _nativeCallMessage('End the current Call before importing a recording.');
+      return;
+    }
     if (!_converseAvailable || !_s.converseCanInfer) return;
     final api = _s.client;
     final generation = _s.connectionGeneration;
@@ -1913,19 +2417,43 @@ class _CharacterViewState extends State<CharacterView> {
     }
   }
 
-  Future<void> _submitNativeRecording(List<int> wav, ContentScope scope) async {
+  Future<_NativeAdmissionResult> _submitNativeRecording(
+    List<int> wav,
+    ContentScope scope, {
+    int? callOwner,
+  }) async {
     final api = _s.client;
     final connection = _s.connectionGeneration;
     final source = _s.nativeAudioSourceGeneration;
+    final audioSha256 = crypto.sha256.convert(wav).toString();
+    final endMs = ((wav.length - 44) / 32).ceil();
+    NativeAudioClipOwner? owner;
+    _NativeAdmissionIdentity? identity;
+    ({String eventId, int sequence, int revision})? receipt;
+    _NativeAdmissionResult result(_NativeAdmissionOutcome outcome) =>
+        _NativeAdmissionResult(
+          outcome: outcome,
+          callOwner: callOwner,
+          audioSha256: audioSha256,
+          endMs: endMs,
+          identity: identity,
+          receipt: receipt,
+        );
     if (api == null ||
         !_s.nativeAudio.available ||
         !_s.converseCanDisclose(scope)) {
-      return;
+      return result(_NativeAdmissionOutcome.notDispatched);
     }
-    await _onBarge();
+    if (callOwner != null && !_nativeCallCurrent(callOwner)) {
+      return result(_NativeAdmissionOutcome.notDispatched);
+    }
+    final interrupted = _onBarge(nativeCapture: callOwner != null);
+    // Capture this submission's nonce before awaiting its interrupt barrier;
+    // newer speech may supersede it before any POST has been dispatched.
     final nonce = _s.turnNonce;
     bool current() =>
         mounted &&
+        (callOwner == null || _nativeCallCurrent(callOwner)) &&
         _s.ownsConnection(connection, api) &&
         source == _s.nativeAudioSourceGeneration &&
         _s.nativeAudio.configured &&
@@ -1933,8 +2461,9 @@ class _CharacterViewState extends State<CharacterView> {
         _converseAvailable &&
         _s.converseCanDisclose(scope) &&
         turnOwnsCleanup(nonce, _s.turnNonce);
-    if (!current()) return;
-    NativeAudioClipOwner? owner;
+    await interrupted;
+    if (!current()) return result(_NativeAdmissionOutcome.notDispatched);
+    var attempted = false;
     _s.busyConverse = true;
     setState(() => _mood = 'listening');
     _s.touch();
@@ -1942,7 +2471,7 @@ class _CharacterViewState extends State<CharacterView> {
       final session =
           _s.converseSession ??
           await _s.ensureSession('converse', name: 'Converse');
-      if (!current()) return;
+      if (!current()) return result(_NativeAdmissionOutcome.notDispatched);
       owner = NativeAudioClipOwner(
         client: api,
         connectionGeneration: connection,
@@ -1953,8 +2482,11 @@ class _CharacterViewState extends State<CharacterView> {
         turnNonce: nonce,
         contentScope: scope,
       );
+      identity = _NativeAdmissionIdentity(owner);
       // Register before dispatch: polling may observe the response before POST returns.
       _nativeClipOwner = owner;
+      _nativeClipArmOwner = callOwner;
+      attempted = true;
       final admission = await api.submitNativeAudioClip(
         session: session,
         utteranceId: owner.utteranceId,
@@ -1962,18 +2494,25 @@ class _CharacterViewState extends State<CharacterView> {
         wav: wav,
         contentScope: scope,
       );
-      if (!_nativeClipCurrent(owner)) return;
-      if (admission.entry.payload['audio_sha256'] !=
-              crypto.sha256.convert(wav).toString() ||
+      if (admission.entry.payload['audio_sha256'] != audioSha256 ||
           admission.entry.payload['content_scope'] != scope.wireValue ||
           admission.entry.payload['start_ms'] != 0 ||
-          admission.entry.payload['end_ms'] !=
-              ((wav.length - 44) / 32).ceil()) {
+          admission.entry.payload['end_ms'] != endMs) {
         throw const FormatException(
           'Native audio clip admission did not match the submitted recording.',
         );
       }
       owner.confirm(admission.entry);
+      receipt = (
+        eventId: admission.entry.eventId,
+        sequence: admission.entry.sequence,
+        revision: 1,
+      );
+      // Even an obsolete playback owner must settle its original exact ACK.
+      // Only publication/playback remains behind the current turn's fences.
+      if (!_nativeClipCurrent(owner)) {
+        return result(_NativeAdmissionOutcome.accepted);
+      }
       if (!_s.converseHistory.any(
         (message) => message.eventId == admission.entry.eventId,
       )) {
@@ -2007,6 +2546,7 @@ class _CharacterViewState extends State<CharacterView> {
         await _onWindowEvent(entry);
       }
       unawaited(_s.refreshNotices());
+      return result(_NativeAdmissionOutcome.accepted);
     } catch (_) {
       if (mounted && (owner == null ? current() : _nativeClipCurrent(owner))) {
         if (owner != null && !owner.admitted) {
@@ -2015,7 +2555,7 @@ class _CharacterViewState extends State<CharacterView> {
           if (owner.markNotice(NativeAudioNotice.admissionUnknown)) {
             _showNativeNotice(owner, NativeAudioNotice.admissionUnknown);
           }
-          return;
+          return result(_NativeAdmissionOutcome.unknown);
         }
         _nativeClipOwner = null;
         await _stopLocalPlayback();
@@ -2030,6 +2570,13 @@ class _CharacterViewState extends State<CharacterView> {
           );
         }
       }
+      return result(
+        owner?.admitted == true
+            ? _NativeAdmissionOutcome.accepted
+            : attempted
+            ? _NativeAdmissionOutcome.unknown
+            : _NativeAdmissionOutcome.notDispatched,
+      );
     } finally {
       if (mounted &&
           _s.ownsConnection(connection, api) &&
@@ -2044,7 +2591,7 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _toggleMic() async {
     final api = _s.client;
     final generation = _s.connectionGeneration;
-    if (_armed) {
+    if (_armed || _nativeCallActive) {
       _s.appendHistory(
         AppView.character,
         ChatMsg(
@@ -2835,21 +3382,30 @@ class _CharacterViewState extends State<CharacterView> {
       ? null
       : _micStopUnconfirmed
       ? _stopMicrophone
-      : _armed
+      : _armed || _nativeCallActive
       ? () => _setArmed(false)
-      : _micReady && _converseAvailable
-      ? () => _setArmed(true)
+      : _callStart != null
+      ? null
+      : _micReady && _converseAvailable && _audioInputOperation == null
+      ? _startCall
       : null;
 
   VoidCallback? get _tellAction => _recording
       ? _toggleMic
-      : _micReady && _converseAvailable && !_armed && !_micStopUnconfirmed
+      : _micReady &&
+            _converseAvailable &&
+            !_armed &&
+            !_nativeCallActive &&
+            !_micStopUnconfirmed
       ? _toggleMic
       : null;
 
+  bool get _callHasStopState =>
+      _armed || _nativeCallActive || _micStopPending || _micStopUnconfirmed;
+
   String get _callLabel => _micStopPending
       ? 'Stopping microphone…'
-      : _armed
+      : _armed || _nativeCallActive
       ? 'End conversation'
       : _micStopUnconfirmed
       ? 'Stop microphone'
@@ -2859,7 +3415,7 @@ class _CharacterViewState extends State<CharacterView> {
       ? ConverseVoiceActions(
           callLabel: _callLabel,
           tellLabel: _recording ? 'Send voice message' : 'Tell Kinaiya',
-          callTooltip: _armed || _micStopUnconfirmed
+          callTooltip: _callHasStopState
               ? 'Stop Live listen'
               : _micReady
               ? 'Start Live listen (armed mic)'
@@ -2869,7 +3425,9 @@ class _CharacterViewState extends State<CharacterView> {
               : _micReady
               ? 'Record voice'
               : 'Microphone unavailable here',
-          callIcon: _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+          callIcon: _callHasStopState
+              ? Icons.call_end_rounded
+              : Icons.mic_none_rounded,
           tellIcon: _recording ? Icons.send_rounded : Icons.graphic_eq_rounded,
           onCall: _callAction,
           onTell: _tellAction,
@@ -2879,7 +3437,7 @@ class _CharacterViewState extends State<CharacterView> {
           children: [
             Expanded(
               child: Tooltip(
-                message: _armed || _micStopUnconfirmed
+                message: _callHasStopState
                     ? 'Stop Live listen'
                     : _micReady
                     ? 'Start Live listen (armed mic)'
@@ -2888,7 +3446,9 @@ class _CharacterViewState extends State<CharacterView> {
                   key: const ValueKey('call-kinaiya'),
                   onPressed: _callAction,
                   icon: Icon(
-                    _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+                    _callHasStopState
+                        ? Icons.call_end_rounded
+                        : Icons.mic_none_rounded,
                   ),
                   label: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -3332,11 +3892,9 @@ class _CharacterViewState extends State<CharacterView> {
         : _converseAvailable
         ? 'Ready when you are'
         : _status,
-    callLabel: _armed || _micStopPending || _micStopUnconfirmed
-        ? _callLabel
-        : 'Talk with Kinaiya',
+    callLabel: _callHasStopState ? _callLabel : 'Talk with Kinaiya',
     onCall: _callAction,
-    callTooltip: _armed || _micStopUnconfirmed
+    callTooltip: _callHasStopState
         ? 'Stop Live listen'
         : _micReady
         ? 'Start Live listen (armed mic)'
@@ -3440,19 +3998,21 @@ class _CharacterViewState extends State<CharacterView> {
                 ),
                 status: _status,
                 stageState: _converseStageState,
-                callLabel: _armed || _micStopPending || _micStopUnconfirmed
-                    ? _callLabel
-                    : 'Talk with Kinaiya',
+                callLabel: _callHasStopState ? _callLabel : 'Talk with Kinaiya',
                 onCall: _callAction,
                 onMicrophone: _micStopPending
                     ? null
                     : _armed || _recording || _micStopUnconfirmed
                     ? _stopMicrophone
+                    : _nativeCallActive
+                    ? null
                     : _callAction,
                 microphoneLabel: _micStopPending
                     ? 'Stopping microphone…'
                     : _armed || _recording || _micStopUnconfirmed
                     ? 'Mute'
+                    : _nativeCallActive
+                    ? 'Microphone paused'
                     : 'Unmute',
                 onModelSettings: _modelMenu.open,
                 onHistory: _openHistory,
@@ -3529,14 +4089,12 @@ class _CharacterViewState extends State<CharacterView> {
                                 key: const ValueKey('call-kinaiya'),
                                 onPressed: _callAction,
                                 icon: Icon(
-                                  _armed || _micStopUnconfirmed
+                                  _callHasStopState
                                       ? Icons.call_end_rounded
                                       : Icons.mic_none,
                                 ),
                                 label: Text(
-                                  _armed ||
-                                          _micStopUnconfirmed ||
-                                          _micStopPending
+                                  _callHasStopState
                                       ? _callLabel
                                       : 'Talk with Kinaiya',
                                 ),
@@ -3556,9 +4114,13 @@ class _CharacterViewState extends State<CharacterView> {
                               OutlinedButton.icon(
                                 key: const ValueKey('call-kinaiya'),
                                 onPressed: null,
-                                icon: const Icon(Icons.mic_none),
+                                icon: Icon(
+                                  _callHasStopState
+                                      ? Icons.call_end_rounded
+                                      : Icons.mic_none,
+                                ),
                                 label: Text(
-                                  _micStopPending
+                                  _callHasStopState
                                       ? _callLabel
                                       : 'Talk with Kinaiya',
                                 ),
