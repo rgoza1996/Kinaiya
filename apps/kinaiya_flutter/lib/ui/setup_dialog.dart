@@ -280,6 +280,8 @@ class _SetupDialogState extends State<SetupDialog> {
         widget.state.connectionError == 'Checking services…';
     final isConnected =
         widget.state.connected && widget.state.sessionAuthenticated;
+    final isUnavailable =
+        widget.state.localSignInState == LocalHostSignInState.unavailable;
 
     return Container(
       key: const Key('local-host-connection-card'),
@@ -343,7 +345,7 @@ class _SetupDialogState extends State<SetupDialog> {
             spacing: 8,
             runSpacing: 4,
             children: [
-              if (!isConnecting && !isConnected) ...[
+              if (isUnavailable) ...[
                 OutlinedButton.icon(
                   key: const Key('local-host-retry-signin'),
                   onPressed: _retryLocalSignIn,
@@ -361,6 +363,13 @@ class _SetupDialogState extends State<SetupDialog> {
                   onPressed: _handleRotateCredential,
                   icon: const Icon(Icons.sync_lock, size: 18),
                   label: const Text('Replace owner credential'),
+                ),
+              ] else if (!isConnecting && !isConnected) ...[
+                OutlinedButton.icon(
+                  key: const Key('local-host-retry-signin'),
+                  onPressed: _retryLocalSignIn,
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('Retry local sign-in'),
                 ),
               ],
               if (isConnected) ...[
