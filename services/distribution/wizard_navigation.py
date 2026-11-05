@@ -17,6 +17,17 @@ from services.distribution.credentials import (
     prompt_masked_api_key,
 )
 from services.distribution.installation import InstallError, Layout, read_json
+from services.distribution.model_picker import (
+    ProviderProfileChoice,
+    SelectedModel,
+    check_role_adapter_eligibility,
+    discover_profile_models,
+    format_profile_choices,
+    load_stored_profiles,
+    save_role_model_selection,
+    select_model_interactively,
+    select_profile_interactively,
+)
 from services.distribution.terminal_ui import (
     PALETTE,
     RESET,
@@ -251,8 +262,15 @@ class WizardNavigator:
         reconfigure_fn: Callable[..., dict[str, Any]],
         profile_id: str = "p01",
         getpass_fn: Callable[..., str] | None = None,
+        replace_fn: Callable[..., Any] = replace,
+        profiles: Any = None,
+        discover_models: bool = False,
+        check_connection: bool = False,
+        opener: Any = None,
     ) -> None:
         self.layout = layout
+        self.chosen_layout = layout
+        self.used_quick = mode == "quick"
         self.tty = tty
         self.section = validate_setup_section(section)
         self.mode = mode
@@ -261,10 +279,16 @@ class WizardNavigator:
         self.reconfigure_fn = reconfigure_fn
         self.profile_id = profile_id
         self.getpass_fn = getpass_fn
+        self.replace_fn = replace_fn
+        self.profiles = profiles
+        self.discover_models = discover_models
+        self.check_connection = check_connection
+        self.opener = opener
         self.color_mode = detect_color_mode(tty)
         self.defaults = load_existing_setup_defaults(layout)
         self.answers: dict[str, str] = {}
         self.key_action: MaskedKeyAction | None = None
+        self.selected_agent_model: SelectedModel | None = None
 
     def _paint(self, text: str, token_fg: str) -> str:
         if self.color_mode == ColorMode.NONE or not token_fg:
@@ -373,14 +397,97 @@ class WizardNavigator:
         elif key == "converse_model" and previous is not None and previous != value:
             self.answers.pop("decisions_model", None)
 
+    def _apply_chosen_profile(
+        self,
+        chosen_prof: ProviderProfileChoice,
+        *,
+        term_width: int,
+    ) -> None:
+        elig = check_role_adapter_eligibility("agent", chosen_prof.adapter_kind)
+        if not elig.eligible:
+            raise InstallError(elig.reason)
+        adapter = chosen_prof.adapter_kind
+        endpoint = chosen_prof.base_url
+        allow_cloud = chosen_prof.allow_cloud
+        credential_env = chosen_prof.credential_env
+        if self.discover_models:
+            from services.distribution.terminal_animation import BrandedActivityIndicator
+
+            with BrandedActivityIndicator(
+                self.tty,
+                f"Discovering models for {chosen_prof.profile_id}",
+                width=term_width,
+            ) as indicator:
+                indicator.tick("GET /models")
+                disc = discover_profile_models(
+                    chosen_prof,
+                    allow_cloud_disclosed=allow_cloud,
+                    opener=self.opener,
+                )
+                indicator.finish(
+                    status=(
+                        "pass"
+                        if (disc.status == "ok" and not disc.manual_fallback_required)
+                        else "fail"
+                    ),
+                    message=(
+                        f"{len(disc.models)} models"
+                        if (disc.status == "ok" and not disc.manual_fallback_required)
+                        else "fallback to manual entry"
+                    ),
+                )
+            sel = select_model_interactively(
+                self.tty,
+                disc,
+                profile_id=chosen_prof.profile_id,
+                role="agent",
+                adapter_kind=adapter,
+                endpoint=endpoint,
+                credential_env=credential_env,
+                allow_cloud=allow_cloud,
+                width=term_width,
+            )
+        else:
+            sel = select_model_interactively(
+                self.tty,
+                chosen_prof.discovered_models,
+                profile_id=chosen_prof.profile_id,
+                role="agent",
+                adapter_kind=adapter,
+                endpoint=endpoint,
+                credential_env=credential_env,
+                allow_cloud=allow_cloud,
+                width=term_width,
+            )
+        ep_recorded = f"{adapter}={endpoint}" if adapter not in {"lmstudio", "meta"} else endpoint
+        self._record_answer("endpoint", ep_recorded)
+        self._record_answer("model", sel.model_id)
+        self._record_answer("allow_cloud", "yes" if allow_cloud else "no")
+        self._record_answer("credential_env", credential_env or "")
+        self.selected_agent_model = sel
+
     def run(self) -> dict[str, Any]:
         if self.mascot_fn is not None:
             cols = shutil.get_terminal_size().columns
-            try:
-                banner = self.mascot_fn(width=cols, color=self.color_mode)
-            except TypeError:
-                banner = self.mascot_fn(width=cols)
-            self.tty.write(banner + "\n")
+            from services.distribution.terminal_animation import (
+                render_intro_sequence,
+                should_animate,
+            )
+
+            if should_animate(self.tty, width=cols):
+                from services.distribution.wizard import colorize_mascot
+
+                render_intro_sequence(
+                    self.tty,
+                    width=cols,
+                    colorize_fn=lambda frame: colorize_mascot(frame, mode=self.color_mode),
+                )
+            else:
+                try:
+                    banner = self.mascot_fn(width=cols, color=self.color_mode)
+                except TypeError:
+                    banner = self.mascot_fn(width=cols)
+                self.tty.write(banner + "\n")
         c_slate = PALETTE.slate.fg_sequence(self.color_mode)
         self.tty.write(
             self._paint(
@@ -425,7 +532,7 @@ class WizardNavigator:
                 if step.key == "credential_env":
                     workspace_val = self.answers.get("workspace", self.defaults["workspace"])
                     data_val = self.answers.get("data", self.defaults["data"])
-                    chosen_tmp = replace(
+                    chosen_tmp = self.replace_fn(
                         self.layout,
                         workspace=Path(workspace_val).expanduser(),
                         data=Path(data_val).expanduser(),
@@ -460,6 +567,65 @@ class WizardNavigator:
                     index += 1
                     continue
 
+                if step.key == "endpoint":
+                    term_width = shutil.get_terminal_size().columns
+                    workspace_val = self.answers.get("workspace", self.defaults["workspace"])
+                    data_val = self.answers.get("data", self.defaults["data"])
+                    chosen_tmp = self.replace_fn(
+                        self.layout,
+                        workspace=Path(workspace_val).expanduser(),
+                        data=Path(data_val).expanduser(),
+                    )
+                    env_path = default_providers_env_path(chosen_tmp)
+                    if self.profiles is not None:
+                        stored = load_stored_profiles(profiles=self.profiles)
+                        if stored:
+                            chosen_prof = select_profile_interactively(
+                                self.tty, stored, role="agent", width=term_width
+                            )
+                            self._apply_chosen_profile(chosen_prof, term_width=term_width)
+                            steps = self._active_steps()
+                            index += 4
+                            continue
+                    else:
+                        persisted = load_stored_profiles(env_path=env_path)
+                        if persisted:
+                            self.tty.write(
+                                format_profile_choices(persisted, role="agent", width=term_width)
+                                + "\n"
+                            )
+                            raw_ep = self._raw_prompt(step.label, default)
+                            if is_cancel_command(raw_ep):
+                                raise InstallError("Setup cancelled; no configuration written")
+                            if is_back_command(raw_ep, at_confirm=False):
+                                if index > 0:
+                                    index -= 1
+                                else:
+                                    self.tty.write("Already at the first step.\n")
+                                steps = self._active_steps()
+                                continue
+                            picked_prof: ProviderProfileChoice | None = None
+                            token_ep = raw_ep.strip().lower()
+                            if token_ep.isdigit():
+                                p_idx = int(token_ep)
+                                if 1 <= p_idx <= len(persisted):
+                                    picked_prof = persisted[p_idx - 1]
+                            else:
+                                for prof_cand in persisted:
+                                    if prof_cand.profile_id.lower() == token_ep:
+                                        picked_prof = prof_cand
+                                        break
+                            if picked_prof is not None:
+                                self._apply_chosen_profile(picked_prof, term_width=term_width)
+                                steps = self._active_steps()
+                                index += 4
+                                continue
+                            resolved_ep = raw_ep if raw_ep else default
+                            self._record_answer(step.key, resolved_ep)
+                            steps = self._active_steps()
+                            index += 1
+                            continue
+
                 raw = self._raw_prompt(step.label, default)
                 if is_cancel_command(raw):
                     raise InstallError("Setup cancelled; no configuration written")
@@ -479,6 +645,7 @@ class WizardNavigator:
                 ):
                     from services.distribution.wizard_flow import WizardFlowCoordinator
 
+                    self.used_quick = True
                     return WizardFlowCoordinator(
                         self.layout,
                         tty=self.tty,
@@ -496,11 +663,12 @@ class WizardNavigator:
 
             workspace = self.answers.get("workspace", self.defaults["workspace"])
             data = self.answers.get("data", self.defaults["data"])
-            chosen = replace(
+            chosen = self.replace_fn(
                 self.layout,
                 workspace=Path(workspace).expanduser(),
                 data=Path(data).expanduser(),
             )
+            self.chosen_layout = chosen
             self.tty.write(
                 f"Planned config: {chosen.config}\n"
                 f"Data: {chosen.data}\n"
@@ -672,4 +840,71 @@ class WizardNavigator:
                 base_url=endpoint,
                 selected_model=model,
             )
-        return result
+        if self.selected_agent_model is not None and chosen.config.exists():
+            save_role_model_selection(chosen.config, self.selected_agent_model)
+        probe_dict: dict[str, Any] = {}
+        if self.check_connection:
+            from services.distribution.connection_probe import run_interactive_connection_check
+
+            probe_res = run_interactive_connection_check(
+                self.tty,
+                endpoint=endpoint,
+                model=model,
+                role="agent",
+                adapter_kind=adapter,
+                allow_cloud=allow_cloud,
+                credential_env=agent_credential_env,
+                config_saved=True,
+                opener=self.opener,
+            )
+            probe_dict = {
+                "ready": probe_res.ready,
+                "provider_connection": probe_res.provider_connection,
+                "connection_detail": probe_res.overall_readiness,
+                "connection_error": (
+                    probe_res.message if probe_res.overall_readiness == "failed" else None
+                ),
+                "connection_probe": probe_res.to_dict(),
+            }
+        from services.distribution.wizard_summary import (
+            render_completion_summary,
+            sanitize_completion_receipt,
+        )
+
+        credential_saved = bool(
+            self.key_action is not None and self.key_action.action in {"set", "keep"}
+        )
+        receipt = sanitize_completion_receipt(
+            {
+                **(result if isinstance(result, dict) else {}),
+                "install": str(getattr(chosen, "install", "")),
+                "launcher": (
+                    str(Path(chosen.bin) / "kinaiya")
+                    if getattr(chosen, "bin", None) is not None
+                    else "kinaiya"
+                ),
+                "config": str(chosen.config),
+                "data": str(chosen.data),
+                "workspace": str(chosen.workspace),
+                "adapter": effective_agent_adapter,
+                "endpoint": endpoint,
+                "model": model,
+                "allow_cloud": allow_cloud,
+                "credential_env": agent_credential_env,
+                "credential_saved": credential_saved,
+                "converse": converse,
+                "converse_profile": converse_profile,
+                **probe_dict,
+            }
+        )
+        cols = shutil.get_terminal_size().columns
+        self.tty.write(
+            render_completion_summary(
+                receipt,
+                is_tty=True,
+                no_color=bool(self.color_mode == ColorMode.NONE or cols < 40),
+                width=cols,
+            )
+        )
+        self.tty.flush()
+        return receipt

@@ -49,24 +49,51 @@ kinaiya web           # http://127.0.0.1:8780
 
 ## Candidate baseline and prerequisites
 
-- Native Ubuntu **22.04 or 24.04**, `x86_64` or `aarch64`.
-- Python **3.11–3.13**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
+- Native Ubuntu **22.04, 24.04, or 26.04**, `x86_64` or `aarch64`.
+- Python **3.11–3.14**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
   default Python 3.10 is insufficient; select an explicitly installed interpreter.
+  Ubuntu 26.04's default Python 3.14 is accepted; if its venv support is missing,
+  the installer plans `python3.14-venv` under the same no-upgrade policy below.
 - `bubblewrap`, `libseccomp2`, at least **1 GiB** free for Agent-only staging,
   working GitHub/PyPI HTTPS access, and a writable private user home.
 - The actual bubblewrap namespace probe must succeed. A container/VPS kernel may
   deny it even with bubblewrap installed. Fix the host policy with the host
   administrator, or use a supported host; **never disable isolation** to install.
-- **Ubuntu 24.04** enables `kernel.apparmor_restrict_unprivileged_userns=1` by
-  default, which denies the probe. Do not set that sysctl to `0` globally; have an
+- **Ubuntu 24.04/26.04** enables `kernel.apparmor_restrict_unprivileged_userns=1`
+  by default. If the installed bubblewrap profile does not permit the probe, do
+  not set that sysctl to `0` globally; have an
   administrator review and load the bwrap-only profile in
   [`docs/examples/apparmor-bwrap`](examples/apparmor-bwrap)
   (`sudo install -m 0644 docs/examples/apparmor-bwrap /etc/apparmor.d/kinaiya-bwrap`
   then `sudo apparmor_parser -r /etc/apparmor.d/kinaiya-bwrap`). It permits only
   `/usr/bin/bwrap` to create user namespaces; the restriction stays on for every
   other program.
-- Windows, macOS, WSL, other distros, Python 3.14, GPUs and optional voice/model
+- Windows, macOS, WSL, other distros, Python 3.15+, GPUs and optional voice/model
   backends are not qualified by this installer.
+
+Ubuntu 26.04/Python 3.14 support requires a release containing this host-admission
+change as well as an updated bootstrap. Older nightlies still reject the host
+during the bundled runtime's preflight even when a newer `install.sh` accepts it.
+Do not edit a downloaded release or bypass its checks; publish a new qualified
+nightly through the existing release workflow. Accepting this candidate baseline
+does not qualify optional voice/model wheels for Python 3.14.
+
+[Retained native Ubuntu 26.04/Python 3.14 lifecycle evidence](../evaluation/evidence/linux-install-ubuntu2604-py314-2026-11-04.json)
+records the exact implementation commit, x86_64 host, locked runtime preparation,
+real sandbox denials, service readiness, update recovery, rollback, and uninstall.
+These were local unqualified release fixtures, not published releases or live
+provider tests. Ubuntu 26.04 ARM64 lifecycle remains unmeasured by this run.
+
+Full-suite verification also checks interpreter compatibility: standing UTC
+instants retain their existing `00:00:00`–`23:59:59` wire range even if a newer
+stdlib parser normalizes `24:00:00`, and JSON diagnostics follow the actual
+installed parser/encoder guard rather than inventing a fixed nesting limit.
+The default Ubuntu 26.04 bwrap AppArmor profile currently denies execution of
+the sealed optional GGUF worker; [#481](https://github.com/rgoza1996/Kinaiya/issues/481)
+retains that failing native test. Agent-only installation and isolation passed;
+this evidence does not qualify managed GGUF execution or justify relaxing the
+host policy. An intermittent media-reset cleanup failure observed in CI is
+tracked separately in [#482](https://github.com/rgoza1996/Kinaiya/issues/482).
 
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
 upgrades, downgrades, or removes existing system packages, never changes kernel
@@ -109,7 +136,7 @@ sh install.sh --workspace "$HOME/My Work" --data-dir "$HOME/Private Kinaiya Data
 ```
 
 When `KINAIYA_PYTHON` is not set, `install.sh` automatically selects a supported
-Python `3.11`–`3.13` interpreter (`python3`, `python3.13`, `python3.12`, or
+Python `3.11`–`3.14` interpreter (`python3`, `python3.14`, `python3.13`, `python3.12`, or
 `python3.11`) if installed. The release source allowlist includes root
 `install.sh`, `services/distribution/*`, and `packages/distribution/*`.
 
@@ -314,7 +341,7 @@ None of them requires editing JSON or `.env` files by hand.
 
 | Symptom | What to do |
 | --- | --- |
-| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04, install the narrow AppArmor profile described there; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
+| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04/26.04, install the narrow AppArmor profile described there if the probe is denied; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
 | **Install destination inaccessible or protected** | Choose an absolute, user-owned, symlink-free path outside the Agent workspace and outside system directories, then rerun with `--workspace` / `--data-dir`. Nothing is written when preflight refuses. |
 | **Model endpoint unavailable** | Start or fix the provider (for local LM Studio, load the model and confirm the loopback endpoint), then restart `kinaiya serve host`. Setup's saved configuration stays valid; to change the endpoint or model, rerun `kinaiya setup`. |
 | **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |

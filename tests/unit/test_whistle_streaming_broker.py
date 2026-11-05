@@ -1,5 +1,6 @@
 """Unit tests for Whistle incremental streaming IPC, endpoint, and broker (#93, #49)."""
 
+import asyncio
 import hashlib
 import os
 import socket
@@ -271,6 +272,181 @@ async def test_whistle_broker_incremental_lifecycle_and_idempotent_ack_recovery(
     assert fin["committed_text"] == "hello world testing"
     assert fin["pending_text"] == ""
     assert env.broker.operation is None
+
+
+async def _begin_retention_stream(env):
+    response = await env.client.post(
+        "/v1/audio/transcriptions/stream/begin",
+        json={
+            "session_id": "sess_retention",
+            "thread_id": "thr_retention",
+            "epoch": 1,
+            "utterance_id": "utt_retention",
+            "content_scope": "local_only",
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _retention_headers(started, sequence, offset, pcm):
+    return {
+        "Content-Type": "application/octet-stream",
+        "x-kinaiya-stream-id": started["stream_id"],
+        "x-kinaiya-worker-incarnation": started["worker_incarnation"],
+        "x-kinaiya-session-id": "sess_retention",
+        "x-kinaiya-thread-id": "thr_retention",
+        "x-kinaiya-epoch": "1",
+        "x-kinaiya-utterance-id": "utt_retention",
+        "x-kinaiya-content-scope": "local_only",
+        "x-kinaiya-sequence": str(sequence),
+        "x-kinaiya-sample-offset": str(offset),
+        "x-kinaiya-pcm-sha256": hashlib.sha256(pcm).hexdigest(),
+    }
+
+
+async def test_tiny_contiguous_chunks_retain_only_current_work_and_last_ack(
+    broker_fixture, monkeypatch
+):
+    env = broker_fixture
+    started = await _begin_retention_stream(env)
+    operation = env.broker.operation
+
+    def silent_pcm(pcm):
+        env.engine.pcm_calls += 1
+        env.engine.samples += len(pcm) // 2
+        return {
+            "delta_text": "",
+            "committed_text": "",
+            "pending_text": "",
+            "received_samples": env.engine.samples,
+            "final": False,
+            "native_pass_ms": 0,
+            "language": None,
+        }
+
+    monkeypatch.setattr(env.engine, "stream_pcm", silent_pcm)
+    pcm = b"\0\0"
+    for sequence in range(1, 257):
+        headers = _retention_headers(started, sequence, sequence - 1, pcm)
+        response = await env.client.post(
+            "/v1/audio/transcriptions/stream/pcm", content=pcm, headers=headers
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["received_samples"] == sequence
+        assert env.broker.operation is operation
+        assert operation.work is None
+        assert operation.work_tasks == []
+        assert operation.stream["last_ack"]["sequence"] == sequence
+    replay = await env.client.post(
+        "/v1/audio/transcriptions/stream/pcm", content=pcm, headers=headers
+    )
+    assert replay.status_code == 200 and replay.json()["replay"] is True
+    assert env.engine.pcm_calls == 256
+    finished = await env.client.post(
+        "/v1/audio/transcriptions/stream/finish",
+        json={
+            "stream_id": started["stream_id"],
+            "worker_incarnation": started["worker_incarnation"],
+            "session_id": "sess_retention",
+            "thread_id": "thr_retention",
+            "epoch": 1,
+            "utterance_id": "utt_retention",
+            "content_scope": "local_only",
+            "sequence": 257,
+            "sample_offset": 256,
+        },
+    )
+    assert finished.status_code == 200, finished.text
+    assert env.broker.operation is None
+    assert operation.work_tasks == []
+
+
+async def test_unknown_cleanup_retains_original_work_even_after_late_settlement(
+    broker_fixture, monkeypatch
+):
+    env = broker_fixture
+    started = await _begin_retention_stream(env)
+    operation = env.broker.operation
+    entered, cancelled, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    originals = []
+
+    async def held_pcm(pcm, identity, *, expected_samples):
+        originals.append(asyncio.current_task())
+        entered.set()
+        while not release.is_set():
+            try:
+                await asyncio.wait_for(release.wait(), timeout=10)
+            except asyncio.CancelledError:
+                cancelled.set()
+        return {
+            "delta_text": "",
+            "committed_text": "",
+            "pending_text": "",
+            "received_samples": expected_samples,
+            "final": False,
+            "native_pass_ms": 0,
+            "language": None,
+        }
+
+    async def unknown_stop(identity):
+        return {"ok": False, "release_confirmed": False}
+
+    stop = env.manager.stop_if_current
+    monkeypatch.setattr(env.endpoint, "stream_pcm", held_pcm)
+    monkeypatch.setattr(env.manager, "stop_if_current", unknown_stop)
+    pcm = b"\0\0"
+    request = asyncio.create_task(
+        env.client.post(
+            "/v1/audio/transcriptions/stream/pcm",
+            content=pcm,
+            headers=_retention_headers(started, 1, 0, pcm),
+        )
+    )
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=10)
+        original = originals[0]
+        assert operation.work is original
+        assert operation.work_tasks == [original]
+        env.broker.abort_active()
+        await asyncio.wait_for(cancelled.wait(), timeout=10)
+        await asyncio.wait_for(asyncio.shield(operation.cleanup), timeout=10)
+        assert not original.done()
+        assert env.broker.operation is operation
+        assert operation.work_tasks == [original]
+        assert operation.cleanup_failed and not operation.cleanup_confirmed
+        blocked = await asyncio.wait_for(
+            env.client.post(
+                "/v1/audio/transcriptions/stream/begin",
+                json={"session_id": "new", "thread_id": "new", "epoch": 1, "utterance_id": "new"},
+            ),
+            timeout=10,
+        )
+        assert blocked.status_code == 409
+        assert not original.done()
+        release.set()
+        response = await asyncio.wait_for(asyncio.shield(request), timeout=10)
+        assert response.status_code == 409
+        await asyncio.wait_for(asyncio.shield(operation.cleanup), timeout=10)
+        assert original.done()
+        assert env.broker.operation is operation
+        assert operation.work_tasks == [original]
+        assert operation.stream["sequence"] == 0
+        assert operation.stream["last_ack"] is None
+        monkeypatch.setattr(env.manager, "stop_if_current", stop)
+        env.broker.abort_active()
+        await asyncio.wait_for(asyncio.shield(operation.cleanup), timeout=10)
+        assert operation.cleanup_confirmed
+        assert env.broker.operation is None
+    finally:
+        release.set()
+        monkeypatch.setattr(env.manager, "stop_if_current", stop)
+        env.broker.abort_active()
+        await asyncio.wait_for(
+            asyncio.shield(asyncio.gather(request, return_exceptions=True)), timeout=10
+        )
+        if operation.cleanup is not None:
+            await asyncio.wait_for(asyncio.shield(operation.cleanup), timeout=10)
 
 
 async def test_whistle_broker_non_contiguous_offset_aborts_and_reaps_worker(broker_fixture):

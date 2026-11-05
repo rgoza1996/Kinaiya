@@ -4,7 +4,11 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-from test_linux_distribution import archive_release, distribution, linux_directory_links_on_windows  # noqa: F401
+from test_linux_distribution import (  # noqa: F401
+    archive_release,
+    distribution,
+    linux_directory_links_on_windows,
+)
 
 
 def cli_module():

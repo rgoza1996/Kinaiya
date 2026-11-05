@@ -2,6 +2,7 @@
 
 import json
 import math
+from types import SimpleNamespace
 
 import pytest
 
@@ -78,13 +79,38 @@ def test_existing_constant_rejections_have_non_finite_tag(number, nested):
 def test_existing_interpreter_nesting_rejection_has_nesting_limit_tag():
     depth = 10000
     raw = b'{"nested":' + b"[" * depth + b"0" + b"]" * depth + b"}"
-    with pytest.raises(RecursionError):
+    try:
         json.loads(raw)
+    except RecursionError:
+        with pytest.raises(JsonProtocolError) as caught:
+            decode_json(raw, len(raw))
+        assert caught.value.reason == "nesting_limit"
+        assert str(caught.value) == MESSAGES["nesting_limit"]
+        assert isinstance(caught.value.__cause__, RecursionError)
+    else:
+        # The wrapper promises the installed interpreter's guard, not a new
+        # fixed depth. Newer JSON implementations can accept this same input.
+        nested = decode_json(raw, len(raw))["nested"]
+        for _ in range(depth):
+            assert type(nested) is list and len(nested) == 1
+            nested = nested[0]
+        assert nested == 0
+
+
+def test_interpreter_recursion_failure_always_keeps_the_constant_tag(monkeypatch):
+    from packages.providers import whistle_ipc
+
+    failure = RecursionError("synthetic interpreter recursion boundary")
+
+    def reject(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(whistle_ipc, "json", SimpleNamespace(loads=reject))
     with pytest.raises(JsonProtocolError) as caught:
-        decode_json(raw, len(raw))
+        decode_json(b"{}")
     assert caught.value.reason == "nesting_limit"
     assert str(caught.value) == MESSAGES["nesting_limit"]
-    assert isinstance(caught.value.__cause__, RecursionError)
+    assert caught.value.__cause__ is failure
 
 
 @pytest.mark.parametrize(

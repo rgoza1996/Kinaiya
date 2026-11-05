@@ -691,7 +691,7 @@ def check_outdated_system_blockers(*, probe_subprocesses: bool = False) -> None:
     if (py_major, py_minor) < (3, 11):
         raise InstallError(
             f"Out-of-date system blocker: Python {py_major}.{py_minor} is out of date "
-            "(Kinaiya requires Python 3.11-3.13). Please update Python first; "
+            "(Kinaiya requires Python 3.11-3.14). Please update Python first; "
             "the installer will not update existing system packages for you."
         )
     if platform.system() != "Linux":
@@ -702,12 +702,12 @@ def check_outdated_system_blockers(*, probe_subprocesses: bool = False) -> None:
         release = {}
     distro_id = release.get("ID")
     version_id = release.get("VERSION_ID", "")
-    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04"}:
+    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04", "26.04"}:
         parsed_ubuntu = _parse_version_tuple(version_id)
         if parsed_ubuntu is not None and parsed_ubuntu < (22, 4):
             raise InstallError(
                 f"Out-of-date system blocker: Ubuntu {version_id} is out of date "
-                "(Kinaiya requires Ubuntu 22.04 or 24.04). Please update Ubuntu first; "
+                "(Kinaiya requires Ubuntu 22.04, 24.04, or 26.04). Please update Ubuntu first; "
                 "the installer will not update your system for you."
             )
     bwrap_bin = shutil.which("bwrap")
@@ -751,15 +751,19 @@ def preflight(layout, *, allow_missing_dependencies: bool = False):
         )
     check_outdated_system_blockers(probe_subprocesses=True)
     release = platform.freedesktop_os_release()
-    if release.get("ID") != "ubuntu" or release.get("VERSION_ID") not in {"22.04", "24.04"}:
+    if release.get("ID") != "ubuntu" or release.get("VERSION_ID") not in {
+        "22.04",
+        "24.04",
+        "26.04",
+    }:
         raise InstallError(
-            "Initial candidate baseline is Ubuntu 22.04/24.04 only; see docs/linux-installation.md"
+            "Initial candidate baseline is Ubuntu 22.04/24.04/26.04 only; see docs/linux-installation.md"
         )
     if platform.machine() not in {"x86_64", "aarch64"} or not (3, 11) <= sys.version_info[:2] <= (
         3,
-        13,
+        14,
     ):
-        raise InstallError("Require x86_64/aarch64 and Python 3.11-3.13 with venv/ensurepip")
+        raise InstallError("Require x86_64/aarch64 and Python 3.11-3.14 with venv/ensurepip")
     missing = missing_system_dependencies()
     if missing and not allow_missing_dependencies:
         sim = " ".join(apt_simulation_command(missing))

@@ -27,7 +27,7 @@ STAGE_INDEX: dict[str, int] = {key: idx + 1 for idx, (key, _) in enumerate(STAGE
 
 STAGE_REMEDIATION: dict[str, str] = {
     "preflight": (
-        "Verify Ubuntu 22.04/24.04 host prerequisites, Python 3.11-3.13, >=1 GiB free disk, "
+        "Verify Ubuntu 22.04/24.04/26.04 host prerequisites, Python 3.11-3.14, >=1 GiB free disk, "
         "and bubblewrap user namespaces."
     ),
     "dependencies": (

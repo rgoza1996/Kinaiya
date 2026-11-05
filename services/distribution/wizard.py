@@ -9,16 +9,30 @@ Original text adaptation under the repository Apache-2.0 license; no runtime ima
 import os
 import struct
 import zlib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from services.distribution.connection_probe import run_interactive_connection_check
 from services.distribution.installation import (
     InstallError,
     check_outdated_system_blockers,
     reconfigure_section,
     setup,
 )
+from services.distribution.model_picker import (
+    discover_profile_models,
+    load_stored_profiles,
+    select_model_interactively,
+    select_profile_interactively,
+)
 from services.distribution.terminal import open_terminal
+from services.distribution.terminal_animation import (
+    MASCOT,
+    BrandedActivityIndicator,
+    render_intro_sequence,
+    should_animate,
+)
 from services.distribution.terminal_ui import NON_COLOR_TERMS, ColorMode, detect_color_mode
 from services.distribution.wizard_flow import (
     WizardFlowCoordinator,
@@ -29,6 +43,11 @@ from services.distribution.wizard_flow import (
     run_quick_wizard as _run_quick_wizard,
 )
 from services.distribution.wizard_navigation import WizardNavigator, validate_setup_section
+from services.distribution.wizard_summary import (
+    format_json_receipt,
+    render_completion_summary,
+    sanitize_completion_receipt,
+)
 
 ASCII_MOON_RAMP = " .:-=+*#%@"
 
@@ -46,26 +65,6 @@ ANSI16_MOON_MID = "\x1b[36m"
 ANSI16_MOON_RIM = "\x1b[94m"
 ANSI16_MOON_GOLD = "\x1b[33m"
 ANSI16_MOON_CYAN = "\x1b[96m"
-
-MASCOT = "\n".join(
-    [
-        "%@@@@@ .      :  %++#:*#++++#@%@@%@@@@@@@@@@@@@@@@+@@%=    =    +@%%",
-        "-@%*@@#=.      #*@*=%*.      .*@@@@@@@@@@@@@@@@@@@@--.  =:+=   =@@%=",
-        " #@@@%@+%-+=   *= #@@          -@@@@@@@@@@@@@@@@@@@+#  *#*@+ .#@#+%",
-        "  @@@+###@@@*=+***%##           =@-#@@@@@@@@@@@@%@%+#%%@@@@+#*@@#@.",
-        "  .@@%+@@@@@@@@@*-.=*#          -*=%%@@%@=@@@@@@%=  :%@@@@#@%*#+@:",
-        "   .@*%=.+#@@@@@%*  -=%=       :#+:%@%%=::-*+%@@%. :+#@@@@@@%+-#:",
-        "     #%%: .*@*@@@@==  ..-=+==+-=:.+@@%      #:%@@@#@@*%##%#@++%",
-        "      =%@*. +%#@@@#=#= .  :  -    +%*@-   .=%@@@@@@##-..*%%*@+",
-        "        *@@%*@@#@@@@@%%#-.    :::. #@@@%%*%+-%@@@@%.  :*@@%*",
-        "          *@@%%+*%#@@@*. :::    :#@#+**##@@#@%%@@@::-##%@*",
-        "            -%@@+:=#@@@%*==%#+:-+%@+.:-%@%*=:=%@@%%#%@%=",
-        "               -#@@@#%@@@@@@@#=--+%+%@@@@#@%@@%@@@@#=",
-        "                  .=*%@@@@@@@@@@@@@@@@@@@@@@@@%*=.",
-        "                        :-+*#%%@@@@@@%%#*+=:.",
-        "                        ( ~~~ Kinaiya ~~~ )",
-    ]
-)
 
 
 def _env_blocks_color(env: dict[str, str] | None = None) -> bool:
@@ -305,6 +304,12 @@ def run_wizard(
     section: str | None = None,
     profile_id="p01",
     getpass_fn=None,
+    profiles=None,
+    discover_models: bool = False,
+    check_connection: bool = False,
+    opener=None,
+    store_factory=None,
+    read_secret=None,
 ):
     """Use the controlling terminal, so piping the bootstrap cannot consume consent."""
     check_outdated_system_blockers(probe_subprocesses=False)
@@ -319,6 +324,12 @@ def run_wizard(
                     section=normalized_section,
                     profile_id=profile_id,
                     getpass_fn=getpass_fn,
+                    profiles=profiles,
+                    discover_models=discover_models,
+                    check_connection=check_connection,
+                    opener=opener,
+                    store_factory=store_factory,
+                    read_secret=read_secret,
                 )
         except OSError:
             raise InstallError(
@@ -335,8 +346,43 @@ def run_wizard(
         reconfigure_fn=reconfigure_section,
         profile_id=profile_id,
         getpass_fn=getpass_fn,
+        replace_fn=replace,
+        profiles=profiles,
+        discover_models=discover_models,
+        check_connection=check_connection,
+        opener=opener,
     )
-    return coordinator.run()
+    result = coordinator.run()
+    if coordinator.used_quick or normalized_section is not None:
+        return result
+    return _offer_custom_api_profile(
+        coordinator.chosen_layout,
+        tty,
+        result,
+        store_factory,
+        read_secret,
+    )
+
+
+def _offer_custom_api_profile(layout, tty, result, store_factory, read_secret):
+    """Optional #402 step after config is written; never blocks completed setup."""
+    from services.distribution import profile_form
+
+    tty.write("Optional: save a named custom OpenAI-compatible API profile now.\n")
+    try:
+        if not profile_form.confirm(tty, "Add or choose a custom API profile?"):
+            return result
+        store = (store_factory or profile_form.custom_providers_store)(layout)
+        profile_id = profile_form.choose_or_add_profile(
+            store, tty, read_secret=read_secret or profile_form.masked_input
+        )
+    except profile_form.ProfileFormCancelled as exc:
+        tty.write(f"{exc} Setup configuration is unchanged.\n")
+        return result
+    except profile_form.CustomProviderError as exc:
+        tty.write(f"Custom API profiles are unavailable: {exc}\n")
+        return result
+    return {**result, "custom_profile_id": profile_id}
 
 
 def run_section_wizard(layout, section: str, *, tty=None):
@@ -346,17 +392,28 @@ def run_section_wizard(layout, section: str, *, tty=None):
 
 __all__ = [
     "ASCII_MOON_RAMP",
+    "BrandedActivityIndicator",
     "MASCOT",
     "WizardFlowCoordinator",
     "WizardNavigator",
     "ask_yn",
     "colorize_mascot",
+    "discover_profile_models",
+    "format_json_receipt",
+    "load_stored_profiles",
     "mascot",
+    "render_completion_summary",
+    "render_intro_sequence",
     "render_moon_ascii_from_image",
     "run_first_run_wizard",
+    "run_interactive_connection_check",
     "run_quick_wizard",
     "run_section_wizard",
     "run_wizard",
+    "sanitize_completion_receipt",
+    "select_model_interactively",
+    "select_profile_interactively",
+    "should_animate",
     "tty_supports_color",
     "validate_setup_section",
 ]

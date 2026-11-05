@@ -848,6 +848,9 @@ class WhistleBroker:
                 stream["pending_text"] = update["pending_text"]
                 stream["last_pcm_sha256"] = pcm_sha256
                 stream["last_ack"] = result
+                # Only a validated, current result with its replay ACK ready
+                # may leave custody. Failed/unknown originals stay retained.
+                operation.work_tasks.remove(work_task)
                 success = True
                 return result
         except TimeoutError as exc:
@@ -967,6 +970,7 @@ class WhistleBroker:
                     "profile": PROFILE,
                 }
                 encode_json(result, MAX_RESPONSE_BYTES)
+                operation.work_tasks.remove(work_task)
                 success = True
                 return result
         except TimeoutError as exc:

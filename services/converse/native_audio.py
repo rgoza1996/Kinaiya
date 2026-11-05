@@ -44,9 +44,6 @@ MAX_BASE64 = ((MAX_WAV_BYTES + 2) // 3) * 4
 MAX_CLIPS = 32
 MAX_RETAINED_BYTES = 16 * 1024 * 1024
 REPLY_RESERVATION = 2 * 1024 * 1024
-# The smallest valid WAV retains its 44-byte header and one PCM16 sample,
-# plus a second copy of that sample and the original reply reservation.
-MIN_CLIP_RESERVED_BYTES = 48 + REPLY_RESERVATION
 MAX_INTENTS = 4096
 _STATES = {"reserved", "asr", "append_pending", "published", "refused", "unknown"}
 _SCOPES = {"local_only", "public_synthetic", "private_cloud_authorized"}
@@ -403,6 +400,17 @@ class NativeAudioOwner:
             getattr(getattr(self.provider, "respond", None), "__func__", None),
         )
 
+    def _transport_available(self) -> bool:
+        check = getattr(self.provider, "transport_available", None)
+        if check is None:
+            return True
+        if not callable(check):
+            return False
+        try:
+            return check() is True
+        except Exception:
+            return False
+
     def _capture(self):
         if self._sealed or self._closed or self._failed or self._cleanup_failed:
             raise _error(503)
@@ -424,6 +432,8 @@ class NativeAudioOwner:
             info = runtime_provider_info(self.runtime)
             if type(info.local) is not bool or info.local is not True:
                 raise _error(409)
+            if not self._transport_available():
+                raise _error(503)
             settings = runtime_model_settings(self.runtime)
             token = None if settings is None else settings.state_token()
             return (
@@ -460,23 +470,39 @@ class NativeAudioOwner:
     def available(self):
         try:
             self._capture()
-            return not self._capacity()["exhausted"]
+            return True
         except Exception:
             return False
 
-    def _capacity(self):
-        retained = len(self._clips)
-        remaining_bytes = MAX_RETAINED_BYTES - self._bytes
-        return {
-            "retained_clips": retained,
-            "max_clips": MAX_CLIPS,
-            "reserved_bytes": self._bytes,
-            "max_reserved_bytes": MAX_RETAINED_BYTES,
-            "remaining_clips": MAX_CLIPS - retained,
-            "remaining_bytes": remaining_bytes,
-            "min_clip_reserved_bytes": MIN_CLIP_RESERVED_BYTES,
-            "exhausted": retained >= MAX_CLIPS or remaining_bytes < MIN_CLIP_RESERVED_BYTES,
-        }
+    def _readiness_reason(self) -> str:
+        if self._closed or self._sealed:
+            return "closed"
+        if self._failed or self._cleanup_failed:
+            return "cleanup_failed"
+        try:
+            if getattr(self.runtime, "native_audio", None) is not self:
+                return "unavailable"
+            if self.provider is not self._original_provider:
+                return "unavailable"
+            close = getattr(self.provider, "close", None)
+            original_close = self._original_provider_close
+            if getattr(close, "__self__", None) is not getattr(
+                original_close, "__self__", None
+            ) or getattr(close, "__func__", close) is not getattr(
+                original_close, "__func__", original_close
+            ):
+                return "unavailable"
+            if not host_model_selected(self.runtime) or not self.runtime.enabled:
+                return "unavailable"
+            info = runtime_provider_info(self.runtime)
+            if type(info.local) is not bool or info.local is not True:
+                return "unavailable"
+            if not self._transport_available():
+                return "missing_transport"
+            self._capture()
+        except Exception:
+            return "unavailable"
+        return "ready"
 
     def status(self):
         active = sum(
@@ -493,16 +519,19 @@ class NativeAudioOwner:
             or unresolved
             or (self._close_task is not None and not self._close_task.done())
         )
+        transport_available = self._transport_available()
+        readiness_reason = self._readiness_reason()
         return {
             "configured": not self._closed,
             "available": self.available,
+            "transport_available": transport_available,
+            "readiness_reason": readiness_reason,
             "mode": "buffered_native_audio",
             "input_sample_rate": INPUT_RATE,
             "max_seconds": MAX_SECONDS,
             "pending": bool(pending),
             "active": active,
             "cleanup_failed": self._cleanup_failed,
-            "capacity": self._capacity(),
         }
 
     def _window(self, clip):

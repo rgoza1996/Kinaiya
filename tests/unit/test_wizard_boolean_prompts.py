@@ -68,7 +68,9 @@ def test_active_wizard_reprompts_boolean_answers_without_changing_default_permis
         mode=mode,
         setup_fn=lambda chosen, **kwargs: calls.append((chosen, kwargs)) or {"ready": False},
     )
-    assert coordinator.run() == {"ready": False}
+    result = coordinator.run()
+    assert result["ready"] is False
+    assert result["readiness_state"] == "configured_untested"
     assert len(calls) == 1
     assert calls[0][1]["allow_cloud"] is False
     assert calls[0][1]["converse"] is False

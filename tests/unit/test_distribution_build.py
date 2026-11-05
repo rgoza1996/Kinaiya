@@ -352,15 +352,19 @@ def test_local_validation_rejects_unsafe_or_partial_archives(source_repo, tmp_pa
             archive.addfile(member)
         elif attack == "oversized":
             member.size = MAX_FILE_BYTES + 1
-            archive.addfile(member)
+            # Python 3.14 requires a payload for nonempty regular files. Keep a
+            # valid oversized archive so the validator's size gate is exercised.
+            archive.addfile(member, io.BytesIO(bytes(member.size)))
         else:
             member.size = len(content)
             archive.addfile(member, io.BytesIO(content))
     data["artifacts"][0]["size"] = path.stat().st_size
     data["artifacts"][0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     (output / "release-manifest.json").write_text(json.dumps(data))
-    with pytest.raises(ReleaseError):
+    with pytest.raises(ReleaseError) as refusal:
         validate_bundle(output)
+    if attack == "oversized":
+        assert str(refusal.value.__cause__) == "Unsafe archive member type, duplicate or size"
 
 
 @pytest.mark.parametrize(
