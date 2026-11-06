@@ -62,7 +62,10 @@ def test_release_index_uses_authenticated_gh_and_assets_keep_verified_transport(
     url = f"{API}?per_page=100&page=1"
     assert nightly_skip._fetch_release_json(url) == []
     assert requests == ["repos/rgoza1996/Kinaiya/releases?per_page=100&page=1"]
-    asset = "https://github.com/rgoza1996/Kinaiya/releases/download/nightly-1-aaaaaaaaaaaa/release-manifest.json"
+    asset = (
+        "https://github.com/rgoza1996/Kinaiya/releases/download/"
+        "nightly-1-aaaaaaaaaaaa/release-manifest.json"
+    )
     assert nightly_skip._fetch_release_json(asset) == {}
     assert requests[-1] == asset
 
@@ -80,7 +83,9 @@ def test_workflow_only_skips_scheduled_nightlies_before_expensive_jobs():
     config = yaml.load(WORKFLOW.read_text(), Loader=yaml.BaseLoader)
     jobs = config["jobs"]
     prepare = jobs["prepare"]
-    assert prepare["outputs"]["skip_unchanged"] == ("$" + "{{ steps.unchanged.outputs.skip_unchanged }}")
+    assert prepare["outputs"]["skip_unchanged"] == (
+        "$" + "{{ steps.unchanged.outputs.skip_unchanged }}"
+    )
     guard = next(step for step in prepare["steps"] if step.get("id") == "unchanged")
     gate = next(step for step in prepare["steps"] if step.get("id") == "gate")
     assert guard["if"] == "github.event_name == 'schedule'"
