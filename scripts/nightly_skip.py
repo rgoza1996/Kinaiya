@@ -34,9 +34,8 @@ def skip_unchanged_nightly(source_sha: str, *, resolver=resolve_release, fetch_j
         if exc.code == "release_absent":
             return False  # First nightly: don't skip a build that has never published.
         raise  # API, validation and transport failures must not mean 'unchanged'.
-    if (
-        not isinstance(manifest, dict)
-        or not _SOURCE_SHA.fullmatch(str(manifest.get("source_sha", "")))
+    if not isinstance(manifest, dict) or not _SOURCE_SHA.fullmatch(
+        str(manifest.get("source_sha", ""))
     ):
         raise ReleaseError("Nightly resolver returned an invalid source identity")
     return manifest["source_sha"] == source_sha
