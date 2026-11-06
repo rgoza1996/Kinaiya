@@ -73,7 +73,7 @@ def test_release_index_uses_authenticated_gh_and_assets_keep_verified_transport(
 def test_github_output_records_skip_and_first_build(monkeypatch, tmp_path, capsys):
     output = tmp_path / "output"
     for skip in (True, False):
-        monkeypatch.setattr(nightly_skip, "skip_unchanged_nightly", lambda sha: skip)
+        monkeypatch.setattr(nightly_skip, "skip_unchanged_nightly", lambda _sha, value=skip: value)
         nightly_skip.main(["--source-sha", SHA, "--output", str(output)])
     assert output.read_text() == "skip_unchanged=true\nskip_unchanged=false\n"
     assert "Skipping scheduled nightly" in capsys.readouterr().out
