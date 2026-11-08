@@ -292,7 +292,7 @@ def confirm(yes, message, *, pre_consented=False):
             line = tty.readline()
             if line.strip().lower() in {"y", "yes"} or (pre_consented and line == ""):
                 return
-    except OSError:
+    except (OSError, KeyboardInterrupt, EOFError):
         pass
     raise InstallError("Cancelled; use --yes only after reviewing the plan")
 
@@ -308,7 +308,7 @@ def confirm_owner_rotation(yes, target_dir):
             tty.flush()
             if tty.readline().strip().lower() in {"y", "yes"}:
                 return
-    except OSError:
+    except (OSError, KeyboardInterrupt, EOFError):
         pass
     raise InstallError("Cancelled; use --yes to confirm owner credential rotation")
 

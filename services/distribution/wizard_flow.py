@@ -50,7 +50,12 @@ def ask_yn(tty, label: str, *, default: bool = False) -> bool:
     while True:
         tty.write(f"{label} (y/n) [{default_hint}]: ")
         tty.flush()
-        answer = tty.readline()
+        try:
+            answer = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not answer:
             raise InstallError("Setup cancelled: terminal input closed")
         cleaned = answer.strip().lower()
@@ -131,7 +136,12 @@ class WizardFlowCoordinator:
             prompt_str += f"{c_lbl}: {RESET}"
             self.tty.write(prompt_str)
         self.tty.flush()
-        answer = self.tty.readline()
+        try:
+            answer = self.tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            self.tty.write("\n")
+            self.tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not answer:
             raise InstallError("Setup cancelled: terminal input closed")
         cleaned = answer.strip()

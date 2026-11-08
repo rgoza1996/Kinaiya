@@ -1537,7 +1537,17 @@ def resolve_install_location(
         f"  2) Current directory:     {canonical_invoking}\n"
         "Choose install location [1]: "
     )
-    answer = tty.readline().strip().lower()
+    if hasattr(tty, "flush"):
+        tty.flush()
+    try:
+        answer = tty.readline().strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        if hasattr(tty, "flush"):
+            tty.flush()
+        raise InstallError(
+            "Installation cancelled or invalid install location choice; select 1 (Default) or 2 (Current directory)"
+        ) from None
     if answer in {"", "1", "default"}:
         return validate_install_root(default_install, base, home=home), False
     if answer == "yes":
