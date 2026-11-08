@@ -451,3 +451,81 @@ def test_keyboard_interrupt_cancels_cleanly_across_wizard_prompts_and_cli(
     assert (
         "Cancelled; no profile was saved. Setup configuration is unchanged." in tty_post_save.output
     )
+
+
+def test_structured_workspace_selection_default_and_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #504: structured workspace selection supports default [1] and cwd [2]."""
+    layout = Layout.for_home(tmp_path)
+    cwd_dir = tmp_path / "my_project"
+    cwd_dir.mkdir()
+    monkeypatch.setenv("KINAIYA_INVOKING_PWD", str(cwd_dir))
+
+    # Test [2] selects cwd_dir
+    tty = FakeTerminal(
+        [
+            "2",  # workspace -> CWD
+            "1",  # data -> Default
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder",
+            "no",
+            "",
+            "no",
+            "yes",  # confirm
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    assert cwd_dir.exists()
+    assert "Authorized Workspace Selection:" in tty.output
+    assert "Private Data Directory Selection:" in tty.output
+
+
+def test_structured_workspace_selection_custom_path_and_protected_refusal(
+    tmp_path: Path,
+) -> None:
+    """Issue #504: custom workspace path validation and protected system root refusals."""
+    from services.distribution.wizard_navigation import (
+        validate_data_path,
+        validate_workspace_path,
+    )
+
+    layout = Layout.for_home(tmp_path)
+    custom_ws = tmp_path / "custom_workspace"
+    custom_ws.mkdir()
+
+    # Valid custom path via option 3
+    tty = FakeTerminal(
+        [
+            "3",  # workspace -> Custom
+            str(custom_ws),  # path
+            "",  # data -> Default
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder",
+            "no",
+            "",
+            "no",
+            "yes",
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    assert custom_ws.exists()
+
+    # Protected root refusals
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_workspace_path("/")
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_workspace_path("/bin")
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_workspace_path("/usr/local")
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_data_path("/etc")
+
+    # Empty and control characters
+    with pytest.raises(InstallError, match="cannot be empty"):
+        validate_workspace_path("")
+    with pytest.raises(InstallError, match="control characters"):
+        validate_workspace_path("/tmp/bad\x01path")
+
