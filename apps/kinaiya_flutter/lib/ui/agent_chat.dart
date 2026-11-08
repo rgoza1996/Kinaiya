@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'agent_operating_mode_panel.dart';
 
 import '../api/client.dart';
@@ -297,10 +298,11 @@ class _AgentChatState extends State<AgentChat> {
   final Map<String, GlobalKey> _historyKeys = {};
   int _historyJump = 0;
   String? _lastJumpedMessage;
-  bool _detailsInline = false;
-  bool _harnessCollapsed = false,
-      _sessionsCollapsed = false,
-      _showDetails = true;
+  bool _canShowDetailsInline = false;
+  bool _harnessCollapsed = false, _sessionsCollapsed = false;
+  bool? _detailsVisibilityOverride;
+  bool _effectiveShowDetails(AgentTask? selected) =>
+      _detailsVisibilityOverride ?? (selected != null);
   double _harnessWidth = 246;
   double _sessionsWidth = 260;
   double _detailsWidth = AgentDesign.detailsWidth;
@@ -323,6 +325,7 @@ class _AgentChatState extends State<AgentChat> {
     _lastClient = _s.client;
     _lastGeneration = _s.connectionGeneration;
     _lastWorkspaceAuth = _s.sessionAuthenticated;
+    _selectedTaskId = _s.requestedAgentTaskId;
     _s.addListener(_handleStateChange);
     _AgentSubmissions.changed.addListener(_handleSubmissionChange);
     _loadRegistry();
@@ -424,6 +427,10 @@ class _AgentChatState extends State<AgentChat> {
       _lastSelection = _s.agentSelectionGeneration;
       _lastSessionScope = scope;
       _syncConnectionDraft();
+    } else if (_s.requestedAgentTaskId != null &&
+        _selectedTaskId != _s.requestedAgentTaskId) {
+      _selectedTaskId = _s.requestedAgentTaskId;
+      _detailsVisibilityOverride = null;
     }
   }
 
@@ -437,7 +444,8 @@ class _AgentChatState extends State<AgentChat> {
     _historyKeys.clear();
     _lastJumpedMessage = null;
     _steerScopes.clear();
-    _selectedTaskId = null;
+    _selectedTaskId = _s.requestedAgentTaskId;
+    _detailsVisibilityOverride = null;
     if (_input.text != _s.agentDraft) _input.text = _s.agentDraft;
     for (final controller in _steer.values) {
       controller.clear();
@@ -1626,117 +1634,174 @@ class _AgentChatState extends State<AgentChat> {
     );
   }
 
+  String _taskOwnerAction(AgentTask task) {
+    final awaitingApproval =
+        task.state == 'awaiting_approval' ||
+        _s.approvals.any((a) => a.taskId == task.taskId);
+    if (awaitingApproval) {
+      return 'Review pending approval request in the task card, or Stop this task.';
+    }
+    if (task.state == 'succeeded') {
+      if (task.isGroundedSuccess) {
+        return 'Completed with recorded evidence below; inspect receipts to verify.';
+      }
+      if (task.hasUnverifiedExternalOnly) {
+        return 'Finished with a tool or computation receipt only; task effects need independent evidence.';
+      }
+      return 'Finished without independent completion evidence; verify receipts before relying on completion.';
+    }
+    if (task.state == 'failed') {
+      return task.error != null && task.error!.isNotEmpty
+          ? 'Task failed: ${task.error}'
+          : 'Task failed; inspect recorded state and receipts.';
+    }
+    if (task.state == 'cancelled') {
+      return 'Task was cancelled; no further work is running.';
+    }
+    return 'Task is active; use Steer or Stop in the task card if you need to adjust or cancel it.';
+  }
+
+  String _formatEvidenceReceipt(Evidence e) =>
+      '${e.kind}: ${e.summary}'
+      '${{'external', 'extension'}.contains(e.kind) ? ' (receipt; effects unverified)' : ''}'
+      '${e.path != null ? ' @ ${e.path}' : ''}'
+      '${e.sha256 != null ? ' sha256:${e.sha256!.substring(0, e.sha256!.length.clamp(0, 12))}' : ''}'
+      '${e.exitCode != null ? ' exit:${e.exitCode}' : ''}';
+
   Widget _details(AgentTask? task, {VoidCallback? onCollapse}) => Container(
     key: const ValueKey('agent-details-panel'),
     decoration: agentDetailsDecoration(context, showBorder: onCollapse == null),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 4, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Task details',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              if (onCollapse != null)
-                IconButton(
-                  tooltip: 'Collapse details',
-                  onPressed: onCollapse,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-            children: [
-              Text(
-                task == null
-                    ? 'Select a task on the left or in the conversation.'
-                    : 'Task inspection; new instructions use the selected session.',
-                style: agentMutedStyle(
-                  context,
-                  Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (task == null)
-                const Text('Choose a task to inspect its status and evidence.')
-              else ...[
-                _detail('Objective', task.objective),
-                _detail('Current state', task.state),
-                _detail('Objective revision', '${task.objectiveRevision}'),
-                _detail('Task', task.taskId),
-                if (task.modelPin case final pin?) ...[
-                  _detail('Model', '${pin['model']}'),
-                  _detail('Provider', '${pin['provider']}'),
-                  _detail('Model profile', '${pin['profile_id']}'),
-                  _detail(
-                    'Reasoning',
-                    '${pin['reasoning'] ?? 'Profile default'}',
+    child: Material(
+      type: MaterialType.transparency,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Task details',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  _detail(
-                    'Model settings revision',
-                    '${pin['settings_revision']}',
-                  ),
-                  if (pin['catalog_binding'] case final Map reference) ...[
-                    _detail('Saved provider', '${reference['id']}'),
-                    _detail('Provider version', '${reference['generation']}'),
-                    _detail('Catalog revision', '${pin['catalog_revision']}'),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('Saved provider identity'),
-                      children: [
-                        _detail(
-                          'Configuration SHA256',
-                          '${reference['configuration_sha256']}',
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-                _detail('Session', task.sessionId),
-                _detail(
-                  'Recorded harness',
-                  task.harnessVersion ?? 'Unknown historical harness',
                 ),
-                _detail(
-                  'Evidence',
-                  task.evidence.isEmpty
-                      ? 'No completion evidence recorded.'
-                      : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
-                ),
-                if (task.remainingRequiredWork.isNotEmpty)
-                  _detail(
-                    'Remaining work',
-                    task.remainingRequiredWork.join('\n'),
+                if (onCollapse != null)
+                  IconButton(
+                    tooltip: 'Collapse details',
+                    onPressed: onCollapse,
+                    icon: const Icon(Icons.chevron_right),
                   ),
               ],
-              const Divider(),
-              const SizedBox(height: 16),
-              _detail(
-                'Current Agent provider',
-                _s.agentProvider == null
-                    ? 'Not verified'
-                    : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
-              ),
-              _detail('Approval requests', '${_s.approvals.length}'),
-              Text(
-                'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
-                style: agentMutedStyle(
-                  context,
-                  Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              children: [
+                Text(
+                  task == null
+                      ? 'Select a task on the left or in the conversation.'
+                      : 'Task inspection; new instructions use the selected session.',
+                  style: agentMutedStyle(
+                    context,
+                    Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (task == null)
+                  const Text(
+                    'Choose a task to inspect its status and evidence.',
+                  )
+                else ...[
+                  _detail('Objective', task.objective),
+                  _detail('Current state', task.state),
+                  _detail('Owner action', _taskOwnerAction(task)),
+                  if (task.remainingRequiredWork.isNotEmpty)
+                    _detail(
+                      'Remaining work',
+                      task.remainingRequiredWork.join('\n'),
+                    ),
+                  _detail(
+                    'Evidence',
+                    task.evidence.isEmpty
+                        ? 'No completion evidence recorded.'
+                        : '${task.evidence.length} recorded items; inspect the receipts in the task card.',
+                  ),
+                  for (var i = 0; i < task.evidence.length; i++)
+                    _detail(
+                      'Evidence receipt ${i + 1}',
+                      _formatEvidenceReceipt(task.evidence[i]),
+                    ),
+                  ExpansionTile(
+                    key: const ValueKey('agent-details-technical'),
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: EdgeInsets.zero,
+                    title: const Text('Technical details'),
+                    children: [
+                      _detail('Task', task.taskId),
+                      _detail(
+                        'Objective revision',
+                        '${task.objectiveRevision}',
+                      ),
+                      _detail('Session', task.sessionId),
+                      _detail(
+                        'Recorded harness',
+                        task.harnessVersion ?? 'Unknown historical harness',
+                      ),
+                      if (task.modelPin case final pin?) ...[
+                        _detail('Model', '${pin['model']}'),
+                        _detail('Provider', '${pin['provider']}'),
+                        _detail('Model profile', '${pin['profile_id']}'),
+                        _detail(
+                          'Reasoning',
+                          '${pin['reasoning'] ?? 'Profile default'}',
+                        ),
+                        _detail(
+                          'Model settings revision',
+                          '${pin['settings_revision']}',
+                        ),
+                        if (pin['catalog_binding']
+                            case final Map reference) ...[
+                          _detail('Saved provider', '${reference['id']}'),
+                          _detail(
+                            'Provider version',
+                            '${reference['generation']}',
+                          ),
+                          _detail(
+                            'Catalog revision',
+                            '${pin['catalog_revision']}',
+                          ),
+                          _detail(
+                            'Configuration SHA256',
+                            '${reference['configuration_sha256']}',
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ],
+                const Divider(),
+                const SizedBox(height: 16),
+                _detail(
+                  'Current Agent provider',
+                  _s.agentProvider == null
+                      ? 'Not verified'
+                      : '${_s.agentProvider!['provider']} · ${_s.agentProvider!['model']}',
+                ),
+                _detail('Approval requests', '${_s.approvals.length}'),
+                Text(
+                  'Inspecting a task does not change the recipient of a new instruction. Use its Steer or Stop control to affect that task.',
+                  style: agentMutedStyle(
+                    context,
+                    Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 
@@ -1749,7 +1814,7 @@ class _AgentChatState extends State<AgentChat> {
         const SizedBox(height: 8),
         IconButton(
           tooltip: 'Expand details',
-          onPressed: () => setState(() => _showDetails = true),
+          onPressed: () => setState(() => _detailsVisibilityOverride = true),
           icon: const Icon(Icons.chevron_left),
         ),
       ],
@@ -1946,7 +2011,213 @@ class _AgentChatState extends State<AgentChat> {
     return widgets;
   }
 
-  Widget _conversation() {
+  Widget _emptyState({required bool wide}) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final connected =
+        _s.connected && _s.sessionAuthenticated && _s.client != null;
+
+    IconData icon;
+    String title;
+    String description;
+    final actions = <Widget>[];
+
+    if (!connected) {
+      icon = Icons.link_off_rounded;
+      title = 'Connect to use Agent';
+      final error = _s.connectionError?.trim();
+      description = error != null && error.isNotEmpty
+          ? 'Connection error: $error. Open Connection setup to verify your host URLs and owner token.'
+          : 'Connect to a running Kinaiya host and authenticate your session before inspecting harnesses, sessions, or tasks.';
+      actions.add(
+        FilledButton.icon(
+          key: const ValueKey('agent-empty-open-connection'),
+          onPressed: widget.onOpenOptions == null
+              ? null
+              : () => widget.onOpenOptions!(OptionsPage.connection),
+          icon: const Icon(Icons.tune_rounded),
+          label: const Text('Open Connection'),
+        ),
+      );
+    } else if (_s.agentSession == null) {
+      final eligible = _s.agentHarnesses.where((h) => h.selectable).firstOrNull;
+      if (eligible == null) {
+        icon = Icons.account_tree_outlined;
+        title = _s.agentHarnessesLoading
+            ? 'Loading Agent harnesses…'
+            : 'No eligible Agent harness available';
+        description = _s.agentHarnessesLoading
+            ? 'Checking registered Agent harnesses on the connected host.'
+            : _s.agentHarnessError != null
+            ? 'Could not load Agent harnesses (${_s.agentHarnessError}). Retry loading harnesses to check eligibility.'
+            : 'No selectable Agent harness is currently registered. Refresh harnesses or inspect historical sessions in the workspace.';
+        actions.add(
+          FilledButton.icon(
+            key: const ValueKey('agent-empty-refresh-harnesses'),
+            onPressed: _s.agentHarnessesLoading
+                ? null
+                : () => unawaited(_s.refreshAgentHarnesses()),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh harnesses'),
+          ),
+        );
+        if (!wide) {
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-open-harnesses'),
+              onPressed: () => _showSidebar(true),
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('Open Harnesses'),
+            ),
+          );
+        }
+      } else if (_s.selectedAgentHarnessInfo?.selectable != true) {
+        icon = Icons.rule_folder_outlined;
+        title = 'Selected harness cannot start a new session';
+        final currentName =
+            _s.selectedAgentHarnessInfo?.name ?? 'The selected harness';
+        final reason =
+            _s.selectedAgentHarnessInfo?.eligibility ??
+            'not eligible for new sessions';
+        description =
+            '$currentName is $reason. Select an eligible harness or open an existing session.';
+        actions.add(
+          FilledButton.icon(
+            key: const ValueKey('agent-empty-select-eligible-harness'),
+            onPressed: () =>
+                unawaited(_s.selectAgentHarness(eligible.versionId)),
+            icon: const Icon(Icons.account_tree_outlined),
+            label: Text('Select ${eligible.name}'),
+          ),
+        );
+        if (_s.agentWorkspaceSessions.isNotEmpty) {
+          final first = _s.agentWorkspaceSessions.first;
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-select-session'),
+              onPressed: _s.agentIdentitySelecting
+                  ? null
+                  : () => unawaited(_s.selectAgentSession(first.sessionId)),
+              icon: const Icon(Icons.folder_open_outlined),
+              label: Text(
+                'Open ${first.name.isEmpty ? first.sessionId : first.name}',
+              ),
+            ),
+          );
+        }
+        if (!wide) {
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-open-harnesses'),
+              onPressed: () => _showSidebar(true),
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('Open Harnesses'),
+            ),
+          );
+        }
+      } else {
+        icon = Icons.view_sidebar_outlined;
+        title = 'Choose or create an Agent session';
+        final harnessName =
+            _s.selectedAgentHarnessInfo?.name ?? 'the selected harness';
+        final hasSessions = _s.agentWorkspaceSessions.isNotEmpty;
+        description = hasSessions
+            ? 'Select an existing session for $harnessName or create a new session to give Agent a task.'
+            : 'No sessions exist yet for $harnessName. Create a new session to give Agent a task.';
+        if (hasSessions) {
+          final first = _s.agentWorkspaceSessions.first;
+          actions.add(
+            FilledButton.icon(
+              key: const ValueKey('agent-empty-select-session'),
+              onPressed: _s.agentIdentitySelecting
+                  ? null
+                  : () => unawaited(_s.selectAgentSession(first.sessionId)),
+              icon: const Icon(Icons.folder_open_outlined),
+              label: Text(
+                'Open ${first.name.isEmpty ? first.sessionId : first.name}',
+              ),
+            ),
+          );
+          actions.add(
+            FilledButton.tonalIcon(
+              key: const ValueKey('agent-empty-create-session'),
+              onPressed: _s.canCreateAgentSession
+                  ? () => unawaited(_s.createSelectedAgentSession())
+                  : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Create session'),
+            ),
+          );
+        } else {
+          actions.add(
+            FilledButton.icon(
+              key: const ValueKey('agent-empty-create-session'),
+              onPressed: _s.canCreateAgentSession
+                  ? () => unawaited(_s.createSelectedAgentSession())
+                  : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Create session'),
+            ),
+          );
+        }
+        if (!wide) {
+          actions.add(
+            OutlinedButton.icon(
+              key: const ValueKey('agent-empty-open-workspace'),
+              onPressed: () => _showSidebar(false),
+              icon: const Icon(Icons.view_sidebar_outlined),
+              label: const Text('Open Workspace'),
+            ),
+          );
+        }
+      }
+    } else {
+      icon = Icons.auto_awesome_outlined;
+      title = 'What would you like to work on?';
+      description =
+          'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.';
+      if (_s.commandsAvailable) {
+        actions.add(
+          OutlinedButton.icon(
+            key: const ValueKey('agent-empty-open-commands'),
+            onPressed: _showCommands,
+            icon: const Icon(Icons.terminal_rounded),
+            label: const Text('Browse commands'),
+          ),
+        );
+      }
+    }
+
+    return Padding(
+      key: const ValueKey('agent-empty-state'),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 36, color: scheme.onSurfaceVariant),
+          const SizedBox(height: 12),
+          Text(title, style: textTheme.titleLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: agentMutedStyle(context, textTheme.bodyMedium),
+          ),
+          if (actions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: actions,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _conversation({required bool wide}) {
     final tasksById = {for (final t in _s.tasks) t.taskId: t};
     final sessionTasks = _s.selectedAgentTasks;
     final markers = _navigationMessages;
@@ -1970,10 +2241,17 @@ class _AgentChatState extends State<AgentChat> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _s.agentSession?.name.isNotEmpty == true
+                      !_s.connected ||
+                              !_s.sessionAuthenticated ||
+                              _s.client == null
+                          ? 'Connect to a Kinaiya host to inspect harnesses and sessions.'
+                          : _s.agentSession?.name.isNotEmpty == true
                           ? 'Session: ${_s.agentSession!.name}'
                           : _s.agentHistoryLoading
                           ? 'Verifying session…'
+                          : !_s.agentHarnessesLoading &&
+                                !_s.agentHarnesses.any((h) => h.selectable)
+                          ? 'No eligible harness available; refresh or inspect historical sessions.'
                           : 'Choose a session or create one for the selected harness.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -1985,6 +2263,13 @@ class _AgentChatState extends State<AgentChat> {
                   ],
                 ),
               ),
+              if (_s.openedFromConverseHandoff)
+                TextButton.icon(
+                  key: const ValueKey('agent-return-to-converse'),
+                  onPressed: _s.returnFromHandoffTask,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('Back to Converse'),
+                ),
             ],
           ),
         ),
@@ -2052,6 +2337,8 @@ class _AgentChatState extends State<AgentChat> {
                         ),
                       ),
                     for (final task in sessionTasks.reversed) _taskCard(task),
+                    if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
+                      _emptyState(wide: wide),
                     Builder(
                       builder: (context) {
                         final owner = _s;
@@ -2074,40 +2361,6 @@ class _AgentChatState extends State<AgentChat> {
                             ? null
                             : () => unawaited(_s.refreshAgentHistory()),
                         child: const Text('Load more recorded history'),
-                      ),
-                    if (sessionTasks.isEmpty && _s.agentHistory.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 40,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome_outlined,
-                              size: 40,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'What would you like to work on?',
-                              style: Theme.of(context).textTheme.titleLarge,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Give Agent a task, inspect its work, and review approvals here. Your conversation stays in Converse.',
-                              textAlign: TextAlign.center,
-                              style: agentMutedStyle(
-                                context,
-                                Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                   ],
                 ),
@@ -2166,10 +2419,14 @@ class _AgentChatState extends State<AgentChat> {
                   3 * AgentDesign.sidebarResizeWidth +
                   AgentDesign.detailsMinWidth +
                   AgentDesign.conversationMinWidth;
-      _detailsInline = canShowDetails && _showDetails;
+      _canShowDetailsInline = canShowDetails;
       final tasks = _s.selectedAgentTasks;
-      final matches = tasks.where((t) => t.taskId == _selectedTaskId);
-      final selected = matches.firstOrNull ?? tasks.lastOrNull;
+      final effectiveTaskId = _selectedTaskId ?? _s.requestedAgentTaskId;
+      final matches = tasks.where((t) => t.taskId == effectiveTaskId);
+      final selected =
+          matches.firstOrNull ??
+          (effectiveTaskId != null ? null : tasks.lastOrNull);
+      final showDetails = _effectiveShowDetails(selected);
       final panes = Column(
         children: [
           if (!wide)
@@ -2206,7 +2463,7 @@ class _AgentChatState extends State<AgentChat> {
                       ? 2 * AgentDesign.sidebarResizeWidth
                       : 0.0;
                   final detailsMinimum = canShowDetails
-                      ? (_showDetails
+                      ? (showDetails
                                 ? AgentDesign.detailsMinWidth
                                 : AgentDesign.sidebarCollapsedWidth) +
                             AgentDesign.sidebarResizeWidth
@@ -2249,7 +2506,7 @@ class _AgentChatState extends State<AgentChat> {
                     maximumDetailsWidth,
                   );
                   final detailsOccupied = canShowDetails
-                      ? (_showDetails
+                      ? (showDetails
                                 ? detailsWidth
                                 : AgentDesign.sidebarCollapsedWidth) +
                             AgentDesign.sidebarResizeWidth
@@ -2327,41 +2584,42 @@ class _AgentChatState extends State<AgentChat> {
                         ),
                       Expanded(
                         key: const ValueKey('agent-conversation-pane'),
-                        child: _conversation(),
+                        child: _conversation(wide: wide),
                       ),
                       if (canShowDetails) ...[
                         _SidebarResizeHandle(
                           key: const ValueKey('agent-details-resize-handle'),
                           label: 'task details',
-                          width: _showDetails
+                          width: showDetails
                               ? detailsWidth
                               : AgentDesign.sidebarCollapsedWidth,
                           minimum: AgentDesign.detailsMinWidth,
                           maximum: maximumDetailsWidth,
                           growsRight: false,
-                          collapsed: !_showDetails,
+                          collapsed: !showDetails,
                           restoreWidth: _detailsWidth,
                           onResize: (value) =>
                               setState(() => _detailsWidth = value),
                           onCollapse: (previous) => setState(() {
                             _detailsWidth = previous;
-                            _showDetails = false;
+                            _detailsVisibilityOverride = false;
                           }),
                           onExpand: (value) => setState(() {
                             _detailsWidth = value;
-                            _showDetails = true;
+                            _detailsVisibilityOverride = true;
                           }),
                         ),
-                        if (_showDetails)
+                        if (showDetails)
                           SizedBox(
                             width: detailsWidth,
                             child: _details(
                               selected,
-                              onCollapse: () =>
-                                  setState(() => _showDetails = false),
+                              onCollapse: () => setState(
+                                () => _detailsVisibilityOverride = false,
+                              ),
                             ),
                           ),
-                        if (!_showDetails) _collapsedDetails(),
+                        if (!showDetails) _collapsedDetails(),
                       ],
                     ],
                   );
@@ -2384,8 +2642,12 @@ class _AgentChatState extends State<AgentChat> {
   );
 
   void _inspectTask(AgentTask task) {
-    setState(() => _selectedTaskId = task.taskId);
-    if (!_detailsInline) {
+    setState(() {
+      _s.requestedAgentTaskId = null;
+      _selectedTaskId = task.taskId;
+      _detailsVisibilityOverride = true;
+    });
+    if (!_canShowDetailsInline) {
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,

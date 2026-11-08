@@ -1,0 +1,306 @@
+{
+  "$defs": {
+    "MediaBlob": {
+      "additionalProperties": false,
+      "properties": {
+        "body_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Body Bytes",
+          "type": "integer"
+        },
+        "body_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Body Sha256",
+          "type": "string"
+        },
+        "end": {
+          "$ref": "#/$defs/MediaQ"
+        },
+        "format_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Format Sha256",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "pts": {
+          "$ref": "#/$defs/MediaSourcePTS"
+        },
+        "raw_state": {
+          "enum": [
+            "buffered",
+            "retained",
+            "expired",
+            "delete_pending",
+            "deleted"
+          ],
+          "title": "Raw State",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "source_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Seq",
+          "type": "integer"
+        },
+        "start": {
+          "$ref": "#/$defs/MediaQ"
+        },
+        "track_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Track Id",
+          "type": "string"
+        },
+        "track_seq": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Track Seq",
+          "type": "integer"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "source",
+        "generation",
+        "track_id",
+        "source_seq",
+        "track_seq",
+        "pts",
+        "start",
+        "end",
+        "format_sha256",
+        "body_bytes",
+        "body_sha256",
+        "raw_state"
+      ],
+      "title": "MediaBlob",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaQ": {
+      "additionalProperties": false,
+      "properties": {
+        "den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Den",
+          "type": "integer"
+        },
+        "num": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "num",
+        "den"
+      ],
+      "title": "MediaQ",
+      "type": "object"
+    },
+    "MediaReceipt_MediaBlob_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaBlob"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaBlob]",
+      "type": "object"
+    },
+    "MediaSourcePTS": {
+      "additionalProperties": false,
+      "properties": {
+        "frame_index": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Frame Index"
+        },
+        "pts": {
+          "maximum": 9007199254740991,
+          "minimum": -9007199254740991,
+          "title": "Pts",
+          "type": "integer"
+        },
+        "sample_count": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sample Count"
+        },
+        "sample_start": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sample Start"
+        },
+        "time_base_den": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Time Base Den",
+          "type": "integer"
+        },
+        "time_base_num": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Time Base Num",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pts",
+        "time_base_num",
+        "time_base_den",
+        "sample_start",
+        "sample_count",
+        "frame_index"
+      ],
+      "title": "MediaSourcePTS",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaBlob_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaBlob]",
+  "type": "object"
+}

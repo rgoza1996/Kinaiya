@@ -1,11 +1,36 @@
 """Explicit loopback web UI from verified matching-release assets; no Flutter subprocess."""
 
+from __future__ import annotations
+
+import io
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
+from services.common.owner_signin import (
+    CHALLENGE_PATHS,
+    HANDOFF_COOKIE_NAME,
+    HANDOFF_PATHS,
+    RECOVERY_PATHS,
+    ROTATION_PATHS,
+    STORAGE_STATUS_PATHS,
+    LocalOwnerSignInBroker,
+    LocalSignInError,
+    parse_handoff_cookie,
+)
 from services.distribution.installation import InstallError, current_receipt, operation_lock
+
+FORBIDDEN_ASSET_NAMES = frozenset(
+    {
+        "service-tokens.json",
+        "local-owner-handoff.json",
+        "local-owner-sessions.json",
+        "local-recovery-challenge.json",
+        "owner-login.txt",
+    }
+)
 
 
 def web_root(source):
@@ -16,24 +41,233 @@ def web_root(source):
         or not (root / "main.dart.js").is_file()
     ):
         raise InstallError(
-            "No matching prebuilt web assets. Developer path: install Flutter SDK, then flutter build web in apps/kinaiya_flutter; see docs/linux-installation.md"
+            "No matching prebuilt web assets. Install a release bundle (kinaiya install) or developer path: install Flutter SDK, then flutter build web in apps/kinaiya_flutter; see docs/linux-installation.md"
         )
     return root
 
 
-def asset_handler(root):
+def web_bundle_dir(layout, *, fallback_source: Path | None = None) -> Path:
+    """Resolve and verify the matching-release Flutter web bundle directory."""
+    if (layout.install / "layout.json").exists():
+        receipt = current_receipt(layout)
+        if receipt is None:
+            raise InstallError(
+                "No active managed release. Install a release bundle ('kinaiya install') or build apps/kinaiya_flutter/build/web with 'flutter build web'."
+            )
+        source = (layout.install / "current").resolve() / receipt["source"]
+        return web_root(source)
+    return web_root(fallback_source if fallback_source is not None else layout.install)
+
+
+def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
     root = root.resolve()
 
     class Assets(SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
+            self._pending_headers: list[tuple[str, str]] = []
             super().__init__(*args, directory=str(root), **kwargs)
 
+        def end_headers(self):
+            for header_name, header_val in getattr(self, "_pending_headers", ()):
+                self.send_header(header_name, header_val)
+            self._pending_headers = []
+            super().end_headers()
+
+        def _write_json(
+            self,
+            status_code: int,
+            payload: dict[str, Any],
+            *,
+            extra_headers: tuple[tuple[str, str], ...] = (),
+        ) -> None:
+            encoded = json.dumps(payload).encode("utf-8")
+            self.send_response(status_code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
+            for k, v in extra_headers:
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def do_POST(self):
+            parsed_url = urlsplit(self.path)
+            raw_path = unquote(parsed_url.path)
+            valid_post_paths = (
+                *HANDOFF_PATHS,
+                *CHALLENGE_PATHS,
+                *RECOVERY_PATHS,
+                *ROTATION_PATHS,
+            )
+            if raw_path not in valid_post_paths:
+                self._write_json(404, {"detail": "Not found"})
+                return
+            if parsed_url.query or parsed_url.fragment:
+                self._write_json(
+                    403,
+                    {"detail": "Query parameters are not permitted on local sign-in or recovery"},
+                )
+                return
+            try:
+                content_len = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                self._write_json(400, {"detail": "Invalid Content-Length"})
+                return
+            if content_len < 0 or content_len > 8192:
+                self._write_json(413, {"detail": "Request body too large"})
+                return
+            body_bytes = b""
+            if content_len > 0:
+                body_bytes = self.rfile.read(content_len)
+            body_json: dict[str, Any] = {}
+            if body_bytes:
+                try:
+                    body_json = json.loads(body_bytes.decode("utf-8"))
+                    if not isinstance(body_json, dict):
+                        self._write_json(400, {"detail": "Request body must be a JSON object"})
+                        return
+                except Exception:
+                    self._write_json(400, {"detail": "Invalid JSON in request body"})
+                    return
+
+            if broker is None:
+                self._write_json(403, {"detail": "Local sign-in handoff is not configured"})
+                return
+
+            client_host = self.client_address[0] if self.client_address else None
+            origin = self.headers.get("Origin")
+            sec_fetch_site = self.headers.get("Sec-Fetch-Site")
+            csrf_header = self.headers.get("X-Kinaiya-Local-Handoff") or self.headers.get(
+                "X-Kinaiya-Local-UI"
+            )
+            server_port = getattr(self.server, "server_port", None)
+            clear_cookie = (
+                f"{HANDOFF_COOKIE_NAME}=; HttpOnly; SameSite=Strict; "
+                "Path=/__kinaiya/local-signin; Max-Age=0"
+            )
+
+            if raw_path in CHALLENGE_PATHS:
+                try:
+                    result = broker.create_recovery_challenge(
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result)
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                    )
+                return
+
+            if raw_path in RECOVERY_PATHS:
+                proof = str(body_json.get("authorization_proof", "")).strip()
+                try:
+                    result = broker.recover_access(
+                        authorization_proof=proof,
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result, extra_headers=(("Set-Cookie", clear_cookie),))
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                        extra_headers=(("Set-Cookie", clear_cookie),),
+                    )
+                return
+
+            if raw_path in ROTATION_PATHS:
+                proof = str(body_json.get("authorization_proof", "")).strip()
+                confirm = bool(body_json.get("confirm", False))
+                return_exported = bool(body_json.get("return_exported_token", False))
+                try:
+                    result = broker.rotate_owner_credential(
+                        authorization_proof=proof,
+                        confirm=confirm,
+                        return_exported_token=return_exported,
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result, extra_headers=(("Set-Cookie", clear_cookie),))
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                        extra_headers=(("Set-Cookie", clear_cookie),),
+                    )
+                return
+
+            cookie_seal = parse_handoff_cookie(self.headers.get("Cookie"))
+            try:
+                result = broker.consume_handoff(
+                    cookie_seal=cookie_seal,
+                    origin=origin,
+                    csrf_header=csrf_header,
+                    client_host=client_host,
+                    sec_fetch_site=sec_fetch_site,
+                    server_port=server_port,
+                )
+            except LocalSignInError as exc:
+                self._write_json(
+                    exc.status_code,
+                    {"detail": str(exc), "code": exc.__class__.__name__},
+                    extra_headers=(("Set-Cookie", clear_cookie),),
+                )
+                return
+
+            self._write_json(
+                200,
+                result,
+                extra_headers=(("Set-Cookie", clear_cookie),),
+            )
+
         def send_head(self):
-            path = PurePosixPath(unquote(urlsplit(self.path).path))
+            parsed = urlsplit(self.path)
+            raw_path = unquote(parsed.path)
+            action_paths = (
+                *HANDOFF_PATHS,
+                *CHALLENGE_PATHS,
+                *RECOVERY_PATHS,
+                *ROTATION_PATHS,
+            )
+            if raw_path in action_paths:
+                self.send_error(405)
+                return None
+            if raw_path in STORAGE_STATUS_PATHS:
+                if broker is None:
+                    self._write_json(
+                        503,
+                        {"status": "unavailable", "detail": "Local broker not configured"},
+                    )
+                    return None
+                status = broker.check_storage_status()
+                status_code = 200 if status.get("status") == "ready" else 503
+                self._write_json(status_code, status)
+                return None
+            path = PurePosixPath(raw_path)
+            if path == PurePosixPath("/health"):
+                payload = b'{"service":"web","status":"ready"}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                return io.BytesIO(payload)
             if (
                 ".." in path.parts
                 or "\\" in str(path)
                 or any(part.startswith(".") for part in path.parts if part != "/")
+                or any(part in FORBIDDEN_ASSET_NAMES for part in path.parts)
             ):
                 self.send_error(404)
                 return None
@@ -41,6 +275,18 @@ def asset_handler(root):
             if not candidate.resolve().is_relative_to(root):
                 self.send_error(404)
                 return None
+            if broker is not None and raw_path in {"/", "/index.html"} and not parsed.query:
+                client_host = self.client_address[0] if self.client_address else None
+                set_cookie = broker.seal_initial_launch_cookie(
+                    client_host=client_host,
+                    origin=self.headers.get("Origin"),
+                    sec_fetch_site=self.headers.get("Sec-Fetch-Site"),
+                    server_port=getattr(self.server, "server_port", None),
+                )
+                if set_cookie is not None:
+                    self._pending_headers.append(("Set-Cookie", set_cookie))
+                    self._pending_headers.append(("Cache-Control", "no-store"))
+                    self._pending_headers.append(("Referrer-Policy", "no-referrer"))
             return super().send_head()
 
         def list_directory(self, path):
@@ -54,19 +300,27 @@ def asset_handler(root):
     return Assets
 
 
-def serve_web(layout):
+def serve_web(layout, *, port: int = 8780):
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise InstallError("Web loopback port must be an integer between 1 and 65535")
     with operation_lock(layout.install / "runtime.lock", shared=True):
         receipt = current_receipt(layout)
         if receipt is None:
             raise InstallError("Managed release required; use the explicit Flutter developer path")
         source = (layout.install / "current").resolve() / receipt["source"]
         root = web_root(source)
-        with ThreadingHTTPServer(("127.0.0.1", 8780), asset_handler(root)) as server:
+        broker = LocalOwnerSignInBroker(
+            layout.data,
+            allowed_origins=(f"http://127.0.0.1:{port}", f"http://localhost:{port}"),
+        )
+        with ThreadingHTTPServer(("127.0.0.1", port), asset_handler(root, broker=broker)) as server:
             print(
                 json.dumps(
                     {
-                        "web": "http://127.0.0.1:8780",
+                        "web": f"http://127.0.0.1:{port}",
                         "source_sha": receipt["release"]["source_sha"],
+                        "host_generation": broker.host_generation,
+                        "owner_epoch": broker.owner_epoch,
                         "owner_login": "kinaiya owner-login exports to a private local file; never share with companions",
                     }
                 ),

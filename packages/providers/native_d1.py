@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from packages.contracts.models import ProviderInfo
+from packages.providers.classification_errors import LowConfidenceRefusal
 from packages.providers.complete_http import RequestBoundAsyncClient, complete_stream
 from packages.providers.laya import (
     AGENT_CHOICES,
@@ -418,7 +419,7 @@ class NativeD1RoutingProvider:
         if action != "conversation" and state["tasks"]:
             required.append("target")
         if any(confidence[name] < min_confidence for name in required):
-            raise ProviderRefusal("Native d1 answer was below the owner confidence floor")
+            raise LowConfidenceRefusal()
         target = (
             allowed["target"][picked["target"]]
             if action != "conversation" and state["tasks"]

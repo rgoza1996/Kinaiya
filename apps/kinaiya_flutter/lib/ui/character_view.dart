@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:uuid/uuid.dart';
@@ -12,7 +13,10 @@ import '../character/pack.dart';
 import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import '../state/converse_handoff.dart';
+import '../state/native_audio_clip.dart';
 import 'book_sheet.dart';
+import 'converse_companions.dart';
 import 'converse_memory.dart';
 import 'converse_design.dart';
 import 'converse_interaction.dart';
@@ -74,6 +78,10 @@ class CharacterView extends StatefulWidget {
     this.voiceOnlyControls = false,
     this.surface = CharacterSurface.legacy,
     this.onModelSettings,
+    this.onConnectionSetup,
+    this.onOpenConverse,
+    this.onOpenModelOptions,
+    this.onAddModel,
     this.showConverseView = true,
     this.setupOpen = false,
     this.animateTransitions = true,
@@ -93,6 +101,8 @@ class CharacterView extends StatefulWidget {
   final bool voiceOnlyControls;
   final CharacterSurface surface;
   final VoidCallback? onModelSettings;
+  final VoidCallback? onConnectionSetup;
+  final VoidCallback? onOpenConverse, onOpenModelOptions, onAddModel;
   final bool showConverseView, setupOpen, animateTransitions, speechMouthMotion;
   final bool richArtifactsEnabled;
   final ValueChanged<bool>? onRichArtifactsEnabled;
@@ -104,7 +114,49 @@ class CharacterView extends StatefulWidget {
 
 const List<int> endSilenceOptionsMs = <int>[800, 1500, 2500];
 
+enum _NativeAdmissionOutcome { notDispatched, accepted, unknown }
+
+class _NativeAdmissionIdentity {
+  _NativeAdmissionIdentity(NativeAudioClipOwner owner)
+    : client = owner.client,
+      connectionGeneration = owner.connectionGeneration,
+      sourceGeneration = owner.sourceGeneration,
+      sessionId = owner.sessionId,
+      threadId = owner.threadId,
+      epoch = owner.epoch,
+      utteranceId = owner.utteranceId,
+      requestId = owner.requestId,
+      turnNonce = owner.turnNonce,
+      contentScope = owner.contentScope;
+
+  final Object client;
+  final int connectionGeneration, sourceGeneration, epoch, turnNonce;
+  final String sessionId, threadId, utteranceId, requestId;
+  final ContentScope contentScope;
+}
+
+/// Settlement of one original upload, independent of permission to play its
+/// reply. Spoken interruption must not erase an attempted upload's identity.
+class _NativeAdmissionResult {
+  const _NativeAdmissionResult({
+    required this.outcome,
+    required this.callOwner,
+    required this.audioSha256,
+    required this.endMs,
+    this.identity,
+    this.receipt,
+  });
+
+  final _NativeAdmissionOutcome outcome;
+  final int? callOwner;
+  final String audioSha256;
+  final int endMs;
+  final _NativeAdmissionIdentity? identity;
+  final ({String eventId, int sequence, int revision})? receipt;
+}
+
 class _CharacterViewState extends State<CharacterView> {
+  final _modelMenu = MenuController();
   ConverseViewControls? _registeredControls;
   Future<void> Function()? _registeredVoiceOptions;
   Widget? Function()? _registeredVoicePanel;
@@ -433,6 +485,69 @@ class _CharacterViewState extends State<CharacterView> {
   int _captureEpoch = 0;
   int _armOwner = 0;
   int _voiceRequest = 0;
+  NativeAudioClipOwner? _nativeClipOwner;
+  int? _nativeClipArmOwner;
+  bool _nativeCallActive = false;
+  SessionInfo? _nativeCallSession;
+  KinaiyaClient? _nativeCallClient;
+  int _nativeCallConnection = 0, _nativeCallSource = 0;
+  int? _nativeBargedCapture;
+  ({List<int> wav, ContentScope scope, int owner})? _pendingNativeClip;
+  Future<_NativeAdmissionResult>? _nativeAdmission;
+  _NativeAdmissionResult? _nativeAdmissionResult;
+  Future<void>? _nativeCaptureStop;
+  Future<void>? _callStart;
+  bool _nativeDraining = false;
+  bool _nativeCallBlocked = false;
+  String? _newConversationNotice;
+
+  bool get _conversationIdle =>
+      !_armed &&
+      !_recording &&
+      !_nativeCallActive &&
+      !_micStopPending &&
+      !_micStopUnconfirmed &&
+      !_voiceBusy &&
+      !_transcribing &&
+      !_speaking &&
+      !_s.busyConverse &&
+      _callStart == null &&
+      _nativeAdmission == null &&
+      !_nativeDraining &&
+      _nativeCaptureStop == null &&
+      _pendingNativeClip == null &&
+      _pendingClip == null &&
+      _nativeClipOwner?.admitted != false &&
+      _nativeAdmissionResult?.outcome != _NativeAdmissionOutcome.unknown &&
+      !_s.artifactActionPending &&
+      !_s.artifactActionUncertain;
+
+  Future<void> _startNewConversation(BuildContext dialogContext) async {
+    if (!mounted || !_conversationIdle || _s.converseSessionCreating) return;
+    final owner = _s;
+    _newConversationNotice = null;
+    _voiceOptionsUpdates.value++;
+    try {
+      if (await _audio.isPlaying) throw StateError('Speech is active');
+      if (!mounted ||
+          !identical(_s, owner) ||
+          !_conversationIdle ||
+          owner.converseSessionCreating) {
+        return;
+      }
+      await owner.startNewConverseSession(
+        idle: () => mounted && identical(_s, owner) && _conversationIdle,
+      );
+      if (mounted && dialogContext.mounted) Navigator.of(dialogContext).pop();
+    } catch (_) {
+      if (mounted && identical(_s, owner)) {
+        _newConversationNotice =
+            'New conversation selection was not confirmed. Previous conversations remain available; check history before trying again.';
+        _voiceOptionsUpdates.value++;
+      }
+    }
+  }
+
   bool _transcribing = false;
   RecordedAudio? _pendingClip;
   ContentScope _pendingClipScope = ContentScope.localOnly;
@@ -447,6 +562,180 @@ class _CharacterViewState extends State<CharacterView> {
   String? _vadNotice;
   int _vadChange = 0;
   final _voiceOptionsUpdates = ValueNotifier<int>(0);
+  Future<void>? _audioOutputOperation;
+  List<AudioOutputDevice>? _audioOutputs = const [];
+  String? _audioOutputNotice;
+  Timer? _audioOutputTimer;
+  Future<void>? _audioInputOperation;
+  List<AudioInputDevice>? _audioInputs = const [];
+  String? _audioInputNotice;
+
+  NativePcmCaptureAudio? get _nativeCaptureAudio =>
+      _audio is NativePcmCaptureAudio &&
+          (_audio as NativePcmCaptureAudio).supportsNativePcmCapture
+      ? _audio as NativePcmCaptureAudio
+      : null;
+
+  AudioInputSelection? get _inputAudio =>
+      _audio is AudioInputSelection ? _audio as AudioInputSelection : null;
+
+  Future<void> _changeAudioInput({String? id, bool useDefault = false}) {
+    final adapter = _inputAudio;
+    if (adapter == null || !mounted || _audioInputOperation != null) {
+      return Future.value();
+    }
+    if (_armed || _recording || _nativeCallActive || _micStopUnconfirmed) {
+      _audioInputNotice = 'End microphone capture before changing the input.';
+      _voiceOptionsUpdates.value++;
+      return Future.value();
+    }
+    late final Future<void> operation;
+    operation = () async {
+      await Future<void>.value();
+      try {
+        final status = useDefault
+            ? await adapter.useDefaultAudioInput()
+            : id != null
+            ? await adapter.selectAudioInput(id)
+            : null;
+        if (!mounted) return;
+        if (status != null) {
+          _audioInputNotice = switch (status) {
+            'selected' =>
+              'Audio input selected for the next Call or recording in this session.',
+            'default' =>
+              'The next recording will use the browser default input.',
+            'busy' =>
+              'End microphone capture or the pending input change first.',
+            _ =>
+              'Audio input selection is unavailable. Refresh inputs and choose again.',
+          };
+          if (status != 'selected' && status != 'default') return;
+        }
+        final devices = await adapter.audioInputs();
+        if (!mounted) return;
+        _audioInputs = devices;
+        _audioInputNotice ??=
+            'Available audio inputs refreshed. No microphone was activated.';
+      } on AudioInputDiscoveryUnavailable catch (error) {
+        if (mounted) {
+          _audioInputs = null;
+          _audioInputNotice = switch (error.reason) {
+            AudioInputDiscoveryReason.identifiersUnavailable =>
+              'Browser has not provided selectable microphone identifiers. Check this site’s microphone permission, then refresh inputs. No microphone was activated by this refresh.',
+          };
+        }
+      } catch (_) {
+        if (mounted) {
+          _audioInputs = null;
+          _audioInputNotice =
+              'Audio input selection is unconfirmed. Refresh inputs and choose again.';
+        }
+      } finally {
+        if (identical(_audioInputOperation, operation)) {
+          _audioInputOperation = null;
+          if (mounted) _voiceOptionsUpdates.value++;
+        }
+      }
+    }();
+    _audioInputOperation = operation;
+    _voiceOptionsUpdates.value++;
+    return operation;
+  }
+
+  AudioOutputSelection? get _outputAudio =>
+      _audio is AudioOutputSelection ? _audio as AudioOutputSelection : null;
+
+  Future<void> _changeAudioOutput({
+    String? id,
+    bool choose = false,
+    bool useDefault = false,
+  }) {
+    final adapter = _outputAudio;
+    if (adapter == null || _audioOutputOperation != null || !mounted) {
+      return Future.value();
+    }
+    // Dispatch the genuine browser picker directly in the owner's gesture.
+    // No capability query or await may consume activation first.
+    Future<String>? selection;
+    try {
+      if (choose) {
+        selection = adapter.chooseAudioOutput();
+      } else if (useDefault) {
+        selection = adapter.useDefaultAudioOutput();
+      } else if (id != null) {
+        selection = adapter.selectAudioOutput(id);
+      }
+    } catch (_) {
+      selection = Future.value('unavailable');
+    }
+    // Attach the error observer before yielding: an immediately rejected
+    // adapter future must not escape into the UI's uncaught-error handler.
+    final original = selection?.then<String>(
+      (status) => status,
+      onError: (Object error, StackTrace stack) => 'unavailable',
+    );
+    late final Future<void> operation;
+    operation = () async {
+      // This first yield lets the owner retain the operation before settlement.
+      await Future<void>.value();
+      try {
+        final status = original == null ? null : await original;
+        if (!mounted) return;
+        if (status != null) {
+          _audioOutputNotice = switch (status) {
+            'selected' => 'Audio output selected for this session.',
+            'default' => 'This session uses the system default audio output.',
+            'cancelled' => 'Audio output selection cancelled.',
+            'busy' => 'Finish playback or the pending output change first.',
+            'stopped' => 'Audio output selection was not confirmed.',
+            _ =>
+              'Audio output selection is unavailable. Refresh devices or choose an output.',
+          };
+          if (status != 'selected' && status != 'default') {
+            if (status != 'busy' && status != 'cancelled') {
+              _audioOutputs = const [];
+            }
+            return;
+          }
+          if (status == 'selected' || status == 'default') {
+            _audioOutputTimer?.cancel();
+            _audioOutputTimer = status == 'selected'
+                ? Timer.periodic(const Duration(seconds: 1), (_) {
+                    if (mounted && _audioOutputOperation == null) {
+                      unawaited(_changeAudioOutput());
+                    }
+                  })
+                : null;
+          }
+        }
+        // Keep the same slot through discovery. An observer never times out
+        // an original browser future and starts another operation over it.
+        final devices = await adapter.audioOutputs();
+        if (!mounted) return;
+        _audioOutputs = devices;
+        if (status == null && _audioOutputNotice == null) {
+          _audioOutputNotice = 'Available audio outputs refreshed.';
+        }
+      } catch (_) {
+        if (mounted) {
+          _audioOutputs = null;
+          _audioOutputNotice =
+              'Audio output is unconfirmed. Refresh devices or choose an output.';
+          _audioOutputTimer?.cancel();
+          _audioOutputTimer = null;
+        }
+      } finally {
+        if (identical(_audioOutputOperation, operation)) {
+          _audioOutputOperation = null;
+          if (mounted) _voiceOptionsUpdates.value++;
+        }
+      }
+    }();
+    _audioOutputOperation = operation;
+    _voiceOptionsUpdates.value++;
+    return operation;
+  }
 
   AdaptiveVadAudio? get _adaptiveAudio =>
       _audio is AdaptiveVadAudio &&
@@ -524,9 +813,55 @@ class _CharacterViewState extends State<CharacterView> {
         endSilenceMs: _endSilenceMs,
         silenceChoices: endSilenceOptionsMs,
         windowMode: _windowMode,
+        nativeAudio: _s.nativeAudio.configured,
         vadSettings: _adaptiveAudio == null ? null : _vadSettings,
         busy: _vadBusy,
         notice: _vadNotice,
+        audioInputs: _inputAudio == null ? null : _audioInputs,
+        audioInputBusy:
+            _audioInputOperation != null ||
+            _armed ||
+            _recording ||
+            _nativeCallActive,
+        audioInputNotice: _audioInputNotice,
+        onAudioInputSelected: _inputAudio == null
+            ? null
+            : (id) {
+                if (current()) unawaited(_changeAudioInput(id: id));
+              },
+        onDefaultAudioInput: _inputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioInput(useDefault: true));
+              },
+        onRefreshAudioInputs: _inputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioInput());
+              },
+        audioOutputs: _outputAudio == null ? null : _audioOutputs,
+        audioOutputBusy: _audioOutputOperation != null,
+        audioOutputNotice: _audioOutputNotice,
+        onChooseAudioOutput: _outputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioOutput(choose: true));
+              },
+        onDefaultAudioOutput: _outputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioOutput(useDefault: true));
+              },
+        onRefreshAudioOutputs: _outputAudio == null
+            ? null
+            : () {
+                if (current()) unawaited(_changeAudioOutput());
+              },
+        onAudioOutputSelected: _outputAudio == null
+            ? null
+            : (id) {
+                if (current()) unawaited(_changeAudioOutput(id: id));
+              },
         onVadChanged: (settings) {
           if (current()) unawaited(_changeVad(settings: settings));
         },
@@ -627,6 +962,11 @@ class _CharacterViewState extends State<CharacterView> {
       _s.busyConverse = false;
       _armOwner++;
       _voiceRequest++;
+      _nativeClipOwner = null;
+      _nativeClipArmOwner = null;
+      _nativeCallActive = false;
+      _nativeCallSession = null;
+      _pendingNativeClip = null;
       _pendingClip = null;
       _clearWindows();
       _armed = false;
@@ -641,6 +981,11 @@ class _CharacterViewState extends State<CharacterView> {
       unawaited(_audio.cancelRecording());
       unawaited(_stopLocalPlayback());
       unawaited(_refreshVoice());
+    }
+    final nativeOwner = _nativeClipOwner;
+    if (nativeOwner != null && !_nativeClipCurrent(nativeOwner)) {
+      _nativeClipOwner = null;
+      unawaited(_stopLocalPlayback());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncMouthSampling();
@@ -663,6 +1008,7 @@ class _CharacterViewState extends State<CharacterView> {
     _dismissTextConversation();
     _detachSettingsControls();
     _pollTimer?.cancel();
+    _audioOutputTimer?.cancel();
     _mouthTimer?.cancel();
     _mouthGeneration++;
     _noticeSubscription?.cancel();
@@ -670,6 +1016,10 @@ class _CharacterViewState extends State<CharacterView> {
     _resourceSubscription?.cancel();
     _armOwner++;
     _voiceRequest++;
+    _nativeClipOwner = null;
+    _nativeClipArmOwner = null;
+    _nativeCallActive = false;
+    _pendingNativeClip = null;
     // Invalidate every in-flight callback: stale completions must not
     // reset newer speaking/busy state or leak the mic.
     _s.turnNonce++;
@@ -701,7 +1051,67 @@ class _CharacterViewState extends State<CharacterView> {
   AppState get _s => widget.state;
   WindowSpeechAudio? get _windowAudio =>
       _audio is WindowSpeechAudio ? _audio as WindowSpeechAudio : null;
-  bool get _windowMode => _s.streamingWindows && _windowAudio != null;
+  bool get _windowMode =>
+      !_nativeCallActive && _s.streamingWindows && _windowAudio != null;
+
+  bool _nativeCallCurrent(int owner) {
+    final api = _nativeCallClient, session = _nativeCallSession;
+    return mounted &&
+        _nativeCallActive &&
+        owner == _armOwner &&
+        api != null &&
+        session != null &&
+        _s.ownsConnection(_nativeCallConnection, api) &&
+        _nativeCallSource == _s.nativeAudioSourceGeneration &&
+        _s.nativeAudio.configured &&
+        _s.nativeAudio.available &&
+        _converseAvailable &&
+        _s.converseCanDisclose(_captureScope) &&
+        _s.converseSession?.sessionId == session.sessionId &&
+        _s.converseSession?.threadId == session.threadId &&
+        _s.converseSession?.epoch == session.epoch;
+  }
+
+  bool _nativeClipCurrent(NativeAudioClipOwner owner) =>
+      mounted &&
+      identical(_nativeClipOwner, owner) &&
+      (_nativeClipArmOwner == null ||
+          _nativeCallCurrent(_nativeClipArmOwner!)) &&
+      _s.nativeAudio.configured &&
+      _s.nativeAudio.available &&
+      _converseAvailable &&
+      _s.converseCanInfer &&
+      _s.converseCanDisclose(owner.contentScope) &&
+      owner.current(
+        currentClient: _s.client,
+        connection: _s.connectionGeneration,
+        source: _s.nativeAudioSourceGeneration,
+        session: _s.converseSession,
+        nonce: _s.turnNonce,
+      );
+
+  bool _nativeOutputCurrent(JournalEntry entry, NativeAudioClipOwner? owner) =>
+      owner != null && _nativeClipCurrent(owner) && owner.ownsReply(entry);
+
+  void _showNativeNotice(NativeAudioClipOwner owner, NativeAudioNotice notice) {
+    if (!_nativeClipCurrent(owner) || owner.hasReply) return;
+    if (notice.terminal) {
+      // This ends only this local reply wait, never backend work or Agent work.
+      setState(() {
+        _nativeClipOwner = null;
+        if (!_speaking) _mood = 'idle';
+      });
+      _s.busyConverse = false;
+    }
+    _s.appendHistory(
+      AppView.character,
+      ChatMsg(
+        role: 'system',
+        text: notice.message,
+        note: 'Native audio status',
+      ),
+    );
+  }
 
   void _clearWindows() {
     _pendingWindow = null;
@@ -726,9 +1136,36 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _onWindowEvent(JournalEntry entry) async {
+    final nativeOwner = _nativeClipOwner;
+    if (nativeOwner != null &&
+        _nativeClipCurrent(nativeOwner) &&
+        nativeOwner.statusCandidate(entry)) {
+      if (!nativeOwner.admitted) {
+        nativeOwner.deferStatus(entry);
+        return;
+      }
+      final notice = nativeOwner.observeStatus(entry);
+      if (notice != null) _showNativeNotice(nativeOwner, notice);
+      return;
+    }
+    var nativeOutput =
+        nativeOwner != null &&
+        _nativeClipCurrent(nativeOwner) &&
+        nativeOwner.candidate(entry);
+    if (nativeOutput && !nativeOwner.admitted) {
+      try {
+        nativeOwner.defer(entry);
+      } on FormatException {
+        _nativeClipOwner = null;
+        await _stopLocalPlayback();
+      }
+      return;
+    }
+    nativeOutput = nativeOutput && nativeOwner.bindReply(entry);
+    if (nativeOutput && _windowPlayed.contains(entry.eventId)) return;
+    final liveWindow = _armed && _windowMode;
     if (!mounted ||
-        !_armed ||
-        !_windowMode ||
+        (!nativeOutput && !liveWindow) ||
         entry.sessionId != _s.converseSession?.sessionId ||
         entry.threadId != _s.converseSession?.threadId ||
         entry.epoch != _s.converseSession?.epoch) {
@@ -750,18 +1187,27 @@ class _CharacterViewState extends State<CharacterView> {
                     : entry.payload['generation_epoch'])
                 as num?)
             ?.toInt();
-    if (epoch != null && epoch > _s.speechEpoch) {
+    // A failed import or service restart can leave the optimistic local
+    // interruption counter ahead of the service. Only the exact admitted,
+    // current native source may adopt its authenticated reply's epoch in
+    // either direction; ordinary window events retain the monotonic gate.
+    if (epoch != null &&
+        (epoch > _s.speechEpoch || (nativeOutput && epoch != _s.speechEpoch))) {
       _s.turnNonce++;
+      if (nativeOutput) nativeOwner.turnNonce = _s.turnNonce;
       _s.speechEpoch = epoch;
       _speechQueue = SpeechQueue();
       await _stopLocalPlayback();
-      if (!mounted || !_armed) return;
+      if (!mounted ||
+          (nativeOutput ? !_nativeClipCurrent(nativeOwner) : !_armed)) {
+        return;
+      }
       setState(() => _speaking = false);
       _publishVoiceActivity();
     }
     final utterance = entry.payload['window_utterance_id'];
     if (entry.kind == 'conversation.converse' &&
-        _ownedUtterances.contains(utterance) &&
+        (nativeOutput || _ownedUtterances.contains(utterance)) &&
         epoch == _s.speechEpoch &&
         _windowPlayed.add(entry.eventId)) {
       while (_windowPlayed.length > 128) {
@@ -789,6 +1235,7 @@ class _CharacterViewState extends State<CharacterView> {
     String inputMode = 'text',
     ContentScope? contentScope,
   }) async {
+    if (_s.converseSessionCreating) return;
     final text = (overrideText ?? _input.text).trim();
     final scope =
         contentScope ??
@@ -823,6 +1270,7 @@ class _CharacterViewState extends State<CharacterView> {
       );
       return;
     }
+    _nativeClipOwner = null;
     final nonce = ++_s.turnNonce;
     bool stillAuthorized() {
       if (!mounted || !turnOwnsCleanup(nonce, _s.turnNonce)) return false;
@@ -854,12 +1302,22 @@ class _CharacterViewState extends State<CharacterView> {
             if (e.kind == 'conversation.user') {
               _s.appendHistory(
                 AppView.character,
-                ChatMsg(role: 'user', text: e.text),
+                ChatMsg(
+                  role: 'user',
+                  text: e.text,
+                  eventId: e.eventId,
+                  windowRevision: (e.payload['revision'] as num?)?.toInt() ?? 1,
+                ),
+              );
+              _s.acceptedConverseSource(
+                seedSession,
+                e.eventId,
+                _s.converseHistory.length - 1,
               );
             } else if (e.kind == 'conversation.converse') {
               _s.appendHistory(
                 AppView.character,
-                ChatMsg(role: 'kinaiya', text: e.text),
+                ChatMsg(role: 'kinaiya', text: e.text, eventId: e.eventId),
               );
             }
             if (e.sequence > _s.converseCursor) _s.converseCursor = e.sequence;
@@ -1030,9 +1488,15 @@ class _CharacterViewState extends State<CharacterView> {
     int nonce,
     Set<String> playedAcked,
   ) async {
+    final nativeOutput = entry.payload['native_audio'] == true;
+    final nativeOwner = _nativeClipOwner;
+    bool nativeCurrent() =>
+        !nativeOutput || _nativeOutputCurrent(entry, nativeOwner);
+    if (!nativeCurrent()) return;
     if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
     if (!await _audio.availablePlayback) return;
+    if (!nativeCurrent()) return;
     if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
     final epoch =
@@ -1040,6 +1504,7 @@ class _CharacterViewState extends State<CharacterView> {
     if (!_s.audioIsLive(nonce, epoch)) return;
     final windowUtterance = entry.payload['window_utterance_id'] as String?;
     if (windowUtterance != null &&
+        !nativeOutput &&
         (!_armed || !_ownedUtterances.contains(windowUtterance))) {
       return;
     }
@@ -1052,12 +1517,14 @@ class _CharacterViewState extends State<CharacterView> {
         eventId: entry.eventId,
         generationEpoch: epoch,
       )) {
+        if (!nativeCurrent()) break;
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         if (!_s.audioIsLive(nonce, epoch)) break;
         final audio = frame['audio'] as String?;
         if (audio == null || audio.isEmpty) continue;
         final rate = (frame['sample_rate'] as num?)?.toInt() ?? 24000;
         if (!started &&
+            !nativeOutput &&
             windowUtterance != null &&
             entry.payload['window_behavior'] ==
                 'RESPOND_WITHOUT_INTERRUPTING_USER' &&
@@ -1083,11 +1550,12 @@ class _CharacterViewState extends State<CharacterView> {
               )
             : await _audio.queuePcm(audio, rate);
         if (!queued) return;
+        if (!nativeCurrent()) break;
         if (!turnOwnsCleanup(nonce, _s.turnNonce)) break;
         if (!_s.audioIsLive(nonce, epoch)) break;
         if (!started) {
           started = true;
-          if (windowUtterance != null) {
+          if (windowUtterance != null && !nativeOutput) {
             _startedUtterances.add(windowUtterance);
             if (_windowUtterance == windowUtterance) {
               await _nextWindowUtterance();
@@ -1112,7 +1580,8 @@ class _CharacterViewState extends State<CharacterView> {
       }
       if (!started) return;
       if (!turnOwnsCleanup(nonce, _s.turnNonce) ||
-          !_s.audioIsLive(nonce, epoch)) {
+          !_s.audioIsLive(nonce, epoch) ||
+          !nativeCurrent()) {
         await _reportInterrupted(
           api,
           entry,
@@ -1126,7 +1595,8 @@ class _CharacterViewState extends State<CharacterView> {
       // True local playback gate: resolves only on source onended.
       await _audio.awaitPlayback();
       if (!turnOwnsCleanup(nonce, _s.turnNonce) ||
-          !_s.audioIsLive(nonce, epoch)) {
+          !_s.audioIsLive(nonce, epoch) ||
+          !nativeCurrent()) {
         await _reportInterrupted(
           api,
           entry,
@@ -1147,6 +1617,9 @@ class _CharacterViewState extends State<CharacterView> {
           playedSeconds: scheduled,
         );
       } catch (_) {}
+      if (nativeOutput && identical(_nativeClipOwner, nativeOwner)) {
+        _nativeClipOwner = null;
+      }
       if (mounted && _s.audioIsLive(nonce, epoch)) {
         setState(() => _speaking = false);
         _publishVoiceActivity();
@@ -1201,10 +1674,13 @@ class _CharacterViewState extends State<CharacterView> {
     }
   }
 
-  Future<void> _onBarge() {
+  Future<void> _onBarge({bool nativeCapture = false}) {
     final expected = _s.speechEpoch;
     final owner = ++_s.turnNonce;
     _voiceRequest++;
+    _nativeClipOwner = null;
+    _nativeClipArmOwner = null;
+    if (!nativeCapture) _pendingNativeClip = null;
     _pendingClip = null;
     _s.speechEpoch++;
     _s.busyConverse = false;
@@ -1254,10 +1730,22 @@ class _CharacterViewState extends State<CharacterView> {
     // Clearing _armed does not acknowledge a failed playback stop. Retain
     // that obligation so a retry must stop the same window speech as well.
     final stopWindowSpeech =
-        stopSpeech || _windowSpeechStopUnconfirmed || (_armed && _windowMode);
+        stopSpeech ||
+        _nativeCallActive ||
+        _nativeClipOwner != null ||
+        _windowSpeechStopUnconfirmed ||
+        (_armed && _windowMode);
+    final nativeInterrupt = _nativeCallCurrent(_armOwner)
+        ? _onBarge(nativeCapture: true)
+        : null;
     _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
     _voiceRequest++;
+    _nativeClipOwner = null;
+    _nativeClipArmOwner = null;
+    _nativeCallActive = false;
+    _nativeCallSession = null;
+    _pendingNativeClip = null;
     _pendingClip = null;
     _s.voiceNonce++;
     _pollTimer?.cancel();
@@ -1279,6 +1767,8 @@ class _CharacterViewState extends State<CharacterView> {
       await Future.wait([
         _audio.stopArmed(),
         _audio.cancelRecording(),
+        if (_nativeCaptureStop != null) _nativeCaptureStop!,
+        if (nativeInterrupt != null) nativeInterrupt,
         if (stopWindowSpeech) _stopLocalPlayback(),
       ]).timeout(const Duration(seconds: 3));
       if (mounted && owner == _armOwner) {
@@ -1300,19 +1790,124 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   /// User-armed continuous listening toggle. The mic starts ONLY here.
+  Future<void> _startCall() {
+    if (_callStart != null) return _callStart!;
+    final original = _setArmed(true);
+    _callStart = original;
+    unawaited(
+      original.then<void>(
+        (_) {
+          if (identical(_callStart, original)) _callStart = null;
+          if (mounted) _voiceOptionsUpdates.value++;
+        },
+        onError: (Object error, StackTrace stack) {
+          if (identical(_callStart, original)) _callStart = null;
+          if (mounted) {
+            _nativeCallBlocked = true;
+            if (_nativeCallActive) {
+              _pauseNativeCapture(
+                'Microphone activation was not confirmed. End the Call and review Voice options.',
+              );
+            } else {
+              _nativeCallMessage(
+                'Microphone activation was not confirmed. Review Voice options.',
+              );
+              unawaited(_stopMicrophone());
+            }
+          }
+        },
+      ),
+    );
+    return original;
+  }
+
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
+    if (_s.converseSessionCreating) return;
+    if (_nativeCallActive) {
+      if (_nativeCallBlocked) {
+        _nativeCallMessage(
+          'End the current Call before starting another native audio submission.',
+        );
+      }
+      return;
+    }
     if (_micStopUnconfirmed || _vadBusy) return;
+    if (_nativeAdmission != null || _nativeDraining) {
+      _nativeCallMessage(
+        'The previous native audio admission is still pending. Wait for its original result before calling again.',
+      );
+      return;
+    }
+    if (_nativeClipOwner != null) await _onBarge();
+    if (!mounted) return;
     final owner = ++_armOwner;
     if (!_converseAvailable || !_s.converseCanInfer || _s.client == null) {
       return;
     }
+    final api = _s.client!;
+    final connection = _s.connectionGeneration;
+    final initialSession = _s.converseSession;
+    if (!_s.nativeAudio.known) await _s.refreshConverseAvailability();
+    if (!mounted || owner != _armOwner || !_s.ownsConnection(connection, api)) {
+      return;
+    }
+    if (!_s.nativeAudio.known) {
+      _nativeCallMessage(
+        'Audio input configuration is unavailable. Refresh the connection before calling.',
+      );
+      return;
+    }
+    final native = _s.nativeAudio.configured;
+    if (native &&
+        initialSession != null &&
+        (_s.converseSession?.sessionId != initialSession.sessionId ||
+            _s.converseSession?.threadId != initialSession.threadId ||
+            _s.converseSession?.epoch != initialSession.epoch)) {
+      return;
+    }
+    if (native && (!_s.nativeAudio.available || _nativeCaptureAudio == null)) {
+      _nativeCallMessage(
+        'Native microphone capture is unavailable. Review the host and browser connection.',
+      );
+      return;
+    }
+    _nativeCallActive = native;
+    _nativeCallBlocked = false;
+    _nativeAdmissionResult = null;
+    _nativeCallSession = null;
+    _nativeCallClient = api;
+    _nativeCallConnection = connection;
+    _nativeCallSource = _s.nativeAudioSourceGeneration;
+    _nativeBargedCapture = null;
     _captureScope = _s.selectedContentScope;
-    await _windowAudio?.configureWindows(_windowMode);
     try {
-      await _configureVad(_vadSettings).timeout(const Duration(seconds: 2));
+      if (native) {
+        final session =
+            initialSession ??
+            await _s.ensureSession('converse', name: 'Converse');
+        if (!mounted ||
+            owner != _armOwner ||
+            !_s.ownsConnection(connection, api)) {
+          return;
+        }
+        _s.converseSession ??= session;
+        _nativeCallSession = session;
+        if (!_nativeCallCurrent(owner)) {
+          _nativeCallActive = false;
+          return;
+        }
+      }
+      await _nativeCaptureAudio?.configureNativePcmCapture(native);
+      await _windowAudio?.configureWindows(native ? false : _windowMode);
+      if (native) {
+        await _configureVad(_vadSettings);
+      } else {
+        await _configureVad(_vadSettings).timeout(const Duration(seconds: 2));
+      }
     } catch (_) {
       if (mounted && owner == _armOwner) {
+        _nativeCallActive = false;
         setState(
           () => _vadNotice =
               'Microphone configuration is unavailable. Review Voice options.',
@@ -1321,10 +1916,22 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    if (!mounted || owner != _armOwner || !_converseAvailable) return;
+    if (!mounted ||
+        owner != _armOwner ||
+        !_converseAvailable ||
+        !_s.ownsConnection(connection, api) ||
+        (native && _nativeCallSource != _s.nativeAudioSourceGeneration)) {
+      return;
+    }
     final result = await _audio.startArmed();
     if (!mounted || owner != _armOwner) return;
+    if (native && !_nativeCallCurrent(owner)) {
+      _nativeCallActive = false;
+      await _audio.stopArmed();
+      return;
+    }
     if (result != 'armed') {
+      _nativeCallActive = false;
       _s.appendHistory(
         AppView.character,
         ChatMsg(
@@ -1341,7 +1948,7 @@ class _CharacterViewState extends State<CharacterView> {
       _mood = 'listening';
     });
     _publishVoiceActivity();
-    if (_windowMode) {
+    if (_windowMode || native) {
       try {
         final api = _s.client;
         final generation = _s.connectionGeneration;
@@ -1351,7 +1958,12 @@ class _CharacterViewState extends State<CharacterView> {
         );
         if (!_s.ownsConnection(generation, api)) return;
         if (!mounted || !_armed || owner != _armOwner) return;
-        await _nextWindowUtterance();
+        if (native) {
+          _nativeCallSession = _s.converseSession;
+          await _beginCapture();
+        } else {
+          await _nextWindowUtterance();
+        }
       } catch (_) {
         if (mounted && owner == _armOwner) await _setArmed(false);
         return;
@@ -1367,7 +1979,11 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _pollBridge() async {
-    if (!_armed || _pollingBridge || (!_windowMode && _voiceBusy)) return;
+    if (!_armed ||
+        _pollingBridge ||
+        (!_nativeCallActive && !_windowMode && _voiceBusy)) {
+      return;
+    }
     _pollingBridge = true;
     try {
       if (_windowMode) {
@@ -1382,10 +1998,43 @@ class _CharacterViewState extends State<CharacterView> {
       for (final event in events) {
         if (!_armed || !mounted) return;
         if (event['epoch'] != null && event['epoch'] != _captureEpoch) continue;
+        if (_nativeCallActive) {
+          if (event['type'] == 'native-clip-overflow') {
+            _pauseNativeCapture(
+              'Native speech exceeded 30 seconds. This utterance was not submitted; any earlier pending clip is retained.',
+            );
+            return;
+          }
+          if (event['type'] == 'native-input-unavailable' ||
+              event['type'] == 'native-capture-unavailable') {
+            _nativeCallBlocked = true;
+            _pauseNativeCapture(
+              'Native microphone capture is unavailable. The pending clip is retained; end the Call and review the selected input.',
+            );
+            return;
+          }
+          if (event['type'] == 'barge' || event['type'] == 'speech-start') {
+            if (event['type'] == 'barge' ||
+                _nativeBargedCapture != _captureEpoch) {
+              _nativeBargedCapture = _captureEpoch;
+              unawaited(_onBarge(nativeCapture: true));
+            }
+            if (_pendingNativeClip != null) {
+              _pauseNativeCapture(
+                'Native audio is busy. Microphone capture stopped; the earlier pending clip is retained and this additional utterance was not submitted.',
+              );
+              return;
+            }
+          }
+        }
         if (event['type'] == 'speech-end' || event['type'] == 'clip-cap') {
-          await _finishVoiceClip();
+          if (_nativeCallActive) {
+            unawaited(_finishNativeCallClip());
+          } else {
+            await _finishVoiceClip();
+          }
         } else if (event['type'] == 'barge') {
-          unawaited(_onBarge());
+          if (!_nativeCallActive) unawaited(_onBarge());
         } else if (event['type'] == 'speech-start') {
           setState(() => _mood = 'listening');
         }
@@ -1476,6 +2125,10 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _finishVoiceClip() async {
+    if (_nativeCallActive) {
+      await _finishNativeCallClip();
+      return;
+    }
     if (_voiceBusy || !_armed || !_clipOpen) return;
     _voiceBusy = true;
     final owner = _armOwner;
@@ -1493,6 +2146,153 @@ class _CharacterViewState extends State<CharacterView> {
       unawaited(_drainVoiceClips(owner));
     } finally {
       if (owner == _armOwner) _voiceBusy = false;
+    }
+  }
+
+  void _nativeCallMessage(String text) {
+    if (!mounted) return;
+    if (_s.converseHistory.isNotEmpty && _s.converseHistory.last.text == text) {
+      return;
+    }
+    _s.appendHistory(AppView.character, ChatMsg(role: 'system', text: text));
+  }
+
+  void _pauseNativeCapture(String notice) {
+    if (!mounted || !_nativeCallActive) return;
+    final owner = _armOwner;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    setState(() {
+      _armed = false;
+      _clipOpen = false;
+    });
+    _publishVoiceActivity();
+    _nativeCallMessage(notice);
+    if (_nativeCaptureStop != null) return;
+    final original = Future.wait([
+      _audio.stopArmed(),
+      _audio.cancelRecording(),
+    ]).then<void>((_) {});
+    _nativeCaptureStop = original;
+    unawaited(
+      original.then<void>(
+        (_) {
+          if (identical(_nativeCaptureStop, original)) {
+            _nativeCaptureStop = null;
+          }
+        },
+        onError: (Object error, StackTrace stack) {
+          if (mounted && owner == _armOwner) {
+            setState(() => _micStopUnconfirmed = true);
+            _publishVoiceActivity();
+          }
+          // The original failed stop remains retained and awaited by owner Stop.
+        },
+      ),
+    );
+  }
+
+  Future<void> _finishNativeCallClip() async {
+    final owner = _armOwner;
+    if (_voiceBusy || !_armed || !_clipOpen || !_nativeCallCurrent(owner)) {
+      return;
+    }
+    if (_pendingNativeClip != null) {
+      _pauseNativeCapture(
+        'Native audio is busy. Microphone capture stopped; the earlier pending clip is retained and this additional utterance was not submitted.',
+      );
+      return;
+    }
+    _voiceBusy = true;
+    try {
+      final recording = await _audio.finishClip();
+      if (!_nativeCallCurrent(owner) || !_armed) return;
+      _clipOpen = false;
+      if (recording != null && recording.bytes.isNotEmpty) {
+        final wav = canonicalNativeAudioWav(recording.bytes);
+        _pendingNativeClip = (wav: wav, scope: _captureScope, owner: owner);
+      }
+      // Keep genuine capture and VAD available for spoken interruption.
+      await _beginCapture();
+      if (_pendingNativeClip != null) unawaited(_drainNativeClips(owner));
+    } on FormatException {
+      if (_nativeCallCurrent(owner)) {
+        _pauseNativeCapture(
+          'Native microphone audio must be complete PCM16 mono16k WAV, at most 30 seconds. Nothing from this utterance was submitted.',
+        );
+      }
+    } catch (_) {
+      if (_nativeCallCurrent(owner)) {
+        _nativeCallBlocked = true;
+        _pauseNativeCapture(
+          'Native microphone capture could not be confirmed. The original operation is retained; end the Call before recording again.',
+        );
+      }
+    } finally {
+      if (owner == _armOwner) _voiceBusy = false;
+    }
+  }
+
+  Future<void> _drainNativeClips(int owner) async {
+    if (_nativeDraining) return;
+    _nativeDraining = true;
+    try {
+      while (_nativeCallCurrent(owner) &&
+          !_nativeCallBlocked &&
+          _pendingNativeClip?.owner == owner) {
+        // This is the same original admission and interrupt cleanup, not a
+        // timed-out observer or permission to replay a request.
+        final previous = _nativeAdmission;
+        if (previous != null) {
+          final result = await previous;
+          _nativeAdmissionResult = result;
+        }
+        if (_nativeAdmissionResult?.outcome ==
+            _NativeAdmissionOutcome.unknown) {
+          if (_nativeCallCurrent(owner)) {
+            _nativeCallBlocked = true;
+            _pauseNativeCapture(
+              'Native audio admission is unconfirmed. Microphone capture stopped; the pending clip is retained. Check the original result before another submission.',
+            );
+          }
+          return;
+        }
+        await _interruptBarrier;
+        if (!_nativeCallCurrent(owner) || _nativeCallBlocked) return;
+        final clip = _pendingNativeClip;
+        if (clip == null || clip.owner != owner) return;
+        _pendingNativeClip = null;
+        final original = _submitNativeRecording(
+          clip.wav,
+          clip.scope,
+          callOwner: owner,
+        );
+        _nativeAdmission = original;
+        late final _NativeAdmissionResult result;
+        try {
+          result = await original;
+          _nativeAdmissionResult = result;
+        } finally {
+          if (identical(_nativeAdmission, original)) _nativeAdmission = null;
+        }
+        if (_nativeCallCurrent(owner) &&
+            result.outcome == _NativeAdmissionOutcome.unknown) {
+          _nativeCallBlocked = true;
+          _pauseNativeCapture(
+            'Native audio admission is unconfirmed. Microphone capture stopped; the pending clip is retained. Check the original result before another submission.',
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      if (_nativeCallCurrent(owner)) {
+        _nativeCallBlocked = true;
+        _pauseNativeCapture(
+          'Native audio could not be confirmed. Microphone capture stopped; check the original result before another submission.',
+        );
+      }
+    } finally {
+      _nativeDraining = false;
     }
   }
 
@@ -1557,18 +2357,80 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _importRecording() async {
+    if (_s.converseSessionCreating) return;
+    if (_nativeCallActive) {
+      _nativeCallMessage('End the current Call before importing a recording.');
+      return;
+    }
     if (!_converseAvailable || !_s.converseCanInfer) return;
     final api = _s.client;
     final generation = _s.connectionGeneration;
     final scope = _s.selectedContentScope;
     if (api == null) return;
     final request = ++_voiceRequest;
+    if (!_s.nativeAudio.known) {
+      await _s.refreshConverseAvailability();
+      if (!mounted ||
+          !_s.ownsConnection(generation, api) ||
+          request != _voiceRequest) {
+        return;
+      }
+      if (!_s.nativeAudio.known) {
+        _s.appendHistory(
+          AppView.character,
+          ChatMsg(
+            role: 'system',
+            text:
+                'Audio input configuration is unavailable. Refresh the connection before importing.',
+          ),
+        );
+        return;
+      }
+    }
+    final native = _s.nativeAudio.configured;
+    final nativeSource = _s.nativeAudioSourceGeneration;
+    if (native && !_s.nativeAudio.available) {
+      _s.appendHistory(
+        AppView.character,
+        ChatMsg(
+          role: 'system',
+          text:
+              'Native audio is configured but unavailable. Review the host connection.',
+        ),
+      );
+      return;
+    }
     final recording = await _audio.chooseRecording();
     if (!mounted ||
         !_converseAvailable ||
         !_s.ownsConnection(generation, api) ||
         request != _voiceRequest ||
         recording == null) {
+      return;
+    }
+    if (nativeSource != _s.nativeAudioSourceGeneration) {
+      _s.appendHistory(
+        AppView.character,
+        ChatMsg(
+          role: 'system',
+          text:
+              'Audio input configuration changed. Choose the recording again.',
+        ),
+      );
+      return;
+    }
+    if (native) {
+      try {
+        final wav = canonicalNativeAudioWav(recording.bytes);
+        await _submitNativeRecording(wav, scope);
+      } on FormatException {
+        if (mounted && _s.ownsConnection(generation, api)) {
+          _s.appendHistory(
+            AppView.character,
+            ChatMsg(role: 'system', text: nativeAudioImportHint),
+          );
+        }
+      }
       return;
     }
     await _onBarge();
@@ -1607,10 +2469,182 @@ class _CharacterViewState extends State<CharacterView> {
     }
   }
 
+  Future<_NativeAdmissionResult> _submitNativeRecording(
+    List<int> wav,
+    ContentScope scope, {
+    int? callOwner,
+  }) async {
+    final api = _s.client;
+    final connection = _s.connectionGeneration;
+    final source = _s.nativeAudioSourceGeneration;
+    final audioSha256 = crypto.sha256.convert(wav).toString();
+    final endMs = ((wav.length - 44) / 32).ceil();
+    NativeAudioClipOwner? owner;
+    _NativeAdmissionIdentity? identity;
+    ({String eventId, int sequence, int revision})? receipt;
+    _NativeAdmissionResult result(_NativeAdmissionOutcome outcome) =>
+        _NativeAdmissionResult(
+          outcome: outcome,
+          callOwner: callOwner,
+          audioSha256: audioSha256,
+          endMs: endMs,
+          identity: identity,
+          receipt: receipt,
+        );
+    if (api == null ||
+        !_s.nativeAudio.available ||
+        !_s.converseCanDisclose(scope)) {
+      return result(_NativeAdmissionOutcome.notDispatched);
+    }
+    if (callOwner != null && !_nativeCallCurrent(callOwner)) {
+      return result(_NativeAdmissionOutcome.notDispatched);
+    }
+    final interrupted = _onBarge(nativeCapture: callOwner != null);
+    // Capture this submission's nonce before awaiting its interrupt barrier;
+    // newer speech may supersede it before any POST has been dispatched.
+    final nonce = _s.turnNonce;
+    bool current() =>
+        mounted &&
+        (callOwner == null || _nativeCallCurrent(callOwner)) &&
+        _s.ownsConnection(connection, api) &&
+        source == _s.nativeAudioSourceGeneration &&
+        _s.nativeAudio.configured &&
+        _s.nativeAudio.available &&
+        _converseAvailable &&
+        _s.converseCanDisclose(scope) &&
+        turnOwnsCleanup(nonce, _s.turnNonce);
+    await interrupted;
+    if (!current()) return result(_NativeAdmissionOutcome.notDispatched);
+    var attempted = false;
+    _s.busyConverse = true;
+    setState(() => _mood = 'listening');
+    _s.touch();
+    try {
+      final session =
+          _s.converseSession ??
+          await _s.ensureSession('converse', name: 'Converse');
+      if (!current()) return result(_NativeAdmissionOutcome.notDispatched);
+      owner = NativeAudioClipOwner(
+        client: api,
+        connectionGeneration: connection,
+        sourceGeneration: source,
+        session: session,
+        utteranceId: const Uuid().v4(),
+        requestId: const Uuid().v4(),
+        turnNonce: nonce,
+        contentScope: scope,
+      );
+      identity = _NativeAdmissionIdentity(owner);
+      // Register before dispatch: polling may observe the response before POST returns.
+      _nativeClipOwner = owner;
+      _nativeClipArmOwner = callOwner;
+      attempted = true;
+      final admission = await api.submitNativeAudioClip(
+        session: session,
+        utteranceId: owner.utteranceId,
+        requestId: owner.requestId,
+        wav: wav,
+        contentScope: scope,
+      );
+      if (admission.entry.payload['audio_sha256'] != audioSha256 ||
+          admission.entry.payload['content_scope'] != scope.wireValue ||
+          admission.entry.payload['start_ms'] != 0 ||
+          admission.entry.payload['end_ms'] != endMs) {
+        throw const FormatException(
+          'Native audio clip admission did not match the submitted recording.',
+        );
+      }
+      owner.confirm(admission.entry);
+      receipt = (
+        eventId: admission.entry.eventId,
+        sequence: admission.entry.sequence,
+        revision: 1,
+      );
+      // Even an obsolete playback owner must settle its original exact ACK.
+      // Only publication/playback remains behind the current turn's fences.
+      if (!_nativeClipCurrent(owner)) {
+        return result(_NativeAdmissionOutcome.accepted);
+      }
+      if (!_s.converseHistory.any(
+        (message) => message.eventId == admission.entry.eventId,
+      )) {
+        _s.appendHistory(
+          AppView.character,
+          ChatMsg(
+            role: 'user',
+            text: admission.entry.text,
+            eventId: admission.entry.eventId,
+            utteranceId: owner.utteranceId,
+            windowIndex: 0,
+            windowRevision: 1,
+            note: 'Native audio transcript',
+          ),
+        );
+      }
+      final pending = owner.takePending();
+      // A newer exact reply wins over an earlier deferred terminal observation.
+      // Binding changes no playback state and remains behind exact admission.
+      for (final entry in pending) {
+        if (!_nativeClipCurrent(owner)) break;
+        if (owner.accepts(entry)) owner.bindReply(entry);
+      }
+      if (_nativeClipCurrent(owner) &&
+          owner.statusOverflowed &&
+          owner.markNotice(NativeAudioNotice.unconfirmed)) {
+        _showNativeNotice(owner, NativeAudioNotice.unconfirmed);
+      }
+      for (final entry in pending) {
+        if (!_nativeClipCurrent(owner)) break;
+        await _onWindowEvent(entry);
+      }
+      unawaited(_s.refreshNotices());
+      return result(_NativeAdmissionOutcome.accepted);
+    } catch (_) {
+      if (mounted && (owner == null ? current() : _nativeClipCurrent(owner))) {
+        if (owner != null && !owner.admitted) {
+          // A failed/lost ACK cannot prove that the original window was absent.
+          // Keep its non-playable quarantine until explicit local owner Stop.
+          if (owner.markNotice(NativeAudioNotice.admissionUnknown)) {
+            _showNativeNotice(owner, NativeAudioNotice.admissionUnknown);
+          }
+          return result(_NativeAdmissionOutcome.unknown);
+        }
+        _nativeClipOwner = null;
+        await _stopLocalPlayback();
+        if (mounted && _s.ownsConnection(connection, api)) {
+          _s.appendHistory(
+            AppView.character,
+            ChatMsg(
+              role: 'system',
+              text:
+                  'Native audio clip admission was not confirmed. Check conversation history before submitting again.',
+            ),
+          );
+        }
+      }
+      return result(
+        owner?.admitted == true
+            ? _NativeAdmissionOutcome.accepted
+            : attempted
+            ? _NativeAdmissionOutcome.unknown
+            : _NativeAdmissionOutcome.notDispatched,
+      );
+    } finally {
+      if (mounted &&
+          _s.ownsConnection(connection, api) &&
+          (turnOwnsCleanup(nonce, _s.turnNonce) ||
+              (owner != null && identical(_nativeClipOwner, owner)))) {
+        _s.busyConverse = false;
+        _s.touch();
+      }
+    }
+  }
+
   Future<void> _toggleMic() async {
+    if (_s.converseSessionCreating) return;
     final api = _s.client;
     final generation = _s.connectionGeneration;
-    if (_armed) {
+    if (_armed || _nativeCallActive) {
       _s.appendHistory(
         AppView.character,
         ChatMsg(
@@ -1683,6 +2717,12 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     if (api == null || !_converseAvailable || !_s.converseCanInfer) return;
+    if (_nativeClipOwner != null) await _onBarge();
+    if (!mounted ||
+        !_s.ownsConnection(generation, api) ||
+        !_converseAvailable) {
+      return;
+    }
     final request = ++_voiceRequest;
     _recordingScope = _s.selectedContentScope;
     final status = await _audio.startRecording();
@@ -1757,6 +2797,28 @@ class _CharacterViewState extends State<CharacterView> {
     return 'Ready to talk';
   }
 
+  ConverseStageState get _converseStageState {
+    if (_micStopPending ||
+        _micStopUnconfirmed ||
+        _s.resourceStatusStale ||
+        (_s.resourceConverseDesired == true &&
+            (_s.resourcePhase == 'restoring' ||
+                _s.resourcePhase == 'initializing')) ||
+        (_s.resourcesConfigured == true && _s.resourcePhase == 'failed') ||
+        !_s.converseEnabled ||
+        !_s.sessionAuthenticated ||
+        !_s.converseInferenceAllowed) {
+      return ConverseStageState.unavailable;
+    }
+    if (_speaking) return ConverseStageState.speaking;
+    if (_s.busyConverse || _liveStatus == 'Preparing a reply') {
+      return ConverseStageState.thinking;
+    }
+    if (_recording) return ConverseStageState.recording;
+    if (_armed) return ConverseStageState.listening;
+    return ConverseStageState.muted;
+  }
+
   CharacterSignals get _characterSignals {
     final work = _s.characterWorkActivity;
     return CharacterSignals(
@@ -1774,6 +2836,101 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
+  static const _mascotSuggestions = <String>[
+    'What can we explore today?',
+    'Help me think something through.',
+    'Tell me something interesting.',
+  ];
+
+  void _selectMascotSuggestion(String choice) {
+    if (choice == 'setup') {
+      (widget.onModelSettings ??
+          widget.onConnectionSetup ??
+          _openVoiceOptions)();
+      return;
+    }
+    final previous = _s.converseDraft;
+    final next = previous.trim().isEmpty ? choice : '$previous\n$choice';
+    if (next.length > 16000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('There is not enough room in the current draft.'),
+        ),
+      );
+      return;
+    }
+    _s.setDraft(AppView.character, next);
+    _input.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: next.length),
+    );
+    if (widget.surface == CharacterSurface.home) {
+      if (widget.onOpenConverse != null) {
+        widget.onOpenConverse!();
+      } else {
+        unawaited(_openTextConversation());
+      }
+    }
+  }
+
+  Widget _mascotPrompts(Widget child) => MenuAnchor(
+    key: const ValueKey('mascot-prompt-trigger'),
+    style: const MenuStyle(
+      alignment: AlignmentDirectional.topEnd,
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+    ),
+    alignmentOffset: const Offset(8, 0),
+    menuChildren: [
+      for (final suggestion in _mascotSuggestions)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          child: MenuItemButton(
+            autofocus: suggestion == _mascotSuggestions.first,
+            onPressed: () => _selectMascotSuggestion(suggestion),
+            style: ButtonStyle(
+              shape: const WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+              ),
+              backgroundColor: WidgetStatePropertyAll(
+                Theme.of(context).colorScheme.surfaceContainerHigh,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                const SizedBox(width: 10),
+                Flexible(child: Text(suggestion)),
+              ],
+            ),
+          ),
+        ),
+      const Divider(),
+      MenuItemButton(
+        onPressed: () => _selectMascotSuggestion('setup'),
+        child: const Text('Open Kinaiya setup'),
+      ),
+    ],
+    builder: (context, controller, _) => Tooltip(
+      message: 'Show conversation suggestions',
+      child: Semantics(
+        label: 'Show conversation suggestions',
+        button: true,
+        child: InkWell(
+          onTap: () =>
+              controller.isOpen ? controller.close() : controller.open(),
+          child: child,
+        ),
+      ),
+    ),
+  );
+
   Widget _mascot(CharacterPack? pack, double size) {
     if (!widget.showCharacter) {
       return Semantics(
@@ -1785,23 +2942,27 @@ class _CharacterViewState extends State<CharacterView> {
         ),
       );
     }
+    final artwork = pack == null
+        ? SizedBox(width: size, height: size)
+        : MascotWidget(
+            pack: pack,
+            bundle: widget.character?.bundle,
+            size: size,
+            mood: _characterSignals.semantic,
+            signals: _characterSignals,
+          );
+    if (widget.surface != CharacterSurface.legacy) {
+      return _mascotPrompts(artwork);
+    }
     return Semantics(
       button: true,
-      label: widget.onModelSettings == null
+      label: widget.onModelSettings == null && widget.onConnectionSetup == null
           ? 'Open Agent Chat'
           : 'Open Kinaiya setup',
       child: InkWell(
-        onTap: widget.onModelSettings ?? _openAgent,
+        onTap: widget.onModelSettings ?? widget.onConnectionSetup ?? _openAgent,
         borderRadius: BorderRadius.circular(24),
-        child: pack == null
-            ? SizedBox(width: size, height: size)
-            : MascotWidget(
-                pack: pack,
-                bundle: widget.character?.bundle,
-                size: size,
-                mood: _characterSignals.semantic,
-                signals: _characterSignals,
-              ),
+        child: artwork,
       ),
     );
   }
@@ -2052,17 +3213,86 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
-  Widget _transcript() => ListView(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    children: [
-      for (final m in _s.converseHistory)
-        MessageBubble(role: m.role, text: m.text, note: m.note),
-      if (_s.busyConverse && !_speaking)
-        const Padding(
-          padding: EdgeInsets.all(12),
-          child: Center(child: CircularProgressIndicator()),
-        ),
-    ],
+  Widget _transcript() => ListenableBuilder(
+    listenable: _s,
+    builder: (context, _) {
+      final attachedSources = <String>{
+        for (final m in _s.converseHistory)
+          if (m.role == 'user')
+            if (_s.handoffForMessage(m) case final notice?)
+              notice.sourceEventId,
+      };
+      return ListView(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        children: [
+          for (var i = 0; i < _s.converseHistory.length; i++)
+            switch (_s.converseHistory[i]) {
+              final m
+                  when m.role == 'system' &&
+                      m.note == 'Agent handoff' &&
+                      m.eventId != null &&
+                      m.eventId!.startsWith('handoff:') =>
+                attachedSources.contains(
+                      m.eventId!.substring('handoff:'.length),
+                    )
+                    ? const SizedBox.shrink()
+                    : switch (_s.handoffNotice(
+                        m.eventId!.substring('handoff:'.length),
+                      )) {
+                        final notice? => ConverseHandoffStatusBanner(
+                          key: ValueKey(
+                            'converse-handoff-${notice.sourceEventId}',
+                          ),
+                          notice: notice,
+                          attachedToMessage: false,
+                          animateTransitions: widget.animateTransitions,
+                          destinationStatus: _s.handoffTaskDestinationStatus(
+                            notice,
+                          ),
+                          taskProgress: _s.handoffTaskProgress(notice),
+                          onOpenTask: () => _s.openHandoffTask(notice),
+                        ),
+                        null => MessageBubble(
+                          role: m.role,
+                          text: m.text,
+                          note: m.note,
+                        ),
+                      },
+              final m when m.role == 'user' => Column(
+                key: ValueKey(
+                  'converse-user-turn-${m.eventId ?? m.utteranceId ?? i}',
+                ),
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MessageBubble(role: m.role, text: m.text, note: m.note),
+                  if (_s.handoffForMessage(m) case final notice?)
+                    ConverseHandoffStatusBanner(
+                      key: ValueKey('converse-handoff-${notice.sourceEventId}'),
+                      notice: notice,
+                      animateTransitions: widget.animateTransitions,
+                      destinationStatus: _s.handoffTaskDestinationStatus(
+                        notice,
+                      ),
+                      taskProgress: _s.handoffTaskProgress(notice),
+                      onOpenTask: () => _s.openHandoffTask(notice),
+                    ),
+                ],
+              ),
+              final m => MessageBubble(
+                role: m.role,
+                text: m.text,
+                note: m.note,
+              ),
+            },
+          if (_s.busyConverse && !_speaking)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      );
+    },
   );
 
   /// Explicit, accessible entry to the complete transcript. The inline
@@ -2107,28 +3337,45 @@ class _CharacterViewState extends State<CharacterView> {
     ),
   );
 
-  /// Full transcript dialog: every history entry with its delivery note, in
-  /// the same order as the inline transcript. Presentation only; opening or
-  /// closing it never touches capture, drafts, or sessions.
+  /// Opening history is passive. Only the explicit idle-only action creates
+  /// a fresh native session; previous durable history and Agent work remain.
   void _openHistory() {
     final count = _s.converseHistory.length;
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
         final size = MediaQuery.sizeOf(dialogContext);
-        return AlertDialog(
-          title: Text('Conversation history ($count)'),
-          content: SizedBox(
-            width: (size.width - 80).clamp(200.0, 560.0),
-            height: (size.height * 0.6).clamp(200.0, 520.0),
-            child: _transcript(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('CLOSE'),
+        return AnimatedBuilder(
+          animation: Listenable.merge([_s, _voiceOptionsUpdates]),
+          builder: (context, _) => AlertDialog(
+            title: Text('Conversation history ($count)'),
+            content: SizedBox(
+              width: (size.width - 80).clamp(200.0, 560.0),
+              height: (size.height * 0.6).clamp(200.0, 520.0),
+              child: _transcript(),
             ),
-          ],
+            actions: [
+              if (_newConversationNotice != null) Text(_newConversationNotice!),
+              TextButton(
+                key: const ValueKey('new-conversation'),
+                onPressed:
+                    _s.sessionAuthenticated &&
+                        _conversationIdle &&
+                        !_s.converseSessionCreating
+                    ? () => unawaited(_startNewConversation(dialogContext))
+                    : null,
+                child: Text(
+                  _s.converseSessionCreating
+                      ? 'Starting conversation…'
+                      : 'New conversation',
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('CLOSE'),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -2205,21 +3452,31 @@ class _CharacterViewState extends State<CharacterView> {
       ? null
       : _micStopUnconfirmed
       ? _stopMicrophone
-      : _armed
+      : _armed || _nativeCallActive
       ? () => _setArmed(false)
-      : _micReady && _converseAvailable
-      ? () => _setArmed(true)
+      : _callStart != null || _s.converseSessionCreating
+      ? null
+      : _micReady && _converseAvailable && _audioInputOperation == null
+      ? _startCall
       : null;
 
   VoidCallback? get _tellAction => _recording
       ? _toggleMic
-      : _micReady && _converseAvailable && !_armed && !_micStopUnconfirmed
+      : !_s.converseSessionCreating &&
+            _micReady &&
+            _converseAvailable &&
+            !_armed &&
+            !_nativeCallActive &&
+            !_micStopUnconfirmed
       ? _toggleMic
       : null;
 
+  bool get _callHasStopState =>
+      _armed || _nativeCallActive || _micStopPending || _micStopUnconfirmed;
+
   String get _callLabel => _micStopPending
       ? 'Stopping microphone…'
-      : _armed
+      : _armed || _nativeCallActive
       ? 'End conversation'
       : _micStopUnconfirmed
       ? 'Stop microphone'
@@ -2229,7 +3486,7 @@ class _CharacterViewState extends State<CharacterView> {
       ? ConverseVoiceActions(
           callLabel: _callLabel,
           tellLabel: _recording ? 'Send voice message' : 'Tell Kinaiya',
-          callTooltip: _armed || _micStopUnconfirmed
+          callTooltip: _callHasStopState
               ? 'Stop Live listen'
               : _micReady
               ? 'Start Live listen (armed mic)'
@@ -2239,7 +3496,9 @@ class _CharacterViewState extends State<CharacterView> {
               : _micReady
               ? 'Record voice'
               : 'Microphone unavailable here',
-          callIcon: _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+          callIcon: _callHasStopState
+              ? Icons.call_end_rounded
+              : Icons.mic_none_rounded,
           tellIcon: _recording ? Icons.send_rounded : Icons.graphic_eq_rounded,
           onCall: _callAction,
           onTell: _tellAction,
@@ -2249,7 +3508,7 @@ class _CharacterViewState extends State<CharacterView> {
           children: [
             Expanded(
               child: Tooltip(
-                message: _armed || _micStopUnconfirmed
+                message: _callHasStopState
                     ? 'Stop Live listen'
                     : _micReady
                     ? 'Start Live listen (armed mic)'
@@ -2258,7 +3517,9 @@ class _CharacterViewState extends State<CharacterView> {
                   key: const ValueKey('call-kinaiya'),
                   onPressed: _callAction,
                   icon: Icon(
-                    _armed ? Icons.call_end_rounded : Icons.mic_none_rounded,
+                    _callHasStopState
+                        ? Icons.call_end_rounded
+                        : Icons.mic_none_rounded,
                   ),
                   label: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -2383,6 +3644,7 @@ class _CharacterViewState extends State<CharacterView> {
                     ),
                   ),
                   ConverseMemoryButton(state: expectedOwner ?? _s),
+                  ConverseCompanionsButton(state: expectedOwner ?? _s),
                   if (widget.surface != CharacterSurface.legacy)
                     Tooltip(
                       message: _recording
@@ -2441,14 +3703,18 @@ class _CharacterViewState extends State<CharacterView> {
                     children: [
                       if (_voiceReady && !_armed)
                         IconButton(
-                          tooltip: 'Use audio recording',
+                          tooltip: _s.nativeAudio.configured
+                              ? nativeAudioImportHint
+                              : 'Use audio recording',
                           icon: const Icon(Icons.audio_file_outlined),
                           onPressed: _toolsAction(
                             expectedOwner,
                             _converseAvailable ? _importRecording : null,
                           ),
                         ),
-                      if (_speaking || _s.busyConverse)
+                      if (_speaking ||
+                          _s.busyConverse ||
+                          _nativeClipOwner != null)
                         IconButton(
                           tooltip: 'Stop speech',
                           icon: const Icon(Icons.stop_circle_outlined),
@@ -2508,11 +3774,13 @@ class _CharacterViewState extends State<CharacterView> {
           ),
           if (_voiceReady && !_armed)
             IconButton(
-              tooltip: 'Use audio recording',
+              tooltip: _s.nativeAudio.configured
+                  ? nativeAudioImportHint
+                  : 'Use audio recording',
               onPressed: _converseAvailable ? _importRecording : null,
               icon: const Icon(Icons.audio_file_outlined),
             ),
-          if (_speaking || _s.busyConverse)
+          if (_speaking || _s.busyConverse || _nativeClipOwner != null)
             IconButton(
               tooltip: 'Stop speech',
               onPressed: _stopSpeech,
@@ -2531,7 +3799,11 @@ class _CharacterViewState extends State<CharacterView> {
           ),
         ],
       ),
-      const Text('Type or speak — your choice'),
+      Text(
+        _s.nativeAudio.configured
+            ? nativeAudioImportHint
+            : 'Type or speak — your choice',
+      ),
     ],
   );
 
@@ -2603,6 +3875,63 @@ class _CharacterViewState extends State<CharacterView> {
     );
   }
 
+  String get _homeSetupLabel => !_s.connected ? 'Connect / Setup' : 'Setup';
+
+  VoidCallback get _homeSetupAction =>
+      (!_s.connected ? widget.onConnectionSetup : null) ??
+      widget.onModelSettings ??
+      widget.onConnectionSetup ??
+      _openVoiceOptions;
+
+  String? get _homeHelperCopy {
+    if (_homeSleeping) {
+      return 'Wake Kinaiya below to resume voice conversation, or open Setup.';
+    }
+    if (_s.converseControlPending) {
+      return _s.converseControlTarget == true
+          ? 'Waiting for the host to confirm Converse is awake.'
+          : 'Waiting for the host to confirm Converse is sleeping.';
+    }
+    if (!_s.connected) {
+      final error = _s.connectionError?.trim();
+      if (error != null && error.isNotEmpty) {
+        return 'Connection failed: $error. Open Connect / Setup to check your host URLs and owner token, then retry.';
+      }
+      return 'Not connected to a Kinaiya host. Open Connect / Setup to enter your host URLs and owner token.';
+    }
+    if (!_s.sessionAuthenticated) {
+      return 'Host connected, but owner session is not authenticated. Open Setup to verify your owner token.';
+    }
+    if (_s.converseControlUncertain || _s.converseOwnerStatusStale) {
+      return 'Converse status is unconfirmed. Use Check host status below or open Setup.';
+    }
+    if (_s.resourceStatusStale) {
+      return 'Resource status is unconfirmed; voice readiness is unknown until the host responds.';
+    }
+    if (_s.resourceConverseDesired == true &&
+        const {'initializing', 'restoring'}.contains(_s.resourcePhase)) {
+      return 'Voice services are starting on the host. Wait for readiness or open Setup.';
+    }
+    if (_s.resourcesConfigured == true && _s.resourcePhase == 'failed') {
+      return 'Voice restoration failed on the host. Open Setup to review model and voice settings.';
+    }
+    if (!_s.converseEnabled) {
+      return _s.resourcePhase == 'local_work'
+          ? 'Voice is paused for local work. Direct Agent Chat remains available.'
+          : 'Converse is off on the host. Wake Kinaiya or open Setup to configure Converse.';
+    }
+    if (!_s.converseOnline) {
+      return 'Converse service is unreachable. Open Setup to verify the Converse service URL.';
+    }
+    if (!_s.converseInferenceAllowed) {
+      return 'Prerequisite needed: select a qualified Converse model and confirm privacy disclosure in Setup.';
+    }
+    if (!_micReady) {
+      return 'Microphone is unavailable here. Open Converse chat to type, or check Voice settings in Setup.';
+    }
+    return null;
+  }
+
   Widget _homeSurface(CharacterPack? pack, Widget banner) => MoonlitHome(
     character: LayoutBuilder(
       builder: (_, bounds) => _mascot(pack, bounds.maxWidth),
@@ -2616,6 +3945,7 @@ class _CharacterViewState extends State<CharacterView> {
         !_micStopUnconfirmed &&
         !_speaking,
     ownerControl: _ownerSleepControl(),
+    helperText: _homeHelperCopy,
     status: _homeSleeping
         ? 'Offline · Sleeping'
         : _s.converseControlPending
@@ -2633,16 +3963,17 @@ class _CharacterViewState extends State<CharacterView> {
         : _converseAvailable
         ? 'Ready when you are'
         : _status,
-    callLabel: _armed || _micStopPending || _micStopUnconfirmed
-        ? _callLabel
-        : 'Talk with Kinaiya',
+    callLabel: _callHasStopState ? _callLabel : 'Talk with Kinaiya',
     onCall: _callAction,
-    callTooltip: _armed || _micStopUnconfirmed
+    callTooltip: _callHasStopState
         ? 'Stop Live listen'
         : _micReady
         ? 'Start Live listen (armed mic)'
         : 'Microphone unavailable here',
-    onSetup: widget.onModelSettings ?? _openVoiceOptions,
+    setupLabel: _homeSetupLabel,
+    onSetup: _homeSetupAction,
+    onConverseSetup: widget.onModelSettings ?? _homeSetupAction,
+    sleepingCharacterWrapper: _mascotPrompts,
     agentStatus: !_s.agentOnline
         ? 'Not connected'
         : !_s.sessionAuthenticated || _s.tasksStatusStale
@@ -2674,9 +4005,8 @@ class _CharacterViewState extends State<CharacterView> {
       widget.showCharacter &&
           widget.character?.packageJson == null &&
           pack?.fallback != true
-      ? InkWell(
-          onTap: widget.onModelSettings,
-          child: ValueListenableBuilder<SpeechMouthFrame>(
+      ? _mascotPrompts(
+          ValueListenableBuilder<SpeechMouthFrame>(
             valueListenable: _mouthFrame,
             builder: (context, frame, _) => ConversePortrait(
               speaking: _speaking,
@@ -2729,27 +4059,39 @@ class _CharacterViewState extends State<CharacterView> {
                 character: character,
                 transcript: transcript,
                 composer: composer,
-                modelSummary: ConverseModelSummary(state: _s),
+                modelSummary: ConverseModelSummary(
+                  state: _s,
+                  onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+                  onConnectionSetup: widget.onConnectionSetup,
+                  onOpenModelOptions: widget.onOpenModelOptions,
+                  onAddModel: widget.onAddModel,
+                  menuController: _modelMenu,
+                ),
                 status: _status,
-                callLabel: _armed || _micStopPending || _micStopUnconfirmed
-                    ? _callLabel
-                    : 'Talk with Kinaiya',
+                stageState: _converseStageState,
+                callLabel: _callHasStopState ? _callLabel : 'Talk with Kinaiya',
                 onCall: _callAction,
                 onMicrophone: _micStopPending
                     ? null
                     : _armed || _recording || _micStopUnconfirmed
                     ? _stopMicrophone
+                    : _nativeCallActive
+                    ? null
                     : _callAction,
                 microphoneLabel: _micStopPending
                     ? 'Stopping microphone…'
                     : _armed || _recording || _micStopUnconfirmed
                     ? 'Mute'
+                    : _nativeCallActive
+                    ? 'Microphone paused'
                     : 'Unmute',
-                onModelSettings: widget.onModelSettings ?? _openVoiceOptions,
+                onModelSettings: _modelMenu.open,
                 onHistory: _openHistory,
                 onVoiceOptions: _openVoiceOptions,
                 onMemory: () =>
                     showConverseMemoryDialog(context: context, state: _s),
+                onCompanions: () =>
+                    showConverseCompanionsDialog(context: context, state: _s),
                 activeVoice: _armed || _recording || _speaking,
               ),
         ),
@@ -2813,23 +4155,65 @@ class _CharacterViewState extends State<CharacterView> {
                           spacing: 12,
                           runSpacing: 12,
                           children: [
-                            FilledButton.icon(
-                              key: const ValueKey('call-kinaiya'),
-                              onPressed: _callAction,
-                              icon: const Icon(Icons.mic_none),
-                              label: Text(
-                                _armed || _micStopUnconfirmed || _micStopPending
-                                    ? _callLabel
-                                    : 'Talk with Kinaiya',
+                            if (_callAction != null) ...[
+                              FilledButton.icon(
+                                key: const ValueKey('call-kinaiya'),
+                                onPressed: _callAction,
+                                icon: Icon(
+                                  _callHasStopState
+                                      ? Icons.call_end_rounded
+                                      : Icons.mic_none,
+                                ),
+                                label: Text(
+                                  _callHasStopState
+                                      ? _callLabel
+                                      : 'Talk with Kinaiya',
+                                ),
                               ),
-                            ),
-                            OutlinedButton(
-                              key: const ValueKey('home-setup'),
-                              onPressed:
-                                  widget.onModelSettings ?? _openVoiceOptions,
-                              child: const Text('Setup'),
-                            ),
+                              OutlinedButton(
+                                key: const ValueKey('home-setup'),
+                                onPressed: _homeSetupAction,
+                                child: Text(_homeSetupLabel),
+                              ),
+                            ] else ...[
+                              FilledButton.icon(
+                                key: const ValueKey('home-setup'),
+                                onPressed: _homeSetupAction,
+                                icon: const Icon(Icons.tune_rounded),
+                                label: Text(_homeSetupLabel),
+                              ),
+                              OutlinedButton.icon(
+                                key: const ValueKey('call-kinaiya'),
+                                onPressed: null,
+                                icon: Icon(
+                                  _callHasStopState
+                                      ? Icons.call_end_rounded
+                                      : Icons.mic_none,
+                                ),
+                                label: Text(
+                                  _callHasStopState
+                                      ? _callLabel
+                                      : 'Talk with Kinaiya',
+                                ),
+                              ),
+                            ],
                             _ownerSleepControl(),
+                            if (!widget.showConverseView)
+                              TextButton.icon(
+                                key: const ValueKey(
+                                  'home-converse-hidden-setup',
+                                ),
+                                onPressed:
+                                    widget.onModelSettings ?? _homeSetupAction,
+                                icon: const Icon(
+                                  Icons.visibility_outlined,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Converse view is hidden · Enable it in Setup',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -2910,4 +4294,411 @@ class _CharacterViewState extends State<CharacterView> {
       },
     ),
   );
+}
+
+class ConverseHandoffStatusBanner extends StatefulWidget {
+  const ConverseHandoffStatusBanner({
+    super.key,
+    required this.notice,
+    this.attachedToMessage = true,
+    this.animateTransitions = true,
+    this.destinationStatus = HandoffTaskDestinationStatus.none,
+    this.taskProgress,
+    this.onOpenTask,
+  });
+
+  final HandoffNotice notice;
+  final bool attachedToMessage;
+  final bool animateTransitions;
+  final HandoffTaskDestinationStatus destinationStatus;
+  final HandoffTaskProgressSummary? taskProgress;
+  final VoidCallback? onOpenTask;
+
+  static final Map<(String, int), HandoffStatus> _observedStatuses = {};
+  static final Set<(String, int, HandoffStatus)> _animatedTransitions = {};
+
+  @visibleForTesting
+  static void resetMicrofeedbackForTesting() {
+    _observedStatuses.clear();
+    _animatedTransitions.clear();
+  }
+
+  @override
+  State<ConverseHandoffStatusBanner> createState() =>
+      _ConverseHandoffStatusBannerState();
+}
+
+class _ConverseHandoffStatusBannerState
+    extends State<ConverseHandoffStatusBanner>
+    with SingleTickerProviderStateMixin {
+  static const Duration _microfeedbackDuration = Duration(milliseconds: 220);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _microfeedbackDuration,
+    value: 1.0,
+  );
+  bool _pendingFreshTransition = false;
+
+  HandoffNotice get notice => widget.notice;
+  bool get attachedToMessage => widget.attachedToMessage;
+  HandoffTaskDestinationStatus get destinationStatus =>
+      widget.destinationStatus;
+  HandoffTaskProgressSummary? get taskProgress => widget.taskProgress;
+  VoidCallback? get onOpenTask => widget.onOpenTask;
+
+  bool _canAnimate(BuildContext context) =>
+      widget.animateTransitions &&
+      MediaQuery.maybeDisableAnimationsOf(context) != true;
+
+  void _recordAndEvaluateTransition({required bool allowStart}) {
+    final key = (notice.sourceEventId, notice.sourceRevision);
+    final previous = ConverseHandoffStatusBanner._observedStatuses[key];
+    ConverseHandoffStatusBanner._observedStatuses[key] = notice.status;
+    while (ConverseHandoffStatusBanner._observedStatuses.length > 256) {
+      ConverseHandoffStatusBanner._observedStatuses.remove(
+        ConverseHandoffStatusBanner._observedStatuses.keys.first,
+      );
+    }
+    final isFreshTransition =
+        previous != null &&
+        previous != notice.status &&
+        notice.status != HandoffStatus.queued &&
+        ConverseHandoffStatusBanner._animatedTransitions.add((
+          notice.sourceEventId,
+          notice.sourceRevision,
+          notice.status,
+        ));
+    while (ConverseHandoffStatusBanner._animatedTransitions.length > 256) {
+      ConverseHandoffStatusBanner._animatedTransitions.remove(
+        ConverseHandoffStatusBanner._animatedTransitions.first,
+      );
+    }
+    if (!isFreshTransition) return;
+    if (!allowStart) {
+      _pendingFreshTransition = true;
+      return;
+    }
+    if (_canAnimate(context)) {
+      _controller.forward(from: 0);
+    } else {
+      _controller.stop();
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _recordAndEvaluateTransition(allowStart: false);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_canAnimate(context)) {
+      _pendingFreshTransition = false;
+      if (_controller.isAnimating) {
+        _controller.stop();
+      }
+      _controller.value = 1.0;
+      return;
+    }
+    if (_pendingFreshTransition) {
+      _pendingFreshTransition = false;
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ConverseHandoffStatusBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.animateTransitions && _controller.isAnimating) {
+      _controller.stop();
+      _controller.value = 1.0;
+    }
+    _recordAndEvaluateTransition(allowStart: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String? get _destinationMessage => switch (destinationStatus) {
+    HandoffTaskDestinationStatus.none ||
+    HandoffTaskDestinationStatus.known => null,
+    HandoffTaskDestinationStatus.missing =>
+      'Task ${notice.nativeTaskId} is unavailable or retired in current Agent tasks.',
+    HandoffTaskDestinationStatus.stale =>
+      'Task ${notice.nativeTaskId} belongs to an earlier session or epoch.',
+    HandoffTaskDestinationStatus.unauthorized =>
+      'Reconnect to inspect task ${notice.nativeTaskId} in Agent.',
+  };
+
+  IconData get _icon => switch (notice.status) {
+    HandoffStatus.queued => Icons.schedule_rounded,
+    HandoffStatus.accepted => Icons.task_alt_rounded,
+    HandoffStatus.applied => Icons.published_with_changes_rounded,
+    HandoffStatus.rejected => Icons.block_rounded,
+    HandoffStatus.notApplied => Icons.do_not_disturb_on_outlined,
+    HandoffStatus.unknown => Icons.help_outline_rounded,
+    HandoffStatus.unavailable => Icons.cloud_off_rounded,
+  };
+
+  IconData _progressIcon(HandoffTaskLifecycleKind kind) => switch (kind) {
+    HandoffTaskLifecycleKind.queued => Icons.hourglass_top_rounded,
+    HandoffTaskLifecycleKind.running => Icons.sync_rounded,
+    HandoffTaskLifecycleKind.awaitingApproval => Icons.gavel_rounded,
+    HandoffTaskLifecycleKind.blocked => Icons.pause_circle_outline_rounded,
+    HandoffTaskLifecycleKind.failed => Icons.error_outline_rounded,
+    HandoffTaskLifecycleKind.succeededWithEvidence => Icons.verified_rounded,
+    HandoffTaskLifecycleKind.succeededUnverified => Icons.info_outline_rounded,
+    HandoffTaskLifecycleKind.unknown => Icons.help_outline_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (Color bg, Color fg, Color border) = switch (notice.status) {
+      HandoffStatus.accepted || HandoffStatus.applied => (
+        scheme.primaryContainer,
+        scheme.onPrimaryContainer,
+        scheme.primary,
+      ),
+      HandoffStatus.queued => (
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
+        scheme.secondary,
+      ),
+      HandoffStatus.rejected => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+        scheme.error,
+      ),
+      HandoffStatus.notApplied ||
+      HandoffStatus.unknown ||
+      HandoffStatus.unavailable => (
+        scheme.surfaceContainerHighest,
+        scheme.onSurface,
+        scheme.outline,
+      ),
+    };
+    final semanticLabel = taskProgress == null
+        ? notice.semanticSummary
+        : '${notice.semanticSummary}. ${taskProgress!.stateLabel}: ${taskProgress!.detailText}';
+    final canAnimate = _canAnimate(context);
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: semanticLabel,
+      child: Align(
+        alignment: attachedToMessage
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            final highlighting = canAnimate && _controller.isAnimating;
+            final t = highlighting
+                ? Curves.easeOutCubic.transform(_controller.value)
+                : 1.0;
+            final highlightAlpha = highlighting ? (1.0 - t) * 0.35 : 0.0;
+            return Container(
+              margin: attachedToMessage
+                  ? const EdgeInsets.fromLTRB(24, 2, 8, 6)
+                  : const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Color.lerp(bg, border, highlightAlpha) ?? bg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: border,
+                  width: highlighting ? 1.5 : 1.0,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        key: ValueKey(
+                          'converse-handoff-status-chip-${notice.sourceEventId}',
+                        ),
+                        padding: highlighting
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              )
+                            : EdgeInsets.zero,
+                        decoration: highlighting
+                            ? BoxDecoration(
+                                color: border.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(8),
+                              )
+                            : null,
+                        child: Row(
+                          key: highlighting
+                              ? ValueKey(
+                                  'converse-handoff-microfeedback-active-${notice.sourceEventId}',
+                                )
+                              : null,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_icon, size: 16, color: fg),
+                            const SizedBox(width: 4),
+                            Text(
+                              notice.statusLabel,
+                              key: ValueKey(
+                                'converse-handoff-status-${notice.sourceEventId}',
+                              ),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: fg,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        notice.text,
+                        key: ValueKey(
+                          'converse-handoff-text-${notice.sourceEventId}',
+                        ),
+                        style: TextStyle(fontSize: 12, color: fg, height: 1.35),
+                      ),
+                      if (notice.hasConfirmedTaskIdentifier &&
+                          destinationStatus ==
+                              HandoffTaskDestinationStatus.known &&
+                          onOpenTask != null)
+                        TextButton.icon(
+                          key: ValueKey(
+                            'converse-handoff-open-task-${notice.sourceEventId}',
+                          ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: fg,
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                          ),
+                          onPressed: onOpenTask,
+                          icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                          label: const Text(
+                            'Open task',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        )
+                      else if (_destinationMessage case final destText?)
+                        Text(
+                          destText,
+                          key: ValueKey(
+                            'converse-handoff-destination-status-${notice.sourceEventId}',
+                          ),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: fg,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (taskProgress case final progress?) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      key: ValueKey(
+                        'converse-handoff-task-progress-${notice.sourceEventId}',
+                      ),
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _progressIcon(progress.kind),
+                              size: 14,
+                              color: fg,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              progress.stateLabel,
+                              key: ValueKey(
+                                'converse-handoff-task-state-${notice.sourceEventId}',
+                              ),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: fg,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          progress.detailText,
+                          key: ValueKey(
+                            'converse-handoff-task-detail-${notice.sourceEventId}',
+                          ),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: fg,
+                            height: 1.3,
+                          ),
+                        ),
+                        if (progress.actionLabel != null &&
+                            progress.actionLabel != 'Open task' &&
+                            destinationStatus ==
+                                HandoffTaskDestinationStatus.known &&
+                            onOpenTask != null)
+                          TextButton.icon(
+                            key: ValueKey(
+                              'converse-handoff-task-action-${notice.sourceEventId}',
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: fg,
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                            onPressed: onOpenTask,
+                            icon: Icon(
+                              progress.kind ==
+                                      HandoffTaskLifecycleKind.awaitingApproval
+                                  ? Icons.fact_check_outlined
+                                  : Icons.receipt_long_outlined,
+                              size: 14,
+                            ),
+                            label: Text(
+                              progress.actionLabel!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }

@@ -13,7 +13,10 @@ from packages.contracts.models import JournalEntry
 from packages.contracts.standing_execution import (
     StandingExecutionClaim,
     StandingExecutionIntent,
-    standing_initial_request,
+    _initial_request_from_checked_claim,
+)
+from packages.contracts.standing_execution import (
+    standing_initial_request as standing_initial_request,
 )
 from packages.contracts.standing_work import (
     _checked,
@@ -139,7 +142,8 @@ def _entry_json(entry):
 
 
 def _request_json(claim):
-    request = standing_initial_request(claim)
+    # Every caller has just checked its full claim or enclosing initial proof.
+    request = _initial_request_from_checked_claim(claim)
     if len(request.model_dump_json().encode("utf-8")) > _MAX_REQUEST_BYTES:
         raise ValueError(_ERROR)
     raw = request.model_dump(mode="json")
@@ -149,25 +153,55 @@ def _request_json(claim):
     return raw
 
 
+def _entry_against_request(entry, expected):
+    # Each caller builds expected after checking its claim in this invocation.
+    raw = _entry_json(entry)
+    actual = {key: raw[key] for key in _REQUEST_FIELDS}
+    # JSON identity distinguishes bool/int and every nested field. Python
+    # equality alone would incorrectly equate True with 1 and tuples/lists.
+    if _encode(actual) != _encode(expected):
+        raise ValueError(_ERROR)
+    detached = json.loads(_encode(raw))
+    detached["created_at"] = _timestamp(detached["created_at"])
+    result = JournalEntry.model_validate(detached, strict=True)
+    if len(result.model_dump_json().encode("utf-8")) > _MAX_ENTRY_BYTES:
+        raise ValueError(_ERROR)
+    return result
+
+
 def standing_entry(entry, claim: StandingExecutionClaim) -> JournalEntry:
     """Validate an existing complete entry; never infer native provenance."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        raw = _entry_json(entry)
         expected = _request_json(claim)
-        actual = {key: raw[key] for key in _REQUEST_FIELDS}
-        # JSON identity distinguishes bool/int and every nested field. Python
-        # equality alone would incorrectly equate True with 1 and tuples/lists.
-        if _encode(actual) != _encode(expected):
-            raise ValueError(_ERROR)
-        detached = json.loads(_encode(raw))
-        detached["created_at"] = _timestamp(detached["created_at"])
-        result = JournalEntry.model_validate(detached, strict=True)
-        if len(result.model_dump_json().encode("utf-8")) > _MAX_ENTRY_BYTES:
-            raise ValueError(_ERROR)
-        return result
+        return _entry_against_request(entry, expected)
     except _FAILURES:
         raise ValueError(_ERROR) from None
+
+
+def _standing_entry_digest(
+    claim: StandingExecutionClaim, event_id: str, sequence: int, created_at: str
+) -> str:
+    _event_id(event_id)
+    _sequence(sequence)
+    _timestamp(created_at)
+    expected = _request_json(claim)
+    entry = _entry_against_request(
+        {
+            **expected,
+            "event_id": event_id,
+            "sequence": sequence,
+            "origin": "standing-supervisor",
+            "created_at": created_at,
+        },
+        expected,
+    )
+    body = {
+        "claim_id": claim.claim_id,
+        "claim_digest": claim.claim_digest,
+        "entry": entry.model_dump(mode="json"),
+    }
+    return hashlib.sha256(b"kinaiya.standing.initial.v1\0" + _encode(body)).hexdigest()
 
 
 def standing_entry_digest(
@@ -176,25 +210,7 @@ def standing_entry_digest(
     """Hash complete claim-bound entry identity without minting metadata."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        _event_id(event_id)
-        _sequence(sequence)
-        _timestamp(created_at)
-        entry = standing_entry(
-            {
-                **_request_json(claim),
-                "event_id": event_id,
-                "sequence": sequence,
-                "origin": "standing-supervisor",
-                "created_at": created_at,
-            },
-            claim,
-        )
-        body = {
-            "claim_id": claim.claim_id,
-            "claim_digest": claim.claim_digest,
-            "entry": entry.model_dump(mode="json"),
-        }
-        return hashlib.sha256(b"kinaiya.standing.initial.v1\0" + _encode(body)).hexdigest()
+        return _standing_entry_digest(claim, event_id, sequence, created_at)
     except _FAILURES:
         raise ValueError(_ERROR) from None
 
@@ -247,7 +263,7 @@ class StandingInitialProof(_Initial):
 
     @model_validator(mode="after")
     def exact_entry(self):
-        if self.entry_digest != standing_entry_digest(
+        if self.entry_digest != _standing_entry_digest(
             self.claim, self.event_id, self.sequence, self.created_at
         ):
             raise ValueError(_ERROR)
@@ -298,14 +314,15 @@ def standing_initial_proof(claim: StandingExecutionClaim, entry) -> StandingInit
     """Construct detached metadata proof from one already existing entry."""
     try:
         claim = _checked(claim, StandingExecutionClaim)
-        raw = standing_entry(entry, claim).model_dump(mode="json")
+        expected = _request_json(claim)
+        raw = _entry_against_request(entry, expected).model_dump(mode="json")
         return StandingInitialProof(
             schema_version="1.0",
             claim=claim,
             event_id=raw["event_id"],
             sequence=raw["sequence"],
             created_at=raw["created_at"],
-            entry_digest=standing_entry_digest(
+            entry_digest=_standing_entry_digest(
                 claim, raw["event_id"], raw["sequence"], raw["created_at"]
             ),
         )

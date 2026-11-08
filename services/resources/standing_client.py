@@ -8,6 +8,7 @@ from packages.contracts.standing_client import _StandingExchange
 from packages.contracts.standing_execution import StandingExecutionClaim
 from packages.contracts.standing_resource_finalization import (
     StandingResourceBindingReceipt,
+    StandingResourceFinalizationReceipt,
     StandingResourceFinalizeContext,
     StandingResourceFinalizeRequest,
     checked_finalization,
@@ -15,6 +16,19 @@ from packages.contracts.standing_resource_finalization import (
 )
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from services.resources.client import local_base
+
+
+def _freeze_finalization_request(request):
+    try:
+        original = checked_finalization(request, StandingResourceFinalizeRequest)
+        wire = finalization_bytes(original)
+        if len(wire) > StandingResourceFinalizeRequest.wire_bytes:
+            raise StandingUnavailable
+        # Freeze complete detached input before even ready-exchange settlement
+        # can await; the shared exchange still performs its original checks.
+        return StandingResourceFinalizeRequest.from_json(wire)
+    except Exception:
+        raise StandingUnavailable from None
 
 
 class StandingResourceClient:
@@ -54,12 +68,16 @@ class StandingResourceClient:
             if pending:
                 raise StandingUnavailable
 
-    async def _exchange(self, suffix, original, kind, result_type, *, nullable=False):
+    async def _exchange(
+        self, suffix, original, kind, result_type, *, nullable=False, _deadline=None
+    ):
         exchange = None
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + 25
+        deadline = loop.time() + 25 if _deadline is None else _deadline
         try:
             await self._settle_ready(deadline)
+            if _deadline is not None and loop.time() >= deadline:
+                raise StandingUnavailable
             self.require_available()
             if len(self._submit_exchanges) >= 64:
                 raise StandingUnavailable
@@ -93,6 +111,8 @@ class StandingResourceClient:
                     if kind is StandingExecutionClaim
                     else result.validate_request(original)
                 )
+            if loop.time() >= deadline:
+                raise StandingUnavailable
             return result
         except asyncio.CancelledError:
             if exchange is not None:
@@ -134,6 +154,36 @@ class StandingResourceClient:
             StandingResourceFinalizeContext,
             nullable=True,
         )
+
+    async def finalize_standing_claim(
+        self, request: StandingResourceFinalizeRequest
+    ) -> StandingResourceFinalizationReceipt:
+        return await self._finalization("finalization", request)
+
+    async def lookup_standing_finalization(
+        self, request: StandingResourceFinalizeRequest
+    ) -> StandingResourceFinalizationReceipt | None:
+        return await self._finalization("finalization/lookup", request, nullable=True)
+
+    async def _finalization(self, suffix, request, *, nullable=False):
+        # One public-operation budget includes complete detached input and the
+        # final fresh receipt join, not only the retained HTTP exchange.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 25
+        original = _freeze_finalization_request(request)
+        if loop.time() >= deadline:
+            raise StandingUnavailable
+        result = await self._exchange(
+            suffix,
+            original,
+            StandingResourceFinalizeRequest,
+            StandingResourceFinalizationReceipt,
+            nullable=nullable,
+            _deadline=deadline,
+        )
+        if loop.time() >= deadline:
+            raise StandingUnavailable
+        return result
 
     async def _close_owned(self):
         # Original exchanges remain the sole response-close owners. Retiring

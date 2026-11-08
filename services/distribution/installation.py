@@ -21,118 +21,1289 @@ from types import SimpleNamespace
 from typing import Any, cast
 from urllib.parse import urlsplit
 
+MIN_BUBBLEWRAP_VERSION = (0, 6, 1)
+MIN_LIBSECCOMP_VERSION = (2, 5)
+DEFAULT_DPKG_STATUS_PATH = Path("/var/lib/dpkg/status")
+APT_STRICT_OPTIONS: tuple[str, ...] = (
+    "--no-upgrade",
+    "--no-remove",
+    "-o",
+    "APT::Get::Upgrade=false",
+    "-o",
+    "APT::Get::Remove=false",
+    "-o",
+    "APT::Get::Allow-Downgrades=false",
+)
+_REAL_SUBPROCESS_RUN = subprocess.run
+_APT_PKG_NAME_RE = re.compile(r"[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?")
+_APT_VERSION_RE = re.compile(r"[0-9][A-Za-z0-9.+:~-]*")
+_APT_SUMMARY_RE = re.compile(
+    r"^(?P<upgraded>\d+)\s+upgraded,\s+"
+    r"(?P<newly_installed>\d+)\s+newly installed,"
+    r"(?:\s+(?P<downgraded>\d+)\s+downgraded,)?"
+    r"\s+(?P<to_remove>\d+)\s+to remove\s+and\s+"
+    r"(?P<not_upgraded>\d+)\s+not upgraded\."
+)
+_APT_INST_RE = re.compile(
+    r"^Inst\s+"
+    r"(?P<pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?)"
+    r"(?:\s+\[(?P<old_ver>[^\]]*)\])?"
+    r"\s+\((?P<new_ver>[0-9][A-Za-z0-9.+:~-]*)(?:\s+[^\)]*)?\)"
+    r"(?:\s*(?P<trailing>\[.*\]))?\s*$"
+)
+_APT_CONF_RE = re.compile(
+    r"^Conf\s+"
+    r"(?P<pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?)"
+    r"\s+\((?P<new_ver>[0-9][A-Za-z0-9.+:~-]*)(?:\s+[^\)]*)?\)"
+    r"(?:\s*(?P<trailing>\[.*\]))?\s*$"
+)
+_APT_REMV_RE = re.compile(
+    r"^(?:Remv|Purg)\s+"
+    r"(?P<pkg>\S+)"
+    r"(?:\s+\[(?P<old_ver>[^\]]*)\])?"
+    r"(?:\s*(?P<trailing>\[.*\]))?\s*$"
+)
+_APT_SKIP_INSTALLED_RE = re.compile(
+    r"^(?:Skipping\s+(?P<skip_pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?),\s+it is already installed|"
+    r"(?P<newest_pkg>[a-z0-9][a-z0-9.+-]*(?::[a-z0-9]+)?)\s+is already the newest version)"
+)
 
-def preflight(layout):
+
+def _parse_version_tuple(raw: str | None) -> tuple[int, ...] | None:
+    if not raw or not isinstance(raw, str):
+        return None
+    match = re.search(r"(\d+(?:\.\d+)+)", raw)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def _deb_char_order(ch: str) -> int:
+    if ch == "~":
+        return -1
+    if not ch:
+        return 0
+    if ch.isalpha():
+        return ord(ch)
+    return ord(ch) + 256
+
+
+def _compare_deb_part(left: str, right: str) -> int:
+    i, j = 0, 0
+    while i < len(left) or j < len(right):
+        while (i < len(left) and not left[i].isdigit()) or (
+            j < len(right) and not right[j].isdigit()
+        ):
+            lc = left[i] if i < len(left) and not left[i].isdigit() else ""
+            rc = right[j] if j < len(right) and not right[j].isdigit() else ""
+            if lc != rc:
+                return -1 if _deb_char_order(lc) < _deb_char_order(rc) else 1
+            if lc:
+                i += 1
+            if rc:
+                j += 1
+        i_start, j_start = i, j
+        while i < len(left) and left[i].isdigit():
+            i += 1
+        while j < len(right) and right[j].isdigit():
+            j += 1
+        l_num = int(left[i_start:i] or "0")
+        r_num = int(right[j_start:j] or "0")
+        if l_num != r_num:
+            return -1 if l_num < r_num else 1
+    return 0
+
+
+def _split_deb_version(version: str) -> tuple[int, str, str]:
+    rest = version.strip()
+    if ":" in rest:
+        epoch_str, rest = rest.split(":", 1)
+        epoch = int(epoch_str) if epoch_str.isdigit() else 0
+    else:
+        epoch = 0
+    if "-" in rest:
+        upstream, revision = rest.rsplit("-", 1)
+    else:
+        upstream, revision = rest, ""
+    return epoch, upstream, revision
+
+
+def _compare_deb_versions(left: str, right: str) -> int:
+    l_epoch, l_up, l_rev = _split_deb_version(left)
+    r_epoch, r_up, r_rev = _split_deb_version(right)
+    if l_epoch != r_epoch:
+        return -1 if l_epoch < r_epoch else 1
+    up_cmp = _compare_deb_part(l_up, r_up)
+    if up_cmp != 0:
+        return up_cmp
+    return _compare_deb_part(l_rev, r_rev)
+
+
+def _validate_apt_package_spec(
+    spec: str, *, allow_version_pin: bool = False
+) -> tuple[str, str | None]:
+    if not isinstance(spec, str) or not spec:
+        raise InstallError(f"Refusing invalid system dependency name: {spec!r}")
+    if allow_version_pin and "=" in spec:
+        pkg, ver = spec.split("=", 1)
+        if not _APT_PKG_NAME_RE.fullmatch(pkg) or not _APT_VERSION_RE.fullmatch(ver):
+            raise InstallError(f"Refusing invalid system dependency pin: {spec!r}")
+        return pkg, ver
+    if not _APT_PKG_NAME_RE.fullmatch(spec):
+        raise InstallError(f"Refusing invalid system dependency name: {spec!r}")
+    return spec, None
+
+
+def _resolve_dpkg_status_path(
+    status_path: Path | None = None, *, env: dict[str, str] | None = None
+) -> Path | None:
+    if status_path is not None:
+        return Path(status_path)
+    active_env = os.environ if env is None else env
+    apt_config = active_env.get("APT_CONFIG")
+    if apt_config:
+        try:
+            cfg_text = Path(apt_config).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            cfg_text = ""
+        status_match = re.search(r'Dir::State::status\s+"([^"]+)"\s*;', cfg_text)
+        if status_match:
+            raw_status = Path(status_match.group(1))
+            if raw_status.is_absolute():
+                return raw_status
+            dir_match = re.search(r'Dir\s+"([^"]+)"\s*;', cfg_text)
+            base_dir = Path(dir_match.group(1)) if dir_match else Path(apt_config).parent
+            return base_dir / raw_status
+    return DEFAULT_DPKG_STATUS_PATH
+
+
+def installed_packages_snapshot(
+    status_path: Path | None = None, *, env: dict[str, str] | None = None
+) -> dict[str, str]:
+    resolved = _resolve_dpkg_status_path(status_path, env=env)
+    if resolved is None:
+        return {}
+    try:
+        text = resolved.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    snapshot: dict[str, str] = {}
+    for stanza in text.split("\n\n"):
+        fields: dict[str, str] = {}
+        for line in stanza.splitlines():
+            if ":" in line and not line[:1].isspace():
+                key, val = line.split(":", 1)
+                fields[key.strip()] = val.strip()
+        pkg = fields.get("Package")
+        ver = fields.get("Version")
+        status_tokens = fields.get("Status", "").split()
+        is_present = "installed" in status_tokens or (
+            len(status_tokens) >= 3 and status_tokens[2] not in {"not-installed", "config-files"}
+        )
+        if pkg and ver and is_present:
+            snapshot[pkg] = ver
+            arch = fields.get("Architecture")
+            if arch:
+                snapshot[f"{pkg}:{arch}"] = ver
+    return snapshot
+
+
+def installed_package_version(
+    package: str, status_path: Path = DEFAULT_DPKG_STATUS_PATH
+) -> str | None:
+    return installed_packages_snapshot(status_path).get(package)
+
+
+def _venv_available() -> bool:
+    try:
+        import ensurepip  # noqa: F401
+        import venv  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def missing_system_dependencies() -> list[str]:
     import ctypes.util
-    import ensurepip  # noqa: F401
+
+    missing: list[str] = []
+    if shutil.which("bwrap") is None:
+        missing.append("bubblewrap")
+    if ctypes.util.find_library("seccomp") is None:
+        missing.append("libseccomp2")
+    if not _venv_available():
+        missing.append(f"python{sys.version_info[0]}.{sys.version_info[1]}-venv")
+    return missing
+
+
+def apt_simulation_command(packages: list[str] | tuple[str, ...]) -> list[str]:
+    if not packages:
+        raise InstallError("Refusing empty apt simulation package list")
+    for pkg in packages:
+        _validate_apt_package_spec(pkg, allow_version_pin=True)
+    return ["apt-get", "-s", *APT_STRICT_OPTIONS, "-y", "install", "--", *packages]
+
+
+def dependency_install_command(missing: list[str] | tuple[str, ...]) -> list[str]:
+    for pkg in missing:
+        _validate_apt_package_spec(pkg, allow_version_pin=True)
+    return ["sudo", "apt-get", "install", *APT_STRICT_OPTIONS, "-y", "--", *missing]
+
+
+def parse_apt_simulation_output(
+    stdout: str,
+    stderr: str = "",
+    *,
+    returncode: int = 0,
+    requested_packages: list[str] | tuple[str, ...] = (),
+    installed_snapshot: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Parse `apt-get -s` output and refuse any upgrade, downgrade, or removal of existing packages."""
+    snapshot = dict(installed_snapshot or {})
+    upgrades: list[str] = []
+    removals: list[str] = []
+    downgrades: list[str] = []
+    already_installed: list[str] = []
+    broken: list[str] = []
+    new_installs: list[tuple[str, str]] = []
+    configured: dict[str, str] = {}
+    summary: dict[str, int] | None = None
+
+    section: str | None = None
+    section_upgrades: list[str] = []
+    section_removals: list[str] = []
+    section_downgrades: list[str] = []
+
+    section_headers = {
+        "The following packages will be upgraded:": "upgraded",
+        "The following packages will be REMOVED:": "removed",
+        "The following packages will be DOWNGRADED:": "downgraded",
+        "The following packages have unmet dependencies:": "unmet",
+        "The following NEW packages will be installed:": "new",
+        "The following additional packages will be installed:": "additional",
+        "The following packages have been kept back:": "kept_back",
+    }
+
+    for raw_line in (stdout or "").splitlines():
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        if stripped in section_headers:
+            section = section_headers[stripped]
+            continue
+        if raw_line[:1].isspace() and section in {"upgraded", "removed", "downgraded", "unmet"}:
+            if section == "unmet":
+                broken.append(stripped)
+            else:
+                tokens = [tok.rstrip("*") for tok in stripped.split() if tok.rstrip("*")]
+                if section == "upgraded":
+                    section_upgrades.extend(tokens)
+                elif section == "removed":
+                    section_removals.extend(tokens)
+                elif section == "downgraded":
+                    section_downgrades.extend(tokens)
+            continue
+        section = None
+
+        skip_match = _APT_SKIP_INSTALLED_RE.match(stripped)
+        if skip_match:
+            pkg_hit = skip_match.group("skip_pkg") or skip_match.group("newest_pkg")
+            if pkg_hit and pkg_hit not in already_installed:
+                already_installed.append(pkg_hit)
+            continue
+
+        summary_match = _APT_SUMMARY_RE.match(stripped)
+        if summary_match:
+            summary = {
+                "upgraded": int(summary_match.group("upgraded")),
+                "newly_installed": int(summary_match.group("newly_installed")),
+                "downgraded": int(summary_match.group("downgraded") or "0"),
+                "to_remove": int(summary_match.group("to_remove")),
+                "not_upgraded": int(summary_match.group("not_upgraded")),
+            }
+            continue
+
+        if stripped.startswith(("Remv ", "Purg ")):
+            remv_match = _APT_REMV_RE.match(stripped)
+            if remv_match:
+                pkg = remv_match.group("pkg")
+                old_ver = remv_match.group("old_ver")
+                label = f"{pkg} ({old_ver})" if old_ver else pkg
+                if label not in removals:
+                    removals.append(label)
+            else:
+                removals.append(stripped)
+            continue
+
+        if stripped.startswith("Inst "):
+            inst_match = _APT_INST_RE.match(stripped)
+            if not inst_match:
+                broken.append(f"malformed Inst line: {stripped}")
+                continue
+            pkg = inst_match.group("pkg")
+            base_pkg = pkg.split(":", 1)[0]
+            old_ver = inst_match.group("old_ver")
+            new_ver = inst_match.group("new_ver")
+            trailing = inst_match.group("trailing")
+            if trailing:
+                broken.append(f"{pkg} has unresolved dependencies {trailing}")
+            if old_ver is not None:
+                is_downgrade = (
+                    pkg in section_downgrades
+                    or base_pkg in section_downgrades
+                    or (bool(old_ver) and _compare_deb_versions(old_ver, new_ver) > 0)
+                )
+                label = f"{pkg} ({old_ver or 'installed'} -> {new_ver})"
+                target_list = downgrades if is_downgrade else upgrades
+                if label not in target_list:
+                    target_list.append(label)
+            else:
+                snap_ver = snapshot.get(pkg) or snapshot.get(base_pkg)
+                if snap_ver is not None:
+                    label = f"{pkg} ({snap_ver} -> {new_ver})"
+                    target_list = (
+                        downgrades if _compare_deb_versions(snap_ver, new_ver) > 0 else upgrades
+                    )
+                    if label not in target_list:
+                        target_list.append(label)
+                else:
+                    new_installs.append((pkg, new_ver))
+            continue
+
+        if stripped.startswith("Conf "):
+            conf_match = _APT_CONF_RE.match(stripped)
+            if not conf_match or conf_match.group("trailing"):
+                broken.append(f"broken Conf line: {stripped}")
+                continue
+            configured[conf_match.group("pkg")] = conf_match.group("new_ver")
+            continue
+
+        if stripped.startswith("E:"):
+            broken.append(stripped)
+
+    for raw_err in (stderr or "").splitlines():
+        err_stripped = raw_err.strip()
+        if err_stripped:
+            broken.append(err_stripped)
+
+    def _already_recorded(pkg_name: str, items: list[str]) -> bool:
+        base = pkg_name.split(":", 1)[0]
+        return any(
+            item == pkg_name
+            or item == base
+            or item.startswith(f"{pkg_name} ")
+            or item.startswith(f"{base} ")
+            for item in items
+        )
+
+    for pkg in section_upgrades:
+        if not _already_recorded(pkg, upgrades):
+            snap_ver = snapshot.get(pkg) or snapshot.get(pkg.split(":", 1)[0])
+            upgrades.append(f"{pkg} ({snap_ver} -> upgraded)" if snap_ver else pkg)
+    for pkg in section_downgrades:
+        if not _already_recorded(pkg, downgrades):
+            snap_ver = snapshot.get(pkg) or snapshot.get(pkg.split(":", 1)[0])
+            downgrades.append(f"{pkg} ({snap_ver} -> downgraded)" if snap_ver else pkg)
+    for pkg in section_removals:
+        if not _already_recorded(pkg, removals):
+            snap_ver = snapshot.get(pkg) or snapshot.get(pkg.split(":", 1)[0])
+            removals.append(f"{pkg} ({snap_ver})" if snap_ver else pkg)
+
+    req_label = ", ".join(requested_packages) if requested_packages else "requested packages"
+    policy_tail = (
+        "Kinaiya refuses to upgrade, downgrade, or remove existing system packages, "
+        "and never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+    )
+
+    mutation_reasons: list[str] = []
+    if upgrades or (summary is not None and summary["upgraded"] > 0):
+        offending = ", ".join(upgrades) if upgrades else f"{summary['upgraded']} package(s)"  # type: ignore[index]
+        mutation_reasons.append(f"upgrade existing package(s) [{offending}]")
+    if downgrades or (summary is not None and summary["downgraded"] > 0):
+        offending = ", ".join(downgrades) if downgrades else f"{summary['downgraded']} package(s)"  # type: ignore[index]
+        mutation_reasons.append(f"downgrade existing package(s) [{offending}]")
+    if removals or (summary is not None and summary["to_remove"] > 0):
+        offending = ", ".join(removals) if removals else f"{summary['to_remove']} package(s)"  # type: ignore[index]
+        mutation_reasons.append(f"remove existing package(s) [{offending}]")
+    if mutation_reasons:
+        raise InstallError(
+            f"Out-of-date system blocker: cannot install missing dependencies ({req_label}): "
+            f"apt solver transaction would {'; '.join(mutation_reasons)}. "
+            f"Please update or reconcile those packages manually first; {policy_tail}"
+        )
+
+    if already_installed:
+        raise InstallError(
+            f"Out-of-date system blocker: cannot install ({req_label}): "
+            f"package(s) [{', '.join(already_installed)}] are already installed. {policy_tail}"
+        )
+
+    if returncode != 0 or broken:
+        detail = broken[-1] if broken else f"apt-get exited {returncode}"
+        raise InstallError(
+            f"Out-of-date system blocker: could not install missing dependencies ({req_label}) "
+            f"with `--no-upgrade` ({detail}). An existing installed package or your local apt package index "
+            f"is out of date. Please update that specific package or refresh your package index manually "
+            f"first; {policy_tail}"
+        )
+
+    if summary is None:
+        raise InstallError(
+            f"Out-of-date system blocker: apt-get simulation for ({req_label}) did not produce a "
+            f"verifiable solver summary. {policy_tail}"
+        )
+
+    if summary["newly_installed"] <= 0 or summary["newly_installed"] != len(new_installs):
+        raise InstallError(
+            f"Out-of-date system blocker: apt-get simulation for ({req_label}) reported "
+            f"{summary['newly_installed']} newly installed package(s), but {len(new_installs)} "
+            f"verified Inst entry/entries were parsed. {policy_tail}"
+        )
+
+    seen_pkgs: set[str] = set()
+    by_name: dict[str, str] = {}
+    for pkg, ver in new_installs:
+        base_pkg = pkg.split(":", 1)[0]
+        if pkg in seen_pkgs or base_pkg in seen_pkgs:
+            raise InstallError(
+                f"Out-of-date system blocker: duplicate Inst entry for {pkg} in apt simulation. {policy_tail}"
+            )
+        if configured.get(pkg) != ver:
+            raise InstallError(
+                f"Out-of-date system blocker: missing or mismatched Conf entry for {pkg}={ver} in apt simulation. {policy_tail}"
+            )
+        seen_pkgs.add(pkg)
+        seen_pkgs.add(base_pkg)
+        by_name[pkg] = ver
+        by_name[base_pkg] = ver
+
+    for req in requested_packages:
+        req_name, req_ver = _validate_apt_package_spec(req, allow_version_pin=True)
+        req_base = req_name.split(":", 1)[0]
+        resolved_ver = by_name.get(req_name) or by_name.get(req_base)
+        if resolved_ver is None:
+            raise InstallError(
+                f"Out-of-date system blocker: requested package {req_name} was not present in "
+                f"verified new-install set for ({req_label}). {policy_tail}"
+            )
+        if req_ver is not None and resolved_ver != req_ver:
+            raise InstallError(
+                f"Out-of-date system blocker: requested package {req} resolved to {resolved_ver}. {policy_tail}"
+            )
+
+    return {
+        "requested_packages": list(requested_packages),
+        "new_installs": list(new_installs),
+        "pinned_packages": [f"{pkg}={ver}" for pkg, ver in new_installs],
+        "summary": summary,
+    }
+
+
+def _active_dpkg_snapshot(
+    *,
+    status_path: Path | None,
+    env: dict[str, str] | None,
+    runner: Any,
+) -> dict[str, str]:
+    active_env = os.environ if env is None else env
+    has_explicit_status = (
+        status_path is not None
+        or "APT_CONFIG" in active_env
+        or DEFAULT_DPKG_STATUS_PATH != Path("/var/lib/dpkg/status")
+    )
+    is_real_runner = runner is _REAL_SUBPROCESS_RUN and subprocess.run is _REAL_SUBPROCESS_RUN
+    if not has_explicit_status and not is_real_runner:
+        return {}
+    return installed_packages_snapshot(status_path, env=env)
+
+
+def verify_apt_no_existing_package_changes(
+    packages: list[str] | tuple[str, ...],
+    *,
+    env: dict[str, str] | None = None,
+    runner: Any = None,
+    status_path: Path | None = None,
+    expected_snapshot: dict[str, str] | None = None,
+    expected_pinned: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Simulate `apt-get install` and refuse if any existing package would be upgraded, downgraded, or removed."""
+    if not packages:
+        raise InstallError("Refusing to verify an empty dependency package list")
+    for pkg in packages:
+        _validate_apt_package_spec(pkg, allow_version_pin=True)
+
+    active_runner = subprocess.run if runner is None else runner
+    policy_tail = (
+        "Kinaiya refuses to upgrade, downgrade, or remove existing system packages, "
+        "and never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+    )
+
+    pre_snapshot = _active_dpkg_snapshot(status_path=status_path, env=env, runner=active_runner)
+    if expected_snapshot is not None and pre_snapshot != expected_snapshot:
+        raise InstallError(
+            "Out-of-date system blocker: system package state changed between preflight inspection "
+            f"and dependency installation. {policy_tail}"
+        )
+
+    already_present: list[str] = []
+    for spec in packages:
+        pkg_name, _ = _validate_apt_package_spec(spec, allow_version_pin=True)
+        base_name = pkg_name.split(":", 1)[0]
+        existing_ver = pre_snapshot.get(pkg_name) or pre_snapshot.get(base_name)
+        if existing_ver is not None:
+            already_present.append(f"{pkg_name} ({existing_ver})")
+    if already_present:
+        raise InstallError(
+            f"Out-of-date system blocker: refusing to install ({', '.join(packages)}) because "
+            f"requested package(s) [{', '.join(already_present)}] are already installed. {policy_tail}"
+        )
+
+    sim_cmd = apt_simulation_command(packages)
+    sim_env = {
+        **(os.environ if env is None else env),
+        "DEBIAN_FRONTEND": "noninteractive",
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+    try:
+        sim_result = active_runner(
+            sim_cmd, capture_output=True, text=True, timeout=120, env=sim_env
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise InstallError(
+            f"Failed to simulate dependency installation ({', '.join(packages)}) via `{' '.join(sim_cmd)}`: {exc}"
+        ) from None
+
+    parsed = parse_apt_simulation_output(
+        getattr(sim_result, "stdout", "") or "",
+        getattr(sim_result, "stderr", "") or "",
+        returncode=getattr(sim_result, "returncode", 1),
+        requested_packages=packages,
+        installed_snapshot=pre_snapshot,
+    )
+
+    post_snapshot = _active_dpkg_snapshot(status_path=status_path, env=env, runner=active_runner)
+    if post_snapshot != pre_snapshot:
+        raise InstallError(
+            "Out-of-date system blocker: system package state changed during apt-get solver verification. "
+            f"{policy_tail}"
+        )
+    for pkg, _ver in parsed["new_installs"]:
+        base_pkg = pkg.split(":", 1)[0]
+        if pkg in post_snapshot or base_pkg in post_snapshot:
+            existing_ver = post_snapshot.get(pkg) or post_snapshot.get(base_pkg)
+            raise InstallError(
+                f"Out-of-date system blocker: package {pkg} ({existing_ver}) is already installed "
+                f"in dpkg status. {policy_tail}"
+            )
+    if expected_pinned is not None and parsed["pinned_packages"] != list(expected_pinned):
+        raise InstallError(
+            "Out-of-date system blocker: apt-get solver transaction changed between preflight inspection "
+            f"and execution ({parsed['pinned_packages']} != {list(expected_pinned)}). {policy_tail}"
+        )
+
+    return {
+        **parsed,
+        "installed_snapshot": pre_snapshot,
+        "simulation_command": sim_cmd,
+        "install_command": dependency_install_command(parsed["pinned_packages"]),
+    }
+
+
+def install_missing_dependencies(
+    missing: list[str] | tuple[str, ...],
+    *,
+    env: dict[str, str] | None = None,
+    runner: Any = None,
+    status_path: Path | None = None,
+    expected_snapshot: dict[str, str] | None = None,
+    expected_pinned: list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    """Install missing system packages only after verifying zero changes to existing packages."""
+    from services.distribution.stage_progress import current_reporter, redact_install_log
+
+    if not missing:
+        return []
+    for pkg in missing:
+        if not isinstance(pkg, str) or not re.fullmatch(r"[a-z0-9][a-z0-9.+-]*", pkg):
+            raise InstallError(f"Refusing invalid system dependency name: {pkg!r}")
+    reporter = current_reporter()
+    active_runner = subprocess.run if runner is None else runner
+    verified = verify_apt_no_existing_package_changes(
+        missing,
+        env=env,
+        runner=active_runner,
+        status_path=status_path,
+        expected_snapshot=expected_snapshot,
+        expected_pinned=expected_pinned,
+    )
+    current_snapshot = _active_dpkg_snapshot(status_path=status_path, env=env, runner=active_runner)
+    if current_snapshot != verified["installed_snapshot"]:
+        raise InstallError(
+            "Out-of-date system blocker: system package state changed before executing apt-get install. "
+            "Kinaiya refuses to upgrade, downgrade, or remove existing system packages, "
+            "and never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+        )
+    cmd = verified["install_command"]
+    exec_env = {
+        **(os.environ if env is None else env),
+        "DEBIAN_FRONTEND": "noninteractive",
+        "LC_ALL": "C",
+        "LANG": "C",
+    }
+    try:
+        result = active_runner(cmd, capture_output=True, text=True, timeout=300, env=exec_env)
+    except (OSError, subprocess.SubprocessError) as exc:
+        if reporter is not None:
+            reporter.log_subprocess("dependencies", cmd, 1, None, str(exc))
+        raise InstallError(
+            f"Failed to install missing dependencies ({', '.join(missing)}) via `{' '.join(cmd)}`: {redact_install_log(str(exc))}"
+        ) from None
+    if reporter is not None:
+        reporter.log_subprocess(
+            "dependencies",
+            cmd,
+            result.returncode,
+            getattr(result, "stdout", None),
+            getattr(result, "stderr", None),
+        )
+    if result.returncode != 0:
+        detail = redact_install_log(
+            (getattr(result, "stderr", "") or getattr(result, "stdout", "") or "").strip()
+        )
+        suffix = f" ({detail.splitlines()[-1]})" if detail else ""
+        raise InstallError(
+            f"Out-of-date system blocker: could not install missing dependencies ({', '.join(missing)}) "
+            f"with pinned `--no-upgrade --no-remove`{suffix}. An existing installed package or your local apt "
+            "package index is out of date. Please update that specific package or refresh your package index "
+            "manually first; Kinaiya refuses to upgrade, downgrade, or remove existing system packages, and "
+            "never runs `sudo apt-get update` or `sudo apt-get upgrade` for you."
+        )
+    return list(missing)
+
+
+def check_outdated_system_blockers(*, probe_subprocesses: bool = False) -> None:
+    """Warn the user if an existing host component is out of date and blocks installation."""
+    import ctypes.util
     import platform
-    import venv  # noqa: F401 -- refuse missing stdlib venv before writes
+
+    py_major, py_minor = sys.version_info[:2]
+    if (py_major, py_minor) < (3, 11):
+        raise InstallError(
+            f"Out-of-date system blocker: Python {py_major}.{py_minor} is out of date "
+            "(Kinaiya requires Python 3.11-3.14). Please update Python first; "
+            "the installer will not update existing system packages for you."
+        )
+    if platform.system() != "Linux":
+        return
+    try:
+        release = platform.freedesktop_os_release()
+    except OSError:
+        release = {}
+    distro_id = release.get("ID")
+    version_id = release.get("VERSION_ID", "")
+    if distro_id == "ubuntu" and version_id not in {"22.04", "24.04", "26.04"}:
+        parsed_ubuntu = _parse_version_tuple(version_id)
+        if parsed_ubuntu is not None and parsed_ubuntu < (22, 4):
+            raise InstallError(
+                f"Out-of-date system blocker: Ubuntu {version_id} is out of date "
+                "(Kinaiya requires Ubuntu 22.04, 24.04, or 26.04). Please update Ubuntu first; "
+                "the installer will not update your system for you."
+            )
+    bwrap_bin = shutil.which("bwrap")
+    if bwrap_bin is not None:
+        bwrap_ver = installed_package_version("bubblewrap")
+        if bwrap_ver is None and probe_subprocesses:
+            try:
+                ver_probe = subprocess.run(
+                    [bwrap_bin, "--version"], capture_output=True, text=True, timeout=5
+                )
+                bwrap_ver = getattr(ver_probe, "stdout", None)
+            except (OSError, subprocess.SubprocessError):
+                bwrap_ver = None
+        parsed_bwrap = _parse_version_tuple(bwrap_ver)
+        if parsed_bwrap is not None and parsed_bwrap < MIN_BUBBLEWRAP_VERSION:
+            raise InstallError(
+                f"Out-of-date system blocker: bubblewrap {bwrap_ver.strip()} is out of date "
+                "(Kinaiya requires bubblewrap >= 0.6.1). Please update bubblewrap first; "
+                "the installer will not update existing system packages for you."
+            )
+    if ctypes.util.find_library("seccomp") is not None:
+        seccomp_ver = installed_package_version("libseccomp2")
+        parsed_seccomp = _parse_version_tuple(seccomp_ver)
+        if parsed_seccomp is not None and parsed_seccomp < MIN_LIBSECCOMP_VERSION:
+            raise InstallError(
+                f"Out-of-date system blocker: libseccomp2 {seccomp_ver.strip()} is out of date "
+                "(Kinaiya requires libseccomp2 >= 2.5). Please update libseccomp2 first; "
+                "the installer will not update existing system packages for you."
+            )
+
+
+def preflight(layout, *, allow_missing_dependencies: bool = False):
+    import platform
 
     layout.validate()
     if platform.system() != "Linux":
         raise InstallError("Native Linux required; Windows/macOS/WSL are not qualified")
     if os.geteuid() == 0:
         raise InstallError(
-            "Do not run the installer as root; install system prerequisites separately"
+            "Do not run the installer as root; the CLI invokes sudo only for missing dependencies"
         )
+    check_outdated_system_blockers(probe_subprocesses=True)
     release = platform.freedesktop_os_release()
-    if release.get("ID") != "ubuntu" or release.get("VERSION_ID") not in {"22.04", "24.04"}:
+    if release.get("ID") != "ubuntu" or release.get("VERSION_ID") not in {
+        "22.04",
+        "24.04",
+        "26.04",
+    }:
         raise InstallError(
-            "Initial candidate baseline is Ubuntu 22.04/24.04 only; see docs/linux-installation.md"
+            "Initial candidate baseline is Ubuntu 22.04/24.04/26.04 only; see docs/linux-installation.md"
         )
     if platform.machine() not in {"x86_64", "aarch64"} or not (3, 11) <= sys.version_info[:2] <= (
         3,
-        13,
+        14,
     ):
-        raise InstallError("Require x86_64/aarch64 and Python 3.11-3.13 with venv/ensurepip")
-    binary = shutil.which("bwrap")
-    if binary is None or ctypes.util.find_library("seccomp") is None:
+        raise InstallError("Require x86_64/aarch64 and Python 3.11-3.14 with venv/ensurepip")
+    missing = missing_system_dependencies()
+    if missing and not allow_missing_dependencies:
+        sim = " ".join(apt_simulation_command(missing))
+        cmd = " ".join(dependency_install_command(missing))
         raise InstallError(
-            "Install bubblewrap and libseccomp2 explicitly (sudo apt-get install bubblewrap libseccomp2)"
+            f"Missing required system dependencies: {', '.join(missing)}. "
+            f"Run `kinaiya install` or verify with `{sim}` before `{cmd}` "
+            "(pins exact package=version; refuses any upgrade, downgrade, or removal; never runs apt-get update/upgrade)"
         )
     ancestor = next(p for p in [layout.install, *layout.install.parents] if p.exists())
     if shutil.disk_usage(ancestor).free < 1024**3:
         raise InstallError(
             "Insufficient disk: at least 1 GiB free is required for Agent-only staging"
         )
-    try:
-        probe = subprocess.run(
-            [
-                binary,
-                "--unshare-all",
-                "--die-with-parent",
-                "--new-session",
-                "--ro-bind",
-                "/",
-                "/",
-                "--proc",
-                "/proc",
-                "--dev",
-                "/dev",
-                "--tmpfs",
-                "/tmp",
-                "--clearenv",
-                "/usr/bin/true",
-            ],
-            capture_output=True,
-            timeout=15,
-        )
-        if probe.returncode:
-            raise InstallError(
-                "bubblewrap namespace probe denied; configure host isolation, never disable it"
+    binary = shutil.which("bwrap")
+    if binary is not None:
+        try:
+            probe = subprocess.run(
+                [
+                    binary,
+                    "--unshare-all",
+                    "--die-with-parent",
+                    "--new-session",
+                    "--ro-bind",
+                    "/",
+                    "/",
+                    "--proc",
+                    "/proc",
+                    "--dev",
+                    "/dev",
+                    "--tmpfs",
+                    "/tmp",
+                    "--clearenv",
+                    "/usr/bin/true",
+                ],
+                capture_output=True,
+                timeout=15,
             )
-    except (OSError, subprocess.SubprocessError):
-        raise InstallError(
-            "bubblewrap namespace probe failed; verify kernel/user namespace policy"
-        ) from None
-    return {
+            if probe.returncode:
+                raise InstallError(
+                    "bubblewrap namespace probe denied; configure host isolation, never disable it"
+                )
+        except (OSError, subprocess.SubprocessError):
+            raise InstallError(
+                "bubblewrap namespace probe failed; verify kernel/user namespace policy"
+            ) from None
+    result: dict[str, Any] = {
         "platform": "linux",
         "architecture": platform.machine(),
         "distro": release.get("VERSION_ID"),
         "python": platform.python_version(),
-        "sandbox_probe": "passed",
+        "sandbox_probe": "passed" if binary is not None else "pending_dependencies",
     }
+    if missing:
+        result["missing_dependencies"] = missing
+    return result
 
 
-def setup(layout, *, endpoint, model, allow_cloud=False, credential_env=None, converse=False):
-    """Reuse native init; configuration is not evidence of provider/task readiness."""
-    from services.launcher import initialize
+SUPPORTED_ROLE_ADAPTERS: dict[str, tuple[str, ...]] = {
+    "agent": ("lmstudio", "meta"),
+    "converse": ("lmstudio", "compatible", "meta"),
+    "decisions": ("compatible", "laya", "native_d1", "meta"),
+}
 
-    layout.validate()
-    if (layout.install / "layout.json").exists():
-        verify_layout(layout)
+
+def _build_role_profile(
+    role: str,
+    *,
+    endpoint: Any,
+    model: Any,
+    kind: Any = None,
+    allow_cloud: Any = False,
+    credential_env: Any = None,
+    context_tokens: Any = None,
+    max_tokens: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    from services.launcher import validate_setup_provider
+
+    if role not in SUPPORTED_ROLE_ADAPTERS:
+        raise InstallError(f"Unsupported provider role {role!r}")
+    if extra and "api_key" in extra:
+        raise InstallError("Credentials accept an environment variable NAME only, never an API key")
+    if not isinstance(endpoint, str) or not endpoint or any(c.isspace() for c in endpoint):
+        raise InstallError(
+            "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
+        )
+    if type(allow_cloud) is not bool:
+        raise InstallError("Cloud disclosure must be an explicit boolean")
     url = urlsplit(endpoint)
     local = url.hostname in {"localhost", "127.0.0.1", "::1"}
     if (
-        url.scheme not in {"http", "https"}
+        url.scheme not in {"http", "https", "ws", "wss"}
         or not url.hostname
         or url.username
         or url.password
         or url.query
         or url.fragment
-        or any(c.isspace() for c in endpoint)
-        or (not local and (not allow_cloud or url.scheme != "https"))
+        or (not local and (not allow_cloud or url.scheme not in {"https", "wss"}))
     ):
         raise InstallError(
             "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
         )
     if not isinstance(model, str) or not 1 <= len(model) <= 200 or any(ord(c) < 32 for c in model):
         raise InstallError("Select an explicit bounded model name")
-    if credential_env is not None and not re.fullmatch(r"[A-Z_][A-Z0-9_]{0,127}", credential_env):
+    if credential_env is not None and (
+        not isinstance(credential_env, str)
+        or not re.fullmatch(r"[A-Z_][A-Z0-9_]{0,127}", credential_env)
+    ):
         raise InstallError("Credentials accept an environment variable NAME only, never an API key")
-    if os.path.lexists(layout.config):
+
+    # Never infer provider kind from the model name; adapter selection is explicit
+    # or derived strictly from the role and local/cloud endpoint mode.
+    if kind is None:
+        selected_kind = ("meta" if allow_cloud else "lmstudio") if role == "agent" else "compatible"
+    else:
+        if not isinstance(kind, str):
+            raise InstallError(f"Adapter kind for {role} must be a string")
+        selected_kind = kind
+
+    if selected_kind not in SUPPORTED_ROLE_ADAPTERS[role]:
+        if role == "agent" and selected_kind == "compatible":
+            raise InstallError(
+                "Adapter 'compatible' does not implement exact complete-request measurement "
+                "(prepare_complete) required by Agent; select 'lmstudio' for local native "
+                "loopback or 'meta' with explicit cloud disclosure"
+            )
+        raise InstallError(
+            f"Unsupported {role} adapter kind {selected_kind!r}; supported {role} adapters: "
+            f"{', '.join(SUPPORTED_ROLE_ADAPTERS[role])}"
+        )
+
+    if selected_kind != "lmstudio" and url.scheme not in {"http", "https"}:
+        raise InstallError(
+            "Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"
+        )
+
+    if selected_kind == "lmstudio":
+        if allow_cloud or not local:
+            raise InstallError(
+                "Native LM Studio adapter supports local loopback only (allow_cloud=False); "
+                "select 'meta' for cloud endpoints"
+            )
+        if credential_env is not None:
+            raise InstallError(
+                "Native LM Studio loopback adapter does not use API key credentials; "
+                "omit credential_env or select 'meta' with allow_cloud"
+            )
+        profile: dict[str, Any] = {
+            "kind": "lmstudio",
+            "base_url": endpoint,
+            "model": model,
+            "allow_cloud": False,
+            "max_tokens": 128 if max_tokens is None else max_tokens,
+            "reasoning_effort": "none",
+        }
+    elif selected_kind == "meta":
+        if not allow_cloud:
+            raise InstallError(
+                "Adapter 'meta' requires explicit cloud disclosure (allow_cloud=True)"
+            )
+        secret_ref = extra.get("secret_ref") if extra else None
+        if not credential_env and secret_ref != "muse":
+            raise InstallError(
+                "Adapter 'meta' requires an explicit credential_env environment variable name"
+            )
+        profile = {
+            "kind": "meta",
+            "base_url": endpoint,
+            "model": model,
+            "allow_cloud": True,
+            "max_tokens": 2048 if max_tokens is None else max_tokens,
+            "context_tokens": 32768 if context_tokens is None else context_tokens,
+        }
+        if role == "agent":
+            profile["structured_actions"] = True
+            profile["action_format"] = extra.get("action_format", "flat-v1") if extra else "flat-v1"
+        if credential_env:
+            profile["api_key_env"] = credential_env
+        if secret_ref is not None:
+            profile["secret_ref"] = secret_ref
+    elif selected_kind in {"laya", "native_d1"}:
+        if allow_cloud or not local:
+            raise InstallError(
+                f"Adapter {selected_kind!r} supports local loopback Decisions endpoints only"
+            )
+        profile = {
+            "kind": selected_kind,
+            "base_url": endpoint,
+            "model": model,
+        }
+        if credential_env:
+            profile["api_key_env"] = credential_env
+        if selected_kind == "native_d1":
+            profile["min_confidence"] = (
+                extra.get("min_confidence", 0.6)
+                if extra and extra.get("min_confidence") is not None
+                else 0.6
+            )
+        if extra and "expected_artifact_sha256" in extra:
+            profile["expected_artifact_sha256"] = extra["expected_artifact_sha256"]
+    else:
+        profile = {
+            "kind": selected_kind,
+            "base_url": endpoint,
+            "model": model,
+            "allow_cloud": allow_cloud,
+            "max_tokens": 2048 if max_tokens is None else max_tokens,
+        }
+        if credential_env:
+            profile["api_key_env"] = credential_env
+        if extra and "reasoning_effort" in extra:
+            profile["reasoning_effort"] = extra["reasoning_effort"]
+
+    try:
+        validate_setup_provider(role, profile)
+    except (ValueError, RuntimeError, TypeError, KeyError) as exc:
+        raise InstallError(str(exc)) from None
+    return profile
+
+
+def _build_role_from_mapping(role: str, spec: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(spec, dict):
+        raise InstallError(f"Role configuration for {role} must be a mapping")
+    spec_kind = spec.get("adapter") if "adapter" in spec else spec.get("kind")
+    if "adapter" in spec and "kind" in spec and spec["adapter"] != spec["kind"]:
+        raise InstallError(f"Conflicting adapter/kind in {role} role configuration")
+    spec_endpoint = spec.get("endpoint") if "endpoint" in spec else spec.get("base_url")
+    spec_cred = spec.get("credential_env") if "credential_env" in spec else spec.get("api_key_env")
+    return _build_role_profile(
+        role,
+        endpoint=spec_endpoint,
+        model=spec.get("model"),
+        kind=spec_kind,
+        allow_cloud=spec.get("allow_cloud", False),
+        credential_env=spec_cred,
+        context_tokens=spec.get("context_tokens"),
+        max_tokens=spec.get("max_tokens"),
+        extra=spec,
+    )
+
+
+def reconfigure_section(
+    layout,
+    section: str,
+    *,
+    endpoint=None,
+    model=None,
+    kind=None,
+    adapter=None,
+    allow_cloud=False,
+    credential_env=None,
+    converse=False,
+    context_tokens=None,
+    converse_profile=None,
+    decisions_profile=None,
+):
+    """Atomically reconfigure one setup section while preserving all unrelated settings."""
+    import copy
+
+    from services.common.auth import load_or_create_tokens
+    from services.distribution.wizard_navigation import validate_setup_section
+    from services.launcher import initialize
+
+    check_outdated_system_blockers(probe_subprocesses=False)
+    target_section = validate_setup_section(section)
+    layout.validate()
+    if (layout.install / "layout.json").exists() and target_section != "workspace":
+        verify_layout(layout)
+    if kind is not None and adapter is not None and kind != adapter:
+        raise InstallError("Conflicting Agent adapter kind arguments")
+    selected_kind = adapter if adapter is not None else kind
+
+    if not os.path.lexists(layout.config):
+        if target_section == "model":
+            res = setup(
+                layout,
+                endpoint=endpoint,
+                model=model,
+                kind=kind,
+                adapter=adapter,
+                allow_cloud=allow_cloud,
+                credential_env=credential_env,
+                converse=False,
+                context_tokens=context_tokens,
+            )
+            res["section"] = target_section
+            return res
+        for directory in (layout.config.parent, layout.data, layout.workspace):
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with redirect_stdout(io.StringIO()):
+            initialize(SimpleNamespace(data_dir=layout.data, config=layout.config))
+        init_cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+        init_cfg.pop("voice", None)
+        init_cfg.setdefault("distribution", {"converse": False})
+        atomic_json(layout.config, init_cfg)
+
+    original_config_bytes = layout.config.read_bytes()
+    existing_config = read_json(layout.config)
+    if not isinstance(existing_config, dict):
+        raise InstallError("Malformed configuration; preserve files for recovery")
+    config = copy.deepcopy(existing_config)
+
+    backup = layout.config.with_name(layout.config.name + ".bak." + uuid.uuid4().hex)
+    with backup.open("xb") as bstream:
+        os.chmod(backup, 0o600)
+        bstream.write(original_config_bytes)
+        bstream.flush()
+        os.fsync(bstream.fileno())
+
+    layout_marker = layout.install / "layout.json"
+    layout_backup: Path | None = None
+    if target_section == "workspace" and layout_marker.exists():
+        original_layout_bytes = layout_marker.read_bytes()
+        layout_backup = layout_marker.with_name(layout_marker.name + ".bak." + uuid.uuid4().hex)
+        with layout_backup.open("xb") as lstream:
+            os.chmod(layout_backup, 0o600)
+            lstream.write(original_layout_bytes)
+            lstream.flush()
+            os.fsync(lstream.fileno())
+
+    try:
+        if target_section == "workspace":
+            for directory in (layout.config.parent, layout.data, layout.workspace):
+                directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            if not (layout.data / "service-tokens.json").exists():
+                load_or_create_tokens(layout.data)
+            dist = config.get("distribution")
+            dist_map = dict(dist) if isinstance(dist, dict) else {"converse": False}
+            dist_map["workspace"] = str(layout.workspace)
+            dist_map["data_dir"] = str(layout.data)
+            config["distribution"] = dist_map
+        elif target_section == "model":
+            agent_built = _build_role_profile(
+                "agent",
+                endpoint=endpoint,
+                model=model,
+                kind=selected_kind,
+                allow_cloud=allow_cloud,
+                credential_env=credential_env,
+                context_tokens=context_tokens,
+            )
+            providers = config.get("providers")
+            providers_map = dict(providers) if isinstance(providers, dict) else {}
+            providers_map["agent"] = dict(agent_built)
+            config["providers"] = providers_map
+        elif target_section == "converse":
+            providers = config.get("providers")
+            providers_map = dict(providers) if isinstance(providers, dict) else {}
+            agent_cfg = (
+                providers_map.get("agent") if isinstance(providers_map.get("agent"), dict) else {}
+            )
+            enable_converse = bool(converse or converse_profile is not None)
+            if enable_converse:
+                if converse_profile is not None:
+                    converse_built = _build_role_from_mapping("converse", converse_profile)
+                else:
+                    fallback_ep = endpoint or agent_cfg.get("base_url", "http://127.0.0.1:1234")
+                    fallback_model = model or agent_cfg.get("model", "")
+                    fallback_cloud = bool(agent_cfg.get("allow_cloud", allow_cloud))
+                    fallback_cred = credential_env or agent_cfg.get("api_key_env")
+                    converse_default_kind = (
+                        "lmstudio" if agent_cfg.get("kind") == "lmstudio" else "compatible"
+                    )
+                    converse_built = _build_role_profile(
+                        "converse",
+                        endpoint=fallback_ep,
+                        model=fallback_model,
+                        kind=converse_default_kind,
+                        allow_cloud=fallback_cloud,
+                        credential_env=fallback_cred,
+                    )
+                if decisions_profile is not None:
+                    decisions_built = _build_role_from_mapping("decisions", decisions_profile)
+                else:
+                    decisions_built = _build_role_profile(
+                        "decisions",
+                        endpoint=converse_built["base_url"],
+                        model=converse_built["model"],
+                        kind="compatible",
+                        allow_cloud=converse_built.get("allow_cloud", False),
+                        credential_env=converse_built.get("api_key_env"),
+                    )
+                providers_map["converse"] = dict(converse_built)
+                providers_map["decisions"] = dict(decisions_built)
+                config["providers"] = providers_map
+            dist = config.get("distribution")
+            dist_map = dict(dist) if isinstance(dist, dict) else {}
+            dist_map["converse"] = enable_converse
+            config["distribution"] = dist_map
+
+        atomic_json(layout.config, config)
+        if target_section == "workspace" and layout_marker.exists():
+            atomic_json(
+                layout_marker,
+                {key: str(value) for key, value in asdict(layout).items()},
+            )
+    except BaseException:
+        if backup.exists():
+            os.replace(backup, layout.config)
+        if layout_backup is not None and layout_backup.exists():
+            os.replace(layout_backup, layout_marker)
+        raise
+    finally:
+        backup.unlink(missing_ok=True)
+        if layout_backup is not None:
+            layout_backup.unlink(missing_ok=True)
+
+    return {
+        "ready": False,
+        "provider_connection": "not_checked",
+        "section": target_section,
+        "next": "kinaiya serve host",
+    }
+
+
+def setup(
+    layout,
+    *,
+    endpoint=None,
+    model=None,
+    kind=None,
+    adapter=None,
+    allow_cloud=False,
+    credential_env=None,
+    converse=False,
+    context_tokens=None,
+    roles=None,
+    converse_profile=None,
+    decisions_profile=None,
+    section: str | None = None,
+    allow_existing=False,
+):
+    """Reuse native init; configuration is not evidence of provider/task readiness."""
+    if section is not None:
+        return reconfigure_section(
+            layout,
+            section,
+            endpoint=endpoint,
+            model=model,
+            kind=kind,
+            adapter=adapter,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            converse=converse,
+            context_tokens=context_tokens,
+            converse_profile=converse_profile,
+            decisions_profile=decisions_profile,
+        )
+    from services.launcher import initialize
+
+    check_outdated_system_blockers(probe_subprocesses=False)
+    layout.validate()
+    if (layout.install / "layout.json").exists():
+        verify_layout(layout)
+    if os.path.lexists(layout.config) and not allow_existing:
         raise InstallError("Preserving existing configuration; edit it explicitly instead")
+    if kind is not None and adapter is not None and kind != adapter:
+        raise InstallError("Conflicting Agent adapter kind arguments")
+    selected_kind = adapter if adapter is not None else kind
+
+    if roles is not None:
+        if not isinstance(roles, dict) or not set(roles).issubset(SUPPORTED_ROLE_ADAPTERS):
+            raise InstallError("Roles must map only 'agent', 'converse', and 'decisions'")
+    role_map = dict(roles) if roles else {}
+    if converse_profile is not None:
+        if "converse" in role_map:
+            raise InstallError("Conflicting converse role configuration")
+        role_map["converse"] = converse_profile
+    if decisions_profile is not None:
+        if "decisions" in role_map:
+            raise InstallError("Conflicting decisions role configuration")
+        role_map["decisions"] = decisions_profile
+
+    if "agent" in role_map:
+        agent_built = _build_role_from_mapping("agent", role_map["agent"])
+    else:
+        agent_built = _build_role_profile(
+            "agent",
+            endpoint=endpoint,
+            model=model,
+            kind=selected_kind,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            context_tokens=context_tokens,
+        )
+
+    converse_built = (
+        _build_role_from_mapping("converse", role_map["converse"])
+        if "converse" in role_map
+        else None
+    )
+    decisions_built = (
+        _build_role_from_mapping("decisions", role_map["decisions"])
+        if "decisions" in role_map
+        else None
+    )
+
+    if converse_built is not None:
+        effective_converse = converse_built
+    elif converse:
+        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
+        effective_converse = _build_role_profile(
+            "converse",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind=converse_default_kind,
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    else:
+        effective_converse = None
+    if decisions_built is not None:
+        effective_decisions = decisions_built
+    elif converse:
+        effective_decisions = _build_role_profile(
+            "decisions",
+            endpoint=agent_built["base_url"],
+            model=agent_built["model"],
+            kind="compatible",
+            allow_cloud=agent_built["allow_cloud"],
+            credential_env=agent_built.get("api_key_env"),
+        )
+    else:
+        effective_decisions = None
+
     for directory in (layout.config.parent, layout.data, layout.workspace):
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     with redirect_stdout(io.StringIO()):
         initialize(SimpleNamespace(data_dir=layout.data, config=layout.config))
     config = json.loads(layout.config.read_text())
     config.pop("voice", None)
-    for profile in config["providers"].values():
-        profile.update(base_url=endpoint, model=model, allow_cloud=allow_cloud)
-        if credential_env:
-            profile["api_key_env"] = credential_env
-    config["distribution"] = {"converse": converse}
+
+    config["providers"]["agent"] = dict(agent_built)
+    if effective_converse is not None:
+        config["providers"]["converse"] = dict(effective_converse)
+    if effective_decisions is not None:
+        config["providers"]["decisions"] = dict(effective_decisions)
+
+    config["distribution"] = {"converse": bool(converse or converse_built is not None)}
     atomic_json(layout.config, config)
     return {"ready": False, "provider_connection": "not_checked", "next": "kinaiya serve host"}
 
@@ -151,9 +1322,9 @@ class Layout:
     bin: Path
 
     @classmethod
-    def for_home(cls, home: Path):
+    def for_home(cls, home: Path, *, install_root: Path | None = None):
         return cls(
-            home / ".local/share/kinaiya/install",
+            install_root if install_root is not None else home / ".local/share/kinaiya/install",
             home / ".local/share/kinaiya/data",
             home / ".config/kinaiya/config.json",
             home / "Kinaiya Workspace",
@@ -174,6 +1345,208 @@ class Layout:
                     raise InstallError(
                         "Install, data, config, workspace and cache must be disjoint"
                     )
+
+
+PROTECTED_INSTALL_ROOTS: frozenset[str] = frozenset(
+    {
+        "/",
+        "/bin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/home",
+        "/lib",
+        "/lib32",
+        "/lib64",
+        "/libx32",
+        "/opt",
+        "/proc",
+        "/root",
+        "/run",
+        "/sbin",
+        "/srv",
+        "/sys",
+        "/tmp",
+        "/usr",
+        "/var",
+    }
+)
+PROTECTED_INSTALL_TREES: tuple[str, ...] = (
+    "/bin",
+    "/boot",
+    "/dev",
+    "/etc",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/libx32",
+    "/proc",
+    "/root",
+    "/run",
+    "/sbin",
+    "/sys",
+    "/usr",
+)
+
+
+def install_root_marker(home: Path) -> Path:
+    return home / ".config/kinaiya/install-root.json"
+
+
+def load_recorded_layout(home: Path) -> Layout | None:
+    marker = install_root_marker(home)
+    if marker.is_symlink():
+        raise InstallError("Managed install location marker cannot be a symlink alias")
+    if marker.exists():
+        data = read_json(marker)
+        if not isinstance(data, dict) or not isinstance(data.get("install"), str):
+            raise InstallError("Malformed install location marker; preserve files for recovery")
+        install_path = Path(data["install"])
+        if install_path.is_symlink() or install_path.resolve() != Path(
+            os.path.abspath(install_path)
+        ):
+            raise InstallError("Recorded install root cannot use symlink aliases")
+        layout_file = install_path / "layout.json"
+        if not layout_file.exists():
+            raise InstallError(
+                "Recorded install root is missing layout metadata; preserve files for recovery"
+            )
+        saved = read_json(layout_file)
+        try:
+            layout = Layout(**{key: Path(value) for key, value in saved.items()})
+        except (TypeError, ValueError):
+            raise InstallError(
+                "Invalid managed layout; preserve existing files for recovery"
+            ) from None
+        if layout.install != install_path:
+            raise InstallError("Recorded install root does not match layout receipt")
+        layout.validate()
+        return layout
+    default_marker = (home / ".local/share/kinaiya/install") / "layout.json"
+    if default_marker.is_symlink():
+        raise InstallError("Managed path alias is unsafe; refusing operation")
+    if default_marker.exists():
+        saved = read_json(default_marker)
+        try:
+            layout = Layout(**{key: Path(value) for key, value in saved.items()})
+        except (TypeError, ValueError):
+            raise InstallError(
+                "Invalid managed layout; preserve existing files for recovery"
+            ) from None
+        layout.validate()
+        return layout
+    return None
+
+
+def validate_install_root(
+    candidate: Path | str, layout: Layout, *, home: Path | None = None
+) -> Layout:
+    if not isinstance(candidate, Path):
+        candidate = Path(candidate)
+    if not candidate.is_absolute() or any(ord(c) < 32 for c in str(candidate)):
+        raise InstallError("Install location must be an absolute path without control characters")
+    normalized = Path(os.path.abspath(candidate))
+    if candidate.is_symlink() or candidate.resolve() != normalized:
+        raise InstallError("Install location cannot use symlink aliases")
+    posix_str = normalized.as_posix()
+    if posix_str in PROTECTED_INSTALL_ROOTS or any(
+        posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
+    ):
+        raise InstallError(f"Refusing protected system root as install location: {normalized}")
+    inferred_home = Path(os.path.abspath(home or layout.config.parent.parent))
+    if normalized == inferred_home or normalized in inferred_home.parents:
+        raise InstallError("Install location cannot be the home directory or its parent")
+    updated = Layout(
+        normalized,
+        layout.data,
+        layout.config,
+        layout.workspace,
+        layout.cache,
+        layout.bin,
+    )
+    updated.validate()
+    if normalized.exists():
+        if not normalized.is_dir():
+            raise InstallError("Install location exists and is not a directory")
+        if not os.access(normalized, os.R_OK | os.W_OK | os.X_OK):
+            raise InstallError("Install location lacks read/write/execute permissions")
+        verify_layout(updated, required=False)
+    else:
+        ancestor = next((p for p in normalized.parents if p.exists()), None)
+        if ancestor is None or not ancestor.is_dir() or not os.access(ancestor, os.W_OK | os.X_OK):
+            raise InstallError("Install location parent directory is not writable")
+    return updated
+
+
+def resolve_install_location(
+    home: Path,
+    *,
+    base_layout: Layout | None = None,
+    install_dir: Path | str | None = None,
+    install_location: str | None = None,
+    invoking_dir: Path | None = None,
+    interactive: bool = False,
+    tty: Any = None,
+) -> tuple[Layout, bool]:
+    if install_dir is not None and install_location is not None:
+        raise InstallError("Specify either --install-dir or --install-location, not both")
+    base = base_layout or Layout.for_home(home)
+    default_install = base.data.parent / "install"
+    recorded = base if (base.install / "layout.json").exists() else load_recorded_layout(home)
+    explicit = install_dir if install_dir is not None else install_location
+    if recorded is not None:
+        if explicit is not None:
+            raw = str(explicit)
+            if raw == "default":
+                requested = default_install
+            elif raw == "current":
+                if invoking_dir is None:
+                    raise InstallError(
+                        "Cannot infer current directory from a managed launcher; pass an explicit path"
+                    )
+                requested = invoking_dir
+            else:
+                requested = Path(raw)
+            if not requested.is_absolute() or Path(os.path.abspath(requested)) != recorded.install:
+                raise InstallError(
+                    f"Existing installation is recorded at {recorded.install}; refusing to relocate existing installation"
+                )
+        return validate_install_root(recorded.install, recorded, home=home), False
+    if explicit is not None:
+        raw = str(explicit)
+        if raw == "default":
+            candidate = default_install
+        elif raw == "current":
+            if invoking_dir is None:
+                raise InstallError(
+                    "Cannot infer current directory from a managed launcher; pass an explicit path"
+                )
+            candidate = invoking_dir
+        else:
+            candidate = Path(raw)
+        return validate_install_root(candidate, base, home=home), False
+    if not interactive or invoking_dir is None:
+        return validate_install_root(default_install, base, home=home), False
+    canonical_default = default_install.resolve()
+    canonical_invoking = invoking_dir.resolve()
+    if canonical_invoking == canonical_default:
+        return validate_install_root(default_install, base, home=home), False
+    tty.write(
+        "Select Kinaiya install location:\n"
+        f"  1) Default (recommended): {canonical_default}\n"
+        f"  2) Current directory:     {canonical_invoking}\n"
+        "Choose install location [1]: "
+    )
+    answer = tty.readline().strip().lower()
+    if answer in {"", "1", "default"}:
+        return validate_install_root(default_install, base, home=home), False
+    if answer == "yes":
+        return validate_install_root(default_install, base, home=home), True
+    if answer in {"2", "current"}:
+        return validate_install_root(invoking_dir, base, home=home), False
+    raise InstallError(
+        "Installation cancelled or invalid install location choice; select 1 (Default) or 2 (Current directory)"
+    )
 
 
 def atomic_json(path, value):
@@ -273,6 +1646,8 @@ def unpack_source(archive, destination, artifact):
 
 
 def prepare_runtime(generation, source):
+    from services.distribution.stage_progress import current_reporter
+
     python = generation / "runtime/bin/python"
     commands = [
         [sys.executable, "-m", "venv", str(generation / "runtime")],
@@ -297,10 +1672,27 @@ def prepare_runtime(generation, source):
             "import services.launcher; import services.agent; import services.session.api",
         ],
     ]
+    reporter = current_reporter()
     for index, command in enumerate(commands):
         try:
-            subprocess.run(command, cwd=source, check=True, capture_output=True, timeout=600)
-        except (OSError, subprocess.SubprocessError):
+            proc = subprocess.run(command, cwd=source, check=True, capture_output=True, timeout=600)
+            if reporter is not None and proc is not None:
+                reporter.log_subprocess(
+                    "staging",
+                    command,
+                    getattr(proc, "returncode", 0),
+                    getattr(proc, "stdout", None),
+                    getattr(proc, "stderr", None),
+                )
+        except (OSError, subprocess.SubprocessError) as exc:
+            if reporter is not None:
+                reporter.log_subprocess(
+                    "staging",
+                    command,
+                    getattr(exc, "returncode", 1),
+                    getattr(exc, "stdout", None),
+                    getattr(exc, "stderr", str(exc)),
+                )
             raise InstallError(
                 f"Runtime stage {index + 1} failed; current install unchanged. Check Python venv, network and locked wheel availability"
             ) from None
@@ -523,6 +1915,11 @@ def _install_release(layout, release, archive, *, prepare, busy):
             layout.install / "layout.json",
             {key: str(value) for key, value in asdict(layout).items()},
         )
+        layout.config.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        atomic_json(
+            layout.config.parent / "install-root.json",
+            {"install": str(layout.install)},
+        )
         layout.bin.mkdir(parents=True, exist_ok=True)
         wrapper = layout.bin / "kinaiya"
         wrapper.write_text(wrapper_text, encoding="utf-8", newline="\n")
@@ -661,6 +2058,7 @@ def uninstall(layout, *, delete_data=False, confirmation=None, busy=ports_busy):
                 if directory.exists():
                     shutil.rmtree(directory)
             layout.config.unlink(missing_ok=True)
+            (layout.config.parent / "install-root.json").unlink(missing_ok=True)
         result = {"action": "uninstalled", "data_deleted": delete_data, "workspace_deleted": False}
         # Keep the marker and same lock inode so competing installers cannot bypass
         # serialization by recreating a removed lock while it is still held.

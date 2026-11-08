@@ -1,0 +1,569 @@
+{
+  "schema_version": "1.0",
+  "recorded_utc": "2026-11-02T14:36:43.141758+00:00",
+  "requirement": {
+    "issues": [
+      239,
+      228
+    ],
+    "roadmap": "M7 standing work prerequisites",
+    "adr": "docs/adr/0109-agent-claim-retirement.md",
+    "objective": "Actual Agent claim-wide retirement before automatic complete native Resources finalization; harness correctness independent of model accuracy"
+  },
+  "baseline": {
+    "main": "d2bbd30a8cfc38a0f5ee06b3a5127dc193b2be69",
+    "qualified_pr314_head": "a553a7d37c54e4d06eb2da590754952bb78a2082",
+    "main_tree": "2d87730827e590b00cb94083301b0f111c0d16e3",
+    "pr314": "https://github.com/rgoza1996/Kinaiya/pull/314",
+    "ci439": "https://github.com/rgoza1996/Kinaiya/actions/runs/41448966365",
+    "ci439_result": "all5jobs passed;10951Python cases on each3.11/3.12;6skips,2deselections",
+    "linux_lifecycle": "https://github.com/rgoza1996/Kinaiya/actions/runs/41448966375",
+    "linux_lifecycle_result": "all5jobs passed16 ordered checks each",
+    "interpretation": "baseline qualification only; no causal repair of older red timing runs is inferred"
+  },
+  "qualified_source": {
+    "commit": "0cdf7a87d7468f7427263434472312cdd9fd3d75",
+    "tree": "8478ad6756423ced7e104db98077d84e1fa498c8",
+    "production_sha256": {
+      "packages/contracts/client.py": "c9dfbecbbafe6a8ac77fba7f7ccd428e8e57c8178ec5649c910dbdd472776705",
+      "services/agent/authorizations.py": "fa0e9b566403941d9738cb626060a81b5c381f2b7cd1e790e318bcaee3c61221",
+      "services/agent/resource_completion.py": "efdd5659964f7b773a387dfccc412f5145f9e50295a5d44d4688a92521839f61",
+      "services/agent/runtime.py": "7f42f158336ff702bb9a1876b21511397fbf186b1064a84bd6159b46b19e2bf2",
+      "services/agent/standing_runtime.py": "c246e90b18cb00218a27f438ca93576ee914c0940dadc0c5597d9f1fe6057409",
+      "services/agent/task_model_lease.py": "96e35150fda3231139de7ce6474fce24361bc718e0cb7bc3dfbb2a517de6f14f"
+    },
+    "existing414_source": "be45fe52033c7340cf58b1d523648b9efc75e369",
+    "bridge_changed_paths": [
+      "tests/integration/test_agent_standing_binding_retirement.py"
+    ],
+    "production_and_existing_regression_bytes_identical": true
+  },
+  "environment": {
+    "python": "3.12.3",
+    "pytest": "9.1.1",
+    "httpx": "0.28.1",
+    "ruff": "0.17.3",
+    "dependency_changes": false,
+    "isolated_pythonpath": true,
+    "serial_local_cpu_runners": true,
+    "inference": "controlled synthetic outputs;zero actual model/provider calls"
+  },
+  "oracle_lineage": {
+    "original24": "fa12e14a8afdbb970791a8abd88eefb4f2d009c8",
+    "credential_only_source_calibration": "3400bee66b02b667ecb717748fea97c1dd57e921",
+    "native_boundary_source_aware_calibration": "27ce1faef8441c7c6c15a98f38f64ac019ac44bb",
+    "external5": "8da70521dd8198dfc79425d059430552e6da4fe4",
+    "external5_awareness": "source unread, contract-first extension after candidate already existed; automatic source/status mailbox disclosures retained in author seal",
+    "binding_order1": "66c896cc8eb28d49ad5b567fc064d5948346cd8c",
+    "binding_order1_awareness": "explicitly source-aware after f237 source finding; repair source unread; observer rejects premature lookup before native IO"
+  },
+  "findings_and_corrections": [
+    {
+      "finding": "Original metadata context fixtures used Agent credentials for Converse/Owner-only routes",
+      "classification": "source review before execution;no403 runtime failure claimed",
+      "correction": "existing authorized Converse token only for context methods;production auth unchanged"
+    },
+    {
+      "finding": "Assumed native-valid >1MiB entry witness was invalid",
+      "classification": "2 actual cold fixture failures at64KiB Store guard;not client ownership/cap defect",
+      "correction": "original reviews and047 preserved;false uncapped recommendation withdrawn;55da revert restores bounded client;exact65536/65537 native controls replace invalid2 only"
+    },
+    {
+      "finding": "F2 missing-binding lookup could precede original actual work/sole-close settlement",
+      "classification": "source P2 plus reproduced premature-attempt ordering;not native-null reproduction",
+      "correction": "45ab81f56a9730fcfedc7a2e22111e474d994396;work join before original same-client lookup"
+    },
+    {
+      "finding": "Genuine retained-ACK knowledge facade aborted during unused model cleanup",
+      "classification": "unchanged old regression failed at94bcddd",
+      "correction": "bad0d0c57dbb044ce9975bcb256174896754fa86;launch permanently fenced but resolved knowledge need not signal facade abort"
+    },
+    {
+      "finding": "Shared stronger standing fixture dependencies missing in imported pytest modules",
+      "classification": "first94bc imports caught statically;2 transitive errors retained in85-case run",
+      "correction": "explicit genuine fixture aliases only at94bcddd andb577d86;old function/assertion/deadline AST unchanged"
+    }
+  ],
+  "legacy_supersession": {
+    "postworker_standing_positive": "fa12e14 standing branch only;ordinary branch/negative testfunctions/deadlines preserved",
+    "model_retirement_two_param_positive": "02211db11f1d569fe1cc7d3a3557710b8ca19470;genuine automatic report replaces legacycallbackrow,work truth/evidence unchanged",
+    "production_policy": "standing_owner always suppresses legacy task_finished;no incomplete-binder fallback"
+  },
+  "runs": [
+    {
+      "artifact_directory": ".dev-run/239-agent-client-cold-v1-fesw9cad",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "6 ownership absences;10 context controls pass;2 invalid >1MiB fixtures fail before client at native64KiB guard",
+      "source": "ba1d5f9d8b0e248242c53e547b06771c770b87e1",
+      "elapsed_wall_s": 5.8922982229996705,
+      "exit_code": 1,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "8",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "18",
+          "time": "5.486",
+          "timestamp": "2026-11-02T05:56:18.486983-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "bb6342cb8036e176a6f7fa83f61b9098ed6780a81f8ed827f68e809350752a77",
+      "manifest_sha256": "abd23714dea3b6f2839463bd2ce41b382e5e55ad731a5bb33230b0f4e89b2b54",
+      "pytest_log_sha256": "8929d288a8aeccf616de6aeb9d69754440df8d62634268e5346fc07df95b8287",
+      "junit_sha256": "9f607f9d48d444c68c5d8a09019b34c66d50c154419118278138e3c5226ada25"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-runtime-cold-v1-jmn_xewu",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "6 missing claim-owner/finalizer behaviors; original cleanup retained",
+      "source": "ba1d5f9d8b0e248242c53e547b06771c770b87e1",
+      "elapsed_wall_s": 22.869705878998502,
+      "exit_code": 1,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "6",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "6",
+          "time": "22.395",
+          "timestamp": "2026-11-02T05:58:29.152498-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "19826815e0bdeb2791f435c6a2ad3794af3ce6ce8c8cd06f6daecdf1b898b733",
+      "manifest_sha256": "8c19c0ccb550652177557f04555d85fbf9efdba8896d87108e89c39338d4781a",
+      "pytest_log_sha256": "b683e1f6be1ae917ad170c333e91b091a68e35eecef9b2f7718b29dacc7258e5",
+      "junit_sha256": "b0a3314f48a13ec67cecb9938badeebe89bd3112ae1837665b22f2f5e31dffce"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-client-hot16-v1-qsgjtatz",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "intermediate uncapped client16 pass; not final bounded-source qualification",
+      "source": "e332d5b61e15a33936e1ed10f6d3cc2a7fde2d10",
+      "elapsed_wall_s": 5.22749014099827,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "16",
+          "time": "4.810",
+          "timestamp": "2026-11-02T06:01:37.604440-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "a7e82136556368fe9ba96a40f8beaf47515a5fa0108feb887b42987490da995a",
+      "manifest_sha256": "91357bf201b0b4d32ad32c90583cedcd3283df19862629e7b37da5ab4e39d288",
+      "pytest_log_sha256": "8641e29f0a549c07ccfbd7495b4a0ab9a60a5366ed8677990fb9e1dd38681f8e",
+      "junit_sha256": "2dd620b6ec44f97a2ee7580ab35f24f9215c5ec28fadea9ac6d26c1baf3d2cff"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-client-context-regressions-v1-ymuof7fp",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "68 existing context regressions on intermediate source",
+      "source": "e332d5b61e15a33936e1ed10f6d3cc2a7fde2d10",
+      "elapsed_wall_s": 19.597282639006153,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "68",
+          "time": "19.207",
+          "timestamp": "2026-11-02T06:02:15.371882-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "8491e2bdb722056925a52a4765ad8bd5bf27ac88fff2c4a00d9d7cd54857b393",
+      "manifest_sha256": "020e2b3e0acff3e9e4f2779bfac4b4225ad0bd5affc3010d74e4ea9ff6a8e6c3",
+      "pytest_log_sha256": "7393fba9383c2f4a7f1b766d014644253552c64f352ff7170ce411c2de275237",
+      "junit_sha256": "cfd73b9cbf0fb9f844e9e28b73397894bcc3fab5bcd0250865f913edac9662ca"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-native-bound-cold-v1-gwuqpusr",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "2 valid native-bound controls reach HTTP; fail on missing original exchange ownership",
+      "source": "5b545dc8a2591f401e6e5ab8667ad3182b6e456c",
+      "elapsed_wall_s": 2.0790543830080424,
+      "exit_code": 1,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "2",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "2",
+          "time": "1.720",
+          "timestamp": "2026-11-02T06:05:42.137212-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "6e8f412eabe68409238d84264b1b968495e970531856307894b26569f9670b97",
+      "manifest_sha256": "bfb5280bb097092c15a8b359972d64a445ee0f34c1d614d7c947c0d57f736875",
+      "pytest_log_sha256": "5571a9155fd9d308b3bfc23a3f07fc4f9c556905716761a805c77c11b116ed78",
+      "junit_sha256": "d87241aff3a70a239f6df286157b0edafff766f4556c835751f9490b81ed01a5"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-client-bounded-hot18-v1-uweh39ow",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "18 bounded client controls pass",
+      "source": "b6d170bc9e13ac6c2b010147640eb4e49922058d",
+      "elapsed_wall_s": 6.342467641006806,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "18",
+          "time": "5.951",
+          "timestamp": "2026-11-02T06:07:25.786720-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "4dfb3c334a8d850f1ced65274adac2b0d7db809da4e514d11c676c30af5e0aeb",
+      "manifest_sha256": "efc6c336b463af90d0062addb8ef3051631f051f4731a224d83870aab5c7921f",
+      "pytest_log_sha256": "a840d6255049ec75a553c998b2842be2955d1551d8ad6648c5b671b321d38983",
+      "junit_sha256": "84bb91e2e8371183a820e3a7cb32729b66616edf27fa6735bfc8fa615c628108"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-claim-hot24-v1-ef9cssms",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "24 initial coherent runtime/client checks pass before later review fixes",
+      "source": "1202e738cf194013b6b9a4490401c2833955b647",
+      "elapsed_wall_s": 39.35491034599545,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "24",
+          "time": "38.783",
+          "timestamp": "2026-11-02T06:12:55.549443-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "867f0aea62cadc24d4c0da3961d7702f534c6dc9a86a8609013c2acadd9c9ed6",
+      "manifest_sha256": "c579d275e0b690417a88c0ace8e23491dfbebc64bdaea4d1d32c641bd4d556dc",
+      "pytest_log_sha256": "cec77eeb9d97a6dad985df19114a79e75e72fc3d79230f1b49a462e44b14ed83",
+      "junit_sha256": "d1d37dbe94570a0b0a9aeaa13f1b5d9d1b490b1448f315d67ca4755f965d8d65"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-claim-regressions-v1-wckusl4j",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "82 pass;1 genuine retained-ACK regression;2 missing transitive pytest fixture registrations",
+      "source": "94bcddd5ad990c3ee76e302f2ac4fd8a2132e5e0",
+      "elapsed_wall_s": 110.53885213800822,
+      "exit_code": 1,
+      "junit": [
+        {
+          "errors": "2",
+          "failures": "1",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "85",
+          "time": "110.010",
+          "timestamp": "2026-11-02T06:15:43.880708-08:00"
+        }
+      ],
+      "tracked_input_count": 1511,
+      "pins_preserved": true,
+      "receipt_sha256": "2f52a9b8d9ba17150365299c91e822169e6f0c188e0c23c149df4fe7f4ca5f5b",
+      "manifest_sha256": "d362ee494a26252a6bc069b20d7cfbdc39eac265b7e96b7e535c5149e5c96639",
+      "pytest_log_sha256": "a679ecb0bde9150832a5d9aeffe9c1e160c73aa52e36ccc471de880373f9efdc",
+      "junit_sha256": "cb7ac8ab72643927eda81d994846d99e24ad8ff435c4e06c98970c036aefbf84"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-external-control-cold5-v1-lc3w42ob",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "5 external/window ownership absences on original baseline",
+      "source": "954d4f60c87cada3d762a9f584f45f7d55af9584",
+      "elapsed_wall_s": 3.6978260059986496,
+      "exit_code": 1,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "5",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "5",
+          "time": "3.320",
+          "timestamp": "2026-11-02T06:21:46.997439-08:00"
+        }
+      ],
+      "tracked_input_count": 1512,
+      "pins_preserved": true,
+      "receipt_sha256": "ac148fa6c6091be5bdda0b5bda0a7d49fb501ea753459e976b46746fab4bbe0d",
+      "manifest_sha256": "9bef2d923aa776687ded519e2616422bd13b5ab5c0038b6f25fc24f5a9ad0343",
+      "pytest_log_sha256": "63d2345ded73d449d0057ef177e1639e71f217e98f46ed894ec4d7f1b6c25eac",
+      "junit_sha256": "83eb2c769942357b3fedc6833ee117ea13dcc8589412dcf59a5098314a400e6e"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-control-and-retained-hot6-v1-iuhma218",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "5 new external/window controls plus unchanged retained-ACK regression pass",
+      "source": "be45fe52033c7340cf58b1d523648b9efc75e369",
+      "elapsed_wall_s": 6.926080374003504,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "6",
+          "time": "6.497",
+          "timestamp": "2026-11-02T06:23:21.873956-08:00"
+        }
+      ],
+      "tracked_input_count": 1512,
+      "pins_preserved": true,
+      "receipt_sha256": "817fb73da5ddf514306307de99ff76ba28b8db69424e91a7fb958418481ed031",
+      "manifest_sha256": "79f0d3b4b46c8328c79164bbc122bdb7ca082466cf0f0e3ad9ec7e76263566fb",
+      "pytest_log_sha256": "7511bf41af75a899b4a16e944773d89a0324f237b0b6a036ec1b693706716400",
+      "junit_sha256": "b7c42a3b27223de8afe2811a4187903ddb1ce69715e2d20438c8b8acf379978c"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-claim-expanded-regressions-v2-feqj7jp_",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "414 existing affected regressions pass",
+      "source": "be45fe52033c7340cf58b1d523648b9efc75e369",
+      "elapsed_wall_s": 295.33118758500495,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "414",
+          "time": "294.396",
+          "timestamp": "2026-11-02T06:25:19.155396-08:00"
+        }
+      ],
+      "tracked_input_count": 1512,
+      "pins_preserved": true,
+      "receipt_sha256": "f7cfc7e1f9cfb4c39af26c0ae66ded60fa1f36e3894c4ac4f2f2939a7f32106a",
+      "manifest_sha256": "2117142d537cb330d726ac7e7dba62469eddfb6b5d4d279a669c7ebab9c63db4",
+      "pytest_log_sha256": "4295a87b57a7bd6eabc777c8bc11e41107927d4ec208f10ec1d8f51087ff385c",
+      "junit_sha256": "b4d3be192a65bc9e8089bb03788ca4c54e6a71dee28583f0ad3837e86f1f35f0"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-binding-f2-cold-v1-5nilwn0c",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "1 premature binding lookup attempt failure; observer blocks native lookup, not a reproduced native-null result",
+      "source": "765ef3c373b9f3d0d7bf3281075b94c3e46179ba",
+      "elapsed_wall_s": 2.287491012000828,
+      "exit_code": 1,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "1.938",
+          "timestamp": "2026-11-02T06:30:44.085373-08:00"
+        }
+      ],
+      "tracked_input_count": 1512,
+      "pins_preserved": true,
+      "receipt_sha256": "c70ebad4aa87446816cb862c78e90d45fd12001c5fe7bcaaea9ee31698b3da6e",
+      "manifest_sha256": "d317df72adbf71bfd198af85f736338bfa4f5022f92f838c79f35ec836924b26",
+      "pytest_log_sha256": "f32dc3739f075fc831e02e4dc01b7a481f0a7bdda8b6138786c76a68fe572c56",
+      "junit_sha256": "c94ee3e3270020592e30cf5be1f5567c871d9ceab310e40b0bbfe01657573005"
+    },
+    {
+      "artifact_directory": ".dev-run/239-agent-claim-final30-v1-uvl19vc2",
+      "artifact_scope": "retained local ignored artifacts; not claimed as uploaded CI artifacts",
+      "classification": "all30 new checks pass on current production source",
+      "source": "0cdf7a87d7468f7427263434472312cdd9fd3d75",
+      "elapsed_wall_s": 45.938529566992656,
+      "exit_code": 0,
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "30",
+          "time": "45.336",
+          "timestamp": "2026-11-02T06:32:03.580280-08:00"
+        }
+      ],
+      "tracked_input_count": 1513,
+      "pins_preserved": true,
+      "receipt_sha256": "ecc81a8d2cbd65c329faf38bd902c7ecc96695517efc75a2974fcf385c895401",
+      "manifest_sha256": "1563dca577587f4c202936781681682a337c5efb614888b84a53bd4f5345f54e",
+      "pytest_log_sha256": "62e4763012b482d19074d1a85c823bedc5fff22e88442ddcac4df681dc810838",
+      "junit_sha256": "31e0c7b53ff60f55dec7609813e1f595fcd076c79d71eb8252e6050b143698ea"
+    }
+  ],
+  "independent_review": {
+    "kind": "separate source/oracle author and source reviewer;root owns all serial runtime qualification",
+    "reviewer_execution": "no project imports/tests/runners",
+    "receipts": [
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-source-review-v1/receipt.json",
+        "sha256": "a018e525e0f8c38bc6d14c48e226e0883ca80b3f1f3f91df128653e1f8ce24c2"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-source-review-v1/binding-reconciliation-finding-addendum.json",
+        "sha256": "939317be662eb7edf1c6c10ae0b73116be938f8c3a3ee3360e39436937b37696"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-source-review-v1/binding-reconciliation-fix-review.json",
+        "sha256": "ea281b3c99bcbc2194f4541a57b8e5482af8fd6acdbc4cc2aaaad4027df8625b"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-source-review-v1/retained-knowledge-and-fixture-review.json",
+        "sha256": "30d01cf47b283c743e54e224d296afab240ee9deada645dee4603aa285837800"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-journal-enrollment-review-v1/native-bound-retraction-and-final-addendum.json",
+        "sha256": "6a8bcdecd2baf7e28a3db2bee87d5d6fc2306f75d01ecf6e8febd02ee2e1e6fe"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-oracle-review-v1/original-review.json",
+        "sha256": "fccea9c425f79c9fb46103905d4bf892c3292d4c397e3eabef26101ac1946e8c"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-oracle-review-v1/auth-correction-review.json",
+        "sha256": "aa25e743c7ab28ef80904c99014832956933d877ca9b257bd8a241d57d364809"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-oracle-review-v1/external-control-window-review.json",
+        "sha256": "48340339ae176b9c83089429024f80d5ca0ca5dfb00f0c7177902a9246fd0479"
+      },
+      {
+        "local_ignored_path": ".dev-run/239-agent-claim-retirement-oracle-review-v1/binding-retirement-regression-review.json",
+        "sha256": "54d8b9957bf22a941adbec2cc09a6bea9d573660c606bce0b69c3b449eb03ad1"
+      }
+    ],
+    "result": "reviewed source corrections resolve named actionable findings;remaining qualification limits retained"
+  },
+  "static_checks": {
+    "status": "pass",
+    "ruff_check": "all checks passed",
+    "ruff_format_check": "788 files already formatted",
+    "contract_export": "completed successfully;all192 schema files byte identical to main",
+    "git_diff_check": "pass",
+    "scope": "source qualification commit0cdf plus documentation/evidence only;no added provider/config/platform/workflow source changes"
+  },
+  "ci_for_new_increment": {
+    "status": "not yet run;applicable exact-head checks required before merge"
+  },
+  "limitations": [
+    "Counts from overlapping qualification runs are not added as unique coverage.",
+    "Actual native ASGI/SQLite, HTTP/stream/sole-close and disposable CPU owners;no model accuracy,quality,latency,VRAM,live-device,demo or provider-readiness qualification.",
+    "Current-process only;history cannot reconstruct original ownership after restart.",
+    "Native Task settlement,claim/reservation and active-slot release,recurrence,inbox and editor remain unfinished;full Roadmap remains active.",
+    "No paid calls,dependency installs,live service/config/preview changes or primary dirty checkout changes.",
+    "All prior red runs and withdrawn review assumptions remain preserved;no timing threshold/assertion weakening or causal historical CI fix is claimed.",
+    "The intentional failed-model-cleanup case retains uncertainty and has no positive finalization report; its fixture releases failed workspace descriptors only after actual owners join. A passing negative case is not healthy-retirement evidence."
+  ],
+  "final30_chain_fixture_observations": [
+    {
+      "case": "test_actual_worker_and_model_cleanup_precede_automatic_native_report",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 3
+    },
+    {
+      "case": "test_bound_never_admitted_cancel_keeps_actual_session_sole_close",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 0
+    },
+    {
+      "case": "test_late_original_created_ack_is_drained_without_resurrecting_worker",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 0
+    },
+    {
+      "case": "test_real_acquisition_and_lost_final_ack_reconcile_without_second_restore",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 3
+    },
+    {
+      "case": "test_actual_cleanup_failure_stays_uncertain_without_positive_report",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": true,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 3
+    },
+    {
+      "case": "test_shutdown_replacement_keeps_original_entered_finalizer_and_single_closer",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 3
+    },
+    {
+      "case": "test_external_interrupt_caller_is_not_joined_by_automatic_finalization",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 0
+    },
+    {
+      "case": "test_missing_binding_reconciliation_joins_original_send_and_sole_close",
+      "actual_inference_calls": 0,
+      "manual_failed_workspace_descriptor_release": false,
+      "manual_fixture_closer_count": 0,
+      "original_resource_transports_once_closed": true,
+      "retirement_tasks_joined": true,
+      "synthetic_generation_calls": 0
+    }
+  ]
+}

@@ -2,11 +2,16 @@
 
 **A companion to talk to. An agent to get things done.**
 
-Kinaiya brings a personal AI character and an independent work agent into one workspace. Talk things through with **Converse**, give **Agent** a task, and keep conversation and work side by side—with the models and providers you choose.
+Kinaiya pairs a customizable AI character (**Converse**) and an independent, sandboxed work agent (**Agent**) inside one local-first workspace. Talk or type through ideas with Converse, hand coding, research, and file tasks to Agent, and keep conversation and execution side by side—with the local or cloud models you choose.
 
-Converse is optional. Agent stays available for coding, research, files, and other authorized tool work when voice is off.
+> **For Hackathon Reviewers — Kinaiya in 30 Seconds:**
+> - **Decoupled Dual-Loop Architecture:** **Converse** owns persona, voice, and live dialogue; **Agent** owns sandboxed tool execution (`bubblewrap` + `seccomp`); **Decisions** classifies and routes between them without speaking as the character or granting tool permissions.
+> - **Cryptographic Action & Context Authority:** Model output never creates authorization. Every destructive or external action binds to a one-use `SHA-256(CanonicalJSON(tool, args, revision))` permit, exact native token admission, and typed disclosure scopes (`local-only` by default).
+> - **Independently Usable:** Converse is optional. Agent remains fully operational for coding, repository analysis, and tool work when voice and character services are off.
 
-[See the interface](#see-the-interface) · [Why Kinaiya](#why-kinaiya) · [Get started](#get-started) · [Technical details](#technical-details) · [Mathematics](#mathematical-foundations) · [Roadmap](Roadmap.md)
+[See the interface](#see-the-interface) · [System architecture](#system-architecture) · [Get started (1-command install)](#get-started) · [Run the host](#run-the-host) · [Hackathon target](#hackathon-target) · [Technical details](#technical-details) · [Mathematics](#mathematical-foundations) · [Roadmap](Roadmap.md)
+
+---
 
 ## See the interface
 
@@ -18,401 +23,163 @@ Converse is optional. Agent stays available for coding, research, files, and oth
 
 *Actual application captures, November 1, 2026, with services disconnected and an empty Agent workspace. Select an image to open the complete capture.*
 
-See the [application gallery and capture provenance](assets/screenshots/README.md) for more views and earlier captures.
-
-Explore the [editable interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views. Those boards are design references with illustrative content.
-
-## Why Kinaiya
-
-- **Conversation alongside useful work.** Talk or type with Converse, then work directly with Agent or route a relevant conversation request through Decisions. Task progress, approvals, and results stay visible in the Agent workspace.
-
-- **A character you can make your own.** Import a character pack, choose its colors, and adjust captions, motion, and speech-mouth preferences. Converse keeps personality and dialogue separate from Agent's work.
-
-- **Models for different jobs.** Choose supported local or cloud providers for Agent, Converse, routing, speech recognition, and speech output. Configure Agent models for individual harnesses and auxiliary reasoning tasks through Options.
-
-- **A place for ongoing projects.** Organize Agent sessions into Projects, revisit task history, and find recorded generated outputs in the Documents and Media libraries with their source sessions.
-
-- **Results you can explore.** Experimental intelligent views bring structured results, such as tables and diagrams, into the conversation. Pinned views can be reopened, with readable fallbacks where needed.
-
-- **Tools with visible controls.** Work with supported skills, MCP connections, and reviewed plugins. Inspect available capabilities, model context, and approvals from the Options workspace.
-
-## Get started
-
-Kinaiya uses a native Linux host and a Flutter web interface. An **experimental CLI installer and setup wizard** prepares an isolated runtime, keeps user data separate, and provides explicit update/recovery commands. Read the [Linux prerequisites and recovery guide](docs/linux-installation.md) before installing; do not run the installer as root.
-
-### Native Linux quick install
-
-The candidate baseline is Ubuntu 22.04/24.04, Python 3.11–3.13 with `venv`/`ensurepip`, `bubblewrap` and `libseccomp2`. The sandbox probe must pass. Native Ubuntu 24.04/x86_64 has installation and service smoke evidence; other combinations are not automatically qualified by that result.
-
-Download the bootstrap from this reviewed, immutable source revision, inspect it, then select the experimental nightly channel explicitly:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/517e460c21bd9626cedd35a44a0fe4fc0ff604cb/install.sh -o kinaiya-install.sh
-# Review kinaiya-install.sh before executing downloaded code.
-sh kinaiya-install.sh --channel nightly
-export PATH="$HOME/.local/bin:$PATH"
-kinaiya version
-kinaiya update --check
-```
-
-Nightly installs only a qualified, pinned GitHub release—not arbitrary commits from `main`. Nightly builds are scheduled for **midnight Las Vegas time (`America/Los_Angeles`)**, rather than after every commit; publication still requires passing checks and may be delayed or skipped. **Stable is a separate approval-gated channel:** when no approved stable release exists, the default installer refuses rather than silently choosing an alpha/nightly. Review the [release policy and trust limits](docs/releases.md).
-
-After choosing and validating a supported provider configuration, use `kinaiya serve host` for Agent-only services and `kinaiya web` for a matching release's prebuilt web client. Setup and update do not prove provider/model readiness or start work. Optional [Converse setup](docs/converse-setup.md), the [web client guide](apps/kinaiya_flutter/README.md), and the [manual development-host path](#run-the-host) remain separate. Windows support is deferred; Android/iOS distribution and native calling remain separate qualification work.
-
-## Current stage
-
-**Experimental and actively developed.** Independent Agent work, the conversation infrastructure, character customization, configuration controls, and bounded extension workflows are implemented. Voice quality and interruption recovery, broader provider qualification, mobile calling, and distribution remain active work.
-
-Adaptive-harness research explores how Agent can create executable extensions, evaluate them against a fixed baseline, and use reviewed promotion or rollback. General autonomous improvement has not been demonstrated. The [implementation ledger](docs/implementation-status.md) distinguishes implemented capabilities, measured experiments, and remaining acceptance gates.
+- **More captures & provenance:** [Application screenshot gallery and SHA-256 capture manifests](assets/screenshots/README.md)
+- **Design boards:** [Editable Penpot interface designs](assets/penpot/README.md) for Converse, Agent, Options, and intelligent views (design references with illustrative content)
 
 ---
 
-## Technical details
+## System architecture
 
-The architecture, implementation notes, operating constraints, setup instructions, verification commands, and complete mathematical foundations remain in this README. The product introduction above does not replace them.
+Kinaiya splits conversation, routing, task execution, and durable state into four authenticated loopback services sharing a bounded, monotonically ordered transcript journal:
 
-**A local-first conversational platform with an independent work agent.**
+```mermaid
+flowchart TB
+    subgraph Client["Owner Surfaces (Loopback / Local)"]
+        UI["Flutter Owner App (:8780)<br/>Home · Converse · Agent · Options"]
+        CLI["kinaiya CLI<br/>Install · Setup · Serve · Agent"]
+    end
 
-Kinaiya pairs a personable, real-time voice experience with an agent that can do useful work on its own. The design keeps conversation, routing, and task execution in separate components, then lets them share relevant context through a bounded, inspectable transcript.
+    subgraph Host["Kinaiya Native Linux Host (Authenticated Loopback)"]
+        Converse["Converse (:8762)<br/>Character Persona · Live Speech Windows<br/>STT/TTS Bridges · Curated Memory DAG"]
+        Decisions["Decisions (:8763)<br/>2-Axis Live-Window & Finalized Routing<br/>(Never speaks or grants permissions)"]
+        Agent["Agent (:8761)<br/>Bounded Task Loop · Harnesses<br/>Skills · MCP · Compute Plugins"]
+        Session["Session (:8760)<br/>Monotonic SQLite Journal · Revisions<br/>One-Use Permits · Model & Mode Authority"]
+        Sandbox["Bubblewrap + libseccomp2 Sandbox<br/>Isolated Workspace · Read-Only References"]
+    end
 
-## Product scope
+    subgraph Providers["Configurable Inference Providers (Local or Disclosed Cloud)"]
+        Local["Local Workers<br/>LM Studio / GGUF · Laya Jev<br/>Whistle STT · Supertonic / VibeVoice / Kokoro"]
+        Cloud["Disclosed Cloud APIs<br/>Meta API · OpenRouter · OpenAI-Compatible<br/>(Typed Disclosure Scope Required)"]
+    end
 
-- **Converse** owns the character, conversational behavior, voice input and output, interruptions, and the user-facing experience.
-- **Agent** handles direct chat and authorized work such as repository analysis, coding, research, and document tasks. It remains useful when Converse is off.
-- **Decisions** classifies and routes relevant requests between components. It does not speak as the character or grant permission.
-- **Shared transcript** gives components a common record. Agent retrieves the context it needs instead of receiving the entire conversation on every turn.
-- **Adaptive harness research** explores how Agent can generate and evaluate task- and model-specific executable extensions while protecting the trusted core, permissions, and evaluator.
+    UI <-->|"Owner Auth"| Converse
+    UI <-->|"Owner Auth"| Agent
+    UI <-->|"Owner Auth"| Session
+    CLI <-->|"Service Tokens"| Session
+    CLI <-->|"Direct Task / Control"| Agent
 
-The long-term product scope also includes resource-aware operation, provider choice, durable work, skills and MCP tools, mobile calling, and optional intelligent UI. Those are planned capabilities, not promises that every feature will ship in one release.
+    Converse <-->|"Transcript & Windows"| Session
+    Converse -->|"Window / Turn Classification"| Decisions
+    Decisions -->|"Steer / Queue / Interrupt"| Agent
+    Decisions <-->|"Trace & Backlog"| Session
+    Agent <-->|"Journal, Permits & Pins"| Session
+    Agent -->|"Scoped Tool Calls"| Sandbox
 
-The [Roadmap 0.3.2](Roadmap.md) retains the October 30 reconciliation, October 31 model-choice/performance clarification and November 1 optional Omni Converse paths. The [implementation and acceptance ledger](docs/implementation-status.md) retains a historical runtime cutoff at source `f92f6d1` and separately records later bounded increments; read those addenda and their ADRs for subsequent changes, not as a freshly requalified full-product snapshot. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope above.
+    Converse -.-> Local
+    Converse -.-> Cloud
+    Decisions -.-> Local
+    Decisions -.-> Cloud
+    Agent -.-> Local
+    Agent -.-> Cloud
+```
 
+| Component | Default Port | Core Responsibility | Security & Authority Boundary |
+| --- | --- | --- | --- |
+| **Session** | `127.0.0.1:8760` | Persistent SQLite journal, sequence numbers, operating mode (`Off` / `On-Demand`), model/provider catalogs, and permit storage | Single source of truth for transcript ordering, task admission, and revision-bound settings receipts |
+| **Agent** | `127.0.0.1:8761` | Direct chat, repository analysis, file edits, shell commands, harnesses, skills, and MCP tools | Executes shell commands inside `bubblewrap` + `libseccomp2`; requires explicit owner approval for unapproved writes/shell/MCP |
+| **Converse** | `127.0.0.1:8762` | Character persona, voice input/output, live listening windows, interruption handling, and optional selected recall | Optional service; isolated from Agent tool permissions; never fabricates negative task outcomes |
+| **Decisions** | `127.0.0.1:8763` | Classifies finalized turns (`ignore`, `queue`, `steer`, `interrupt`) and two-axis live speech windows | Advisory routing only; cannot speak as the character or authorize tool execution |
+| **Owner Web UI** | `127.0.0.1:8780` | Prebuilt Flutter web interface served by `kinaiya web` | Loopback-confined static asset server; never exposes source directories or raw service tokens |
 
-## Status
+---
 
-An initial Linux research implementation now includes versioned contracts, authenticated persistent transcript storage, independent Agent and Converse services, asynchronous routing, scoped tools/approvals, a functional Flutter web client, and real-provider integration tests. The implementation is experimental. The full roadmap, all retained voice backends, native mobile calling and production hardening remain open development gates.
+## Why Kinaiya
 
-Live listening now uses retained transcript windows with separate Decisions outputs
-for conversation timing and Agent routing. It can hold a prepared reply for a
-speaking opening, preserve speech during backchannels, steer/cancel work, and
-queue follow-ups until a native task boundary. See the
-[streaming-window design and verification limits](docs/adr/0019-streaming-window-control.md).
+| Capability | What It Does |
+| --- | --- |
+| **Conversation alongside useful work** | Talk or type with **Converse**, then work directly with **Agent** or route a conversation request through **Decisions**. Task progress, approvals, and results stay inspectable in the Agent workspace. |
+| **A character you can make your own** | Import a character pack, customize colors, and adjust captions, motion, sleeping/wake pose transitions, and audio-driven mouth movement while keeping persona separate from Agent's work. |
+| **Models for different jobs** | Select local or cloud providers independently for Agent, Converse, Decisions, STT, and TTS. Configure per-harness primary and auxiliary reasoning models through Options. |
+| **A place for ongoing projects** | Group Agent sessions into **Projects**, revisit task history, and inspect recorded outputs in the **Generated Documents** and **Generated Media** libraries with their source sessions. |
+| **Results you can explore** | Experimental intelligent views bring structured tables and diagrams into the conversation, with pinned views and readable text fallbacks. |
+| **Tools with visible controls** | Work with local skills, MCP connections, and isolated compute plugins. Inspect native availability, model context, and scoped `Allow` / `Deny` / `Ask` rules from Options. |
 
-Unfinished live speech requires owner review before file writes, shell commands,
-or MCP calls, including with broad tool grants or YOLO. Agent Chat shows current
-approvals across conversation sessions. Silence alone does not commit speech;
-see the [source-authority boundary](docs/adr/0020-streaming-source-authority.md).
+---
 
-An opt-in [typed Laya Decisions adapter](docs/adr/0021-laya-decisions.md) supports
-local Jev inference in a separate process, with native source/task bindings and
-explicit classification refusals. The optional [verified local worker](docs/laya-worker.md)
-loads a private snapshot of pinned model files and checks artifact identity on
-every response without inventing a Hub revision. Base-model and supervised synthetic results
-remain research evidence; Laya is not yet promoted as the reference default.
+## Get started
 
-See [Roadmap.md](./Roadmap.md) for architecture, milestones, acceptance criteria, risks, and implementation references.
+Kinaiya runs on a native Linux host (**Ubuntu 22.04, 24.04, or 26.04**, `x86_64` or `aarch64`, `Python 3.11–3.14`) with a Flutter web interface. Other Linux distributions (such as Debian 12), WSL, macOS, and Windows are not qualified by the candidate installer. Read the [Linux installation and recovery guide](docs/linux-installation.md) for the complete first-use quickstart and recovery paths; **never run the installer as root**.
 
-## Project principles
+### Native Linux quick install (single command)
 
-- Keep the voice experience and work agent independently usable.
-- Make permissions and action results explicit; model output cannot create user authorization.
-- Preserve provider portability and clearly distinguish verified integrations from targets.
-- Measure the adaptive-harness claim against pinned baselines and safe rollback behavior.
-- Keep prototype evidence, recorded demos, fixtures, and implemented functionality clearly labeled.
+Run the single-command installer to check host prerequisites, print the installation plan before making changes, install any missing system dependencies (`bubblewrap`, `libseccomp2`, `python3.<minor>-venv`), verify and stage the release runtime in an isolated `.venv`, install the `~/.local/bin/kinaiya` launcher, and launch the interactive setup wizard:
+
+```sh
+# Interactive bootstrap + setup wizard (experimental nightly release channel):
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+
+# Or review the printed JSON plan first without --yes (type 'no' at the prompt to exit with zero changes),
+# or customize initial disjoint workspace and data directories:
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- \
+  --channel nightly --workspace "$HOME/Kinaiya Workspace" --data-dir "$HOME/.local/share/kinaiya/data"
+```
+
+```mermaid
+flowchart LR
+    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04/26.04 · Python 3.11–3.14"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
+    B --> C["3. Release Verification<br/>HTTPS + Immutable Tag + SHA-256"]
+    C --> D["4. Isolated Runtime<br/>Per-Generation .venv + Locked Wheels"]
+    D --> E["5. Interactive Setup Wizard<br/>~/.config/kinaiya/config.json"]
+```
+
+> [!IMPORTANT]
+> **Dependency & System Update Policy (Solver-Verified No-Upgrade / No-Remove / No-Downgrade):**
+> - **Installs missing dependencies only:** If `bubblewrap`, `libseccomp2`, or `python3.<minor>-venv` is missing, the CLI includes the non-mutating `apt-get -s` solver check and `sudo apt-get install --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y -- <missing>` in the confirmation plan. Before invoking `sudo`, it simulates the complete transaction against the `dpkg` status snapshot, verifies that every `Inst` record is a newly installed package with zero upgrades, removals, or downgrades, and binds the approved `package=version` pairs to the install command.
+> - **Never updates or mutates existing system packages:** Because `apt-get --no-upgrade` alone only prevents upgrading packages explicitly named on the command line (and can still upgrade already-installed transitive dependencies), Kinaiya inspects the full solver transaction and **never** runs `sudo apt-get update` or `sudo apt-get upgrade`.
+> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`), a transitive dependency upgrade/removal/downgrade requirement, or a stale local package index blocks installation, the CLI and setup wizard stop before any mutating command and warn you to update that specific component first.
+
+**Install locations, release channels & setup boundaries:**
+- **Default XDG layout vs custom directories:** By default, managed code and per-generation `.venv` runtimes live in `~/.local/share/kinaiya/install`, private journals and tokens in `~/.local/share/kinaiya/data`, config in `~/.config/kinaiya/config.json`, cache in `~/.cache/kinaiya`, the launcher in `~/.local/bin/kinaiya`, and the Agent workspace in `~/Kinaiya Workspace`. You can pass custom absolute `--workspace` and `--data-dir` paths (including paths with spaces) to `install.sh`, provided all roots are disjoint and symlink-free; managed code and private data must stay outside the Agent workspace so Agent tools cannot modify trusted runtime code or credentials. *Planned (open PR, not on `main`):* an interactive choice between the default root and the invoking directory (#383).
+- **Nightly (`--channel nightly`, experimental) vs Stable (default):** Nightly installs only a qualified, SHA-256-pinned GitHub release (scheduled for **midnight Las Vegas time (`America/Los_Angeles`)**, never arbitrary `main` commits). Stable is approval-gated; when no approved stable release is published yet, running without `--channel nightly` refuses rather than falling back to nightly. See [release policy and trust limits](docs/releases.md).
+- **Saved configuration vs live inference:** `kinaiya setup` writes `~/.config/kinaiya/config.json` and generates private `0600` service tokens (`ready: false`, `provider_connection: "not_checked"`). It never downloads models, never accepts raw API keys on the command line (pass only an environment variable **name** via `--credential-env`), and does not test live inference until you start the host.
+
+---
 
 ## Run the host
 
-Use a Linux host with Python 3.11+ and its matching `venv` module installed.
-Sandboxed Agent commands also require `bubblewrap` and `libseccomp2`; CI verifies
-these on Ubuntu 22.04. On Debian/Ubuntu, install the sandbox prerequisites, then
-create the environment with your Python 3.11+ interpreter (`python3` below):
+Once installed and configured, add `~/.local/bin` to `PATH`, start the loopback host services, and export your local owner login credential for the web UI:
 
-```bash
-sudo apt-get update
-sudo apt-get install -y bubblewrap libseccomp2
-python3 --version  # Must be 3.11 or newer; use your versioned interpreter if needed.
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements-dev.lock
-python -m pip install --no-deps -e .
-kinaiya init
-# Configure data/config.json with your chosen providers and disclosure policy.
-kinaiya --workspace workspace serve all
+```sh
+# 1. Ensure ~/.local/bin is on PATH in the current shell:
+export PATH="$HOME/.local/bin:$PATH"
+
+# 2. If using a cloud provider, export the API key into the environment variable NAME you gave
+#    setup (--credential-env) from your protected secret mechanism; never put raw keys in CLI flags.
+
+# 3. Start Agent-only host services (Session :8760 + Agent :8761, plus Converse/Decisions if enabled in setup):
+kinaiya serve host
+
+# 4. In a second terminal, export the owner browser sign-in token to ~/.local/share/kinaiya/data/owner-login.txt (mode 0600):
+kinaiya owner-login
+
+# 5. Serve the matching release's prebuilt Flutter owner web UI on http://127.0.0.1:8780:
+kinaiya web
 ```
 
-Services bind loopback: session 8760, Agent 8761, Converse 8762 and Decisions 8763.
-`kinaiya serve agent` and `kinaiya serve converse` also start independently alongside
-storage. `kinaiya agent "Write a small file"` connects directly to Agent. Unapproved
-writes and shell calls wait for an action-specific owner approval. The worker
-workspace must be separate from core, evaluation, settings and credential directories.
+- **Owner authentication vs internal service tokens:** Kinaiya manages internal service-to-service credentials in `~/.local/share/kinaiya/data/service-tokens.json` (`0600`); never edit or share that file. `kinaiya owner-login` exports only the `owner` bearer token to `~/.local/share/kinaiya/data/owner-login.txt` (or `--output <path>`, `0600`, without printing the token to stdout) so you can sign into the local web UI or authenticate owner API requests.
 
-Agent [file-write arguments](docs/adr/0043-write-file-arguments.md) use explicit path
-and content strings and are checked before approval and dispatch. Optional legacy
-revision metadata is validated against the native task revision and stays bound
-to the exact approval digest. Malformed writes produce an unsuccessful observation
-for the bounded task loop.
+### Common CLI, setup & recovery commands
 
-The [Flutter web client](apps/kinaiya_flutter/README.md) provides Character View,
-voice recording/playback and independent Agent Chat. Its [design and browser evidence](docs/adr/0005-flutter-voice-client.md)
-describe the tested synthetic voice-to-file flow and Agent operation while Converse
-was unloaded. Native voice and the remaining M5 gates are unfinished.
+| Task | Command | Notes |
+| --- | --- | --- |
+| **Interactive setup wizard** | `kinaiya setup` | Prompts on `/dev/tty` for workspace, data dir, measured Agent adapter (`lmstudio` or `meta`), model, and optional Converse. |
+| **Non-interactive local setup** | `kinaiya setup --yes --endpoint http://127.0.0.1:1234 --model <model-id>` | Configures local native LM Studio loopback (`allow_cloud: false`) without starting work. |
+| **Non-interactive cloud setup** | `kinaiya setup --yes --endpoint https://api.meta.ai/v1 --model <model-id> --allow-cloud --credential-env MY_PROVIDER_KEY` | Records the env var **name** (`MY_PROVIDER_KEY`) and cloud disclosure consent; never pass a raw key. |
+| **Start host services** | `kinaiya serve host` | Session (`:8760`) + Agent (`:8761`); adds Converse/Decisions only if enabled in setup. `serve all` remains a developer path. |
+| **Send a direct Agent task** | `kinaiya agent "Write a small file"` | Connects directly to Agent (`:8761`). Unapproved writes/shell calls wait for owner approval. |
+| **Export owner web login** | `kinaiya owner-login` | Writes a `0600` local credential file (`owner-login.txt`) for signing into the loopback web UI. |
+| **Check installed version** | `kinaiya version` | Verifies and prints the active generation's immutable release receipt. |
+| **Check / plan updates** | `kinaiya update --plan --channel nightly` | Read-only check (`--check` or `--plan`); never creates directories, downloads archives, or restarts services. |
+| **Install verified update** | `kinaiya update --yes --channel nightly` | Stages new generation alongside current, verifies imports, and switches atomically (stop services first). |
+| **Recover interrupted stage** | `kinaiya recover --yes` | Reconciles `pending.json` after an interrupted install/update while preserving `journal.sqlite` and workspace. |
+| **Rollback code generation** | `kinaiya rollback --generation <32-hex-id> --yes` | Restores retained code/runtime generation only; never modifies or rolls back databases. |
 
-Agent Chat's [operating-mode control](docs/agent-control-api.md) reads and changes
-native Off/on-demand independently of Converse. Off refuses new tasks and steering;
-already accepted work may finish under its existing authorization, and Stop and
-approvals remain available. Autonomous is unavailable pending a standing-work producer.
+Need to recover from a missing `bwrap` namespace policy, invalid API key, unreachable model endpoint, missing web bundle, or interrupted update? See [Troubleshooting and small recovery paths in `docs/linux-installation.md`](docs/linux-installation.md#troubleshooting-and-small-recovery-paths).
 
-The owner app's [Options workspace](docs/adr/0077-options-workspace-and-harness-models.md)
-uses persistent section navigation and embeds the existing appearance, voice,
-memory, connection and MCP editors. Models, Providers and Harness Customization
-are separate pages. Native revision-bound Agent defaults and per-harness model/
-reasoning overrides affect new tasks; accepted tasks retain their provider and
-inspectable model pin. The [owner API](docs/agent-options-api.md) persists settings
-and receipts without placing active provider credentials in model preferences.
-New model saves bind the observed backend and writer generation;
-[exact uncertain-save recovery](docs/adr/0088-bound-model-settings-writes.md)
-keeps the original owner/backend scope across reconnects and does not reapply a
-historical preference. Older unbound requests are exact-replay-only.
-Execution preferences use their own [bound recovery](docs/adr/0090-bound-execution-settings-writes.md)
-and database identity, with exact historical receipts and a shared bounded
-settings transport pool. Runtime version 1.0 retains its existing first-write
-and replay behavior; new UI writes require observed runtime authority.
-The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native
-profile and protected credential-generation forms. [Agent model selection](docs/adr/0089-agent-catalog-models.md)
-captures exact saved versions in fresh task-owned primary/auxiliary adapters;
-saving a provider profile alone does not select it. Independent
-[Converse text model settings](docs/adr/0091-converse-text-model-settings.md)
-select an eligible exact catalog generation while actual Converse operations
-and cleanup are settled. Independent
-[Decisions](docs/adr/0098-independent-decisions-model-selection.md),
-[STT](docs/adr/0099-independent-stt-model-settings.md), and
-[TTS](docs/adr/0101-independent-tts-model-settings.md) editors now select supported
-host or eligible catalog configurations through their own native owners.
-These supersede the earlier host-managed-only editing limitation; configuration
-does not establish model readiness. Local voice/profile reconfiguration, broader
-provider support and the runtime/concurrency acceptance described in the ADRs
-remain separate work.
-Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md)
-support explicit analysis, compression, title, delegated reasoning and harness
-design side calls. Native task pins, measured admission and disclosure remain
-authoritative; these calls cannot execute tools or grant permissions.
-The [options catalog](docs/options.md) distinguishes implemented, host-managed
-and planned controls. Stable semantics use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md).
-The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md)
-shares one live conversation owner: Home keeps the seated water scene, while the
-optional interaction view adds close-up artwork, transcript and composer. Home's
-mascot/Setup opens model declarations and local view visibility. Text model choice
-lives in Options / Models; camera/direct-audio input remains unavailable in the production app. Owner
-Projects group Agent sessions; Generated Documents and Generated Media list
-native output receipts with time, type and source session. These libraries do
-not scan workspace folders or grant file access.
-The [synthetic multimodal qualification](docs/adr/0083-synthetic-multimodal-qualification.md)
-records local LFM3/Gemma/d1 and Meta API observations, exact inputs and failed
-checks. Those probes do not enable camera capture or establish production
-multimodal readiness; [the remaining gates](https://github.com/rgoza1996/Kinaiya/issues/204)
-include actual owner-armed transport and a labelled routing/quality matrix.
-The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random
-positions and drift slowly. Hover/focus holds only the affected bubble; dragging
-and bounded flinging, bubble-to-modal growth, a floating Close control and
-empty-space dismissal honor motion preferences and preserve voice Stop controls.
-The [Decisions owner window](docs/adr/0066-decisions-owner-window.md) now reads
-actual provider-bound captures through the [private inspection API](docs/decisions-trace-api.md):
-literal submitted scripts, raw/validated outputs, historical identities and
-bounded session/date filters. Missing historical capture stays unavailable;
-direct Agent observations explicitly show no Decisions inference. This inspection
-slice does not establish overall routing/model-quality acceptance.
+<details>
+<summary><strong>Contributor / local source checkout verification commands</strong></summary>
 
-Agent has [two independently collapsible sidebars](docs/adr/0065-agent-sidebars.md):
-Harnesses and the selected harness's Workspace/sessions. Native eligibility and
-immutable session/task pins govern selection; a host with no configured selector
-registry exposes Seed Agent and legacy unassociated sessions remain unassociated. Current generated
-entries are bounded context selectors, not complete generated Agent runtimes.
-The close-up's [mouth motion](docs/adr/0064-speech-mouth-playback.md) follows
-actual decoded/playback-clock audio; optional visemes require real timing data.
-Newer design-chat hair/mole/highlight reference artwork remains pending pack integration.
-
-An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md)
-is installed only with `kinaiya serve session --converse-memory` (or the same
-switch on `serve all`). Its owner-only API starts each current Converse namespace
-disabled. Explicitly enabled namespaces accept local owner-curated, transcript-pinned
-claims and hard dependencies, reconcile corrections and contradictions, retrieve
-complete bounded dependency sets, and forget retained content. Disabling use and
-deleting data are separate controls. Agent and Decisions do not use this DAG.
-
-The first [selected recall runtime](docs/adr/0051-converse-selected-recall.md)
-adds owner-only Converse `POST /v1/memory/state` and `/v1/memory/use` controls.
-Runtime use starts off after every restart and is separate from the persisted
-namespace enable/retention setting. The owner selects existing note IDs; a local
-provider must measure the complete proposed prompt before either typed or live
-window generation uses the complete dependency set. Unsupported counting,
-unavailable memory or insufficient context omits recall. Provenance checks exclude
-old memory-derived assistant history after off, replacement or invalidation while
-keeping the authoritative transcript inspectable. In-flight work may remain
-pending after off; cancellation does not prove a journal write failed.
-The experimental owner [Memory dialog](docs/adr/0052-converse-memory-owner-ui.md)
-in Character View browses and inspects existing notes, controls saved access,
-and explicitly selects up to eight active notes for use or stops using them.
-Opening it only reads the current scope. The owner-only Session catalog is
-complete and bounded; disabled listing does not reconcile sources or write data.
-Unconfirmed changes retain bounded RAM latches across dialog close/reopen and
-same-endpoint reconnect; unchanged refresh values cannot settle an old write.
-Namespace access and runtime use remain separate. The owner can now
-[create a transcript-pinned note, create a revised note and explicitly forget a note](docs/adr/0085-converse-note-editor.md).
-Revision creates another immutable note; forgetting the original is a separate
-action. Exact historical receipts help reconcile uncertain saves without
-recreating erased content. Automatic extraction, relevance ranking and improved
-human recall remain unfinished.
-
-Optional local skill controls are enabled with `"skills": {"enabled": true}` in
-the owner configuration. `/skills list`, `/skills install <local-path>`, and
-`/skills enable <qualified-id>` manage packages without inference; `/skill
-<qualified-id> [request]` starts normal Agent work with selected, pinned
-instructions. Packages default to local-only disclosure. The [Agent skill
-boundary](docs/adr/0010-agent-skills.md) records the tested workflow and the
-remaining registry, upstream compatibility and execution-adapter work.
-
-Optional [MCP connection management](docs/adr/0017-mcp-management.md) is enabled by
-`"mcp":{"enabled":true}` after installing the ecosystem extra. Agent `/mcp`
-commands and its **MCP connections** settings configure disabled profiles, test
-connections, enable, reconnect, disable and remove servers without inference.
-Configuration changes use explicit task boundaries and durable request identities;
-stop/status and permission revocation remain available. Only reviewed environment
-secret references are accepted. OAuth and complete MCP/skill ecosystem conformance
-remain open.
-
-Recovered paused work supports owner [native retirement](docs/adr/0018-recovered-task-retirement.md)
-after a session reset. Its durable receipt keeps the original task identity and
-records unreconciled effects without copying old execution context into the new
-epoch. Unacknowledged retirement stays paused until explicitly reconciled; MCP
-management remains blocked while any work is nonterminal.
-
-Initial Agent submissions use [native admission](docs/adr/0087-agent-submit-admission.md)
-to commit the journal entry and its logical idempotency slot together. An
-unconfirmed acknowledgment stays paused and returns an explicit HTTP503; a RAM
-entry alone cannot establish acceptance. Exact retries reconcile the original
-native identity and model pins without starting another worker. Only the direct
-validated creation receipt can start work after fresh authority checks; a retained
-or recovered receipt grants no execution. Upgrade requires quiescing old Agent
-and Session writers because generic initial-submit append is no longer accepted.
-This does not provide exactly-once third-party tool effects or automatic resume.
-
-An optional [isolated compute-plugin host](docs/adr/0016-compute-plugins.md) can
-retain ordinary Python/JSON algorithms independently of the LLM that authored
-them. Owner-held acceptance suites and reviewed promotion gate activation;
-`/plugins` controls and direct owner invocation require no inference. Agent can
-discover and call approved versions with task pins and native result receipts.
-The [public CSV acquisition evidence](evaluation/evidence/compute-plugins-2026-10-27.json)
-records real source generation, isolated execution, rejected updates and rollback.
-General dependency installation, hooks, foreign plugin adapters and full autonomous
-capability acquisition remain open.
-
-Optional voice runs in a separate Python with the `voice` extra and preinstalled
-Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads
-are disabled by default; a clean-machine model installer is still a roadmap task.
-An explicit [GPU voice profile](docs/adr/0056-explicit-gpu-converse.md) selects
-pinned OpenAI Whisper tiny/tiny.en and Kokoro on CUDA or AMD ROCm, verifies loaded
-parameters and buffers, and refuses CPU fallback. It supports a local GPU dialogue
-provider with thinking disabled. Combined VRAM and native execution evidence are
-tracked in [#132](https://github.com/rgoza1996/Kinaiya/issues/132); a development-GPU
-measurement does not establish constrained 8 GB hardware acceptance.
-An opt-in [managed Whistle CPU STT profile](docs/adr/0034-managed-whistle-cpu-stt.md)
-selects transcription independently of TTS, using pinned local artifacts and a
-separate owned native process. It supports bounded PCM WAV slices with process
-cancellation and recovery. Persistent incremental STT and real-time acceptance
-remain open.
-The optional [native incremental Whistle binding](docs/adr/0036-incremental-whistle-stt.md)
-has separately passed a local engine append/flush/cancel/recovery experiment.
-Its measured two-CPU profile is too slow for realtime speech; production
-streaming transport and client integration remain unfinished.
-An opt-in [Supertonic 3 CPU backend](docs/adr/0027-retained-supertonic.md) also
-synthesizes through the same speech bridge using pinned, verified local assets.
-Its output is buffered before transport; the small synthetic screen does not meet
-the roadmap's warm-onset target or establish physical audible latency. The experimental
-[VibeVoice Realtime 0.5B CPU adapter](docs/adr/0029-vibevoice-transformers5.md) emits native
-waveform chunks with request-owned cancellation. Its explicit Transformers 5.21
-runtime derivative preserves upstream and patched source provenance. A nine-reply
-synthetic screen observed median first PCM at 226 ms, first non-silent frame at
-2.88 seconds, and RTF 2.60; it does not sustain realtime speech. The newer
-installed-environment audit lists no vulnerabilities for covered packages and
-explicitly skips the custom runtime and direct CPU Torch wheel. Exact evidence,
-research-use qualifications and remaining acceptance gates are documented in the
-ADR. This is an experimental profile with no default promotion or physical
-audibility claim. [Ming 3 Tiny](https://github.com/rgoza1996/Kinaiya/issues/72)
-remains a retained candidate with an unconfigured backend; full M2 acceptance
-remains open.
-
-An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md)
-can own that worker, verify process release for an explicit local-work handoff,
-and restore voice when a bound Agent task finishes. Optional
-[managed Laya residency](docs/adr/0022-managed-laya-resources.md) adds pinned
-worker ownership, AMD driver telemetry and explicit GPU headroom admission.
-`/resources` controls stay in Agent Chat; approvals remain usable while Converse
-is paused. General GPU scheduling, other local text-model unloading and complete
-M6 reliability remain open. [Durable owner intent](docs/adr/0023-converse-owner-intent.md)
-keeps acknowledged Converse-off choices effective through restoration and restarts.
-
-Experimental [managed native text](docs/adr/0040-managed-native-text.md) adds an
-opt-in GGUF Converse worker with pinned offline inputs, native SSE streaming and
-owned cancellation/release barriers. It shares lifecycle ownership with the
-existing Qwen profile while preserving each protocol. Initial implementation
-and synthetic verification are CPU-only; actual runtime/model acceptance,
-GPU policy, dialogue quality and the combined 8 GB voice-profile target remain
-separate gates. It is not a reference default.
-
-Production Converse [history budgeting](docs/adr/0057-converse-context-window-budget.md)
-uses the active model's complete formatted prompt count and reserved output space.
-Semantic native pages preserve corrections and playback qualifications while
-routing traffic consumes no dialogue allowance. It retains whole recent messages
-that fit, rather than eight live or twelve typed entries. The local native
-`lmstudio` provider uses the exact already-loaded instance for counting and
-generation, without JIT loading. Providers lacking exact counting visibly refuse
-this host path; a compatible HTTP endpoint alone is insufficient. Embedded
-runtime compatibility remains separately identified in health. Conversation
-quality and physical latency still require human testing.
-
-Agent's [complete-context admission](docs/adr/0075-complete-agent-context.md)
-preserves complete native file observations and selects whole action/result
-exchanges using an exact count of the complete proposed request. The trusted
-instructions, current objective/revision and newest exchange remain protected.
-Meta Agent profiles need an explicitly verified `context_tokens` value and the
-native count endpoint; unsupported complete-count providers refuse visibly.
-Generic compatible HTTP alone does not establish this capability. Every count
-and generation also needs a fresh native source admission. These mechanisms
-do not establish general Agent task reliability or complete the M1 gate.
-
-An optional [whole-chat prompt measurement](docs/adr/0050-converse-prompt-measurement.md)
-uses only an already resident managed GGUF worker, without generating a reply or
-loading a model. Its result binds the complete chat request and protected profile
-and accounts for reserved output when checking context capacity. Unsupported
-counting refuses without a guessed estimate. The installed fork's count route
-has not been exercised; synthetic transport tests do not establish compatibility.
-Selected memory recall depends on this optional capability; an unsupported
-installed counter leaves ordinary dialogue available without recalled content.
-
-A bounded [runtime-state publication guard](docs/adr/0042-negative-runtime-state-publication.md)
-also substitutes uncertainty for selected unsupported negative Agent/task claims
-in generated Converse chunks. It preserves the existing native outcome evidence
-path. Its finite English matching does not qualify a model or establish general
-dialogue truthfulness.
-
-Provider keys belong in secret references/environment variables. Development Meta
-Contributor profiles are for public code and synthetic inputs only. The live test
-requires an explicit paid-inference flag and a budget proxy; ordinary CI is offline
-with respect to inference. See [integration evidence and limits](docs/adr/0002-verified-integration-slice.md)
-and the [threat model](docs/security/threat-model.md).
-
-An opt-in [OpenRouter Kokoro TTS selection](docs/adr/0062-explicit-openrouter-tts.md)
-provides cloud speech output independently of dialogue and STT. It uses its own
-protected credential and bounded admission ledger, authorizes each persisted
-reply's disclosure scope, and retains native interruption/cleanup ownership.
-Selecting it introduces no local TTS fallback or managed-worker lifecycle change.
-
-[Native disclosure scopes](docs/adr/0037-typed-disclosure-scopes.md) default
-typed input, tasks and legacy unscoped history to local-only. Public/synthetic
-and private-cloud input require explicit grants; Contributor accepts only the
-public/synthetic grant. Drafts and recordings keep their capture-time scope
-when providers change. CLI cloud work must specify its input grant explicitly,
-for example `kinaiya --content-scope public_synthetic agent "Read the synthetic fixture"`.
+When working directly in a repository checkout on Ubuntu 22.04/24.04/26.04 (`sh install.sh` or `scripts/install.sh` can also be run locally):
 
 ```bash
 ruff check .
@@ -420,9 +187,162 @@ ruff format --check .
 pytest -m 'not live' -q
 ```
 
+ Setup and update do not prove provider/model readiness or start work. Optional [Converse setup](docs/converse-setup.md) and the [Flutter web client guide](apps/kinaiya_flutter/README.md) document optional voice/UI development workflows. Windows support is deferred; Android/iOS distribution and native calling remain separate qualification work.
+</details>
+
+---
+
+## Hackathon target
+
+The planned hackathon demonstration is a focused slice through the larger [Roadmap](Roadmap.md):
+
+1. **Real voice conversation** with interruption support and an original, replaceable character.
+2. **A real routed request** that uses shared conversation context via Decisions.
+3. **Agent completes useful work** in its sandboxed workspace and reports verifiable evidence of the result.
+4. **Direct Agent Chat remains available** while Converse is off.
+5. **Self-building harness evaluation:** Agent generates an executable harness extension, evaluates it against a pinned baseline, and demonstrates safe rejection, promotion, or rollback.
+6. **Verified Meta API integration (opt-in, provider-configurable core):** Demonstrated against live Meta Responses, `/v1/responses/input_tokens` exact prompt-count admission, buffered Meta STT (`muse-voice-transcribe-1.0`), and typed `action_format: "typed-v2"` structured actions on public/synthetic inputs through the local admission proxy — see [ADR 0002 (real-provider integration gate)](docs/adr/0002-verified-integration-slice.md), [ADR 0061 (explicit Meta Converse & exact prompt measurement)](docs/adr/0061-explicit-meta-converse.md), [ADR 0072 (typed Meta action wire)](docs/adr/0072-typed-meta-action-wire.md), [ADR 0083 (synthetic multimodal qualification)](docs/adr/0083-synthetic-multimodal-qualification.md), [bounded budget accounting](docs/meta-budget-tests.md), and the retained [Stage B live run receipt](evaluation/evidence/stage-b-2026-10-26.json). Meta remains an explicit opt-in provider behind typed disclosure scopes (`allow_cloud`), not a hard product dependency; physical microphone/camera calling, live provider billing, and full end-to-end demo qualification remain separate open gates.
+
+### Current stage & qualification matrix
+
+**Experimental and actively developed.** The [implementation ledger](docs/implementation-status.md) and [Roadmap 0.3.2](Roadmap.md) distinguish implemented capabilities, measured experiments, and remaining acceptance gates:
+
+| Subsystem | Implemented & Verified in CI | Experimental / Research Evidence | Open Acceptance Gates |
+| --- | --- | --- | --- |
+| **Core & Session (`:8760`)** | Monotonic SQLite journal, revision-bound settings receipts, service token auth, typed disclosure scopes | Bounded Converse memory DAG (`--converse-memory`) and selected local recall | Automatic memory extraction, relevance ranking, schema migration tooling |
+| **Agent (`:8761`) & Sandbox** | `bubblewrap` + `libseccomp2` isolation (`x86_64` & `aarch64`), one-use SHA-256 action permits, native submit admission, `Off`/`On-Demand` mode control | Isolated context-selector harnesses, compute-plugin host, local `/skills` and `/mcp` management | General autonomous improvement (12-case screen rejected candidate), full MCP OAuth conformance |
+| **Converse (`:8762`) & Voice** | Retained live-listening windows, audio-clock mouth motion, sleeping/wake scene, complete-prompt context budgeting | GPU Whisper/Kokoro profile, CPU Whistle STT, Supertonic 3 CPU, VibeVoice 0.5B CPU, OpenRouter TTS, GGUF worker | Sustained realtime CPU voice latency, 8 GB combined GPU voice qualification, clean-machine model installer |
+| **Decisions (`:8763`)** | Finalized-message routing (`ignore`/`queue`/`steer`/`interrupt`), two-axis live-window routing, owner trace inspection API | Typed local Laya Jev worker with pinned snapshot verification, synthetic multimodal probes | Promotion of Laya as reference default, calibrated probabilistic routing |
+| **Distribution & Clients** | Native Linux single-command installer/updater/rollback (`Ubuntu 22.04/24.04/26.04`), Flutter web UI, deterministic Android APK & iOS sideload IPA bundlers | Scheduled midnight-Pacific (`America/Los_Angeles`) nightly pipeline, GitHub OIDC build-provenance attestations | Production store signing secrets, physical clean-device mobile & desktop voice qualification |
+
+---
+
+## Technical details
+
+The subsections below preserve the complete architectural notes, operational constraints, and ADR references for every subsystem.
+
+### Project principles
+
+- Keep the voice experience and work agent independently usable.
+- Make permissions and action results explicit; model output cannot create user authorization.
+- Preserve provider portability and clearly distinguish verified integrations from targets.
+- Measure the adaptive-harness claim against pinned baselines and safe rollback behavior.
+- Keep prototype evidence, recorded demos, fixtures, and implemented functionality clearly labeled.
+
+### 1. Live-window routing & unfinished speech authority
+
+```mermaid
+sequenceDiagram
+    participant User as Owner (Voice / Text)
+    participant Conv as Converse (:8762)
+    participant Sess as Session Journal (:8760)
+    participant Dec as Decisions (:8763)
+    participant Agt as Agent (:8761)
+
+    User->>Conv: Live speech stream / retained window
+    Conv->>Sess: Persist transcript window (uncommitted speech)
+    Conv->>Dec: Evaluate window (Conversation + Agent axes)
+    Dec-->>Conv: Timing: WAIT / RESPOND / INTERRUPT
+    Dec-->>Agt: Route: IGNORE / STEER / INTERRUPT / QUEUE
+    Note over Agt,Sess: Unfinished live speech CANNOT auto-execute<br/>writes, shell commands, or MCP calls (even in YOLO).
+    Agt->>Sess: Request explicit Owner Approval Permit
+    User->>Sess: Approve exact action digest (SHA-256)
+    Agt->>Agt: Execute inside bubblewrap sandbox
+```
+
+- **Retained transcript windows:** Live listening uses retained transcript windows with separate Decisions outputs for conversation timing and Agent routing. It can hold a prepared reply for a speaking opening, preserve speech during backchannels, steer/cancel work, and queue follow-ups until a native task boundary. See [streaming-window design and verification limits](docs/adr/0019-streaming-window-control.md).
+- **Unfinished speech approval boundary:** Unfinished live speech requires owner review before file writes, shell commands, or MCP calls, including with broad tool grants or YOLO. Agent Chat shows current approvals across conversation sessions. Silence alone does not commit speech; see the [source-authority boundary](docs/adr/0020-streaming-source-authority.md).
+- **Typed Laya Decisions adapter:** An opt-in [typed Laya Decisions adapter](docs/adr/0021-laya-decisions.md) supports local Jev inference in a separate process, with native source/task bindings and explicit classification refusals. The optional [verified local worker](docs/laya-worker.md) loads a private snapshot of pinned model files and checks artifact identity on every response without inventing a Hub revision. Base-model and supervised synthetic results remain research evidence; Laya is not yet promoted as the reference default.
+- **Decisions owner trace inspection:** The [Decisions owner window](docs/adr/0066-decisions-owner-window.md) reads actual provider-bound captures through the [private inspection API](docs/decisions-trace-api.md): literal submitted scripts, raw/validated outputs, historical identities, and bounded session/date filters. Missing historical capture stays unavailable; direct Agent observations explicitly show no Decisions inference. This inspection slice does not establish overall routing/model-quality acceptance.
+
+### 2. Sandboxed Agent execution, admission & task retirement
+
+- **Service ports & workspace separation:** Services bind loopback: session `8760`, Agent `8761`, Converse `8762`, and Decisions `8763`. `kinaiya serve agent` and `kinaiya serve converse` also start independently alongside storage. `kinaiya agent "Write a small file"` connects directly to Agent. Unapproved writes and shell calls wait for an action-specific owner approval. The worker workspace must be separate from core, evaluation, settings, and credential directories.
+- **File-write argument validation:** Agent [file-write arguments](docs/adr/0043-write-file-arguments.md) use explicit path and content strings and are checked before approval and dispatch. Optional legacy revision metadata is validated against the native task revision and stays bound to the exact approval digest. Malformed writes produce an unsuccessful observation for the bounded task loop.
+- **Operating-mode control (`Off` / `On-Demand`):** Agent Chat's [operating-mode control](docs/agent-control-api.md) reads and changes native Off/on-demand independently of Converse. Off refuses new tasks and steering; already accepted work may finish under its existing authorization, and Stop and approvals remain available. Autonomous is unavailable pending a standing-work producer.
+- **Native submit admission:** Initial Agent submissions use [native admission](docs/adr/0087-agent-submit-admission.md) to commit the journal entry and its logical idempotency slot together. An unconfirmed acknowledgment stays paused and returns an explicit `HTTP 503`; a RAM entry alone cannot establish acceptance. Exact retries reconcile the original native identity and model pins without starting another worker. Only the direct validated creation receipt can start work after fresh authority checks; a retained or recovered receipt grants no execution. Upgrade requires quiescing old Agent and Session writers because generic initial-submit append is no longer accepted. This does not provide exactly-once third-party tool effects or automatic resume.
+- **Recovered task retirement:** Recovered paused work supports owner [native retirement](docs/adr/0018-recovered-task-retirement.md) after a session reset. Its durable receipt keeps the original task identity and records unreconciled effects without copying old execution context into the new epoch. Unacknowledged retirement stays paused until explicitly reconciled; MCP management remains blocked while any work is nonterminal.
+- **Complete-context admission:** Agent's [complete-context admission](docs/adr/0075-complete-agent-context.md) preserves complete native file observations and selects whole action/result exchanges using an exact count of the complete proposed request. The trusted instructions, current objective/revision, and newest exchange remain protected. Meta Agent profiles need an explicitly verified `context_tokens` value and the native count endpoint; unsupported complete-count providers refuse visibly. Generic compatible HTTP alone does not establish this capability. Every count and generation also needs a fresh native source admission. These mechanisms do not establish general Agent task reliability or complete the M1 gate.
+
+### 3. Owner UI, Options workspace & revision-bound model controls
+
+- **Flutter web client:** The [Flutter web client](apps/kinaiya_flutter/README.md) provides Character View, voice recording/playback, and independent Agent Chat. Its [design and browser evidence](docs/adr/0005-flutter-voice-client.md) describe the tested synthetic voice-to-file flow and Agent operation while Converse was unloaded. Native voice and the remaining M5 gates are unfinished.
+- **Options workspace & per-role model catalogs:** The owner app's [Options workspace](docs/adr/0077-options-workspace-and-harness-models.md) uses persistent section navigation and embeds the appearance, voice, memory, connection, and MCP editors. Models, Providers, and Harness Customization are separate pages. Native revision-bound Agent defaults and per-harness model/reasoning overrides affect new tasks; accepted tasks retain their provider and inspectable model pin. The [owner API](docs/agent-options-api.md) persists settings and receipts without placing active provider credentials in model preferences.
+- **Bound settings writes & recovery:** New model saves bind the observed backend and writer generation; [exact uncertain-save recovery](docs/adr/0088-bound-model-settings-writes.md) keeps the original owner/backend scope across reconnects and does not reapply a historical preference. Older unbound requests are exact-replay-only. Execution preferences use their own [bound recovery](docs/adr/0090-bound-execution-settings-writes.md) and database identity, with exact historical receipts and a shared bounded settings transport pool. Runtime version 1.0 retains its existing first-write and replay behavior; new UI writes require observed runtime authority.
+- **Independent role editors (Agent, Converse, Decisions, STT, TTS):** The [Providers catalog](docs/adr/0086-owner-provider-catalog.md) adds native profile and protected credential-generation forms. [Agent model selection](docs/adr/0089-agent-catalog-models.md) captures exact saved versions in fresh task-owned primary/auxiliary adapters; saving a provider profile alone does not select it. Independent [Converse text model settings](docs/adr/0091-converse-text-model-settings.md) select an eligible exact catalog generation while actual Converse operations and cleanup are settled. Independent [Decisions](docs/adr/0098-independent-decisions-model-selection.md), [STT](docs/adr/0099-independent-stt-model-settings.md), and [TTS](docs/adr/0101-independent-tts-model-settings.md) editors select supported host or eligible catalog configurations through their own native owners. These supersede the earlier host-managed-only editing limitation; configuration does not establish model readiness. Local voice/profile reconfiguration, broader provider support, and the runtime/concurrency acceptance described in the ADRs remain separate work.
+- **Task-pinned auxiliary models:** Global and per-harness [auxiliary text models](docs/adr/0082-task-pinned-auxiliary-models.md) support explicit analysis, compression, title, delegated reasoning, and harness design side calls. Native task pins, measured admission, and disclosure remain authoritative; these calls cannot execute tools or grant permissions.
+- **Home, Converse, sidebars & visual controls:**
+  - The [options catalog](docs/options.md) distinguishes implemented, host-managed, and planned controls. Stable semantics use the [supplied Penpot presentation](docs/adr/0054-penpot-owner-interface.md).
+  - The [updated Home and optional Converse design](docs/adr/0059-home-and-optional-converse.md) shares one live conversation owner: Home keeps the seated water scene, while the optional interaction view adds close-up artwork, transcript, and composer. Home's mascot/Setup opens model declarations and local view visibility. Text model choice lives in Options / Models; camera/direct-audio input remains unavailable in the production app.
+  - Owner Projects group Agent sessions; Generated Documents and Generated Media list native output receipts with time, type, and source session. These libraries do not scan workspace folders or grant file access.
+  - The [synthetic multimodal qualification](docs/adr/0083-synthetic-multimodal-qualification.md) records local LFM3/Gemma/d1 and Meta API observations, exact inputs, and failed checks. Those probes do not enable camera capture or establish production multimodal readiness; [the remaining gates](https://github.com/rgoza1996/Kinaiya/issues/204) include actual owner-armed transport and a labelled routing/quality matrix.
+  - The [setup bubbles](docs/adr/0063-floating-setup-bubbles.md) start in fresh random positions and drift slowly. Hover/focus holds only the affected bubble; dragging and bounded flinging, bubble-to-modal growth, a floating Close control, and empty-space dismissal honor motion preferences and preserve voice Stop controls.
+  - Agent has [two independently collapsible sidebars](docs/adr/0065-agent-sidebars.md): Harnesses and the selected harness's Workspace/sessions. Native eligibility and immutable session/task pins govern selection; a host with no configured selector registry exposes Seed Agent and legacy unassociated sessions remain unassociated. Current generated entries are bounded context selectors, not complete generated Agent runtimes.
+  - The close-up's [mouth motion](docs/adr/0064-speech-mouth-playback.md) follows actual decoded/playback-clock audio; optional visemes require real timing data. Newer design-chat hair/mole/highlight reference artwork remains pending pack integration.
+
+### 4. Converse memory DAG, context budgeting & publication guards
+
+- **Converse memory core (`--converse-memory`):** An experimental [Converse memory core](docs/adr/0047-converse-memory-core.md) is installed only with `kinaiya serve session --converse-memory` (or the same switch on `serve all`). Its owner-only API starts each current Converse namespace disabled. Explicitly enabled namespaces accept local owner-curated, transcript-pinned claims and hard dependencies, reconcile corrections and contradictions, retrieve complete bounded dependency sets, and forget retained content. Disabling use and deleting data are separate controls. Agent and Decisions do not use this DAG.
+- **Selected recall runtime:** The first [selected recall runtime](docs/adr/0051-converse-selected-recall.md) adds owner-only Converse `POST /v1/memory/state` and `/v1/memory/use` controls. Runtime use starts off after every restart and is separate from the persisted namespace enable/retention setting. The owner selects existing note IDs; a local provider must measure the complete proposed prompt before either typed or live window generation uses the complete dependency set. Unsupported counting, unavailable memory, or insufficient context omits recall. Provenance checks exclude old memory-derived assistant history after off, replacement, or invalidation while keeping the authoritative transcript inspectable. In-flight work may remain pending after off; cancellation does not prove a journal write failed.
+- **Owner Memory dialog & note editor:** The experimental owner [Memory dialog](docs/adr/0052-converse-memory-owner-ui.md) in Character View browses and inspects existing notes, controls saved access, and explicitly selects up to eight active notes for use or stops using them. Opening it only reads the current scope. The owner-only Session catalog is complete and bounded; disabled listing does not reconcile sources or write data. Unconfirmed changes retain bounded RAM latches across dialog close/reopen and same-endpoint reconnect; unchanged refresh values cannot settle an old write. Namespace access and runtime use remain separate. The owner can [create a transcript-pinned note, create a revised note, and explicitly forget a note](docs/adr/0085-converse-note-editor.md). Revision creates another immutable note; forgetting the original is a separate action. Exact historical receipts help reconcile uncertain saves without recreating erased content. Automatic extraction, relevance ranking, and improved human recall remain unfinished.
+- **Converse history budgeting & prompt measurement:**
+  - Production Converse [history budgeting](docs/adr/0057-converse-context-window-budget.md) uses the active model's complete formatted prompt count and reserved output space. Semantic native pages preserve corrections and playback qualifications while routing traffic consumes no dialogue allowance. It retains whole recent messages that fit, rather than eight live or twelve typed entries. The local native `lmstudio` provider uses the exact already-loaded instance for counting and generation, without JIT loading. Providers lacking exact counting visibly refuse this host path; a compatible HTTP endpoint alone is insufficient. Embedded runtime compatibility remains separately identified in health. Conversation quality and physical latency still require human testing.
+  - An optional [whole-chat prompt measurement](docs/adr/0050-converse-prompt-measurement.md) uses only an already resident managed GGUF worker, without generating a reply or loading a model. Its result binds the complete chat request and protected profile and accounts for reserved output when checking context capacity. Unsupported counting refuses without a guessed estimate. The installed fork's count route has not been exercised; synthetic transport tests do not establish compatibility. Selected memory recall depends on this optional capability; an unsupported installed counter leaves ordinary dialogue available without recalled content.
+- **Negative runtime-state publication guard:** A bounded [runtime-state publication guard](docs/adr/0042-negative-runtime-state-publication.md) substitutes uncertainty for selected unsupported negative Agent/task claims in generated Converse chunks. It preserves the existing native outcome evidence path. Its finite English matching does not qualify a model or establish general dialogue truthfulness.
+
+### 5. Voice backends, local inference workers & resource handoffs
+
+| Profile / Backend | Role | Execution Mode | Status & Qualification Notes |
+| --- | --- | --- | --- |
+| **Kokoro + Whisper (`voice` extra)** | TTS + STT | Separate Python (`python -m packages.providers.voice_worker`) | Preinstalled weights; model downloads disabled by default. [Explicit GPU profile](docs/adr/0056-explicit-gpu-converse.md) verifies CUDA/ROCm buffers and refuses CPU fallback ([#132](https://github.com/rgoza1996/Kinaiya/issues/132)). |
+| **Whistle CPU STT** | STT | Owned native process ([ADR 0034](docs/adr/0034-managed-whistle-cpu-stt.md), [ADR 0036](docs/adr/0036-incremental-whistle-stt.md)) | Bounded PCM WAV slices with cancellation/recovery. Incremental 2-CPU profile is too slow for realtime speech; streaming transport remains open. |
+| **Supertonic 3 CPU** | TTS | Pinned local assets ([ADR 0027](docs/adr/0027-retained-supertonic.md)) | Buffered output before transport; synthetic screen does not establish warm-onset or physical audible latency. |
+| **VibeVoice Realtime 0.5B** | TTS | CPU Transformers 5.21 derivative ([ADR 0029](docs/adr/0029-vibevoice-transformers5.md)) | Request-owned chunk cancellation. Synthetic 9-reply screen: median first PCM `226 ms`, first non-silent frame `2.88 s`, `RTF 2.60` (not realtime). |
+| **OpenRouter Kokoro TTS** | Cloud TTS | HTTPS w/ dedicated credential & byte ledger ([ADR 0062](docs/adr/0062-explicit-openrouter-tts.md)) | Authorizes each persisted reply's disclosure scope; no silent local TTS fallback. |
+| **Managed GGUF Text** | Converse LLM | Opt-in native SSE worker ([ADR 0040](docs/adr/0040-managed-native-text.md)) | Shares lifecycle ownership with Qwen profile; initial implementation/verification is CPU-only. |
+
+<details>
+<summary><strong>Detailed voice & resource coordinator notes</strong></summary>
+
+- Optional voice runs in a separate Python with the `voice` extra and preinstalled Kokoro/Whisper weights: `python -m packages.providers.voice_worker`. Model downloads are disabled by default; a clean-machine model installer is still a roadmap task.
+- An explicit [GPU voice profile](docs/adr/0056-explicit-gpu-converse.md) selects pinned OpenAI Whisper tiny/tiny.en and Kokoro on CUDA or AMD ROCm, verifies loaded parameters and buffers, and refuses CPU fallback. It supports a local GPU dialogue provider with thinking disabled. Combined VRAM and native execution evidence are tracked in [#132](https://github.com/rgoza1996/Kinaiya/issues/132); a development-GPU measurement does not establish constrained 8 GB hardware acceptance.
+- [Ming 3 Tiny](https://github.com/rgoza1996/Kinaiya/issues/72) remains a retained candidate with an unconfigured backend; full M2 acceptance remains open.
+- An opt-in [CPU voice resource coordinator](docs/adr/0013-resource-handoff.md) can own that worker, verify process release for an explicit local-work handoff, and restore voice when a bound Agent task finishes. Optional [managed Laya residency](docs/adr/0022-managed-laya-resources.md) adds pinned worker ownership, AMD driver telemetry, and explicit GPU headroom admission. `/resources` controls stay in Agent Chat; approvals remain usable while Converse is paused. General GPU scheduling, other local text-model unloading, and complete M6 reliability remain open. [Durable owner intent](docs/adr/0023-converse-owner-intent.md) keeps acknowledged Converse-off choices effective through restoration and restarts.
+</details>
+
+### 6. Skills, MCP, compute plugins & disclosure scopes
+
+- **Local skills (`/skills`):** Enabled with `"skills": {"enabled": true}` in owner configuration. `/skills list`, `/skills install <local-path>`, and `/skills enable <qualified-id>` manage packages without inference; `/skill <qualified-id> [request]` starts normal Agent work with selected, pinned instructions. Packages default to `local-only` disclosure. See the [Agent skill boundary](docs/adr/0010-agent-skills.md).
+- **MCP connections (`/mcp`):** Optional [MCP connection management](docs/adr/0017-mcp-management.md) is enabled by `"mcp": {"enabled": true}` after installing the ecosystem extra. Agent `/mcp` commands and **MCP connections** settings configure disabled profiles, test connections, enable, reconnect, disable, and remove servers without inference. Configuration changes use explicit task boundaries and durable request identities; stop/status and permission revocation remain available. Only reviewed environment secret references are accepted. OAuth and complete MCP/skill ecosystem conformance remain open.
+- **Isolated compute plugins (`/plugins`):** An optional [isolated compute-plugin host](docs/adr/0016-compute-plugins.md) retains ordinary Python/JSON algorithms independently of the LLM that authored them. Owner-held acceptance suites and reviewed promotion gate activation; `/plugins` controls and direct owner invocation require no inference. Agent can discover and call approved versions with task pins and native result receipts. The [public CSV acquisition evidence](evaluation/evidence/compute-plugins-2026-10-27.json) records real source generation, isolated execution, rejected updates, and rollback. General dependency installation, hooks, foreign plugin adapters, and full autonomous capability acquisition remain open.
+- **Credentials, live testing & typed disclosure scopes:**
+  - Provider keys belong in secret references/environment variables. Development Meta Contributor profiles are for public code and synthetic inputs only. The live test requires an explicit paid-inference flag and a budget proxy; ordinary CI is offline with respect to inference. See [integration evidence and limits](docs/adr/0002-verified-integration-slice.md) and the [threat model](docs/security/threat-model.md).
+  - [Native disclosure scopes](docs/adr/0037-typed-disclosure-scopes.md) default typed input, tasks, and legacy unscoped history to `local-only`. Public/synthetic and private-cloud input require explicit grants; Contributor accepts only the `public_synthetic` grant. Drafts and recordings keep their capture-time scope when providers change. CLI cloud work must specify its input grant explicitly, for example:
+    ```bash
+    kinaiya --content-scope public_synthetic agent "Read the synthetic fixture"
+    ```
+
+### 7. Roadmap & implementation ledger provenance
+
+The [Roadmap 0.3.2](Roadmap.md) retains the October 30 reconciliation, October 31 model-choice/performance clarification, and November 1 optional Omni Converse paths. The [implementation and acceptance ledger](docs/implementation-status.md) retains a historical runtime cutoff at source `f92f6d1` and separately records later bounded increments; read those addenda and their ADRs for subsequent changes, not as a freshly requalified full-product snapshot. Partial resource/ecosystem/mobile foundations do not establish completion of the full product scope.
+
+---
+
 ## Mathematical foundations
 
 Kinaiya combines discrete-state coordination, cryptographic integrity, budget-constrained execution, streaming inference, and adaptive-harness research. The equations below distinguish **what the experimental code enforces** from **what the roadmap proposes to evaluate**. Proposed formulations illustrate possible research methods; they are **not implemented algorithms or measured performance claims**.
+
+| # | Foundation | Enforced in Code Today | Proposed Research Formulation | Primary Code Module |
+| --- | --- | --- | --- | --- |
+| **1** | [Decisions routing](#1-decisions-risk-aware-conversational-routing) | Finalized 4-way & live 2-axis window classification | Risk-sensitive Bayes loss minimization $L(a,y)$ | [`services/decisions/window_routing.py`](services/decisions/window_routing.py) |
+| **2** | [Transcript budget](#2-shared-transcript-context-selection-under-a-token-budget) | Exact native prompt count $T_{\mathrm{native}}(P_k)+R\le W$ | 0–1 knapsack utility selection | [`packages/providers/prompt_budget.py`](packages/providers/prompt_budget.py) |
+| **3** | [Event & permit binding](#3-event-consistency-ordering-revisions-and-authorization) | Monotonic journal + one-use `SHA-256` action permits | — (Implemented invariant) | [`core/policy/__init__.py`](core/policy/__init__.py) |
+| **4** | [API admission economics](#4-api-economics-conservative-admission-control) | Conservative Meta ($25 ceiling) & OpenRouter TTS byte ledgers | — (Implemented in dev proxy/ledger) | [`scripts/muse_budget_proxy.py`](scripts/muse_budget_proxy.py) |
+| **5** | [Streaming latency & RTF](#5-streaming-conversation-latency-and-real-time-factor) | Chunked streaming & audio-clock playback | Critical-path pipeline bounds & $\mathrm{RTF}<1$ target | [`services/converse/runtime.py`](services/converse/runtime.py) |
+| **6** | [GPU/CPU resource handoff](#6-local-inference-gpu-resource-admission) | Measured RAM/VRAM headroom checks after worker release | Multi-worker VRAM component accounting | [`services/resources/coordinator.py`](services/resources/coordinator.py) |
+| **7** | [Self-building harnesses](#7-self-building-harnesses-controlled-optimization-and-evaluation) | Protected evaluator, paired screening, promotion & rollback | Constrained quality optimization $\max_{H} \mathbb{E}[Q(H,x)]$ | [`harnesses/seed/__init__.py`](harnesses/seed/__init__.py) |
+| **8** | [Converse memory DAG](#8-converse-memory-bounded-dependency-graphs) | Acyclic ordinal bounds ($d(v)\le 16$, $|Q(S)|\le 64$, $16\text{ KiB}$) | Automatic extraction & relevance ranking | [`services/session/memory.py`](services/session/memory.py) |
+| **9** | [Admission & disclosure](#9-native-work-admission-permission-precedence-and-disclosure) | Mode gate, scoped rule precedence, lattice join $\max_{\preceq}\{\sigma_i\}$ | — (Implemented authority invariant) | [`packages/providers/disclosure.py`](packages/providers/disclosure.py) |
 
 ### 1. Decisions: risk-aware conversational routing
 
@@ -665,7 +585,6 @@ These are **proposed evaluation formulations**, not a shipped optimization algor
 
 [Seed harness](harnesses/seed/__init__.py) · [Evaluation and promotion policy](Roadmap.md#12-harness-evaluation-and-promotion) · [Research measurements](Roadmap.md#254-harness-measurements)
 
-
 ### 8. Converse memory: bounded dependency graphs
 
 **Status:** An opt-in, owner-curated memory DAG and selected local recall are
@@ -735,6 +654,8 @@ disclosure or change captured input scopes.
 
 [Native mode authority](services/session/agent_control.py) · [Admission semantics](docs/adr/0105-agent-operating-modes.md) · [Scoped rules](services/agent/tool_permissions.py) · [Disclosure policy](packages/providers/disclosure.py)
 
+---
+
 ## Repository maintenance
 
 Dated branch audits live under `docs/audits/`, not in the product status or
@@ -742,16 +663,3 @@ mathematics sections. See the [November 1 branch audit](docs/audits/2026-11-01-b
 for the pinned inventory, merge evidence, cleanup candidates and preserved work.
 An audit is a historical snapshot, not authorization to delete a branch; recheck
 current tips and open PRs before cleanup.
-
-## Hackathon target
-
-The planned demonstration is a focused slice through the larger roadmap:
-
-1. Real voice conversation with interruption support and an original, replaceable character.
-2. A real routed request that uses shared conversation context.
-3. Agent completes useful work and reports evidence of the result.
-4. Direct Agent Chat remains available while Converse is off.
-5. Agent generates an executable harness extension, evaluates it against a pinned baseline, and demonstrates safe rejection, promotion, or rollback.
-6. At least one verified Meta integration is exercised if the event requirements, account access, and applicable terms allow it.
-
-Meta is a target integration, not a product dependency. Model and API availability must be verified during implementation; the core stays provider-configurable. A Meta-generated character variant is a stretch demonstration, not a requirement on the voice-response path.

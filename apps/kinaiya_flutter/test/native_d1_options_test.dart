@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:kinaiya_flutter/api/provider_client.dart';
 import 'package:kinaiya_flutter/api/provider_settings.dart';
 import 'package:kinaiya_flutter/ui/options_decisions_model.dart';
 import 'package:kinaiya_flutter/ui/options_provider_editor.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'native_d1_settings_test.dart'
     show nativeConfig, nativeProfile, decisionsSnapshot;
@@ -59,6 +61,35 @@ Future<void> enter(WidgetTester tester, String label, String value) async {
 }
 
 void main() {
+  testWidgets(
+    'custom model shortcut opens a new provider profile after catalog inspection',
+    (tester) async {
+      var writes = 0, opened = 0;
+      final api = ProviderApi(
+        baseUrl: 'http://127.0.0.1:8761',
+        ownerToken: 'synthetic-custom-profile',
+        clientFactory: () => MockClient((request) async {
+          if (request.method != 'GET') writes++;
+          return reply(catalog([]));
+        }),
+      );
+      addTearDown(api.close);
+      await showOptions(
+        tester,
+        OptionsProviderEditor(
+          api: api,
+          active: () => true,
+          startNewProfile: true,
+          onNewProfileStarted: () => opened++,
+        ),
+      );
+      expect(find.text('Add provider profile'), findsOneWidget);
+      expect(field('Profile ID'), findsOneWidget);
+      expect(opened, 1);
+      expect(writes, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   testWidgets(
     'native declaration needs an explicit confidence and saves no inference knobs',
     (tester) async {
@@ -261,6 +292,134 @@ void main() {
         ),
         true,
       );
+      expect(
+        tester
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('decisions-save-outcome')),
+            )
+            .state,
+        ActionOutcomeState.confirmed,
+      );
+      expect(find.text('Confirmed'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Decisions save feedback distinguishes in-progress, unconfirmed receipt, retry confirmation, and guards repeated clicks',
+    (tester) async {
+      final postCompleters = <Completer<http.Response>>[];
+      final postRequests = <http.Request>[];
+      Map<String, Object?>? lastBody;
+      final api = DecisionsModelsApi(
+        baseUrl: 'http://127.0.0.1:8763',
+        ownerToken: 'synthetic-decisions-feedback',
+        clientFactory: () => MockClient((request) async {
+          if (request.method == 'GET') return reply(decisionsSnapshot());
+          if (request.url.path.endsWith('/lookup')) {
+            final reqBody = jsonDecode(request.body) as Map<String, Object?>;
+            return reply({
+              'schema_version': '1.0',
+              'backend_id': 'a' * 32,
+              'request': reqBody,
+              'status': 'unobserved',
+              'receipt': null,
+              'mutation_fenced': false,
+            });
+          }
+          postRequests.add(request);
+          lastBody = jsonDecode(request.body) as Map<String, Object?>;
+          final completer = Completer<http.Response>();
+          postCompleters.add(completer);
+          return completer.future;
+        }),
+      );
+      addTearDown(api.close);
+      await showOptions(
+        tester,
+        OptionsDecisionsModel(
+          api: api,
+          active: () => true,
+          onChanged: () {},
+          onInvalidate: () {},
+        ),
+      );
+      await tester.tap(
+        find.text('Host configuration · legacy compatibility').last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text('Local d1 · generation 1 · native d1 · text Decisions').last,
+      );
+      await tester.pumpAndSettle();
+
+      // Clicking Save enters inProgress immediately and never optimistically claims Confirmed.
+      await tester.tap(find.text('Save classifier selection'));
+      await tester.pump();
+      expect(postRequests.length, 1);
+      expect(
+        tester
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('decisions-save-outcome')),
+            )
+            .state,
+        ActionOutcomeState.inProgress,
+      );
+      expect(find.text('In progress'), findsOneWidget);
+      expect(find.text('Confirmed'), findsNothing);
+
+      // Repeated click while in-flight is ignored.
+      await tester.tap(
+        find.text('Save classifier selection'),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(postRequests.length, 1);
+
+      // Transport/HTTP failure after dispatch transitions to unconfirmed receipt, never Confirmed.
+      postCompleters.first.complete(http.Response('gateway timeout', 504));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('decisions-save-outcome')),
+            )
+            .state,
+        ActionOutcomeState.unconfirmed,
+      );
+      expect(find.text('Outcome unconfirmed'), findsOneWidget);
+      expect(find.text('Confirmed'), findsNothing);
+
+      // Explicit retry with native confirmation transitions to Confirmed with exact idempotency key preserved.
+      final originalKey = lastBody!['idempotency_key'];
+      await tester.tap(find.text('Retry exact save'));
+      await tester.pump();
+      expect(postRequests.length, 2);
+      expect(lastBody!['idempotency_key'], originalKey);
+      postCompleters.last.complete(
+        reply({
+          'schema_version': '1.0',
+          'status': 'model_selection_saved',
+          'role': 'decisions',
+          'backend_id': lastBody!['expected_backend'],
+          'instance_id': lastBody!['expected_instance'],
+          'idempotency_key': lastBody!['idempotency_key'],
+          'expected_revision': lastBody!['expected_revision'],
+          'expected_state': lastBody!['expected_state'],
+          'selection': lastBody!['selection'],
+          'revision': 1,
+          'change_boundary': 'settled_decisions_operations',
+        }),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('decisions-save-outcome')),
+            )
+            .state,
+        ActionOutcomeState.confirmed,
+      );
+      expect(find.text('Confirmed'), findsOneWidget);
     },
   );
 }

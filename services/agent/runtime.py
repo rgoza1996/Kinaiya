@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID
 
 from core.extensions import HarnessError
 from core.policy import ApprovalError, ApprovalReceiptUnavailable, PolicyDenied, ToolPolicy
@@ -50,6 +51,12 @@ from packages.contracts.agent_control import (
     AgentSteerReceipt,
     AgentSteerSource,
     AgentTaskIdentity,
+)
+from packages.contracts.agent_outcome import (
+    OutcomeEvidenceIndex,
+    OutcomeEvidenceUnavailable,
+    bounded_outcome_request,
+    restore_outcome_task,
 )
 from packages.contracts.agent_submit import (
     AGENT_SUBMIT_ADMISSION_TIMEOUT_S,
@@ -93,6 +100,7 @@ from packages.contracts.models import (
     TaskState,
     new_id,
 )
+from packages.contracts.operation_ownership import current_owner
 from packages.contracts.standing_admission import StandingInitialProof, StandingTaskAdmission
 from packages.contracts.standing_execution import StandingExecutionIntent
 from packages.providers.disclosure import (
@@ -103,12 +111,26 @@ from packages.providers.disclosure import (
     source_scope,
 )
 from packages.providers.prompt_budget import PromptCountUnavailable
-from packages.providers.text import ActionDecodeError, ProviderCleanupError, ProviderRefusal
+from packages.providers.text import (
+    ActionDecodeError,
+    MetaResponseError,
+    MetaResponsesProvider,
+    ProviderCleanupError,
+    ProviderRefusal,
+    SettledOutputBudgetExhaustion,
+    SettledPublicationRejection,
+    meta_output_budget_attempt,
+)
 from services.agent.artifacts import ArtifactConflict, ArtifactInvalid, ArtifactNotFound
 from services.agent.completion import append_completion
 from services.agent.history_budget import select_history
 from services.agent.mcp_tools import ModelScopedMCP, run_mcp_call, run_mcp_list
-from services.agent.resource_completion import ResourceCompletion, start_resource_retirement
+from services.agent.resource_completion import (
+    ResourceCompletion,
+    close_standing_dependency,
+    start_resource_retirement,
+    start_standing_shutdown,
+)
 from services.agent.tools import (
     ToolFailure,
     _FailedWithEvidence,
@@ -144,6 +166,132 @@ class _InferenceRevised(Exception):
     def __init__(self, response: str | None = None):
         self.response = response
         super().__init__("Agent inference superseded by steering")
+
+
+class _InferenceProviderFailure(Exception):
+    """An optional response projection bound by this exact native inference."""
+
+    def __init__(self, rec, generation_id, request_sha256, error):
+        from packages.providers.response_diagnostics import (
+            meta_failure_message,
+            validate_meta_diagnostic,
+        )
+
+        self.task_id, self.revision = rec.task.task_id, rec.task.objective_revision
+        self.generation_id, self.diagnostic = generation_id, None
+        self.request_sha256 = request_sha256
+        message = "Meta response did not complete"
+        try:
+            diagnostic = validate_meta_diagnostic(error.diagnostic)
+            message = meta_failure_message(diagnostic)
+            if diagnostic["request_sha256"] == request_sha256:
+                self.diagnostic = diagnostic
+        except Exception:
+            pass  # Invalid optional metadata cannot replace the actual terminal failure.
+        super().__init__(message)
+
+    def for_record(self, rec):
+        from packages.providers.response_diagnostics import (
+            MAX_DIAGNOSTIC_BYTES,
+            MAX_TOKEN_COUNT,
+            validate_meta_diagnostic,
+        )
+
+        # Validate before _fail changes RUNNING to FAILED. Native identity is
+        # supplied here, never copied from upstream IDs or a shared provider.
+        if (
+            rec.task.state != TaskState.RUNNING
+            or rec.cancel_requested
+            or rec.closing
+            or rec.pending_steer is not None
+            or type(self.task_id) is not str
+            or len(self.task_id) != 36
+            or str(UUID(self.task_id)) != self.task_id
+            or self.task_id != rec.task.task_id
+            or type(self.revision) is not int
+            or not 1 <= self.revision <= MAX_TOKEN_COUNT
+            or self.revision != rec.task.objective_revision
+            or type(self.generation_id) is not str
+            or len(self.generation_id) != 32
+            or UUID(self.generation_id).hex != self.generation_id
+        ):
+            raise ValueError("Obsolete provider response diagnostic")
+        result = {
+            **validate_meta_diagnostic(self.diagnostic),
+            "task_id": self.task_id,
+            "objective_revision": self.revision,
+            "generation_id": self.generation_id,
+        }
+        if result["request_sha256"] != self.request_sha256:
+            raise ValueError("Provider response request binding changed")
+        if len(json.dumps(result, separators=(",", ":"), allow_nan=False).encode("utf-8")) > (
+            MAX_DIAGNOSTIC_BYTES
+        ):
+            raise ValueError("Invalid provider response diagnostic")
+        return result
+
+
+class _InferencePublicationRejection(Exception):
+    """A rejected, effect-free proposal bound to one native inference."""
+
+    def __init__(self, rec, generation_id, request_sha256, error, current):
+        self.record, self.revision = rec, rec.task.objective_revision
+        self.generation_id, self.request_sha256 = generation_id, request_sha256
+        self.error, self.current = error, current
+        super().__init__("Native UI publication proposal rejected before execution")
+
+    def for_record(self, rec):
+        self.current()
+        if (
+            self.record is not rec
+            or rec.task.state != TaskState.RUNNING
+            or rec.task.objective_revision != self.revision
+            or rec.cancel_requested
+            or rec.closing
+            or rec.pending_steer is not None
+            or rec.completion_pending
+            or rec._cleanup_uncertain
+            or rec.standing_cleanup_uncertain
+            or type(self.generation_id) is not str
+            or len(self.generation_id) != 32
+            or UUID(self.generation_id).hex != self.generation_id
+        ):
+            raise ValueError("Obsolete publication rejection")
+        if type(self.error) is not SettledPublicationRejection:
+            raise ValueError("Invalid publication rejection type")
+        self.error.validate_request(self.request_sha256)
+        return {
+            "provider_diagnostic": {"stage": "ui_arguments", "reason": "json_syntax"},
+            "generation_id": self.generation_id,
+            "request_sha256": self.request_sha256,
+            "objective_revision": self.revision,
+        }
+
+
+class _InferenceOutputBudgetExhaustion(_InferenceProviderFailure):
+    """One consumed, closed, effect-free generation under current authority."""
+
+    def __init__(self, rec, generation_id, request_sha256, error, attempt, current):
+        super().__init__(rec, generation_id, request_sha256, error)
+        self.record, self.error, self.attempt, self.current = rec, error, attempt, current
+
+    def for_record(self, rec):
+        self.current()
+        if (
+            self.record is not rec
+            or rec.completion_pending
+            or rec._cleanup_uncertain
+            or rec.standing_cleanup_uncertain
+            or type(self.error) is not SettledOutputBudgetExhaustion
+        ):
+            raise ValueError("Obsolete output-budget settlement")
+        self.error.validate_attempt(self.attempt)
+        return super().for_record(rec)
+
+    def consume(self, rec):
+        diagnostic = self.for_record(rec)
+        self.error.consume(self.attempt)
+        return diagnostic
 
 
 class _PublicationUncertain(ToolFailure):
@@ -290,7 +438,23 @@ class _Record:
     # reverse). Keep each failure class until its own successful operation.
     failed_work_effect: bool = False
     failed_artifact: bool = False
+    # One native, settled format rejection may be observed per revision. Its
+    # pending fence is cleared only by a later successful native publication.
+    ui_format_recovery_revision: int | None = None
+    ui_format_pending_revision: int | None = None
+    # One fresh, separately admitted request may follow known-settled Meta
+    # output exhaustion. It supplies neither work evidence nor completion.
+    output_budget_recovery_revision: int | None = None
     failed_plugin: bool = False
+    failed_task_harness: bool = False
+    task_harness_execution: dict | None = None
+    task_harness_export_check: Any | None = None
+    task_harness_publication_scope: str = "public_synthetic"
+    task_harness_description: dict | None = None
+    task_program_executions: list = field(default_factory=list)
+    task_program_proof: Any | None = None
+    task_program_export_check: Any | None = None
+    task_media_completion_check: Any | None = None
     cancel_requested: bool = False
     closing: bool = False
     proc_slot: dict[str, Any] = field(default_factory=dict)
@@ -303,6 +467,7 @@ class _Record:
     # Set only by recover() for tasks reconstructed from the journal.
     recovered: bool = False
     submit_sequence: int = 0
+    outcome_evidence: OutcomeEvidenceIndex | None = None
     source_revisions: dict[str, int] = field(default_factory=dict)
     context_event_ids: set[str] = field(default_factory=set)
     explicit_skill: str | None = None
@@ -312,10 +477,13 @@ class _Record:
     used_skills: set[str] = field(default_factory=set)
     plugin_versions: dict[str, str] = field(default_factory=dict)
     legacy_submit_scope: bool = False
-    # Once a final success append may have committed, only its exact native
+    # Once a final outcome append may have committed, only its exact native
     # confirmation or restart recovery can settle it. Never append a competing
     # cancellation/failure or accept another revision while it is uncertain.
     completion_pending: bool = False
+    # Exact attempted terminal metadata/evidence, retained on uncertainty. It
+    # is not a terminal result or permission to repeat the original append.
+    completion_snapshot: Task | None = None
     submit_confirmed: bool = False
     # Immutable native initial-entry identity, independent of later steering.
     submit_identity: str | None = None
@@ -323,6 +491,7 @@ class _Record:
     steer_attempt: _SteerAttempt | None = None
     workspace_context: Any | None = None
     standing_initial: StandingInitialProof | None = None
+    standing_owner: Any | None = None
     standing_cleanup_uncertain: bool = False
     resource_completion: Any | None = None
     # A later adapter close cannot confirm an earlier failed request cleanup.
@@ -406,6 +575,7 @@ class AgentRuntime:
         plugin_service: Any | None = None,
         mcp_controller: Any | None = None,
         artifact_store: Any | None = None,
+        task_preworker_hook: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
@@ -434,6 +604,11 @@ class AgentRuntime:
         self.resource_client = resource_client
         self.standing_resource_client = standing_resource_client
         self.plugin_service = plugin_service
+        # Native owner injection only; generated programs never receive it.
+        self.task_harness_broker_factory = None
+        # Optional native enrollment, after confirmed submit and before work.
+        # It receives no authority to revise the authenticated objective.
+        self.task_preworker_hook = task_preworker_hook
         # Native presentation storage is optional for direct/test runtimes.
         # The actual launcher supplies a protected operator data path.
         self.artifact_store = artifact_store
@@ -443,6 +618,10 @@ class AgentRuntime:
         self._submit_idem: dict[tuple[str, str], tuple[str, str]] = {}
         self._pending_submits: dict[tuple[str, str], _PendingSubmit] = {}
         self._standing_pending = {}
+        self._standing_claims = set()
+        self._standing_dependencies = []
+        self._standing_dependency_closers = []
+        self._standing_shutdown = None
         self._submit_operations: set[asyncio.Task] = set()
         self._submit_waiters: set[asyncio.Future] = set()
         self._submit_preflights: set[_SubmitPreflight] = set()
@@ -522,7 +701,12 @@ class AgentRuntime:
             + sum(
                 owner.operation is not None and not owner.operation.done()
                 for owner in self._resource_retirements
-            ),
+            )
+            + sum(
+                owner.operation is None or not owner.operation.done()
+                for owner in self._standing_claims
+            )
+            + int(self._standing_shutdown is not None and not self._standing_shutdown.done()),
             "cleanup_failed": int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
@@ -532,6 +716,7 @@ class AgentRuntime:
             + sum(failed_operation(owner.operation) for owner in self._resource_completions)
             + int(failed_operation(self._resource_retirement))
             + sum(failed_operation(owner.operation) for owner in self._resource_retirements)
+            + sum(owner.failed or owner.scope.failed for owner in self._standing_claims)
             + len(uncertain_hosts),
         }
 
@@ -571,6 +756,11 @@ class AgentRuntime:
             watch(self._resource_retirement, cleanup=True)
             for owner in self._resource_retirements:
                 watch(owner.operation, cleanup=True)
+            for owner in tuple(self._standing_claims):
+                watch(owner.preflight)
+                watch(owner.worker)
+                watch(owner.operation, cleanup=True)
+            watch(self._standing_shutdown, cleanup=True)
             for lease in tuple(getattr(self.model_settings, "catalog_leases", ())):
                 watch(lease.cleanup)
                 for operation in tuple(lease.retiring):
@@ -760,7 +950,9 @@ class AgentRuntime:
             **payload,
             "plugin_versions": dict(rec.plugin_versions),
             "content_scope": combine_scopes(
-                rec.task.content_scope, payload.get("content_scope", "public_synthetic")
+                rec.task.content_scope,
+                rec.task_harness_publication_scope,
+                payload.get("content_scope", "public_synthetic"),
             ),
         }
         return AppendRequest(
@@ -773,13 +965,27 @@ class AgentRuntime:
             idempotency_key=f"agent:{rec.task.task_id}:{kind}:{rec.journal_seq}",
         )
 
+    def _claim_journal(self, rec=None):
+        owner = getattr(rec, "standing_owner", None)
+        if owner is None:
+            owner = getattr(current_owner(), "standing_claim", None)
+        return owner.journal if owner is not None and owner.runtime is self else self.journal
+
     async def _append(self, rec: _Record, kind: str, payload: dict[str, Any]) -> None:
-        entry = await self.journal.append(self._append_request(rec, kind, payload))
+        request = self._append_request(rec, kind, payload)
+        entry = await self._claim_journal(rec).append(request)
         if kind == "agent.command" and payload.get("op") == "submit":
             rec.submit_sequence = entry.sequence
+        if kind == "agent.tool" and "evidence" in payload:
+            if rec.outcome_evidence is None:
+                rec.outcome_evidence = OutcomeEvidenceIndex(rec.task, rec.submit_sequence)
+            rec.outcome_evidence.observe_ack(request, entry)
 
     def _outcome_payload(self, rec: _Record, state: str, extra: dict[str, Any]) -> dict[str, Any]:
         """Complete task snapshot for a terminal/awaiting outcome entry."""
+        published_task = self._publication_task(rec)
+        task_payload = dict(extra.get("task", published_task.model_dump(mode="json")))
+        task_payload["content_scope"] = published_task.content_scope
         return {
             "task_id": rec.task.task_id,
             "session_id": rec.task.session_id,
@@ -789,12 +995,24 @@ class AgentRuntime:
             "objective_revision": rec.task.objective_revision,
             "idempotency_key": rec.task.idempotency_key,
             "source_event_ids": list(rec.task.source_event_ids),
-            "content_scope": rec.task.content_scope,
             "evidence": [e.model_dump(mode="json") for e in rec.task.evidence],
-            "task": rec.task.model_dump(mode="json"),
             **extra,
+            "content_scope": published_task.content_scope,
+            "task": task_payload,
             "state": state,
         }
+
+    @staticmethod
+    def _publication_task(rec: _Record) -> Task:
+        """Private derived results narrow publication, never primary authority."""
+        return rec.task.model_copy(
+            update={
+                "content_scope": combine_scopes(
+                    rec.task.content_scope,
+                    getattr(rec, "task_harness_publication_scope", "public_synthetic"),
+                )
+            }
+        )
 
     # -- actors -------------------------------------------------------
     @staticmethod
@@ -812,7 +1030,7 @@ class AgentRuntime:
     async def _require_session(self, session_id: str) -> Any:
         """Fail closed when the session is unknown to the journal."""
         try:
-            return await self.journal.session(session_id)
+            return await self._claim_journal().session(session_id)
         except Exception as exc:
             raise ValueError(f"unknown session {session_id!r}") from exc
 
@@ -829,7 +1047,7 @@ class AgentRuntime:
     async def _epoch_error(self, rec: _Record) -> str | None:
         """Re-validate thread/epoch before a side effect or finish."""
         try:
-            session = await self.journal.session(rec.task.session_id)
+            session = await self._claim_journal(rec).session(rec.task.session_id)
         except Exception as exc:
             return f"session unavailable before execution: {exc}"
         error = self._check_task_epoch(rec, session)
@@ -837,7 +1055,7 @@ class AgentRuntime:
             return error
         for event_id, revision in rec.source_revisions.items():
             try:
-                source = await self.journal.resolve(event_id)
+                source = await self._claim_journal(rec).resolve(event_id)
             except Exception:
                 return "Source became unavailable before execution"
             if source.payload.get("revision", 1) != revision:
@@ -866,7 +1084,7 @@ class AgentRuntime:
         """
         if guard is not None:
             guard()
-        resolve = getattr(self.journal, "resolve", None)
+        resolve = getattr(self._claim_journal(), "resolve", None)
         if resolve is None:
             raise PolicyDenied(f"decisions-routed {op} cannot be validated: journal has no resolve")
         texts: list[str] = []
@@ -906,7 +1124,7 @@ class AgentRuntime:
                     guard()
                 try:
                     window = SpeechWindow.model_validate(resolved.payload)
-                    latest = await self.journal.latest_window(
+                    latest = await self._claim_journal().latest_window(
                         session_id, epoch, window.utterance_id
                     )
                 except Exception as exc:
@@ -917,7 +1135,9 @@ class AgentRuntime:
                     guard()
                 if latest is None or latest.payload.get("text") != window.text:
                     raise PolicyDenied("Transcript-window instruction was superseded")
-                control = await self.journal.window_control(session_id, epoch, agent_interrupt=True)
+                control = await self._claim_journal().window_control(
+                    session_id, epoch, agent_interrupt=True
+                )
                 if guard is not None:
                     guard()
                 if control is not None and control.payload["source_sequence"] > resolved.sequence:
@@ -983,13 +1203,13 @@ class AgentRuntime:
         if guard is None:
             guard = _STEER_SOURCE_GUARD.get()
         if guard is None:
-            return await source_scope(self.journal, source_id, resolved)
+            return await source_scope(self._claim_journal(), source_id, resolved)
 
         def read(method):
             async def guarded(*args, **kwargs):
                 guard()
                 try:
-                    return await getattr(self.journal, method)(*args, **kwargs)
+                    return await getattr(self._claim_journal(), method)(*args, **kwargs)
                 finally:
                     guard()
 
@@ -1006,7 +1226,7 @@ class AgentRuntime:
         scopes = [rec.task.content_scope]
         for source_id in rec.task.source_event_ids:
             try:
-                source = await self.journal.resolve(source_id)
+                source = await self._claim_journal(rec).resolve(source_id)
                 if (source.session_id, source.thread_id, source.epoch) != (
                     rec.task.session_id,
                     rec.task.thread_id,
@@ -1029,14 +1249,16 @@ class AgentRuntime:
         )
         for event_id in sorted(rec.context_event_ids):
             try:
-                entry = await self.journal.entry(event_id)
+                entry = await self._claim_journal(rec).entry(event_id)
                 if (entry.session_id, entry.thread_id, entry.epoch) != (
                     rec.task.session_id,
                     rec.task.thread_id,
                     rec.task.epoch,
                 ):
                     raise ValueError("Wrong context scope")
-                scopes.append(await context_scope(self.journal, entry, closure=context_closure))
+                scopes.append(
+                    await context_scope(self._claim_journal(rec), entry, closure=context_closure)
+                )
             except Exception as exc:
                 if require_open:
                     self._check_completion_open(rec, require_active=True)
@@ -1464,6 +1686,24 @@ class AgentRuntime:
             pending.authority_deadline = time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
             authority = self._start_submit_operation(lambda: self._fresh_submit_authority(pending))
             await self._await_submit_operation(authority, AGENT_SUBMIT_LOOKUP_TIMEOUT_S, pending)
+            if self.task_preworker_hook is not None:
+                enrollment = self._start_submit_operation(
+                    lambda: self._enroll_before_worker(pending)
+                )
+                try:
+                    await self._await_submit_operation(
+                        enrollment, AGENT_SUBMIT_LOOKUP_TIMEOUT_S, pending
+                    )
+                except Exception:
+                    pending.suppress()
+                    # The submit is already committed. Retain its native
+                    # identity and refuse execution rather than losing it or
+                    # admitting a replacement on the next idempotent request.
+                    failure = self._start_submit_operation(
+                        lambda: self._fail(rec, "Native task enrollment refused before execution")
+                    )
+                    await self._await_submit_operation(failure, AGENT_SUBMIT_LOOKUP_TIMEOUT_S)
+                    return rec.task.model_copy(deep=True)
             if not pending.launch_open or self._closed or rec.closing or rec.cancel_requested:
                 pending.suppress()
                 return rec.task.model_copy(deep=True)
@@ -1479,6 +1719,17 @@ class AgentRuntime:
             raise
         finally:
             self._release_submit(pending, rec)
+
+    async def _enroll_before_worker(self, pending) -> None:
+        hook = self.task_preworker_hook
+        self._submit_open(pending=pending, deadline=pending.authority_deadline)
+        if not callable(hook) or await hook(self, pending.record) is not True:
+            raise PolicyDenied("Native task enrollment was not confirmed")
+        if self.task_preworker_hook is not hook:
+            raise PolicyDenied("Native task enrollment owner changed")
+        # Enrollment read native source/route receipts asynchronously. Recheck
+        # ordinary submit authority before its sole launch opportunity.
+        await self._fresh_submit_authority(pending)
 
     @staticmethod
     def _native_task_identity(entry):
@@ -1756,6 +2007,10 @@ class AgentRuntime:
             legacy_submit_scope="requested_content_scope" not in payload,
             explicit_skill=payload.get("explicit_skill"),
         )
+        rec.outcome_evidence = OutcomeEvidenceIndex(task, entry.sequence)
+        recovered_evidence = []
+        evidence_index_unavailable = False
+        snapshot_seen = False
         # Retain only typed retirement hashes, the latest snapshot/pins and the
         # cumulative scope. A byte-limited page is not evidence of final absence.
         retirements: dict[tuple[int, str], str] = {}
@@ -1802,13 +2057,26 @@ class AgentRuntime:
                 ):
                     raise AgentSubmitUnavailable
                 rec.plugin_versions = dict(pins)
+                if event.kind == "agent.tool" and "evidence" in event.payload:
+                    try:
+                        recovered_evidence.append(rec.outcome_evidence.observe(event))
+                    except OutcomeEvidenceUnavailable:
+                        # Old inline snapshots remain authoritative even when
+                        # their historic tool rows cannot form the new index.
+                        evidence_index_unavailable = True
                 prefix = f"agent:{task.task_id}:{event.kind}:"
                 if event.idempotency_key.startswith(prefix):
                     suffix = event.idempotency_key[len(prefix) :]
                     if suffix.isdecimal() and len(suffix) <= 19:
                         rec.journal_seq = max(rec.journal_seq, int(suffix))
                 if event.kind == "agent.outcome" and isinstance(event.payload.get("task"), dict):
-                    snapshot = Task.model_validate(event.payload["task"])
+                    if "evidence_ref" in event.payload and evidence_index_unavailable:
+                        raise OutcomeEvidenceUnavailable
+                    snapshot = (
+                        restore_outcome_task(event, rec.outcome_evidence, recovered_evidence)
+                        if "evidence_ref" in event.payload
+                        else Task.model_validate(event.payload["task"])
+                    )
                     if (
                         snapshot.task_id,
                         snapshot.session_id,
@@ -1840,10 +2108,19 @@ class AgentRuntime:
                         )
                     if task.state not in TERMINAL or snapshot.state in TERMINAL:
                         task = rec.task = snapshot
+                        snapshot_seen = True
             # Cooperative yielding makes the total deadline effective even for
             # adapters whose async reads return immediately on every page.
             await asyncio.sleep(0)
         check()
+        # Active/uncertain recovery retains actual durable receipts too. It
+        # never replays the effects represented by them.
+        if task.state not in TERMINAL and not snapshot_seen:
+            if evidence_index_unavailable:
+                raise OutcomeEvidenceUnavailable
+            task.evidence = list(recovered_evidence)
+        if evidence_index_unavailable:
+            rec.outcome_evidence = None
         if task.state not in TERMINAL:
             rec.retirement_keys = {
                 key: digest
@@ -1950,7 +2227,7 @@ class AgentRuntime:
         for source_id in tuple(rec.task.source_event_ids):
             guard()
             try:
-                source = await self.journal.resolve(source_id)
+                source = await self._claim_journal(rec).resolve(source_id)
                 guard()
                 if (
                     (source.session_id, source.thread_id, source.epoch)
@@ -1970,7 +2247,7 @@ class AgentRuntime:
             async def guarded(*args, **kwargs):
                 guard()
                 try:
-                    return await getattr(self.journal, method)(*args, **kwargs)
+                    return await getattr(self._claim_journal(rec), method)(*args, **kwargs)
                 finally:
                     guard()
 
@@ -2012,7 +2289,7 @@ class AgentRuntime:
         observations = []
         for source_id in request.source_event_ids:
             guard()
-            resolved = await self.journal.resolve(source_id)
+            resolved = await self._claim_journal(rec).resolve(source_id)
             guard()
             floor = await self._source_scope(source_id, resolved)
             guard()
@@ -2027,7 +2304,7 @@ class AgentRuntime:
         effective = combine_scopes(scope, source_scope, request.content_scope)
         if not scope_allowed(self.provider_for(rec).info, effective):
             raise PolicyDenied("Steering disclosure does not permit the configured Agent provider")
-        backend = getattr(self.journal, "agent_control_backend", None)
+        backend = getattr(self._claim_journal(rec), "agent_control_backend", None)
         if not callable(backend) or rec.native_task_identity is None:
             raise AgentControlUnavailable
         guard()
@@ -2070,12 +2347,12 @@ class AgentRuntime:
             raise PolicyDenied("Steering source changed before installation")
         for observed in proposal.source_revisions:
             guard()
-            resolved = await self.journal.resolve(observed.event_id)
+            resolved = await self._claim_journal(rec).resolve(observed.event_id)
             guard()
             if resolved.payload.get("revision", 1) != observed.revision:
                 raise PolicyDenied("Steering source revision changed before installation")
         guard()
-        if await self.journal.agent_control_backend() != proposal.expected_backend:
+        if await self._claim_journal(rec).agent_control_backend() != proposal.expected_backend:
             raise AgentControlUnavailable
         guard()
         scope = combine_scopes(
@@ -2086,6 +2363,13 @@ class AgentRuntime:
         return scope
 
     async def steer(self, task_id: str, request: SteerRequest, actor: str = "owner") -> Task:
+        rec = self._get(task_id)
+        if rec.standing_owner is not None:
+            request = request.model_copy(deep=True)
+            return await rec.standing_owner.control(lambda: self._steer(task_id, request, actor))
+        return await self._steer(task_id, request, actor)
+
+    async def _steer(self, task_id, request, actor):
         request = request.model_copy(deep=True)
         original = AgentSteerChange.model_validate(request.model_dump(mode="json"))
         rec = self._get(task_id)
@@ -2114,7 +2398,7 @@ class AgentRuntime:
             if previous.digest != digest:
                 raise AgentControlConflict
             if previous.proposal is not None and previous.sent and not previous.active:
-                lookup = getattr(self.journal, "lookup_steer", None)
+                lookup = getattr(self._claim_journal(rec), "lookup_steer", None)
                 if not callable(lookup):
                     raise AgentControlUnavailable
                 operation = self._start_submit_operation(lambda: lookup(previous.proposal))
@@ -2157,7 +2441,7 @@ class AgentRuntime:
         try:
             attempt.proposal = await self._prepare_steer(attempt)
             guard()
-            admit = getattr(self.journal, "admit_steer", None)
+            admit = getattr(self._claim_journal(rec), "admit_steer", None)
             if not callable(admit):
                 raise AgentControlUnavailable
             attempt.deadline = time.monotonic() + 15.0
@@ -2232,7 +2516,7 @@ class AgentRuntime:
                 )
                 revision_changed = False
                 for source_id, revision in pending.get("source_revisions", {}).items():
-                    resolved = await self.journal.resolve(source_id)
+                    resolved = await self._claim_journal(rec).resolve(source_id)
                     revision_changed |= resolved.payload.get("revision", 1) != revision
                 if pending["actor"] == "decisions" and (
                     "\n".join(texts) != pending["instruction"] or revision_changed
@@ -2277,7 +2561,9 @@ class AgentRuntime:
         rec.failed_effect = False
         rec.failed_work_effect = False
         rec.failed_artifact = False
+        rec.ui_format_pending_revision = None
         rec.failed_plugin = False
+        rec.failed_task_harness = False
         rec.history.append(
             {
                 "role": "user",
@@ -2318,6 +2604,15 @@ class AgentRuntime:
     async def interrupt(
         self, task_id: str, request: InterruptRequest, actor: str = "owner"
     ) -> Task:
+        rec = self._get(task_id)
+        if rec.standing_owner is not None:
+            request = request.model_copy(deep=True)
+            return await rec.standing_owner.control(
+                lambda: self._interrupt(task_id, request, actor)
+            )
+        return await self._interrupt(task_id, request, actor)
+
+    async def _interrupt(self, task_id, request, actor):
         rec = self._get(task_id)
         if (
             actor == "owner"
@@ -2461,6 +2756,7 @@ class AgentRuntime:
     ) -> None:
         """Publish terminal in-memory state only after verified cleanup."""
         rec.task.state = TaskState.CANCELLED
+        rec.task.content_scope = self._publication_task(rec).content_scope
         rec.task.error = "cancelled by owner"
         rec.task.summary = RETIRED_SUMMARY
         rec.cancel_requested = True
@@ -2561,6 +2857,17 @@ class AgentRuntime:
         return rec.task.model_copy(deep=True)
 
     async def close(self) -> None:
+        if (
+            self._standing_dependencies
+            or self._standing_claims
+            or self._standing_shutdown is not None
+        ):
+            original = start_standing_shutdown(self)
+            await asyncio.wait({original}, timeout=5)
+            return
+        await self._close_runtime()
+
+    async def _close_runtime(self) -> None:
         self._closed = True
         resource_retirement = start_resource_retirement(self)
         resource_retirement_deadline = time.monotonic() + 5
@@ -2665,7 +2972,10 @@ class AgentRuntime:
         # refuses: it owns late send/read/sole-close and transport retirement.
         try:
             if self.standing_resource_client is not None:
-                await self.standing_resource_client.close()
+                if self._standing_dependencies:
+                    await close_standing_dependency(self, self.standing_resource_client)
+                else:
+                    await self.standing_resource_client.close()
         finally:
             if self.workspace_settings is not None:
                 self._workspace_settled()
@@ -2740,6 +3050,17 @@ class AgentRuntime:
         if actor != "owner":
             raise PolicyDenied(f"approval resolve requires owner, got {actor!r}")
         rec = self._approval_record(approval_id)
+        if rec.standing_owner is not None:
+            resolution = resolution.model_copy(deep=True)
+            return await rec.standing_owner.control(
+                lambda: self._resolve_approval(approval_id, resolution, actor)
+            )
+        return await self._resolve_approval(approval_id, resolution, actor)
+
+    async def _resolve_approval(self, approval_id, resolution, actor):
+        if actor != "owner":
+            raise PolicyDenied(f"approval resolve requires owner, got {actor!r}")
+        rec = self._approval_record(approval_id)
         async with rec.approval_lock:
             pending = rec.pending
             self._approval_binding(rec, pending, approval_id, resolution)
@@ -2795,6 +3116,8 @@ class AgentRuntime:
         raise ApprovalError(f"unknown or superseded approval {approval_id!r}")
 
     def _approval_binding(self, rec, pending, approval_id, request):
+        if rec.standing_owner is not None:
+            rec.standing_owner.guard()
         reservation = self._pending_submits.get((rec.task.session_id, rec.task.idempotency_key))
         if reservation is not None and reservation.record is rec and not rec.submit_confirmed:
             raise AgentSubmitUnconfirmed
@@ -2907,6 +3230,18 @@ class AgentRuntime:
         ).model_dump(mode="json")
 
     async def reissue_approval(self, approval_id, request: ApprovalReissue, actor="owner"):
+        if actor != "owner":
+            raise PolicyDenied("Approval renewal requires owner")
+        identity = self.authorizations.bindings.get(approval_id)
+        rec = None if identity is None else self._tasks.get(identity.task_id)
+        if rec is not None and rec.standing_owner is not None:
+            request = request.model_copy(deep=True)
+            return await rec.standing_owner.control(
+                lambda: self._reissue_approval(approval_id, request, actor)
+            )
+        return await self._reissue_approval(approval_id, request, actor)
+
+    async def _reissue_approval(self, approval_id, request, actor):
         if actor != "owner":
             raise PolicyDenied("Approval renewal requires owner")
         original = self.policy.peek_approval(approval_id)
@@ -3104,6 +3439,8 @@ class AgentRuntime:
 
     @staticmethod
     def _check_completion_open(rec: _Record, *, require_active: bool = False) -> None:
+        if rec.standing_owner is not None:
+            rec.standing_owner.guard()
         if rec.completion_pending:
             raise TaskTerminal(
                 "Task completion confirmation is in progress or unconfirmed; "
@@ -3226,6 +3563,10 @@ class AgentRuntime:
                 rec.task.state not in TERMINAL
                 or (rec.worker is not None and not rec.worker.done())
                 or rec.proc_slot.get("proc") is not None
+                or (
+                    rec.task_harness_execution is not None
+                    and not rec.task_harness_execution["settled"]
+                )
                 or rec.retire_lock.locked()
                 for rec in self._tasks.values()
             )
@@ -3233,6 +3574,9 @@ class AgentRuntime:
 
     def host_tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
         """Native gateways, independently of action approval/target readiness."""
+        from services.agent.task_harness import task_harness_available
+        from services.agent.task_program import task_program_available
+
         harness = (
             task.harness_version
             if task is not None
@@ -3258,6 +3602,8 @@ class AgentRuntime:
                 and self.model_settings.auxiliary_configured(harness)
             ),
             catalog_available=True,
+            task_harness_available=task_harness_available(self, task),
+            task_program_available=task_program_available(self, task),
         )
 
     def tool_snapshot(self, task: Task | None = None) -> NativeToolSnapshot:
@@ -3306,7 +3652,15 @@ class AgentRuntime:
 
     @staticmethod
     def _catalog_export_current(rec: _Record, guards) -> bool:
-        if all(guard.disclosure_current() for guard in guards):
+        harness_check = getattr(rec, "task_harness_export_check", None)
+        program_check = getattr(rec, "task_program_export_check", None)
+        try:
+            harness_current = (harness_check is None or harness_check() is True) and (
+                program_check is None or program_check() is True
+            )
+        except Exception:
+            harness_current = False
+        if harness_current and all(guard.disclosure_current() for guard in guards):
             return True
         # Outcomes or later tools can contain metadata derived from the old
         # catalog. Preserve a sticky local floor when its disclosure is lost.
@@ -3354,23 +3708,28 @@ class AgentRuntime:
     def _effect_result(rec: _Record, tool: str, *, ok: bool) -> None:
         if tool == "publish_ui":
             rec.failed_artifact = not ok
-        elif tool in {"write_file", "shell", "mcp_call"}:
+            if ok and rec.ui_format_pending_revision == rec.task.objective_revision:
+                rec.ui_format_pending_revision = None
+        elif tool == "run_task_harness":
+            rec.failed_task_harness = not ok
+        elif tool in {"write_file", "shell", "mcp_call", "run_task_program"}:
             rec.failed_work_effect = not ok
         rec.failed_effect = rec.failed_work_effect or rec.failed_artifact
 
     def _mcp_server_ids(self, rec=None) -> list[str] | None:
         """Enabled owner-configured server ids for the prompt, or None.
 
-        Only ids, never secrets, endpoints, or schemas. An unavailable
-        host reports no servers rather than failing the whole turn.
+        Only ids, never secrets, endpoints, or schemas. A host failure
+        raises loudly instead of reporting no servers, so a broken
+        inventory cannot masquerade as "none configured".
         """
         host = self._model_mcp(rec)
         if host is None:
             return None
         try:
             servers = host.list_servers()
-        except Exception:
-            return []
+        except Exception as exc:
+            raise PolicyDenied("MCP server inventory is unavailable") from exc
         return [
             str(entry.get("id", ""))
             for entry in servers
@@ -3385,16 +3744,31 @@ class AgentRuntime:
         )
 
     async def _fail(
-        self, rec: _Record, error: str, *, decode_error: ActionDecodeError | None = None
+        self,
+        rec: _Record,
+        error: str,
+        *,
+        decode_error: ActionDecodeError | None = None,
+        response_error: _InferenceProviderFailure | None = None,
     ) -> None:
         if rec.completion_pending:
             self._pause_completion(rec)
             return
         if rec.task.state in TERMINAL:
             return
-        rec.task.state = TaskState.FAILED
-        rec.task.error = error
+        response_diagnostic = None
+        if (
+            response_error is not None
+            and not self._closed
+            and self._tasks.get(rec.task.task_id) is rec
+        ):
+            try:
+                response_diagnostic = response_error.for_record(rec)
+            except Exception:
+                pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
         extra: dict[str, Any] = {"error": error}
+        if response_diagnostic is not None:
+            extra["provider_response_diagnostic"] = response_diagnostic
         if decode_error is not None:
             # Copy only a freshly validated constant pair. Parser exceptions
             # can retain raw documents, keys and positions; none enter the
@@ -3405,30 +3779,51 @@ class AgentRuntime:
                 ).diagnostic
             except Exception:
                 pass  # Optional diagnostics cannot prevent the ordinary failure outcome.
-        try:
-            # A reset/deletion intentionally rejects old-epoch publication. Local
-            # waiters must still learn that execution stopped without a stale write.
-            await self._append(rec, "agent.outcome", self._outcome_payload(rec, "failed", extra))
-        finally:
-            rec.done.set()
+        await self._complete_terminal(rec, TaskState.FAILED, error=error, extra=extra)
 
     async def _succeed(self, rec: _Record, summary: str) -> None:
+        await self._complete_terminal(rec, TaskState.SUCCEEDED, summary=summary)
+
+    async def _complete_terminal(
+        self, rec: _Record, state: TaskState, *, summary=None, error=None, extra=None
+    ) -> None:
         rec.task.state = TaskState.VERIFYING
         # No await separates the final authority check in _finish from this
         # fence and frozen snapshot. The visible task is not successful yet.
         snapshot = rec.task.model_copy(
-            deep=True, update={"state": TaskState.SUCCEEDED, "summary": summary, "error": None}
+            deep=True,
+            update={
+                "state": state,
+                "summary": rec.task.summary if summary is None else summary,
+                "error": error,
+                "content_scope": self._publication_task(rec).content_scope,
+            },
         )
-        body = self._append_request(
-            rec,
-            "agent.outcome",
-            self._outcome_payload(
-                rec, "succeeded", {"summary": summary, "task": snapshot.model_dump(mode="json")}
-            ),
-        )
+        rec.completion_snapshot = snapshot
         rec.completion_pending = True
         try:
-            confirmed = await append_completion(self.journal, body, after=rec.submit_sequence)
+            body = self._append_request(
+                rec,
+                "agent.outcome",
+                self._outcome_payload(
+                    rec,
+                    state.value,
+                    {
+                        **(extra or {}),
+                        **({"summary": summary} if summary is not None else {}),
+                        "task": snapshot.model_dump(mode="json"),
+                    },
+                ),
+            )
+            index = rec.outcome_evidence
+            if index is None:
+                index = OutcomeEvidenceIndex(rec.task, rec.submit_sequence)
+            body = bounded_outcome_request(
+                body, snapshot, index, allow_sparse=rec.standing_initial is None
+            )
+            confirmed = await append_completion(
+                self._claim_journal(rec), body, after=rec.submit_sequence
+            )
         except (Exception, asyncio.CancelledError):
             # The POST may have committed. A stop/shutdown or unavailable
             # read-back cannot authorize another, contradictory outcome.
@@ -3439,6 +3834,7 @@ class AgentRuntime:
             return
         rec.task = snapshot
         rec.completion_pending = False
+        rec.completion_snapshot = None
         rec.done.set()
 
     async def _cancel(self, rec: _Record) -> None:
@@ -3447,10 +3843,7 @@ class AgentRuntime:
             return
         if rec.task.state in TERMINAL:
             return
-        rec.task.state = TaskState.CANCELLED
-        rec.task.error = "cancelled by owner"
-        await self._append(rec, "agent.outcome", self._outcome_payload(rec, "cancelled", {}))
-        rec.done.set()
+        await self._complete_terminal(rec, TaskState.CANCELLED, error="cancelled by owner")
 
     async def _complete(self, rec: _Record, tools: NativeToolSnapshot) -> str:
         """Admit one exact request, preserving whole native history exchanges.
@@ -3460,7 +3853,7 @@ class AgentRuntime:
         or permits a stale proposal to execute. Source/catalog dependencies
         remain task-wide even when their original exchange leaves the prompt.
         """
-        provider, policy, journal = self.provider_for(rec), self.policy, self.journal
+        provider, policy, journal = self.provider_for(rec), self.policy, self._claim_journal(rec)
         if rec.task.model_pin is not None and rec.provider is None:
             raise PromptCountUnavailable("Recovered model pin cannot be rebound to a new provider")
         if rec.task.model_pin is not None:
@@ -3481,6 +3874,7 @@ class AgentRuntime:
         services = (self.skill_service, self.plugin_service, self.mcp_host, self.artifact_store)
         provider_info = copy.deepcopy(provider.info)
         history = [dict(turn) for turn in rec.history]
+        harness_description = copy.deepcopy(rec.task_harness_description)
         guards = tuple(rec.catalog_guards.items())
         retained_guards = []
         if not standing and self.skill_service is not None:
@@ -3530,6 +3924,8 @@ class AgentRuntime:
 
         def current():
             nonlocal revised
+            if rec.standing_owner is not None:
+                rec.standing_owner.guard()
             self._workspace_current(rec)
             if rec.cancel_requested or rec.closing or self._closed:
                 raise PolicyDenied("Agent inference stopped by native control")
@@ -3559,6 +3955,7 @@ class AgentRuntime:
                 )
                 or identity() != pinned
                 or rec.history != history
+                or rec.task_harness_description != harness_description
                 or tuple(rec.catalog_guards.items()) != guards
                 or self.tool_snapshot(rec.task) != tools
             ):
@@ -3588,7 +3985,7 @@ class AgentRuntime:
             if stale is not None:
                 raise PolicyDenied(stale)
             # Source validation can yield after its first session read.
-            session = await self.journal.session(rec.task.session_id)
+            session = await self._claim_journal(rec).session(rec.task.session_id)
             current()
             stale = self._check_task_epoch(rec, session)
             if stale is not None:
@@ -3677,6 +4074,7 @@ class AgentRuntime:
             not standing and self.plugin_service is not None,
             not standing and self.artifact_store is not None,
             tool_snapshot=tools,
+            task_harness_description=harness_description,
         )
         prepared = None
         try:
@@ -3712,7 +4110,86 @@ class AgentRuntime:
                     )
                 # Stay in this Task and exact tool scope. A child task would
                 # invalidate the provider's request-local admission binding.
-                text = await prepared.complete()
+                try:
+                    # The host resource wrapper is native and owns its own
+                    # retained export predicate. Never unwrap foreign proxies
+                    # or subclasses into a trusted Meta settlement capability.
+                    from services.resources.providers import ResourceBoundProvider
+
+                    meta_provider = provider
+                    if type(provider) is ResourceBoundProvider and provider.role == "agent":
+                        meta_provider = provider.provider
+                    with meta_output_budget_attempt(
+                        meta_provider,
+                        None
+                        if prepared.measurement is None
+                        else prepared.measurement.request_sha256,
+                    ) as output_attempt:
+                        text = await prepared.complete()
+                except SettledOutputBudgetExhaustion as exc:
+                    try:
+                        if prepared.measurement is None:
+                            raise ValueError("Unmeasured output-budget settlement")
+                        exc.validate_attempt(output_attempt)
+                        if exc.diagnostic["request_sha256"] != prepared.measurement.request_sha256:
+                            raise ValueError("Wrong output-budget request")
+                    except ValueError:
+                        current()
+                        raise _InferenceProviderFailure(
+                            rec,
+                            observation_operation,
+                            None
+                            if prepared.measurement is None
+                            else prepared.measurement.request_sha256,
+                            exc,
+                        ) from None
+                    await check()
+                    raise _InferenceOutputBudgetExhaustion(
+                        rec,
+                        observation_operation,
+                        prepared.measurement.request_sha256,
+                        exc,
+                        output_attempt,
+                        current,
+                    ) from None
+                except SettledPublicationRejection as exc:
+                    try:
+                        if (
+                            type(provider) is not MetaResponsesProvider
+                            or type(exc) is not SettledPublicationRejection
+                            or prepared.measurement is None
+                        ):
+                            raise ValueError("Unmeasured publication rejection")
+                        exc.validate_request(prepared.measurement.request_sha256)
+                    except ValueError:
+                        # An unbound diagnostic is still the original terminal
+                        # decode failure, never permission for another request.
+                        raise ActionDecodeError("ui_arguments", "json_syntax") from None
+                    # The completed original request has settled. Recheck all
+                    # source, epoch, disclosure and owner fences after awaits
+                    # before offering the supervisor an effect-free notice.
+                    await check()
+                    raise _InferencePublicationRejection(
+                        rec,
+                        observation_operation,
+                        prepared.measurement.request_sha256,
+                        exc,
+                        current,
+                    ) from None
+                except MetaResponseError as exc:
+                    # Preserve steering/cancellation/disclosure authority and
+                    # bind only this consumed prepared generation's request.
+                    # Original HTTP close completes before this provider error;
+                    # cleanup/cancellation exceptions are not wrapped here.
+                    current()
+                    raise _InferenceProviderFailure(
+                        rec,
+                        observation_operation,
+                        None
+                        if prepared.measurement is None
+                        else prepared.measurement.request_sha256,
+                        exc,
+                    ) from None
                 await check()
                 return text
         except ProviderCleanupError:
@@ -3740,6 +4217,10 @@ class AgentRuntime:
         if rec.task.state == TaskState.ACCEPTED:
             rec.task.state = TaskState.RUNNING
         try:
+            from services.agent.task_harness import task_harness_description
+
+            if rec.task_harness_description is None:
+                rec.task_harness_description = task_harness_description(self, rec.task)
             if rec.explicit_skill:
                 await self._dispatch(
                     rec, "skill_load", {"skill_id": rec.explicit_skill}, "", "", approval_id=None
@@ -3787,8 +4268,113 @@ class AgentRuntime:
                         }
                     )
                     continue
+                except _InferencePublicationRejection as exc:
+                    if rec.cancel_requested or rec.closing:
+                        await self._cancel(rec)
+                        return
+                    if rec.pending_steer is not None:
+                        await self._apply_steer(rec)
+                        continue
+                    try:
+                        diagnostic = exc.for_record(rec)
+                    except ProviderCleanupError:
+                        rec._cleanup_uncertain = True
+                        raise
+                    except Exception:
+                        await self._fail(
+                            rec,
+                            "provider error: UI publication arguments require a bounded UTF-8 JSON object",
+                            decode_error=ActionDecodeError("ui_arguments", "json_syntax"),
+                        )
+                        return
+                    if rec.ui_format_recovery_revision == rec.task.objective_revision:
+                        await self._fail(
+                            rec,
+                            "provider error: UI publication arguments require a bounded UTF-8 JSON object",
+                            decode_error=ActionDecodeError("ui_arguments", "json_syntax"),
+                        )
+                        return
+                    # Consume the revision's single notice and establish the
+                    # finish fence before any journal await. No rejected raw
+                    # action, fabricated tool result or evidence is retained.
+                    rec.ui_format_recovery_revision = rec.task.objective_revision
+                    rec.ui_format_pending_revision = rec.task.objective_revision
+                    rec.last_tool_ok = False
+                    self._effect_result(rec, "publish_ui", ok=False)
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False,
+                                "Native publication proposal rejected (ui_arguments/json_syntax); "
+                                "no publication executed. Existing native results remain available. "
+                                "A new valid publication must succeed in this revision before finish. "
+                                "The objective and permissions are unchanged.",
+                            ),
+                        }
+                    )
+                    await self._append(
+                        rec,
+                        "agent.tool",
+                        {
+                            "tool": "publish_ui",
+                            "ok": False,
+                            "reason": "invalid_proposal_format",
+                            "effect_executed": False,
+                            **diagnostic,
+                        },
+                    )
+                    continue
                 except ActionDecodeError as exc:
                     await self._fail(rec, f"provider error: {exc}", decode_error=exc)
+                    return
+                except _InferenceOutputBudgetExhaustion as exc:
+                    if rec.cancel_requested or rec.closing:
+                        await self._cancel(rec)
+                        return
+                    if rec.pending_steer is not None:
+                        await self._apply_steer(rec)
+                        continue
+                    if rec.output_budget_recovery_revision == rec.task.objective_revision:
+                        await self._fail(rec, f"provider error: {exc}", response_error=exc)
+                        return
+                    try:
+                        diagnostic = exc.consume(rec)
+                    except ProviderCleanupError:
+                        rec._cleanup_uncertain = True
+                        raise
+                    except Exception:
+                        await self._fail(rec, f"provider error: {exc}", response_error=exc)
+                        return
+                    # Consume before any await. No incomplete assistant text,
+                    # tool proposal, effect status or evidence is installed.
+                    # Existing required-work/publication/finish fences remain.
+                    rec.output_budget_recovery_revision = rec.task.objective_revision
+                    rec.history.append(
+                        {
+                            "role": "user",
+                            "content": observation_text(
+                                False,
+                                "Native generation exhausted its output budget after confirmed "
+                                "response close; no action from it executed. Produce exactly one "
+                                "small valid next action. Do not repeat completed work. The objective, "
+                                "permissions and all native finish requirements are unchanged.",
+                            ),
+                        }
+                    )
+                    await self._append(
+                        rec,
+                        "agent.state",
+                        {
+                            "reason": "settled_output_budget_exhausted",
+                            "effect_executed": False,
+                            "recovery_attempt": 1,
+                            "provider_response_diagnostic": diagnostic,
+                        },
+                    )
+                    continue
+                except _InferenceProviderFailure as exc:
+                    await self._fail(rec, f"provider error: {exc}", response_error=exc)
                     return
                 except Exception as exc:  # provider failure is terminal, honest
                     if isinstance(exc, ProviderCleanupError):
@@ -3799,7 +4385,11 @@ class AgentRuntime:
                     await self._cancel(rec)
                     return
                 try:
-                    action = parse_action(text)
+                    action = parse_action(
+                        text,
+                        allow_task_harness=tools.supports("run_task_harness"),
+                        allow_task_program=tools.supports("run_task_program"),
+                    )
                 except ValueError as exc:
                     rec.history.append({"role": "assistant", "content": text})
                     rec.history.append(
@@ -3813,8 +4403,15 @@ class AgentRuntime:
                     if await self._finish(rec, action.arguments, text):
                         return
                     continue
-                await self._execute(rec, action.tool, dict(action.arguments), text)
-                if rec.task.state in TERMINAL:
+                await self._execute(
+                    rec,
+                    action.tool,
+                    action.arguments.model_dump(mode="json")
+                    if action.tool in {"run_task_harness", "run_task_program"}
+                    else dict(action.arguments),
+                    text,
+                )
+                if rec.completion_pending or rec.task.state in TERMINAL:
                     return
             await self._fail(rec, f"step budget exhausted after {self.max_steps} steps")
         except asyncio.CancelledError:
@@ -3838,6 +4435,8 @@ class AgentRuntime:
             else:
                 await self._fail(rec, f"runtime error: {exc}")
         finally:
+            if rec.standing_owner is not None:
+                rec.standing_owner.fence()
             completion = ResourceCompletion(self, rec)
             lease = completion.lease
             model_closed = lease is None
@@ -3931,8 +4530,18 @@ class AgentRuntime:
                 latest[evidence.path] = evidence
         for evidence in latest.values():
             try:
+                publication_task = rec.task
+                if evidence.output.startswith('{"native_publication_scope":'):
+                    marker = json.loads(evidence.output)
+                    if set(marker) != {"native_publication_scope"} or marker[
+                        "native_publication_scope"
+                    ] not in {"local_only", "public_synthetic", "private_cloud_authorized"}:
+                        raise ValueError("Invalid native publication scope")
+                    publication_task = rec.task.model_copy(
+                        update={"content_scope": marker["native_publication_scope"]}
+                    )
                 if self.artifact_store is None or not self.artifact_store.verify(
-                    evidence, rec.task
+                    evidence, publication_task
                 ):
                     return (
                         "finish verification failed: UI publication no longer matches its receipt"
@@ -3994,6 +4603,12 @@ class AgentRuntime:
         if rec.failed_plugin:
             await self._fail(rec, "finish while a required plugin computation failed")
             return True
+        if rec.failed_task_harness:
+            await self._fail(rec, "finish while required task harness execution failed")
+            return True
+        if rec.ui_format_pending_revision == rec.task.objective_revision:
+            await self._fail(rec, "finish while a rejected UI publication remains unresolved")
+            return True
         if rec.failed_effect:
             await self._fail(
                 rec,
@@ -4017,6 +4632,25 @@ class AgentRuntime:
             await self._fail(rec, unverified)
             return True
         self._validate_catalog_history(rec)
+        completion_check = rec.task_media_completion_check
+        if completion_check is not None:
+            try:
+                established = callable(completion_check) and completion_check() is True
+            except ProviderCleanupError:
+                raise
+            except Exception:
+                established = False
+            if rec.cancel_requested or rec.closing:
+                await self._cancel(rec)
+                return True
+            if rec.pending_steer is not None:
+                await self._apply_steer(rec)
+                return False
+            if not established:
+                await self._fail(
+                    rec, "finish without the enrolled native media workflow and publication"
+                )
+                return True
         summary = str(args.get("summary", "") or "").strip()
         await self._succeed(rec, summary or "done")
         return True
@@ -4026,7 +4660,7 @@ class AgentRuntime:
         uncommitted = []
         for source_id in rec.task.source_event_ids:
             try:
-                source = await self.journal.resolve(source_id)
+                source = await self._claim_journal(rec).resolve(source_id)
                 if source.kind != "conversation.window":
                     continue
                 window = SpeechWindow.model_validate(source.payload)
@@ -4427,7 +5061,7 @@ class AgentRuntime:
             stale = await self._epoch_error(rec)
             if stale is None:
                 try:
-                    session = await self.journal.session(rec.task.session_id)
+                    session = await self._claim_journal(rec).session(rec.task.session_id)
                     stale = self._check_task_epoch(rec, session)
                 except Exception:
                     stale = "Session authority unavailable before UI publication"
@@ -4530,6 +5164,14 @@ class AgentRuntime:
                 from services.agent.auxiliary import consult_model
 
                 out, evidence = await consult_model(self, rec, args)
+            elif tool == "run_task_harness":
+                from services.agent.task_harness import run_task_harness
+
+                out, evidence = await run_task_harness(self, rec, args)
+            elif tool == "run_task_program":
+                from services.agent.task_program import run_task_program
+
+                out, evidence = await run_task_program(self, rec, args)
             elif tool == "tool_catalog":
                 from packages.contracts.tool_catalog import CatalogError, encode_catalog
                 from services.agent.tool_catalog import inspect_catalog
@@ -4720,7 +5362,8 @@ class AgentRuntime:
         ):
             raise ToolFailure("UI publication requires the current active task revision")
         try:
-            envelope = self.artifact_store.publish(rec.task, args)
+            publication_task = self._publication_task(rec)
+            envelope = self.artifact_store.publish(publication_task, args)
         except ArtifactConflict as exc:
             raise ToolFailure("UI publication conflicts with its task or content revision") from exc
         except ArtifactInvalid as exc:
@@ -4740,8 +5383,15 @@ class AgentRuntime:
                 path=f"artifact:{artifact_id}",
                 sha256=envelope["content_sha256"],
                 objective_revision=rec.task.objective_revision,
+                output=json.dumps(
+                    {"native_publication_scope": publication_task.content_scope},
+                    separators=(",", ":"),
+                )
+                if publication_task.content_scope != rec.task.content_scope
+                or self.host_tool_snapshot(rec.task).supports("run_task_harness")
+                else "",
             )
-            if not self.artifact_store.verify(evidence, rec.task):
+            if not self.artifact_store.verify(evidence, publication_task):
                 raise ValueError("Unverified native receipt")
             out = _ui_publication_receipt(envelope)
         except Exception as exc:

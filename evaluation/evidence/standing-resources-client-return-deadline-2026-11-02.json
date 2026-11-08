@@ -1,0 +1,403 @@
+{
+  "baseline": "503cb5e6504ff724a6eba8f63712e9eee951a03e",
+  "baseline_with_frozen_oracle": "b1044e3c3fac110ae51ae9da8be966defc900cca",
+  "contract": {
+    "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resources-postjoin-deadline-contract-v1.md",
+    "sha256": "450ffcc60dca82639443b2527a32afea433a5b7061c0135a1ef426d4197f941e"
+  },
+  "current_ci_boundary": {
+    "ci437": {
+      "actual_merge": "d63db043af12698c0e44a75d6bcf653b108ccb57",
+      "exact_head_tree": true,
+      "head": "2ad94e713737697e3d7b3c7613b62edf8452e4c8",
+      "observation": "One original shared native finalization _execute remains noncancelled awaiting_thread_result after strict ingress/guard and original childTask creation.",
+      "platforms": "Flutter/Android/iOS passed",
+      "python311": "10929passed,1original8slargegraphfailure;6skipped2deselected1warning,2314.10s;export/audit skipped",
+      "python312": "10930passed;6skipped2deselected1warning,2212.78s;export/audit passed",
+      "raw_logs": [
+        {
+          "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-ci437-v1/job125244410620.log",
+          "sha256": "ddeafcede591c2df3b62c642a9d6ebfaeb7074956e31bae05af3da0cd710f021"
+        },
+        {
+          "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-ci437-v1/job125244410801.log",
+          "sha256": "26f3dba617ae605e07dd8d4ee5abec4c13a836b8bbeea13f26a928ed189c4dc1"
+        }
+      ],
+      "run": 41435585295,
+      "unknown": "Childqueued/running/returned/delivery state, _call entry, SQL/reportCOMMIT and encoding; no cause/fix inferred."
+    },
+    "ci438": {
+      "head": "503cb5e6504ff724a6eba8f63712e9eee951a03e",
+      "run": 41439304168,
+      "status": "Separate existing main-integration run, still pending Python at preparation; head untouched during qualification. Does not contain this fix."
+    },
+    "future_gate": "Exact published final changed-head CI and parent integration remain required. Historical CI failures stay in parent evidence/PRs.",
+    "linux9": {
+      "head": "503cb5e6504ff724a6eba8f63712e9eee951a03e",
+      "result": "All five Linux installation matrix jobs passed; independent parent-head installation scope only, not this fix or full standing chain.",
+      "run": 41439304100
+    }
+  },
+  "documentation": "The sole later change after runtime qualification is ADR0108 historical/current wording and link to this record. Static checks pin301c6d1. No production/test byte changed after tested d05a702.",
+  "documentation_static_source": "301c6d11738f59d0e5a4cbe03135bcf36df025c7",
+  "environment": {
+    "dependencies": "Existing pinned .venv; no local installs.",
+    "execution": "Root-serialized local controlled HTTP/ASGI/SQLite/CPU tests, explicit isolated PYTHONPATH; all1507 tracked pins/HEAD stable per run.",
+    "httpx": "0.28.1",
+    "pytest": "9.1.1",
+    "python": "3.12.3"
+  },
+  "evidence_boundary": "This evidence file is added after runtime/static source qualification; referenced raw artifacts are local ignored files identified by hashes, not claimed uploaded CI artifacts. Source patch and frozen tests are unchanged through review.",
+  "frozen_oracle": {
+    "assert_nodes": 30,
+    "cases": 12,
+    "clock": "Real loop clock is restored before fixture retirement, including baseline failure. No real25s sleep, validator/parser/exchange/close replacement or expected-result change.",
+    "file": "tests/unit/test_standing_resources_barrier_client_deadline.py",
+    "independence": "Separately authored from frozen contract. Oracle author disclosed receiving automatic implementation-seal status without reading candidate code; no strict-blinding claim.",
+    "scope": "Four full binding/seal receipt joins and both lookup-null outcomes, each with a healthy control and a logical+26s crossing after real full work. Original exchange/work/sole-close handles and final actual HTTP transport retirement are positively joined.",
+    "sha256": "55c2af47e68022fde7192a075ac9491a8d887ff59dd7673e75102d9f5a778a21"
+  },
+  "implementation_author": "e084f3fefa521ca6863afb9d484a4b98f2098737",
+  "independent_oracle_author": "54eef0a6bd446b3b2e1fcf863b5642c93ab4291b",
+  "not_claimed": [
+    "No model accuracy/inference, paid/provider/account call, local install, GPU/model/device/capture operation, live service/configuration or preview change.",
+    "No actual standing Agent retirement, task settlement, claim/reservation/slot release, recurrence/inbox/editor or product/demo completion.",
+    "A late positive refusal does not prove a native commit failed, grant absence or permit automatic replacement work.",
+    "The logical clock controls establish budget classification, not measured latency or historical cleanup.",
+    "No relaxation/rerun of the original physical4/8s gates and no assertion change."
+  ],
+  "production_change": {
+    "behavior": "Check loop.time()>=the original deadline after the complete fresh validate_claim/validate_request join, outside the nonnull branch, before any successful return. Existing StandingUnavailable handling retains actual exchange ownership.",
+    "file": "services/resources/standing_client.py",
+    "lines_added": 2,
+    "rest_of_module": "Byte and AST exact after removing only the two-line guard.",
+    "sha256": "b770aac801c76a96bd61709955d3a77836be987bf6a32e89bb3fd7409c111254",
+    "unchanged": [
+      "Full packet parsing/encoding/canonical joins and bounds",
+      "Original25s deadline, request ordering, routes/auth/credentials",
+      "Shared64 operation registry, original send/read/body/sole-close and shutdown",
+      "Caller cancellation/Conflict precedence and sticky cleanup",
+      "All schemas, pinned dependencies, workflows and two newer finalization outer fences"
+    ]
+  },
+  "requirement": "#239 inherited Resources binding/seal client deadline finding; all four old methods preserve original25s budget through final full receipt join or null availability. Related #228; not a physical8sCIrepair.",
+  "results": {
+    "affected_existing": {
+      "failed": 0,
+      "junit_s": 230.128,
+      "passed": 316
+    },
+    "frozen_baseline": {
+      "failed": 6,
+      "failures": "Exactly all four late full receipts and both late null replies did not raiseStandingUnavailable. Healthy cases passed; complete real joins/actual healthy owners executed before the logical crossing.",
+      "junit_s": 0.714,
+      "passed": 6
+    },
+    "static": [
+      "Whole Ruff passes",
+      "783 files already formatted",
+      "Contract export and byte-exact tracked schema cleanliness",
+      "Diff/source scope proof passes"
+    ],
+    "unchanged_frozen_candidate": {
+      "failed": 0,
+      "junit_s": 0.7,
+      "passed": 12
+    }
+  },
+  "reviews": {
+    "ci437_source_map": {
+      "local_path": "/home/roggoz/.codex/worktrees/agent-write-validation/Kinaiya/.dev-run/239-ci437-native-thread-result-source-map-v1/receipt.json",
+      "sha256": "83a436dbe5144f3d97fe2f069d0091563a34f287b5e606819bed37f0a6f54e9d"
+    },
+    "implementation_seal": {
+      "local_path": "/home/roggoz/.codex/worktrees/agent-write-validation/Kinaiya/.dev-run/239-resource-client-return-implementation-v1/seal.json",
+      "sha256": "5622a9b02d20054dfd5a44dbea84d851f1a2dd9f93e8b5de4e547ffe487d67ae"
+    },
+    "oracle_review": {
+      "local_path": "/home/roggoz/.codex/worktrees/current-ui-screenshots/Kinaiya/.dev-run/239-resources-postjoin-deadline-review-v1/oracle-review.json",
+      "sha256": "b64b2addf87e73011853e7133079ab7610242d71717d5ee6e86f6983dae12a32"
+    },
+    "oracle_seal": {
+      "local_path": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/resource-manager/.dev-run/239-resource-client-return-oracle-v1/seal.json",
+      "sha256": "b825b4fc726f06103014b7d24225fab95325b8b173b45e1adb71415a43205d6f"
+    },
+    "source_review": {
+      "local_path": "/home/roggoz/.codex/worktrees/current-ui-screenshots/Kinaiya/.dev-run/239-resources-postjoin-deadline-review-v1/source-review.json",
+      "sha256": "42092f3d60c7deb9fef2547766c5968a0d0fce617060c6e49d896b1a4b972f3c"
+    }
+  },
+  "runs": {
+    "affected": {
+      "artifacts": {
+        "junit.xml": "3cda99d7e6ffb52166f055ff9c5113d803a494c76809d83b67cf08d1c99c49e2",
+        "manifest.json": "89cc36bbcd2f4a1b599d33c6e0e97dc44f794aeabdc3c6f975bcb8f10c1495c0",
+        "post-pins.json": "bab2f1d762d5426abbf4dcdf6a188866bee18b6c2ec7ff5b42bd6424e72c200d",
+        "pre-pins.json": "bab2f1d762d5426abbf4dcdf6a188866bee18b6c2ec7ff5b42bd6424e72c200d",
+        "pytest.log": "9d157f94b3c6f76ecdfb156fdd2a7836a433eb847212410701d7466bdd42b7be",
+        "receipt.json": "18bc2667d67e4ad15cda7667858b0892ba4795bf9d03d4f52bcd4b2133ff05a4"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-affected-v1-wop554_f",
+      "receipt": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/unit/test_standing_resource_barrier_client.py",
+          "tests/unit/test_standing_resource_finalization_client.py",
+          "tests/integration/test_standing_resource_barrier.py",
+          "tests/integration/test_standing_resource_finalization_api.py",
+          "tests/unit/test_standing_resources_finalization_client_deadline.py",
+          "tests/unit/test_standing_resources_finalization_transport_client.py",
+          "tests/integration/test_standing_resources_finalization_transport_api.py",
+          "tests/integration/test_standing_resource_binding_agent.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-affected-v1-wop554_f/junit.xml"
+        ],
+        "elapsed_wall_s": 231.20480654800485,
+        "exit_code": 0,
+        "head": "d05a70260d61cac9ea6f74abe886102388568e1e",
+        "head_after": "d05a70260d61cac9ea6f74abe886102388568e1e",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "316",
+            "time": "230.128",
+            "timestamp": "2026-11-02T04:05:11.180933-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-resource-client-return-affected-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1507
+      }
+    },
+    "baseline": {
+      "artifacts": {
+        "junit.xml": "2121ae0d19d8273fb1a64bdac65dc0e03e97e6922b927b35fe0c3d42b7ed6a78",
+        "manifest.json": "28de33fea9eb061c95893bd1df742a10f11ff5e1ca6e087bec21f13905e051ac",
+        "post-pins.json": "671bfd7fc8b7845d0f36a8bebf4b175a9b0e8cd869ef58ba06c02997179a1b75",
+        "pre-pins.json": "671bfd7fc8b7845d0f36a8bebf4b175a9b0e8cd869ef58ba06c02997179a1b75",
+        "pytest.log": "f11a9f245fd57f364412f63846a0c2cb302ce0eb355994f85b5458886d8738f3",
+        "receipt.json": "a551f4eced60ad7f63e3135e94869ed8cff6ebb86b0720dd0bc3aab3127182f9"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-cold-v1-upic_24s",
+      "receipt": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/unit/test_standing_resources_barrier_client_deadline.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-cold-v1-upic_24s/junit.xml"
+        ],
+        "elapsed_wall_s": 1.0019406890060054,
+        "exit_code": 1,
+        "head": "b1044e3c3fac110ae51ae9da8be966defc900cca",
+        "head_after": "b1044e3c3fac110ae51ae9da8be966defc900cca",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "6",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "12",
+            "time": "0.714",
+            "timestamp": "2026-11-02T04:03:33.497984-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-resource-client-return-cold-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1507
+      }
+    },
+    "candidate": {
+      "artifacts": {
+        "junit.xml": "e57820db40f4490dd72670befad22a2edca7cc7790385d959f6c27344161e5d4",
+        "manifest.json": "e813766f8e4b6503e9c35811dbaab3f8be2b67012b4c5866ed3ca480b9b40bf9",
+        "post-pins.json": "bab2f1d762d5426abbf4dcdf6a188866bee18b6c2ec7ff5b42bd6424e72c200d",
+        "pre-pins.json": "bab2f1d762d5426abbf4dcdf6a188866bee18b6c2ec7ff5b42bd6424e72c200d",
+        "pytest.log": "936340d64747da966b2bdff9adbf452f7efe2d686314c5c0cdae3c6d5fb1424e",
+        "receipt.json": "2aeb5da852093a8cc44ed3c91f2a5b388bec05dc2a7a1c3777c009bd33d6b9ec"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-hot-v1-myu8dja_",
+      "receipt": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/unit/test_standing_resources_barrier_client_deadline.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-hot-v1-myu8dja_/junit.xml"
+        ],
+        "elapsed_wall_s": 1.005471033990034,
+        "exit_code": 0,
+        "head": "d05a70260d61cac9ea6f74abe886102388568e1e",
+        "head_after": "d05a70260d61cac9ea6f74abe886102388568e1e",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "12",
+            "time": "0.700",
+            "timestamp": "2026-11-02T04:04:35.632330-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-resource-client-return-hot-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1507
+      }
+    },
+    "static": {
+      "artifacts": {
+        "0.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "1.log": "21ba4e9d9bdf862c48c553a30ca8642b33f0405cf24f59db982e297e8560ff97",
+        "2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "3.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "4.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pre-pins.json": "7d954eaffe7e99924be1f1b1bd36a5e2fb7f33848480e72aefe4ff17b6487f8a",
+        "receipt.json": "6a71c2b9d90673b68ff47bb2ea54e7087e4f07a73e1d76f5fec82487e737e4e2"
+      },
+      "local_directory": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-resource-client-return-static-v1-lcmy9771",
+      "receipt": {
+        "assert_nodes": 30,
+        "baseline": "503cb5e6504ff724a6eba8f63712e9eee951a03e",
+        "clean": true,
+        "doc_only_since_tests": [
+          "docs/adr/0108-standing-finalization-transport.md"
+        ],
+        "elapsed_wall_s": 0.6748810060089454,
+        "head": "301c6d11738f59d0e5a4cbe03135bcf36df025c7",
+        "head_after": "301c6d11738f59d0e5a4cbe03135bcf36df025c7",
+        "new_test_frozen_exact": true,
+        "pins_preserved": true,
+        "rest_module_bytes_ast_exact": true,
+        "results": [
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "-m",
+              "ruff",
+              "check",
+              "."
+            ],
+            "exit_code": 0,
+            "log": "0.log",
+            "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+          },
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "-m",
+              "ruff",
+              "format",
+              "--check",
+              "."
+            ],
+            "exit_code": 0,
+            "log": "1.log",
+            "sha256": "21ba4e9d9bdf862c48c553a30ca8642b33f0405cf24f59db982e297e8560ff97"
+          },
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "scripts/export_contracts.py"
+            ],
+            "exit_code": 0,
+            "log": "2.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "command": [
+              "git",
+              "diff",
+              "--exit-code",
+              "packages/contracts/schemas"
+            ],
+            "exit_code": 0,
+            "log": "3.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "command": [
+              "git",
+              "diff",
+              "--check"
+            ],
+            "exit_code": 0,
+            "log": "4.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "schemas_lock_workflows_exact_baseline": true,
+        "source_scope": [
+          "docs/adr/0108-standing-finalization-transport.md",
+          "services/resources/standing_client.py",
+          "tests/unit/test_standing_resources_barrier_client_deadline.py"
+        ],
+        "tested_source": "d05a70260d61cac9ea6f74abe886102388568e1e",
+        "tracked_input_count": 1507
+      }
+    }
+  },
+  "tested_candidate": "d05a70260d61cac9ea6f74abe886102388568e1e"
+}

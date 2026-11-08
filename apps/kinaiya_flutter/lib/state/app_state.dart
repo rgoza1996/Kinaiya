@@ -21,13 +21,18 @@ import '../api/decisions_model_settings.dart';
 import '../api/agent_workspace.dart';
 import '../api/artifact_client.dart';
 import '../artifacts/models.dart';
+import '../artifacts/media.dart';
 import '../config/connection.dart';
+import '../config/credential_picker.dart';
 import 'converse_handoff.dart';
+import 'native_audio_clip.dart';
 
 part 'agent_workspace_state.dart';
 part 'artifact_state.dart';
 
 enum AppView { character, agent }
+
+enum LocalHostSignInState { idle, connecting, connected, unavailable }
 
 class ChatMsg {
   ChatMsg({
@@ -53,10 +58,14 @@ class ChatMsg {
 }
 
 class AppState extends ChangeNotifier {
-  AppState({DateTime Function()? artifactNow})
+  AppState({DateTime Function()? artifactNow, this.localSignInExchange})
     : _artifactNow = artifactNow ?? DateTime.now;
   final DateTime Function() _artifactNow;
   KinaiyaClient Function(ConnectionProfile profile)? clientFactory;
+  LocalSignInExchange? localSignInExchange;
+  LocalHostSignInState localSignInState = LocalHostSignInState.idle;
+  String? localSignInError;
+  BackendProfile _preferredBackendProfile = BackendProfile.clean;
 
   ConnectionProfile? connection;
   KinaiyaClient? client;
@@ -64,6 +73,29 @@ class AppState extends ChangeNotifier {
   bool connected = false;
   bool agentOnline = false;
   bool converseOnline = false;
+
+  bool get isTrustedLocalFirstRun =>
+      localSignInExchange != null ||
+      localSignInState != LocalHostSignInState.idle;
+
+  bool get isAgentOnlyConnected =>
+      connected && sessionAuthenticated && agentOnline && !converseOnline;
+
+  String get hostRoleStatusSummary {
+    if (!sessionAuthenticated) {
+      return 'Host session not authenticated';
+    }
+    if (!agentOnline && !converseOnline) {
+      return 'Agent host unreachable';
+    }
+    if (agentOnline && !converseOnline) {
+      return 'Connected (Agent-only) · Converse optional / not enabled';
+    }
+    if (!agentOnline && converseOnline) {
+      return 'Agent host unreachable · Converse reachable';
+    }
+    return 'Connected · Agent reachable · Converse reachable';
+  }
 
   /// Independent owner-only classifier metadata. No readiness grant.
   DecisionsModelsSnapshot? decisionsModelOptions;
@@ -88,6 +120,20 @@ class AppState extends ChangeNotifier {
   Map<String, Object?>? agentProvider;
   Map<String, Object?>? converseProvider;
   bool streamingWindows = false;
+  NativeAudioSupport nativeAudio = const NativeAudioSupport.unknown();
+  int nativeAudioSourceGeneration = 0;
+
+  void _setNativeAudioSupport(
+    NativeAudioSupport next, {
+    bool stopCurrent = true,
+  }) {
+    if (nativeAudio.sameAs(next)) return;
+    final stop = stopCurrent && nativeAudio.configured && nativeAudio.available;
+    nativeAudio = next;
+    nativeAudioSourceGeneration++;
+    if (stop) _resourceStops.add(nativeAudioSourceGeneration);
+  }
+
   bool _trustedInjection = false;
   int _connectionGeneration = 0;
   int _agentInferenceRead = 0;
@@ -131,6 +177,9 @@ class AppState extends ChangeNotifier {
   AppView view = AppView.character;
 
   SessionInfo? converseSession;
+  Future<SessionInfo>? _newConverseSession;
+  int _converseSessionSelection = 0;
+  bool get converseSessionCreating => _newConverseSession != null;
   SessionInfo? agentSession;
   final _agentWorkspace = _AgentWorkspaceData();
   final _artifacts = _ArtifactData();
@@ -236,12 +285,23 @@ class AppState extends ChangeNotifier {
   bool commandsAvailable = false;
 
   String agentNotice = '';
+  String? requestedAgentTaskId;
+  bool openedFromConverseHandoff = false;
 
   /// External refresh trigger (views must not call notifyListeners directly).
   void touch() => notifyListeners();
 
   void setView(AppView next) {
+    if (next != AppView.agent) {
+      openedFromConverseHandoff = false;
+    }
     view = next;
+    notifyListeners();
+  }
+
+  void returnFromHandoffTask() {
+    openedFromConverseHandoff = false;
+    view = AppView.character;
     notifyListeners();
   }
 
@@ -347,6 +407,10 @@ class AppState extends ChangeNotifier {
       client?.converseModels.hasUnconfirmedChange != true;
 
   void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
+    _setNativeAudioSupport(
+      const NativeAudioSupport.unknown(),
+      stopCurrent: false,
+    );
     _resetArtifacts();
     _saveAgentWorkspace();
     final previous = connection;
@@ -403,9 +467,12 @@ class AppState extends ChangeNotifier {
       _handoffDecisionCursors.clear();
       _handoffRecoveryOffset = 0;
       agentNotice = '';
+      requestedAgentTaskId = null;
+      openedFromConverseHandoff = false;
     }
     final generation = ++_connectionGeneration;
     connection = profile;
+    _preferredBackendProfile = profile.backendProfile;
     _decisionsModelOptionsRead++;
     decisionsModelOptions = null;
     decisionsModelOptionsLoading = false;
@@ -427,12 +494,21 @@ class AppState extends ChangeNotifier {
     if (injected != null) {
       // Explicitly trusted test seam (see existing tests): injected
       // transports bypass live health verification.
+      _setNativeAudioSupport(
+        NativeAudioSupport.fromHealth(const {}),
+        stopCurrent: false,
+      );
       sessionAuthenticated = true;
       agentInferenceAllowed = true;
       converseInferenceAllowed = true;
       agentOnline = true;
       converseOnline = true;
       connected = true;
+      if (localSignInExchange != null ||
+          localSignInState == LocalHostSignInState.connecting) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+      }
     }
     connectionError = client == null
         ? 'Connection is not configured yet.'
@@ -445,6 +521,235 @@ class AppState extends ChangeNotifier {
       // Independent Decisions owner metadata never depends on other role health.
       unawaited(refreshDecisionsModelOptions());
     }
+  }
+
+  /// Exchanges a trusted local handoff for an in-memory owner session without
+  /// requiring the user to type service URLs or an owner token. Preserves the
+  /// current inference disclosure selection (`BackendProfile.clean` by default).
+  Future<bool> attemptLocalSignIn({
+    LocalSignInExchange? exchange,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+  }) async {
+    final runner = exchange ?? localSignInExchange;
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+    if (runner == null) {
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      final result = await runner();
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ?? 'Local automatic sign-in unavailable.';
+      notifyListeners();
+      return false;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        if (error.code == 'LocalSignInExpired') {
+          localSignInError =
+              'Local sign-in handoff has expired. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInDenied' &&
+            error.message.contains('already been consumed')) {
+          localSignInError =
+              'Local sign-in handoff was already used. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInStale') {
+          localSignInError =
+              'Host was restarted or owner credential rotated. Click Recover access or enter updated credentials.';
+        } else if (error.code == 'StorageUnavailable') {
+          localSignInError =
+              'Private credential storage is missing or inaccessible. Check host permissions or run kinaiya init.';
+        } else {
+          localSignInError = error.message;
+        }
+      } else {
+        final errStr = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+        if (errStr.contains('Connection refused') ||
+            errStr.contains('SocketException') ||
+            errStr.contains('Failed to fetch') ||
+            errStr.contains('ClientException')) {
+          localSignInError =
+              'Local host service is unreachable at 127.0.0.1. Ensure kinaiya start or kinaiya serve host is running.';
+        } else {
+          localSignInError = errStr;
+        }
+      }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Recovers local owner access using a verified local authorization proof
+  /// (e.g. from local credential file or challenge) without rotating credentials.
+  Future<bool> recoverAccess({
+    required String authorizationProof,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+    Future<LocalSignInResult> Function(String)? customRecovery,
+  }) async {
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+
+    try {
+      final result = customRecovery != null
+          ? await customRecovery(authorizationProof)
+          : await recoverLocalAccess(authorizationProof: authorizationProof);
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return true;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ??
+          'Local access recovery succeeded but session verification failed.';
+      notifyListeners();
+      return false;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        localSignInError = error.message;
+      } else {
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+      }
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Atomically rotates the owner credential with explicit local authorization,
+  /// invalidating previous sessions, and reconnects with the new authority.
+  Future<LocalSignInResult?> rotateCredential({
+    required String authorizationProof,
+    BackendProfile? backendProfile,
+    KinaiyaClient? injected,
+    Future<LocalSignInResult> Function(String)? customRotation,
+  }) async {
+    final preservedDisclosure =
+        backendProfile ??
+        connection?.backendProfile ??
+        _preferredBackendProfile;
+    _preferredBackendProfile = preservedDisclosure;
+    localSignInState = LocalHostSignInState.connecting;
+    localSignInError = null;
+    notifyListeners();
+
+    try {
+      final result = customRotation != null
+          ? await customRotation(authorizationProof)
+          : await rotateOwnerCredential(authorizationProof: authorizationProof);
+      final profile = result.toConnectionProfile(
+        backendProfile: preservedDisclosure,
+      );
+      connect(profile, injected: injected);
+      if (injected != null) {
+        if (!result.converseEnabled) {
+          converseOnline = false;
+          converseInferenceAllowed = false;
+        }
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return result;
+      }
+      final generation = _connectionGeneration;
+      await _verifyConnection(generation);
+      if (connected && sessionAuthenticated) {
+        localSignInState = LocalHostSignInState.connected;
+        localSignInError = null;
+        notifyListeners();
+        return result;
+      }
+      localSignInState = LocalHostSignInState.unavailable;
+      localSignInError =
+          connectionError ?? 'Credential rotated, but reconnect failed.';
+      notifyListeners();
+      return result;
+    } catch (error) {
+      localSignInState = LocalHostSignInState.unavailable;
+      if (error is LocalSignInException) {
+        localSignInError = error.message;
+      } else {
+        localSignInError = error.toString().replaceFirst(
+          RegExp(r'^Exception:\s*'),
+          '',
+        );
+      }
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Exports the owner token currently in memory to a browser file download.
+  Future<bool> exportCurrentCredential({
+    String filename = 'owner-login.txt',
+  }) async {
+    final token = connection?.ownerToken;
+    if (token == null || token.isEmpty) return false;
+    await exportCredential(filename, token);
+    return true;
   }
 
   void invalidateDecisionsModelOptions() {
@@ -603,6 +908,9 @@ class AppState extends ChangeNotifier {
           sessionAuthenticated &&
           (agentInferenceAllowed || converseInferenceAllowed);
       if (!connected) {
+        if (localSignInState == LocalHostSignInState.connecting) {
+          localSignInState = LocalHostSignInState.unavailable;
+        }
         if (agentOnline || converseOnline) {
           // At least one service answered but no role earned consent:
           // disclosure, malformed, or missing provider metadata.
@@ -610,21 +918,29 @@ class AppState extends ChangeNotifier {
               'Cloud inference is configured. Choose matching disclosure consent in Connection setup before sending text or audio.';
         } else {
           connectionError =
-              'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse unavailable.';
+              'Agent host unreachable — Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent unavailable; Converse optional / not enabled.';
         }
       } else {
+        if (localSignInExchange != null ||
+            localSignInState == LocalHostSignInState.connecting) {
+          localSignInState = LocalHostSignInState.connected;
+          localSignInError = null;
+        }
         final agentLabel = !agentOnline
-            ? 'unavailable'
+            ? 'unavailable (Agent host unreachable)'
             : agentInferenceAllowed
             ? 'ready'
             : 'blocked (check disclosure consent)';
         final converseLabel = !converseOnline
-            ? 'unavailable'
+            ? 'optional / not enabled'
             : converseInferenceAllowed
             ? (converseEnabled ? 'ready' : 'off')
             : 'blocked (check disclosure consent)';
+        final prefix = agentOnline && !converseOnline
+            ? 'Connected (Agent-only) — '
+            : '';
         connectionError =
-            'Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
+            '${prefix}Last check (${DateTime.now().toUtc().toIso8601String()}): session authenticated. Agent $agentLabel; Converse $converseLabel.';
       }
       _noticesPoll?.cancel();
       _resourcesPoll?.cancel();
@@ -649,7 +965,11 @@ class AppState extends ChangeNotifier {
       agentProvider = null;
       converseProvider = null;
       streamingWindows = false;
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       connected = false;
+      if (localSignInState == LocalHostSignInState.connecting) {
+        localSignInState = LocalHostSignInState.unavailable;
+      }
       connectionError =
           'Session authentication or connection failed. Check setup.';
     }
@@ -677,6 +997,7 @@ class AppState extends ChangeNotifier {
     final request = ++_converseInferenceRead;
     converseInferenceAllowed = false;
     converseProvider = null;
+    _setNativeAudioSupport(const NativeAudioSupport.unknown());
     connected = sessionAuthenticated && agentInferenceAllowed;
     notifyListeners();
     return request;
@@ -710,6 +1031,7 @@ class AppState extends ChangeNotifier {
       converseOnline = false;
       converseProvider = null;
       converseInferenceAllowed = false;
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       connected = sessionAuthenticated && agentInferenceAllowed;
     }
     notifyListeners();
@@ -882,6 +1204,319 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  HandoffNotice? handoffForMessage(ChatMsg message) {
+    final session = converseSession;
+    if (session == null) return null;
+    return _handoffs.noticeForTurn(
+      current: session,
+      role: message.role,
+      eventId: message.eventId,
+      utteranceId: message.utteranceId,
+      windowIndex: message.windowIndex,
+      windowRevision: message.windowRevision,
+      text: message.text,
+    );
+  }
+
+  HandoffNotice? handoffNotice(String sourceEventId) {
+    final session = converseSession;
+    return _handoffs.noticeForSource(sourceEventId, session);
+  }
+
+  HandoffTaskDestinationStatus handoffTaskDestinationStatus(
+    HandoffNotice notice,
+  ) {
+    if (!notice.hasConfirmedTaskIdentifier) {
+      return HandoffTaskDestinationStatus.none;
+    }
+    if (!connected || !sessionAuthenticated || client == null) {
+      return HandoffTaskDestinationStatus.unauthorized;
+    }
+    if (converseSession != null && !notice.matchesSession(converseSession!)) {
+      return HandoffTaskDestinationStatus.stale;
+    }
+    final task = tasks
+        .where((t) => t.taskId == notice.nativeTaskId)
+        .firstOrNull;
+    if (task == null) {
+      return HandoffTaskDestinationStatus.missing;
+    }
+    if (agentSession != null &&
+        agentSession!.sessionId == task.sessionId &&
+        (agentSession!.threadId != task.threadId ||
+            agentSession!.epoch != task.epoch)) {
+      return HandoffTaskDestinationStatus.stale;
+    }
+    for (final session in agentWorkspaceSessions) {
+      if (session.sessionId == task.sessionId &&
+          (session.threadId != task.threadId || session.epoch != task.epoch)) {
+        return HandoffTaskDestinationStatus.stale;
+      }
+    }
+    return HandoffTaskDestinationStatus.known;
+  }
+
+  /// Resolves verified post-handoff task progress and final outcome for an
+  /// already authorized, known task identifier using current owner task and
+  /// approval state. Never infers success from generated Converse text, route
+  /// choice, or a published artifact alone.
+  HandoffTaskProgressSummary? handoffTaskProgress(HandoffNotice notice) {
+    if (!notice.hasConfirmedTaskIdentifier) return null;
+    final taskId = notice.nativeTaskId!;
+    final destination = handoffTaskDestinationStatus(notice);
+    switch (destination) {
+      case HandoffTaskDestinationStatus.none:
+        return null;
+      case HandoffTaskDestinationStatus.unauthorized:
+        return HandoffTaskProgressSummary(
+          kind: HandoffTaskLifecycleKind.unknown,
+          stateLabel: 'Task status: Unknown',
+          detailText: 'Reconnect to check task $taskId progress.',
+        );
+      case HandoffTaskDestinationStatus.stale:
+        return HandoffTaskProgressSummary(
+          kind: HandoffTaskLifecycleKind.unknown,
+          stateLabel: 'Task status: Unknown',
+          detailText: 'Task $taskId belongs to an earlier session or epoch.',
+        );
+      case HandoffTaskDestinationStatus.missing:
+        return HandoffTaskProgressSummary(
+          kind: HandoffTaskLifecycleKind.unknown,
+          stateLabel: 'Task status: Unknown',
+          detailText: 'Task $taskId is unavailable in current Agent tasks.',
+        );
+      case HandoffTaskDestinationStatus.known:
+        if (tasksStatusStale) {
+          return HandoffTaskProgressSummary(
+            kind: HandoffTaskLifecycleKind.unknown,
+            stateLabel: 'Task status: Unknown',
+            detailText:
+                'Agent task status is currently unavailable for $taskId.',
+          );
+        }
+        final task = tasks.firstWhere((t) => t.taskId == taskId);
+        final pendingApprovals = approvals
+            .where(
+              (a) =>
+                  a.taskId == task.taskId &&
+                  a.sessionId == task.sessionId &&
+                  a.threadId == task.threadId &&
+                  a.epoch == task.epoch &&
+                  a.objectiveRevision == task.objectiveRevision &&
+                  a.status == 'pending' &&
+                  !a.isExpired,
+            )
+            .toList();
+        final currentEvidence = task.evidence
+            .where((e) => e.objectiveRevision == task.objectiveRevision)
+            .toList();
+        final nativeEvidence = currentEvidence
+            .where(
+              (e) => const {
+                'file',
+                'command',
+                'read',
+                'search',
+                'test',
+              }.contains(e.kind),
+            )
+            .toList();
+        switch (task.state) {
+          case 'accepted':
+          case 'queued':
+            return const HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.queued,
+              stateLabel: 'Task queued',
+              detailText: 'Waiting to run in Agent.',
+              actionLabel: 'Open task',
+            );
+          case 'running':
+          case 'verifying':
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.running,
+              stateLabel: task.state == 'verifying'
+                  ? 'Task verifying'
+                  : 'Task running',
+              detailText: currentEvidence.isEmpty
+                  ? 'Running in Agent.'
+                  : 'Running in Agent · ${currentEvidence.length} receipt${currentEvidence.length == 1 ? '' : 's'} recorded.',
+              actionLabel: currentEvidence.isNotEmpty
+                  ? 'Inspect evidence'
+                  : 'Open task',
+              evidenceCount: currentEvidence.length,
+            );
+          case 'awaiting_approval':
+            final toolLabel =
+                pendingApprovals.isNotEmpty &&
+                    pendingApprovals.first.tool.isNotEmpty
+                ? ' for ${pendingApprovals.first.tool}'
+                : '';
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.awaitingApproval,
+              stateLabel: 'Approval needed',
+              detailText: 'Awaiting owner approval$toolLabel in Agent.',
+              actionLabel: 'Review approval',
+              pendingApprovalsCount: pendingApprovals.length,
+            );
+          case 'blocked':
+          case 'paused':
+          case 'cancel_requested':
+            final stateLabel = switch (task.state) {
+              'paused' => 'Task paused',
+              'cancel_requested' => 'Cancellation requested',
+              _ => 'Task blocked',
+            };
+            final reason = (task.error != null && task.error!.trim().isNotEmpty)
+                ? task.error!.trim()
+                : (task.summary.trim().isNotEmpty
+                      ? task.summary.trim()
+                      : 'Action required or blocked in Agent.');
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.blocked,
+              stateLabel: stateLabel,
+              detailText: reason,
+              actionLabel: pendingApprovals.isNotEmpty
+                  ? 'Review approval'
+                  : 'Open task',
+              pendingApprovalsCount: pendingApprovals.length,
+            );
+          case 'failed':
+          case 'cancelled':
+            final stateLabel = task.state == 'cancelled'
+                ? 'Task cancelled'
+                : 'Task failed';
+            final reason = (task.error != null && task.error!.trim().isNotEmpty)
+                ? task.error!.trim()
+                : (task.summary.trim().isNotEmpty
+                      ? task.summary.trim()
+                      : 'Task did not complete in Agent.');
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.failed,
+              stateLabel: stateLabel,
+              detailText: reason,
+              actionLabel: currentEvidence.isNotEmpty
+                  ? 'Inspect evidence'
+                  : 'Open task',
+              evidenceCount: currentEvidence.length,
+            );
+          case 'succeeded':
+            final verified =
+                task.isGroundedSuccess && nativeEvidence.isNotEmpty;
+            if (verified) {
+              final summaryText = task.summary.trim().isNotEmpty
+                  ? '${task.summary.trim()} (${nativeEvidence.length} verified receipt${nativeEvidence.length == 1 ? '' : 's'})'
+                  : 'Succeeded with ${nativeEvidence.length} verified receipt${nativeEvidence.length == 1 ? '' : 's'}.';
+              return HandoffTaskProgressSummary(
+                kind: HandoffTaskLifecycleKind.succeededWithEvidence,
+                stateLabel: 'Task succeeded',
+                detailText: summaryText,
+                actionLabel: 'Inspect evidence',
+                evidenceCount: nativeEvidence.length,
+              );
+            }
+            final unverifiedDetail = task.hasUnverifiedExternalOnly
+                ? 'Finished with a tool or computation receipt only; task effects need independent evidence.'
+                : (currentEvidence.isNotEmpty && nativeEvidence.isEmpty
+                      ? 'Finished with artifact publication only; no independent completion evidence.'
+                      : 'Finished without independent completion evidence.');
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.succeededUnverified,
+              stateLabel: 'Finished (unverified)',
+              detailText: unverifiedDetail,
+              actionLabel: 'Open task',
+              evidenceCount: currentEvidence.length,
+            );
+          default:
+            return HandoffTaskProgressSummary(
+              kind: HandoffTaskLifecycleKind.unknown,
+              stateLabel: 'Task status: Unknown',
+              detailText: 'Task $taskId reported an unrecognized state.',
+            );
+        }
+    }
+  }
+
+  void openHandoffTask(HandoffNotice notice) {
+    if (!notice.hasConfirmedTaskIdentifier) return;
+    final taskId = notice.nativeTaskId!;
+    final destination = handoffTaskDestinationStatus(notice);
+    switch (destination) {
+      case HandoffTaskDestinationStatus.none:
+        return;
+      case HandoffTaskDestinationStatus.unauthorized:
+        requestedAgentTaskId = taskId;
+        agentNotice =
+            'Cannot open task $taskId: connection is not authenticated.';
+        notifyListeners();
+        return;
+      case HandoffTaskDestinationStatus.stale:
+        requestedAgentTaskId = taskId;
+        openedFromConverseHandoff = true;
+        agentNotice =
+            'Task $taskId belongs to an earlier session or reset epoch and cannot be opened in the active session.';
+        view = AppView.agent;
+        notifyListeners();
+        return;
+      case HandoffTaskDestinationStatus.missing:
+        requestedAgentTaskId = taskId;
+        openedFromConverseHandoff = true;
+        agentNotice =
+            'Task $taskId is missing or retired in the current Agent task list.';
+        view = AppView.agent;
+        notifyListeners();
+        return;
+      case HandoffTaskDestinationStatus.known:
+        final task = tasks.firstWhere((t) => t.taskId == taskId);
+        final matchesActiveSession =
+            agentSession != null &&
+            agentSession!.sessionId == task.sessionId &&
+            agentSession!.threadId == task.threadId &&
+            agentSession!.epoch == task.epoch;
+        if (!matchesActiveSession) {
+          if (agentSession != null) {
+            _saveAgentWorkspace();
+          }
+          final workspaceMatch = agentWorkspaceSessions
+              .where(
+                (s) =>
+                    s.sessionId == task.sessionId &&
+                    s.threadId == task.threadId &&
+                    s.epoch == task.epoch,
+              )
+              .firstOrNull;
+          final targetSession =
+              workspaceMatch ??
+              SessionInfo(
+                sessionId: task.sessionId,
+                threadId: task.threadId,
+                epoch: task.epoch,
+                channel: 'agent',
+                harnessVersion: task.harnessVersion,
+              );
+          agentSession = targetSession;
+          _agentWorkspace.lastSession = targetSession;
+          _agentWorkspace.harness =
+              targetSession.harnessVersion ??
+              _agentWorkspace.harness ??
+              'unassociated';
+          final saved = _agentWorkspace.snapshots[_agentScope(targetSession)];
+          if (saved != null) {
+            _agentDraft = saved.draft;
+            _agentDraftScope = saved.scope;
+            agentHistory
+              ..clear()
+              ..addAll(saved.history);
+            agentCursor = saved.cursor;
+          }
+        }
+        requestedAgentTaskId = task.taskId;
+        openedFromConverseHandoff = true;
+        agentNotice = '';
+        view = AppView.agent;
+        notifyListeners();
+    }
+  }
+
   void _applyHandoff(HandoffNotice notice) {
     final id = 'handoff:${notice.sourceEventId}';
     final index = converseHistory.indexWhere(
@@ -900,8 +1535,71 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  void _pruneInvalidatedHandoffs(SessionInfo session) {
+    converseHistory.removeWhere((message) {
+      final id = message.eventId;
+      if (message.role != 'system' ||
+          message.note != 'Agent handoff' ||
+          id == null ||
+          !id.startsWith('handoff:')) {
+        return false;
+      }
+      final sourceId = id.substring('handoff:'.length);
+      return _handoffs.noticeForSource(sourceId, session) == null;
+    });
+  }
+
   void _observeHandoff(JournalEntry entry, SessionInfo session) {
     final notice = _handoffs.observe(entry, session);
+    if (entry.kind == 'conversation.user' &&
+        entry.origin == 'authenticated-user') {
+      final rev = (entry.payload['revision'] as num?)?.toInt() ?? 1;
+      final index = converseHistory.indexWhere(
+        (m) => m.role == 'user' && m.eventId == entry.eventId,
+      );
+      if (index >= 0 && rev > converseHistory[index].windowRevision) {
+        final old = converseHistory[index];
+        converseHistory[index] = ChatMsg(
+          role: old.role,
+          text: entry.text.isNotEmpty ? entry.text : old.text,
+          eventId: old.eventId,
+          note: old.note,
+          grounded: old.grounded,
+          utteranceId: old.utteranceId,
+          windowIndex: old.windowIndex,
+          windowRevision: rev,
+        );
+      }
+      _pruneInvalidatedHandoffs(session);
+    } else if (entry.kind == 'conversation.revision' &&
+        const {'authenticated-user', 'converse'}.contains(entry.origin)) {
+      final targetId = entry.payload['target_event_id'];
+      final rev = entry.payload['revision'];
+      if (targetId is String && rev is int) {
+        final index = converseHistory.indexWhere(
+          (m) => m.role == 'user' && m.eventId == targetId,
+        );
+        if (index >= 0 && rev >= converseHistory[index].windowRevision) {
+          final old = converseHistory[index];
+          final updatedText = entry.payload['text'];
+          converseHistory[index] = ChatMsg(
+            role: old.role,
+            text: updatedText is String && updatedText.isNotEmpty
+                ? updatedText
+                : old.text,
+            eventId: old.eventId,
+            note: old.note,
+            grounded: old.grounded,
+            utteranceId: old.utteranceId,
+            windowIndex: old.windowIndex,
+            windowRevision: rev,
+          );
+        }
+      }
+      _pruneInvalidatedHandoffs(session);
+    } else if (entry.kind == 'conversation.window') {
+      _pruneInvalidatedHandoffs(session);
+    }
     if (notice != null) _applyHandoff(notice);
     for (final recovered in _handoffs.drainPending(session)) {
       _applyHandoff(recovered);
@@ -938,11 +1636,45 @@ class AppState extends ChangeNotifier {
       if (sourceId is! String) continue;
       try {
         budget--;
-        final source = await api
+        final fetched = await api
             .handoffEntry(sourceId, resolve: true)
             .timeout(const Duration(seconds: 3));
         if (!current()) return;
-        if (source.eventId != sourceId ||
+        var canonicalSourceId = sourceId;
+        var source = fetched;
+        if (receipt.kind == 'routing.classification_refused' &&
+            fetched.kind == 'conversation.revision') {
+          final targetId = fetched.payload['target_event_id'];
+          if (fetched.eventId != sourceId ||
+              receipt.causes.single != fetched.eventId ||
+              fetched.sessionId != session.sessionId ||
+              fetched.threadId != session.threadId ||
+              fetched.epoch != session.epoch ||
+              !const {
+                'authenticated-user',
+                'converse',
+              }.contains(fetched.origin) ||
+              targetId is! String ||
+              fetched.payload['revision'] !=
+                  receipt.payload['source_revision']) {
+            _handoffs.discardPending(receipt.eventId);
+            continue;
+          }
+          canonicalSourceId = targetId;
+          budget--;
+          source = await api
+              .handoffEntry(canonicalSourceId, resolve: true)
+              .timeout(const Duration(seconds: 3));
+          if (!current()) return;
+        }
+        final validSourceSequence =
+            receipt.kind == 'routing.classification_refused'
+            ? source.kind == 'conversation.user' &&
+                  source.sequence < receipt.sequence &&
+                  (receipt.payload['source_sequence'] == null ||
+                      source.sequence == receipt.payload['source_sequence'])
+            : source.sequence == receipt.payload['source_sequence'];
+        if (source.eventId != canonicalSourceId ||
             source.sessionId != session.sessionId ||
             source.threadId != session.threadId ||
             source.epoch != session.epoch ||
@@ -951,17 +1683,23 @@ class AppState extends ChangeNotifier {
               'conversation.user',
               'conversation.window',
             }.contains(source.kind) ||
-            source.sequence != receipt.payload['source_sequence'] ||
+            !validSourceSequence ||
             (source.payload['revision'] ?? 1) !=
                 receipt.payload['source_revision']) {
           _handoffs.discardPending(receipt.eventId);
           continue;
         }
-        budget--;
-        final cause = await api
-            .handoffEntry(receipt.causes.single)
-            .timeout(const Duration(seconds: 3));
-        if (!current()) return;
+        final JournalEntry cause;
+        if (fetched.kind == 'conversation.revision' &&
+            receipt.causes.single == fetched.eventId) {
+          cause = fetched;
+        } else {
+          budget--;
+          cause = await api
+              .handoffEntry(receipt.causes.single)
+              .timeout(const Duration(seconds: 3));
+          if (!current()) return;
+        }
         if (cause.eventId != receipt.causes.single ||
             cause.sessionId != session.sessionId ||
             cause.threadId != session.threadId ||
@@ -973,7 +1711,7 @@ class AppState extends ChangeNotifier {
 
         if (source.kind == 'conversation.window') {
           if (!((receipt.kind == 'routing.window_status' &&
-                  cause.eventId == sourceId &&
+                  cause.eventId == canonicalSourceId &&
                   cause.kind == 'conversation.window') ||
               (receipt.kind == 'routing.window_dispatch' &&
                   cause.kind == 'routing.window_decided' &&
@@ -1016,7 +1754,7 @@ class AppState extends ChangeNotifier {
         }
         if (source.kind != 'conversation.user' ||
             !((cause.kind == 'conversation.user' &&
-                    cause.eventId == sourceId &&
+                    cause.eventId == canonicalSourceId &&
                     cause.origin == 'authenticated-user' &&
                     receipt.payload['source_revision'] == 1) ||
                 (cause.kind == 'conversation.revision' &&
@@ -1024,13 +1762,19 @@ class AppState extends ChangeNotifier {
                       'authenticated-user',
                       'converse',
                     }.contains(cause.origin) &&
-                    cause.payload['target_event_id'] == sourceId &&
-                    cause.payload['revision'] == source.payload['revision']))) {
+                    cause.payload['target_event_id'] == canonicalSourceId &&
+                    cause.payload['revision'] == source.payload['revision'] &&
+                    cause.sequence > source.sequence))) {
           _handoffs.discardPending(receipt.eventId);
           continue;
         }
         _handoffs.observe(source, session);
         _handoffs.observe(cause, session);
+        if (receipt.kind == 'routing.classification_refused') {
+          final notice = _handoffs.observe(receipt, session);
+          if (notice != null) _applyHandoff(notice);
+          continue;
+        }
         var cursor = _handoffDecisionCursors[receipt.eventId] ?? cause.sequence;
         while (budget > 0 && current()) {
           budget--;
@@ -1116,7 +1860,10 @@ class AppState extends ChangeNotifier {
 
   /// Apply only a health read already bound to the live client/generation.
   /// Legacy effective-only health cannot establish intentional sleep.
-  void applyConverseHealth(Map<String, Object?> health) {
+  void applyConverseHealth(
+    Map<String, Object?> health, {
+    bool updateNativeAudio = true,
+  }) {
     final observedRevision = health['owner_intent_revision'];
     if (observedRevision is int &&
         _converseOwnerRevision != null &&
@@ -1126,6 +1873,7 @@ class AppState extends ChangeNotifier {
     final wasEnabled = converseEnabled;
     converseOwnerStatusStale = true;
     Never invalid(String message) {
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       _lastHealthEnabled = null;
       if (wasEnabled) _stopUnavailableConverse();
       converseEnabled = false;
@@ -1149,6 +1897,9 @@ class AppState extends ChangeNotifier {
       _healthOwnerRevision = revision;
     }
     _lastHealthEnabled = health['enabled'] == true;
+    if (updateNativeAudio) {
+      _setNativeAudioSupport(NativeAudioSupport.fromHealth(health));
+    }
     _applyEffectiveConverseHealth();
     if (wasEnabled && !converseEnabled) {
       _stopUnavailableConverse();
@@ -1202,6 +1953,7 @@ class AppState extends ChangeNotifier {
       return !converseOwnerStatusStale;
     } catch (_) {
       if (!ownsConnection(generation, api)) return false;
+      _setNativeAudioSupport(const NativeAudioSupport.unknown());
       converseOwnerStatusStale = true;
       _lastHealthEnabled = null;
       if (converseEnabled) _stopUnavailableConverse();
@@ -1228,7 +1980,7 @@ class AppState extends ChangeNotifier {
         // now completed, so a fresh read may reconcile effective availability.
         unawaited(refreshConverseAvailability());
       } else {
-        applyConverseHealth(result);
+        applyConverseHealth(result, updateNativeAudio: false);
       }
     } catch (_) {
       converseControlUncertain = uncertain;
@@ -1456,6 +2208,10 @@ class AppState extends ChangeNotifier {
   }
 
   void disconnect() {
+    _setNativeAudioSupport(
+      const NativeAudioSupport.unknown(),
+      stopCurrent: false,
+    );
     _resetArtifacts();
     _saveAgentWorkspace();
     _invalidateAgentWorkspace();
@@ -1499,6 +2255,10 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _setNativeAudioSupport(
+      const NativeAudioSupport.unknown(),
+      stopCurrent: false,
+    );
     _invalidateAgentWorkspace();
     _connectionGeneration++;
     _decisionsModelOptionsRead++;
@@ -1514,6 +2274,63 @@ class AppState extends ChangeNotifier {
     super.dispose();
   }
 
+  /// Explicit owner navigation creates a fresh identity; it never resets or
+  /// deletes the previous native session, history, or Agent work.
+  Future<SessionInfo> startNewConverseSession({required bool Function() idle}) {
+    final pending = _newConverseSession;
+    if (pending != null) return pending;
+    final api = client, previous = converseSession;
+    final generation = _connectionGeneration;
+    if (api == null || !sessionAuthenticated || busyConverse || !idle()) {
+      throw StateError('Conversation is not idle');
+    }
+    final selection = ++_converseSessionSelection;
+    bool current() =>
+        ownsConnection(generation, api) &&
+        selection == _converseSessionSelection &&
+        identical(converseSession, previous) &&
+        !busyConverse &&
+        idle();
+    late final Future<SessionInfo> original;
+    original = () async {
+      // Publish pending ownership before the only side-effecting request.
+      await Future<void>.value();
+      try {
+        if (!current()) throw StateError('Conversation changed');
+        final created = await api.createSession('converse', name: 'Converse');
+        if (!current() ||
+            created.channel != 'converse' ||
+            created.epoch < 1 ||
+            created.sessionId == previous?.sessionId) {
+          throw StateError('New conversation was not confirmed');
+        }
+        turnNonce++;
+        voiceNonce++;
+        speechEpoch = voiceEpoch = 0;
+        nativeAudioSourceGeneration++;
+        converseSession = created;
+        converseHistory.clear();
+        converseCursor = 0;
+        converseHistorySeededFor = null;
+        _noticeSession = created.sessionId;
+        _noticeCursor = 0;
+        _seenNotices.clear();
+        _handoffs.clear();
+        _resetArtifacts();
+        notifyListeners();
+        return created;
+      } finally {
+        if (identical(_newConverseSession, original)) {
+          _newConverseSession = null;
+          if (ownsConnection(generation, api)) notifyListeners();
+        }
+      }
+    }();
+    _newConverseSession = original;
+    notifyListeners();
+    return original;
+  }
+
   /// Reuses an existing named session for [channel] when the backend lists
   /// one, otherwise creates it. Explicit IDs persist across same-backend
   /// reconnect. A stale acquisition (old generation/client) never mutates
@@ -1523,6 +2340,12 @@ class AppState extends ChangeNotifier {
     final api = client;
     final generation = _connectionGeneration;
     if (api == null) throw StateError('Not connected');
+    if (channel == 'converse' && converseSessionCreating) {
+      throw StateError('New conversation is being created');
+    }
+    if (channel == 'converse' && converseSession != null) {
+      return converseSession!;
+    }
     if (channel == 'agent' && agentIdentitySelecting) {
       throw StateError('Agent session identity is being verified');
     }
@@ -1538,8 +2361,11 @@ class AppState extends ChangeNotifier {
       return created;
     }
     final selection = agentSelectionGeneration;
+    final converseSelection = _converseSessionSelection;
     bool current() =>
         ownsConnection(generation, api) &&
+        (channel != 'converse' ||
+            converseSelection == _converseSessionSelection) &&
         (channel != 'agent' || selection == agentSelectionGeneration);
     final listed = await api.listSessions();
     if (!current()) {

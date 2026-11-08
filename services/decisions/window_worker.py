@@ -7,12 +7,26 @@ import time
 from collections import OrderedDict
 from contextlib import nullcontext
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import httpx
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
-from packages.providers.decision_capture import CaptureNativeUnavailable, decision_attempt
+from packages.providers.classification_errors import classification_refusal_reason
+from packages.providers.decision_capture import (
+    CaptureNativeUnavailable,
+    DecisionCapture,
+    capture_sources,
+    decision_attempt,
+)
+from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
+from services.decisions.window_routing import (
+    _project_tasks_with_sources,
+    admissible_window_projection,
+    is_ambiguous_multi_task_target,
+    resolve_scoped_tasks,
+)
 
 MAX_PENDING = 32
 MAX_ATTEMPTS = 2
@@ -132,19 +146,129 @@ class WindowDecisionsWorker:
         ):
             return await self._classify(source, attempt=attempt)
 
+    async def _scoped_source(self, source, window):
+        if window.revision == 1:
+            return source, window
+        if not (
+            hasattr(self.journal, "entry")
+            and hasattr(self.journal, "resolve")
+            and hasattr(self.journal, "read")
+        ):
+            return source, window
+        try:
+            floor = await source_scope(self.journal, source.event_id, resolved=source)
+        except Exception as exc:
+            raise JournalUnavailable("Native journal is unavailable") from exc
+        scope = combine_scopes(window.content_scope, floor)
+        if scope == window.content_scope:
+            return source, window
+        updated = source.model_copy(update={"payload": {**source.payload, "content_scope": scope}})
+        return updated, SpeechWindow.model_validate(updated.payload)
+
+    async def _resolve_context(self, source, window, recent):
+        has_resolver = (
+            hasattr(self.journal, "entry")
+            and hasattr(self.journal, "resolve")
+            and hasattr(self.journal, "read")
+        )
+        revised_targets = {
+            e.payload.get("target_event_id")
+            for e in recent
+            if e.epoch == source.epoch
+            and e.thread_id == source.thread_id
+            and e.kind == "conversation.revision"
+            and isinstance(e.payload, dict)
+        }
+        window_slot_counts = {}
+        for e in recent:
+            if (
+                e.epoch == source.epoch
+                and e.thread_id == source.thread_id
+                and e.kind == "conversation.window"
+                and isinstance(e.payload, dict)
+            ):
+                slot = (e.payload.get("utterance_id"), e.payload.get("window_index"))
+                window_slot_counts[slot] = window_slot_counts.get(slot, 0) + 1
+
+        candidates = [
+            e
+            for e in recent
+            if e.epoch == source.epoch
+            and e.thread_id == source.thread_id
+            and e.sequence < source.sequence
+            and e.kind in {"conversation.window", "conversation.user", "conversation.converse"}
+        ]
+        seen_slots = set()
+        resolved_entries = []
+        full_page = len(recent) >= 100
+        source_hyp = hypothesis(source)
+        for e in candidates:
+            entry = e
+            if e.kind == "conversation.window":
+                try:
+                    w = SpeechWindow.model_validate(e.payload)
+                except ValueError:
+                    continue
+                slot = (w.utterance_id, w.window_index)
+                if slot in seen_slots:
+                    continue
+                needs_resolve = has_resolver and (
+                    full_page or w.revision > 1 or window_slot_counts.get(slot, 0) > 1
+                )
+                if needs_resolve:
+                    try:
+                        latest = await self.journal.resolve(e.event_id)
+                        floor = await source_scope(self.journal, latest.event_id, resolved=latest)
+                    except Exception as exc:
+                        raise JournalUnavailable("Native journal is unavailable") from exc
+                    w_latest = SpeechWindow.model_validate(latest.payload)
+                    scope = combine_scopes(w_latest.content_scope, floor)
+                    entry = (
+                        latest
+                        if scope == w_latest.content_scope
+                        else latest.model_copy(
+                            update={"payload": {**latest.payload, "content_scope": scope}}
+                        )
+                    )
+                seen_slots.add(slot)
+                if w.utterance_id == window.utterance_id and hypothesis(entry) == source_hyp:
+                    continue
+            elif e.kind == "conversation.user":
+                needs_resolve = has_resolver and (
+                    full_page or e.event_id in revised_targets or e.payload.get("revision", 1) > 1
+                )
+                if needs_resolve:
+                    try:
+                        latest = await self.journal.resolve(e.event_id)
+                        floor = await source_scope(self.journal, e.event_id, resolved=latest)
+                    except Exception as exc:
+                        raise JournalUnavailable("Native journal is unavailable") from exc
+                    scope = combine_scopes(latest.payload.get("content_scope", "local_only"), floor)
+                    entry = latest.model_copy(
+                        update={"payload": {**latest.payload, "content_scope": scope}}
+                    )
+            resolved_entries.append(entry)
+        return resolved_entries[-12:]
+
+    def _active_provider_info(self):
+        if self.model_settings is not None:
+            state = self.model_settings._state()
+            info, _ = self.model_settings._selection_info(state[2])
+            return info
+        provider = getattr(self.classifier, "provider", None)
+        return getattr(provider, "info", None)
+
+    async def _scoped_tasks(self, tasks):
+        return await resolve_scoped_tasks(self.journal, tasks)
+
     async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
             return
         window = SpeechWindow.model_validate(source.payload)
         await self.status(source, "classifying", "content_window", attempt=attempt)
+        source, window = await self._scoped_source(source, window)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
-        context = [
-            e
-            for e in recent
-            if e.epoch == source.epoch
-            and e.sequence < source.sequence
-            and e.kind in {"conversation.window", "conversation.user", "conversation.converse"}
-        ][-12:]
+        context = await self._resolve_context(source, window, recent)
         tasks, available = [], self.agent_enabled
         if available:
             try:
@@ -160,34 +284,84 @@ class WindowDecisionsWorker:
                 ]
             except Exception:
                 tasks, available = [], False
+        tasks = await self._scoped_tasks(tasks)
         self.agent_available = available if self.agent_enabled else None
         if self.agent_enabled and not available:
             await self.status(source, "agent_unavailable", "agent_status_unavailable")
         started = time.monotonic()
         key = (source.session_id, source.epoch, window.utterance_id)
-        task_binding = (
-            available,
-            tuple(sorted((t.task_id, t.objective_revision, str(t.state)) for t in tasks)),
+        model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
+        provider_info = self._active_provider_info()
+        window_chars = getattr(self.classifier, "window_chars", 36000)
+        projection = admissible_window_projection(
+            source,
+            context,
+            tasks,
+            provider_info=provider_info,
+            window_chars=window_chars,
+            agent_enabled=self.agent_enabled,
+            agent_available=available,
+            model_stamp=model_stamp,
+        )
+        # One authorization-first builder defines both the reuse identity and
+        # the classifier input: the classifier receives exactly the projected
+        # context and tasks, so a reused answer always matches the bytes a
+        # fresh provider call would see.
+        input_digest = projection.digest
+        admissible_context, admissible_tasks = projection.context, projection.tasks
+        _, disclosed_task_sources = _project_tasks_with_sources(
+            admissible_tasks, provider_info=provider_info, limit=len(admissible_tasks)
         )
         cached = self.outputs.get(key)
-        model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
         reused = (
-            cached is not None
-            and cached[:2] == (hypothesis(source), task_binding)
+            projection.source_admissible
+            and input_digest is not None
+            and cached is not None
+            and cached[0] == input_digest
             and self.output_models.get(key) == model_stamp
         )
         if reused:
             labels = dict(cached[2])
             original_call = cached[3]
-            if original_call is not None:
-                async with decision_attempt(
-                    self.journal,
-                    source,
-                    getattr(self.classifier, "provider", None),
-                    attempt=attempt,
-                    reused_from=original_call,
-                ) as capture:
-                    capture.validated_output = labels
+            provider_ref = (
+                SimpleNamespace(info=provider_info)
+                if provider_info is not None
+                else getattr(self.classifier, "provider", None)
+            )
+            try:
+                if original_call is not None:
+                    async with decision_attempt(
+                        self.journal,
+                        source,
+                        getattr(self.classifier, "provider", None),
+                        attempt=attempt,
+                        reused_from=original_call,
+                    ) as capture:
+                        capture_sources(source, [*admissible_context, *disclosed_task_sources])
+                        if hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                            await capture.start(
+                                getattr(self.classifier, "provider", None) or provider_ref,
+                                None,
+                                "reused",
+                            )
+                            await capture.check_current(provider_ref)
+                        capture.validated_output = labels
+                elif hasattr(self.journal, "entry") and hasattr(self.journal, "resolve"):
+                    capture = DecisionCapture(
+                        self.journal,
+                        source,
+                        getattr(self.classifier, "provider", None) or provider_ref,
+                        attempt,
+                    )
+                    capture.disclosure_sources = [
+                        entry.model_copy(deep=True)
+                        for entry in [source, *admissible_context, *disclosed_task_sources]
+                    ]
+                    await capture.check_current(provider_ref)
+            except ProviderRefusal:
+                self.outputs.pop(key, None)
+                self.output_models.pop(key, None)
+                raise
         elif window.text.strip():
             if self.model_settings is None:
                 async with decision_attempt(
@@ -196,8 +370,10 @@ class WindowDecisionsWorker:
                     getattr(self.classifier, "provider", None),
                     attempt=attempt,
                 ) as capture:
+                    capture_sources(source, [*admissible_context, *disclosed_task_sources])
                     labels = await asyncio.wait_for(
-                        self.classifier.classify(source, context, tasks), self.timeout
+                        self.classifier.classify(source, admissible_context, admissible_tasks),
+                        self.timeout,
                     )
                     capture.validated_output = labels
             else:
@@ -215,8 +391,10 @@ class WindowDecisionsWorker:
                         model_pin=lease.pin,
                         current=lease.current,
                     ) as capture:
+                        capture_sources(source, [*admissible_context, *disclosed_task_sources])
                         labels = await asyncio.wait_for(
-                            classifier.classify(source, context, tasks), self.timeout
+                            classifier.classify(source, admissible_context, admissible_tasks),
+                            self.timeout,
                         )
                         capture.validated_output = labels
             original_call = capture.call_id if capture.started else None
@@ -227,7 +405,17 @@ class WindowDecisionsWorker:
                 "reason_code": "no_transcript_text",
             }
             original_call = None
-        self.outputs[key] = (hypothesis(source), task_binding, dict(labels), original_call)
+        if labels.get("agent_route") in {"STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"}:
+            target = next((t for t in tasks if t.task_id == labels.get("target_task_id")), None)
+            if is_ambiguous_multi_task_target(target, tasks, provider_info=provider_info):
+                labels = {
+                    **labels,
+                    "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+                    "target_task_id": None,
+                    "expected_objective_revision": None,
+                    "reason_code": "ambiguous_target",
+                }
+        self.outputs[key] = (input_digest, hypothesis(source), dict(labels), original_call)
         self.output_models[key] = model_stamp
         self.outputs.move_to_end(key)
         if len(self.outputs) > 128:
@@ -310,6 +498,8 @@ class WindowDecisionsWorker:
                     reason = "provider_budget_refused"
                 elif "token budget" in str(exc):
                     reason = "provider_output_limit"
+                elif isinstance(exc, ProviderRefusal):
+                    reason = classification_refusal_reason(exc)
                 else:
                     reason = "provider_unavailable"
             self.last_error = reason

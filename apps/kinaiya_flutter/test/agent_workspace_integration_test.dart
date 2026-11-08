@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
+import 'package:kinaiya_flutter/config/options_navigation.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/api/agent_workspace.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
@@ -143,14 +144,16 @@ class TransportWorkspaceUiApi extends WorkspaceUiApi {
   }
 }
 
-Widget host(AppState state) => MaterialApp(
-  home: Scaffold(
-    body: ListenableBuilder(
-      listenable: state,
-      builder: (_, _) => AgentChat(state: state),
-    ),
-  ),
-);
+Widget host(AppState state, {ValueChanged<OptionsPage>? onOpenOptions}) =>
+    MaterialApp(
+      home: Scaffold(
+        body: ListenableBuilder(
+          listenable: state,
+          builder: (_, _) =>
+              AgentChat(state: state, onOpenOptions: onOpenOptions),
+        ),
+      ),
+    );
 Future<void> settle(WidgetTester tester) async {
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
@@ -456,6 +459,450 @@ void main() {
       expect(state.agentDraft, 'Draft B');
       expect(state.agentHistory, isEmpty);
       expect(state.agentSession!.sessionId, 'b');
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
+  testWidgets(
+    'actionable empty state guides disconnected, no-harness, no-session, and ready workspaces across narrow and desktop',
+    (tester) async {
+      for (final size in [const Size(360, 800), const Size(1600, 1000)]) {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+
+        // 1. Disconnected state offers Open Connection via existing owner navigation.
+        final state = AppState()..connectionError = 'Session unreachable';
+        final openedOptions = <OptionsPage>[];
+        await tester.pumpWidget(host(state, onOpenOptions: openedOptions.add));
+        await settle(tester);
+        expect(find.text('Connect to use Agent'), findsOneWidget);
+        expect(find.textContaining('Session unreachable'), findsOneWidget);
+        expect(find.text('What would you like to work on?'), findsNothing);
+        final connectButton = find.byKey(
+          const ValueKey('agent-empty-open-connection'),
+        );
+        await tester.ensureVisible(connectButton);
+        await tester.tap(connectButton);
+        await tester.pump();
+        expect(openedOptions, [OptionsPage.connection]);
+
+        // 2. Connected with no eligible harness offers Refresh harnesses (and Open Harnesses on narrow).
+        final noHarnessApi = WorkspaceUiApi()
+          ..catalogHook = () async => AgentHarnessPage.fromJson({
+            'schema_version': '1.0',
+            'configured': false,
+            'items': [
+              {
+                ...harnessJson('ineligible-v1', selectable: false),
+                'eligibility': 'approval_required',
+              },
+            ],
+            'next_cursor': null,
+          });
+        state
+          ..connect(ConnectionProfile.defaults(), injected: noHarnessApi)
+          ..sessionAuthenticated = true;
+        await state.refreshAgentHarnesses();
+        await settle(tester);
+        expect(
+          find.text('No eligible Agent harness available'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('agent-empty-refresh-harnesses')),
+          findsOneWidget,
+        );
+        if (size.width < 900) {
+          expect(
+            find.byKey(const ValueKey('agent-empty-open-harnesses')),
+            findsOneWidget,
+          );
+        }
+
+        // 3. Connected with eligible harness in catalog while an ineligible harness is selected offers switching to the eligible harness.
+        final api = WorkspaceUiApi();
+        state
+          ..connect(ConnectionProfile.defaults(), injected: api)
+          ..sessionAuthenticated = true;
+        await state.refreshAgentHarnesses();
+        await settle(tester);
+        expect(state.agentSession, isNull);
+        expect(
+          find.text('Selected harness cannot start a new session'),
+          findsOneWidget,
+        );
+        final selectEligibleBtn = find.byKey(
+          const ValueKey('agent-empty-select-eligible-harness'),
+        );
+        await tester.ensureVisible(selectEligibleBtn);
+        await tester.tap(selectEligibleBtn);
+        await settle(tester);
+
+        // 4. Connected with eligible harness selected and no active session offers session selection/creation.
+        expect(state.selectedAgentHarness, 'seed-v1');
+        expect(find.text('Choose or create an Agent session'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('agent-empty-select-session')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('agent-empty-create-session')),
+          findsOneWidget,
+        );
+        if (size.width < 900) {
+          expect(
+            find.byKey(const ValueKey('agent-empty-open-workspace')),
+            findsOneWidget,
+          );
+        }
+
+        // Tapping Create session creates a real session via the owner and transitions to Ready-but-empty.
+        final createBtn = find.byKey(
+          const ValueKey('agent-empty-create-session'),
+        );
+        await tester.ensureVisible(createBtn);
+        await tester.tap(createBtn);
+        await settle(tester);
+        expect(api.creates, 1);
+        expect(state.agentSession, isNotNull);
+        expect(find.text('What would you like to work on?'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await close(tester, state);
+      }
+    },
+  );
+
+  testWidgets(
+    'Task details pane collapses when no task is selected, opens on task selection, and preserves explicit collapse across refresh and session switches',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1560, 1000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final api = WorkspaceUiApi()
+        ..fixtures = [
+          AgentTask(
+            taskId: 't-1',
+            sessionId: 'b',
+            threadId: 'thread-b',
+            epoch: 1,
+            objective: 'First synthetic task',
+            objectiveRevision: 1,
+            state: 'running',
+            idempotencyKey: 'k-1',
+          ),
+          AgentTask(
+            taskId: 't-2',
+            sessionId: 'b',
+            threadId: 'thread-b',
+            epoch: 1,
+            objective: 'Second synthetic task',
+            objectiveRevision: 1,
+            state: 'succeeded',
+            idempotencyKey: 'k-2',
+          ),
+        ];
+
+      final state = wired(api);
+      await state.refreshAgentHarnesses();
+      await state.selectAgentHarness('seed-v1');
+      await state.selectAgentSession('a');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => AgentChat(state: state),
+            ),
+          ),
+        ),
+      );
+      await settle(tester);
+
+      // 1. Fresh no-task workspace leaves details collapsed with accessible expand affordance.
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Expand details'), findsOneWidget);
+
+      // 2. Switching to a session with tasks makes details visible; entering a draft keeps it across details toggles.
+      await state.selectAgentSession('b');
+      await settle(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('agent-input')),
+        'Draft for task session',
+      );
+      await tester.pump();
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsOneWidget);
+      expect(find.text('Second synthetic task'), findsWidgets);
+      expect(state.agentDraft, 'Draft for task session');
+
+      // 3. Explicit collapse choice is preserved across routine refresh/polling.
+      await tester.tap(find.byTooltip('Collapse details'));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 5));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+
+      // 4. Selecting a task via Inspect task reopens the inline details pane on desktop without losing drafts.
+      await tester.tap(find.widgetWithText(TextButton, 'Inspect task').first);
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsOneWidget);
+      expect(state.agentDraft, 'Draft for task session');
+
+      // 5. Switching back to an empty session collapses details again.
+      await state.selectAgentSession('a');
+      await settle(tester);
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+
+      // 6. Narrow layout keeps task inspection reachable via modal bottom sheet.
+      tester.view.physicalSize = const Size(360, 800);
+      await state.selectAgentSession('b');
+      await settle(tester);
+      await tester.ensureVisible(
+        find.widgetWithText(TextButton, 'Inspect task').first,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Inspect task').first);
+      await settle(tester);
+      expect(find.text('Task details'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Task details'))).pop();
+      await settle(tester);
+
+      expect(tester.takeException(), isNull);
+      await close(tester, state);
+    },
+  );
+
+  testWidgets(
+    'Task details presents objective, state, owner action, remaining work, and evidence before expandable technical metadata',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1560, 1000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final api = WorkspaceUiApi()
+        ..fixtures = [
+          AgentTask.fromJson({
+            'schema_version': '1.0',
+            'task_id': 'task-running-pin',
+            'session_id': 'a',
+            'thread_id': 'thread-a',
+            'epoch': 1,
+            'objective': 'Inspect running task objective',
+            'objective_revision': 2,
+            'state': 'running',
+            'idempotency_key': 'k-run',
+            'remaining_required_work': ['Verify test suite output'],
+            'evidence': [
+              {
+                'schema_version': '1.0',
+                'kind': 'external',
+                'summary': 'External tool call receipt',
+                'objective_revision': 2,
+              },
+            ],
+            'model_pin': {
+              'model': 'qwen2.5-coder',
+              'provider': 'ollama',
+              'profile_id': 'local-coder',
+              'reasoning': 'medium',
+              'settings_revision': 7,
+              'catalog_revision': 4,
+              'catalog_binding': {
+                'id': 'ollama-local',
+                'generation': 3,
+                'configuration_sha256': 'abc123def456',
+              },
+            },
+          }),
+        ];
+
+      final state = wired(api);
+      await state.refreshAgentHarnesses();
+      await state.selectAgentHarness('seed-v1');
+      await state.selectAgentSession('a');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => AgentChat(state: state),
+            ),
+          ),
+        ),
+      );
+      await settle(tester);
+
+      final detailsPanel = find.byKey(const ValueKey('agent-details-panel'));
+      expect(detailsPanel, findsOneWidget);
+
+      Finder inDetails(String text) =>
+          find.descendant(of: detailsPanel, matching: find.text(text));
+
+      // Primary fields appear in order above Technical details.
+      final objectiveY = tester.getTopLeft(inDetails('Objective')).dy;
+      final stateY = tester.getTopLeft(inDetails('Current state')).dy;
+      final actionY = tester.getTopLeft(inDetails('Owner action')).dy;
+      final remainingY = tester.getTopLeft(inDetails('Remaining work')).dy;
+      final evidenceY = tester.getTopLeft(inDetails('Evidence')).dy;
+      final technicalY = tester
+          .getTopLeft(find.byKey(const ValueKey('agent-details-technical')))
+          .dy;
+
+      expect(objectiveY, lessThan(stateY));
+      expect(stateY, lessThan(actionY));
+      expect(actionY, lessThan(remainingY));
+      expect(remainingY, lessThan(evidenceY));
+      expect(evidenceY, lessThan(technicalY));
+
+      // Running state owner action and unverified receipt disclosure.
+      expect(
+        inDetails(
+          'Task is active; use Steer or Stop in the task card if you need to adjust or cancel it.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        inDetails(
+          'external: External tool call receipt (receipt; effects unverified)',
+        ),
+        findsOneWidget,
+      );
+
+      // Technical details are collapsed initially, then expand to show all original metadata and unknown historical harness.
+      expect(inDetails('task-running-pin'), findsNothing);
+      final technicalTile = find.byKey(
+        const ValueKey('agent-details-technical'),
+      );
+      await tester.ensureVisible(technicalTile);
+      await tester.pump();
+      await tester.tap(technicalTile);
+      await settle(tester);
+      expect(inDetails('task-running-pin'), findsOneWidget);
+      expect(inDetails('Unknown historical harness'), findsOneWidget);
+      expect(inDetails('qwen2.5-coder'), findsOneWidget);
+      expect(inDetails('local-coder'), findsOneWidget);
+      expect(inDetails('ollama-local'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: detailsPanel,
+          matching: find.text('abc123def456', skipOffstage: false),
+        ),
+        findsOneWidget,
+      );
+
+      // Awaiting approval state.
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-approval',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Awaiting approval objective',
+          'objective_revision': 1,
+          'state': 'awaiting_approval',
+          'idempotency_key': 'k-app',
+          'harness_version': 'seed-v1',
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails(
+          'Review pending approval request in the task card, or Stop this task.',
+        ),
+        findsOneWidget,
+      );
+
+      // Succeeded without independent evidence vs grounded succeeded.
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-unverified-success',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Unverified success objective',
+          'objective_revision': 1,
+          'state': 'succeeded',
+          'idempotency_key': 'k-unv',
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails(
+          'Finished without independent completion evidence; verify receipts before relying on completion.',
+        ),
+        findsOneWidget,
+      );
+
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-grounded-success',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Grounded success objective',
+          'objective_revision': 1,
+          'state': 'succeeded',
+          'idempotency_key': 'k-gnd',
+          'evidence': [
+            {
+              'schema_version': '1.0',
+              'kind': 'file',
+              'summary': 'Wrote result.txt',
+              'path': 'result.txt',
+              'sha256': '1234567890abcdef',
+              'objective_revision': 1,
+            },
+          ],
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails(
+          'Completed with recorded evidence below; inspect receipts to verify.',
+        ),
+        findsOneWidget,
+      );
+
+      // Failed state.
+      state.setTasks([
+        AgentTask.fromJson({
+          'schema_version': '1.0',
+          'task_id': 'task-failed',
+          'session_id': 'a',
+          'thread_id': 'thread-a',
+          'epoch': 1,
+          'objective': 'Failed task objective',
+          'objective_revision': 1,
+          'state': 'failed',
+          'error': 'Sandbox command exited with status 2',
+          'idempotency_key': 'k-fail',
+        }),
+      ]);
+      await tester.pump();
+      expect(
+        inDetails('Task failed: Sandbox command exited with status 2'),
+        findsOneWidget,
+      );
+
       expect(tester.takeException(), isNull);
       await close(tester, state);
     },

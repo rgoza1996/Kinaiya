@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "receipt_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "backend_id",
+    "receipt_id",
+    "sha256"
+  ],
+  "title": "MediaNativeRef",
+  "type": "object"
+}

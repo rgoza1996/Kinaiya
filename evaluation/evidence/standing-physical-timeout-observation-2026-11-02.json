@@ -1,0 +1,314 @@
+{
+  "artifacts": "Raw logs/JUnit/receipts are local ignored artifacts identified by hashes, not published Actions artifacts. The separate main-based CI report-retention patch is reviewed/qualified locally but GitHub rejected publication for missing workflow scope.",
+  "base": "94bb16f270c343feac2ea3f01e1a7bcedc9dff7c",
+  "independent_final_source_review": {
+    "receipt_sha256": "7b3e909034ec7355159eda5564add73b3f758e525ebb43b2e4e945686004fc95",
+    "result": "No remaining actionable finding on exact366 source after correction and disclosed oracle calibration.",
+    "reviewer": "C, source-only, no test/import/profiler execution"
+  },
+  "interface": {
+    "authority": "Python object IDs, cached state and bounded code positions only; never permission or retirement testimony. Snapshot follows facade cancellation, not necessarily the original deadline instant.",
+    "await_chain_frames": 24,
+    "collection_entries": 32,
+    "exclusions": [
+      "frame locals/arguments/source paths",
+      "claim/task/backend identities and private capability/auth data",
+      "request/binding/reservation/report/prompt/transcript payloads",
+      "SQL/proc/filesystem/network/status/model/cleanup calls",
+      "new Tasks, timers, awaits, signals or owner changes"
+    ],
+    "helper": "_physical_timeout_snapshot(value)",
+    "overflow": "Prune only newly constructed diagnostic dictionaries/lists and mark truncated; diagnostic failure adds only its class name and preserves the original timeout.",
+    "qualname_chars": 64,
+    "serialized_json_bytes": 32768,
+    "top_keys": [
+      "calls",
+      "operations",
+      "exchanges",
+      "captures",
+      "workers",
+      "streams",
+      "gates",
+      "locks",
+      "state",
+      "truncated"
+    ]
+  },
+  "local_runs": [
+    {
+      "changed_pins": [],
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_physical_timeout_observation.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-physical-observer-cold-v1-3oupt9x_/junit.xml"
+      ],
+      "elapsed_wall_s": 1.0429167109978152,
+      "exit_code": 1,
+      "head": "2963c3c1422d37fc09d54c9e41842add2beb9707",
+      "head_after": "2963c3c1422d37fc09d54c9e41842add2beb9707",
+      "initial_status": "",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "0.674",
+          "timestamp": "2026-11-02T01:39:43.547335-08:00"
+        }
+      ],
+      "limitations": [
+        "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+        "Task completion or empty registries alone are not original-owner cleanup proof."
+      ],
+      "phase": "239-physical-observer-cold-v1",
+      "pins_preserved": true,
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "raw_artifact_sha256": {
+        "junit.xml": "787cdbb5c77a7d671e3210a5dd953ecf6bdee288bf8b631cbf596885898d41cd",
+        "manifest.json": "e9d94aa0a97352fe2fa5ffa0e89eb4aa02c02827b5a78b08e4cc0a320556a71d",
+        "pytest.log": "5d3d948be68c996fdfba1d70100414cf71807029035c2ed053119e1e9a321227",
+        "receipt.json": "8c92ac2741734cea6c268a44eceb464fb7ca10cecc1cf43ec588fb0f099006c1"
+      },
+      "tracked_input_count": 1499
+    },
+    {
+      "changed_pins": [],
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_physical_timeout_observation.py",
+        "tests/integration/test_standing_physical_timeout_controls.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-physical-observer-hot-v1-8s0cwcbr/junit.xml"
+      ],
+      "elapsed_wall_s": 6.644428278996202,
+      "exit_code": 1,
+      "head": "04913bd4e5633550b3533cbec20c23604ffefe94",
+      "head_after": "04913bd4e5633550b3533cbec20c23604ffefe94",
+      "initial_status": "",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "2",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "2",
+          "time": "6.267",
+          "timestamp": "2026-11-02T01:42:45.715622-08:00"
+        }
+      ],
+      "limitations": [
+        "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+        "Task completion or empty registries alone are not original-owner cleanup proof."
+      ],
+      "phase": "239-physical-observer-hot-v1",
+      "pins_preserved": true,
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "raw_artifact_sha256": {
+        "junit.xml": "b5f14c5490f79b90f518a4ce47d381bb77bd3435cb322fbb1e396431dad1981e",
+        "manifest.json": "df5c21e2c364223da2d7f3582b6a67c1b0ebde0948188a0fbca7685c144ff3b6",
+        "pytest.log": "edec8903b6795101c3f4ed7c9d8bba155a55e07032b75403ca42e2022e9a1bfc",
+        "receipt.json": "e1314c932bd93176fb1e1cc5610122d86bed88d44823129563c52bd064aa3d81"
+      },
+      "tracked_input_count": 1500
+    },
+    {
+      "changed_pins": [],
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_physical_timeout_observation.py",
+        "tests/integration/test_standing_physical_timeout_controls.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-physical-observer-hot-v2-yvewxqb8/junit.xml"
+      ],
+      "elapsed_wall_s": 6.7840014940011315,
+      "exit_code": 0,
+      "head": "36668c2b97220ca9636ddd7b08e97e4c3d82cba6",
+      "head_after": "36668c2b97220ca9636ddd7b08e97e4c3d82cba6",
+      "initial_status": "",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "2",
+          "time": "6.401",
+          "timestamp": "2026-11-02T01:49:50.008291-08:00"
+        }
+      ],
+      "limitations": [
+        "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+        "Task completion or empty registries alone are not original-owner cleanup proof."
+      ],
+      "phase": "239-physical-observer-hot-v2",
+      "pins_preserved": true,
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "raw_artifact_sha256": {
+        "junit.xml": "d3dab08da6323aa2d411876338a3e2bc1f71462c1cdef03f56270885bd454518",
+        "manifest.json": "13157273987101f83e6b302345f571597874a78f6754284905a6356070fcb136",
+        "pytest.log": "ffefde319167313b370b60e3821c75e814531b7558d9aa838561bb98ebf912b1",
+        "receipt.json": "1727a1877792d13d1d608938b3367b00849592a032e6ef8923fabad3bd7798bf"
+      },
+      "tracked_input_count": 1500
+    },
+    {
+      "changed_pins": [],
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_physical_finalization.py",
+        "tests/integration/test_standing_physical_capture_fences.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-physical-observer-regression-v1-2pr0tld5/junit.xml"
+      ],
+      "elapsed_wall_s": 320.0307845119969,
+      "exit_code": 0,
+      "head": "36668c2b97220ca9636ddd7b08e97e4c3d82cba6",
+      "head_after": "36668c2b97220ca9636ddd7b08e97e4c3d82cba6",
+      "initial_status": "",
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "62",
+          "time": "318.371",
+          "timestamp": "2026-11-02T01:50:42.191066-08:00"
+        }
+      ],
+      "limitations": [
+        "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+        "Task completion or empty registries alone are not original-owner cleanup proof."
+      ],
+      "phase": "239-physical-observer-regression-v1",
+      "pins_preserved": true,
+      "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+      "raw_artifact_sha256": {
+        "junit.xml": "7d1993ee9ed74dbf80dfb45a4e3870df168e353980e3d7fc7a13393ca84a5fd5",
+        "manifest.json": "b43df4d68a19d43bf3d2799bb3bea06406a06496a261ad3eb20c138fbc9c51f4",
+        "pytest.log": "1006f9b4ef2bb577dd6602e5991c36bce3a276bec28448b39e96b0f8a2fcd723",
+        "receipt.json": "a803c1a072002eed546a5891af9a8bb8ef9d5f6f0c1cb505505c343b932653d9"
+      },
+      "tracked_input_count": 1500
+    }
+  ],
+  "local_static": {
+    "diff": "Passed.",
+    "limits": "Runtime controls exercise real held owners and bounded output, not a synthetic maximum-boundary fuzz campaign.",
+    "production_paths": "All byte exact to base before adding this evidence record.",
+    "ruff": "Whole repository check and format passed;780 files already formatted.",
+    "schemas": "No schema edits; exporter not rerun for this test-only change.",
+    "static_receipt_sha256": "f2d48c6e45ea54cfe5783e07a02435c81c13e1e3ad897017eee3814c38283291"
+  },
+  "old_fixture": {
+    "exact_original_wait_for_begin_value_8_expressions": 3,
+    "exception": "Same original TimeoutError is bare re-raised. No observation before the existing timeout.",
+    "normalized_entire_module_ast_exact_after_only_helper_and_wrappers_removed": true,
+    "source_sha256": "3a7840ca62ea17cf767c61eccdac2fb3dcab56a74895b3fb8515e053aeb949a7",
+    "unchanged_assertions": 233
+  },
+  "oracle_provenance": {
+    "calibrated_assertions": 36,
+    "calibration_receipt_sha256": "d3f761a4c789cbba1f6c4c2cc21d9720706c23c6e43da75d61318375e9b77770",
+    "contract_first_frozen_commit": "22f22cfc9cf68ab69882d8373b7c5942a90aab73",
+    "frozen_assertions": 35,
+    "frozen_file_sha256": "136ae964b6a602805b8161c6b41a356a79f32be4175d3feeda59f7f36fd1430e",
+    "initial_hot": "Both initial hot cases failed; all raw outcomes remain below. The frozen oracle does not pass unchanged.",
+    "rationale": [
+      "Opaque terminal awaitables legitimately have no cr/gi code/frame. Permit only a final fixed awaitable classification/null line while still requiring real integer-frame evidence, original task identities/status and all bounds. No source line is fabricated.",
+      "The factory installs its stop recorder before initialize. Initial Off performs two intentional idempotent stop passes even when no process exists (coordinator347-387/831-840/872/906; Manager1495-1500). Compare exact pre-begin start/stop histories rather than requiring an empty lifetime stop log; retain no starts/effects/inference."
+    ],
+    "source_aware_calibration_commit": "d1095a4180442096ae54f7fe9d16670759537afb",
+    "unchanged": "All other original oracle assertions, no-progress/IO/SQL/privacy checks and all original Await expressions remain exact. Root separately adds only a post-timeout note around its existing eight-second tail; normalized final oracle AST equals calibrated d109."
+  },
+  "qualified_source": "36668c2b97220ca9636ddd7b08e97e4c3d82cba6",
+  "remaining": [
+    "No fix/cause claim for the historical CI timing failures.",
+    "No automatic Agent retirement, Task settlement/release, recurrence/inbox or full roadmap completion.",
+    "No model accuracy/profile/speed qualification, inference, paid/provider/GPU/device/local install/live-service/configuration or preview operation."
+  ],
+  "requirement": [
+    "#239 original Resources operation ownership",
+    "#228 standing-work integration",
+    "AGENTS.md honest gates, source control and preserved failures"
+  ],
+  "reviewed_correction": {
+    "behavior": "Read optional cached metadata and classify known release-only controls without touching their Event or owner.",
+    "correction": "eab406a36c21554017d4ffe333f9ac68f6982706",
+    "finding": "Existing capture-fence fixtures retain SimpleNamespace(release=Event) in faults; mandatory SqlFault metadata would lose the whole snapshot to AttributeError fallback. This was a source finding before runtime qualification, not a reproduced CI cause.",
+    "initial_implementation": "72927910478d519dfeaf73a93d24896fd9c5755f",
+    "initial_review_sha256": "077885744e557a4aebd1173c02a1fd553603c1a8a95928723d0e17aeab9b8148"
+  },
+  "scope": "Test-only post-timeout original-owner diagnostics. No runtime, permission, model, API, schema or production change; no historical CI repair claim.",
+  "supplemental_control": {
+    "behavior": "Genuine Session SQLite/ASGI held original context, normal SqlFault plus known release-only control; verify both retained control identities, no advancement, then original healthy no-reservation receipt and original scope/work/HTTP sole-close joins.",
+    "case": "test_snapshot_keeps_original_context_with_release_only_control",
+    "kind": "Explicitly source-aware root-authored regression, not a second independently frozen oracle.",
+    "worker_limit": "These two new context controls do not launch a worker or model. Existing physical regressions retain process/reaper coverage."
+  },
+  "unresolved_ci": {
+    "CI431": "Nine original Python3.12 eight-second physical waits failed; source a19 tree exactly tested.",
+    "CI432": {
+      "merge": "c70b5ce834f3df1e543401cca3f2a85acd0d7212",
+      "platforms": "Flutter/Android/iOS passed.",
+      "python311": "10841 passed,6 skipped,2 deselected,1 warning,1480.00s.",
+      "python312": "10832 passed,9 failed,6 skipped,2 deselected,1 warning,2562.70s; same nine original physical waits.",
+      "raw_py312_log_sha256": "4b7cdb0bf9d776450112521a0399f2764b2036c7396d7121997b40da65be2979",
+      "run": 41412727326,
+      "tree_exact_to_base94bb": true
+    },
+    "interpretation": "Raw facades/pending roots do not identify the inner phase or eventual cleanup. No flake, CPU, physical-stop, teardown or deadlock cause is inferred. No deadline was relaxed, case skipped or retry used to erase these failures.",
+    "related": "CI430/433 handoff failures and separate diagnostic PR285 remain recorded; changed-head CI and parent integration are merge gates."
+  }
+}

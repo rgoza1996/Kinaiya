@@ -1,26 +1,37 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/agent_model_client.dart';
 import 'package:kinaiya_flutter/api/agent_model_settings.dart';
 import 'package:kinaiya_flutter/state/agent_model_writes.dart';
+
 import 'agent_model_settings_test.dart';
 import 'agent_model_transport_test.dart'
     show ModelTestClient, modelApi, modelResponse, sentBody;
 
 void main() {
-  test(
+  testWidgets(
     'owner and backend switches hide original operation; same scope reconnect preserves it',
-    () async {
+    (WidgetTester tester) async {
       final held = Completer<http.StreamedResponse>();
-      final firstClient = ModelTestClient((_) => held.future);
-      final original = modelApi(() => firstClient, timeoutMs: 20);
+      final dispatched = Completer<void>();
+      final firstClient = ModelTestClient((request) {
+        if (!dispatched.isCompleted) dispatched.complete();
+        return held.future;
+      });
+      final original = modelApi(() => firstClient, timeoutMs: 10000);
       final writes = AgentModelWrites(
         displayDeadline: const Duration(milliseconds: 5),
       );
       final request = AgentModelChange.fromJson(changeJson());
       final op = writes.begin(original, authority(), request)!;
       final sending = writes.retry(op, original, authority());
+      await tester.pump();
+      expect(dispatched.isCompleted, isTrue);
+      await dispatched.future;
+      expect(firstClient.sends, 1);
+      await tester.pump(const Duration(seconds: 10));
       await sending;
       expect(op.uncertain, isTrue);
       var otherRequests = 0;
@@ -63,7 +74,7 @@ void main() {
       expect(sent.single, request.body);
       expect(op.mutationOwners, 1); // Logical settlement did not fake cleanup.
       held.complete(modelResponse(receiptJson(request.body)));
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await tester.pump(const Duration(milliseconds: 20));
       expect(op.mutationOwners, 0);
       await reconnect.close();
       await otherOwner.close();

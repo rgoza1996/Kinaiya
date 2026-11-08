@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kinaiya_flutter/api/models.dart';
+import 'package:kinaiya_flutter/character/package.dart';
+import 'package:kinaiya_flutter/config/connection.dart';
+import 'package:kinaiya_flutter/state/app_state.dart';
+import 'package:kinaiya_flutter/ui/character_view.dart';
 import 'package:kinaiya_flutter/ui/converse_interaction.dart';
 import 'package:kinaiya_flutter/ui/design_tokens.dart';
+import 'package:kinaiya_flutter/ui/model_setup.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
+
+import 'converse_stage_test.dart' show StageApi, StageAudio;
 
 class _CharacterProbe extends StatefulWidget {
   const _CharacterProbe({
@@ -48,6 +57,7 @@ Widget _screen({
   double hostRailWidth = 0,
   ThemeData? theme,
   bool activeVoice = false,
+  ConverseStageState? stageState,
   String status = 'Synthetic owner status',
   String callLabel = 'Talk with Kinaiya',
   String microphoneLabel = 'Mute',
@@ -90,6 +100,7 @@ Widget _screen({
                   ),
               modelSummary: const Text('Synthetic supplied model summary'),
               status: status,
+              stageState: stageState,
               callLabel: callLabel,
               microphoneLabel: microphoneLabel,
               onCall: onCall,
@@ -434,4 +445,331 @@ void main() {
     expect(find.byType(DesignPanel), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'stage badge distinguishes listening, recording, muted, thinking, speaking, and unavailable states across desktop and 320px',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      for (final viewport in [const Size(1280, 900), const Size(320, 568)]) {
+        _viewport(tester, viewport);
+        for (final state in ConverseStageState.values) {
+          await tester.pumpWidget(
+            _screen(
+              stageState: state,
+              status: 'Owner detail for ${state.name}',
+              activeVoice:
+                  state == ConverseStageState.listening ||
+                  state == ConverseStageState.recording ||
+                  state == ConverseStageState.speaking,
+            ),
+          );
+          expect(
+            find.byKey(const ValueKey('converse-stage-state-badge')),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .widget<Text>(
+                  find.byKey(const ValueKey('converse-stage-state-label')),
+                )
+                .data,
+            state.label,
+          );
+          expect(
+            find.bySemanticsLabel('Stage state: ${state.label}'),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+        }
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'CharacterView interaction stage reflects confirmed owner states without masquerading text or armed mic as playback',
+    (tester) async {
+      _viewport(tester, const Size(1280, 900));
+      final pack = (await tester.runAsync(
+        () => loadDefaultCharacterSelection(rootBundle),
+      ))!;
+      final api = StageApi();
+      final audio = StageAudio();
+      final state = AppState()
+        ..client = api
+        ..connected = false
+        ..sessionAuthenticated = false
+        ..converseEnabled = true
+        ..converseOnline = true
+        ..converseInferenceAllowed = true
+        ..converseSession = SessionInfo(
+          sessionId: 's-stage',
+          threadId: 't-stage',
+          epoch: 1,
+          channel: 'converse',
+          name: 'Converse',
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => CharacterView(
+                state: state,
+                audio: audio,
+                character: pack,
+                surface: CharacterSurface.interaction,
+                showCharacter: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      String currentBadge() => tester
+          .widget<Text>(
+            find.byKey(const ValueKey('converse-stage-state-label')),
+          )
+          .data!;
+
+      // 1. Offline / unauthenticated shows Unavailable.
+      expect(currentBadge(), 'Unavailable');
+      expect(find.text('Connect to start a conversation'), findsOneWidget);
+
+      // 2. Authenticated idle with model-generated message stays Microphone muted (never Playing response).
+      state
+        ..connected = true
+        ..sessionAuthenticated = true
+        ..appendHistory(
+          AppView.character,
+          ChatMsg(role: 'kinaiya', text: 'Generated text only'),
+        );
+      state.touch();
+      await tester.pump();
+      expect(currentBadge(), 'Microphone muted');
+      expect(find.text('Ready to talk'), findsOneWidget);
+
+      // 3. Starting Call arms mic -> Listening (never Playing response).
+      await tester.tap(find.byKey(const ValueKey('converse-call')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(currentBadge(), 'Listening');
+      expect(find.text('Live microphone on'), findsOneWidget);
+
+      // 4. Busy Converse while armed transitions badge to Thinking.
+      state.busyConverse = true;
+      state.touch();
+      await tester.pump();
+      expect(currentBadge(), 'Thinking');
+      state.busyConverse = false;
+      state.touch();
+      await tester.pump();
+      expect(currentBadge(), 'Listening');
+
+      // 5. Muting microphone returns to Microphone muted.
+      await tester.tap(find.byKey(const ValueKey('converse-microphone')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(currentBadge(), 'Microphone muted');
+
+      // 6. Starting clip recording via Tell shows Recording clip.
+      await tester.tap(find.byKey(const ValueKey('converse-tell-inline')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(currentBadge(), 'Recording clip');
+      expect(find.text('Recording a voice message'), findsOneWidget);
+
+      // 7. Stale resource status on reconnect transitions to Unavailable.
+      state.resourceStatusStale = true;
+      state.touch();
+      await tester.pump();
+      expect(currentBadge(), 'Unavailable');
+      expect(find.text('Voice availability unconfirmed'), findsOneWidget);
+
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
+
+  testWidgets(
+    'ConverseModelSummary stays compact by default, discloses local/cloud/missing states truthfully, and expands details without mutating state',
+    (tester) async {
+      _viewport(tester, const Size(1280, 900));
+      var openedModelSettings = 0;
+      var openedPrivacy = 0;
+      final state = AppState();
+
+      Widget buildSummary({double textScale = 1.0}) => MaterialApp(
+        theme: kinaiyaTheme(brightness: Brightness.dark, designSystem: true),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: ListenableBuilder(
+            listenable: state,
+            builder: (_, _) => ConverseInteraction(
+              character: const ColoredBox(color: Color(0xFF253359)),
+              transcript: ListView(
+                children: const [Text('Transcript line one')],
+              ),
+              composer: const TextField(
+                decoration: InputDecoration(hintText: 'Composer'),
+              ),
+              modelSummary: ConverseModelSummary(
+                state: state,
+                onModelSettings: () => openedModelSettings++,
+                onConnectionSetup: () => openedPrivacy++,
+              ),
+              status: 'Idle',
+              callLabel: 'Talk with Kinaiya',
+              microphoneLabel: 'Unmute',
+              onModelSettings: () => openedModelSettings++,
+              onHistory: () {},
+              onVoiceOptions: () {},
+              onMemory: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildSummary());
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-model-summary-identity')),
+            )
+            .data,
+        'Not connected · Conversation model unknown',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-model-summary-qualification'),
+              ),
+            )
+            .data,
+        'Disconnected · Open Connection & privacy to connect',
+      );
+      expect(
+        find.byKey(const ValueKey('converse-model-summary-details')),
+        findsNothing,
+      );
+
+      // Connected with verified local provider.
+      state
+        ..connected = true
+        ..sessionAuthenticated = true
+        ..converseOnline = true
+        ..converseInferenceAllowed = true
+        ..converseProvider = {
+          'provider': 'ollama',
+          'model': 'llama3.2:3b',
+          'local': true,
+        };
+      state.touch();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-model-summary-identity')),
+            )
+            .data,
+        'llama3.2:3b',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-model-summary-qualification'),
+              ),
+            )
+            .data,
+        'Local inference (ollama)',
+      );
+      expect(
+        find.byKey(const ValueKey('converse-model-summary-privacy')),
+        findsNothing,
+      );
+
+      // Cloud provider without disclosure consent shows privacy warning and Connection & privacy shortcut.
+      state
+        ..connection = ConnectionProfile.defaults()
+        ..converseInferenceAllowed = false
+        ..converseProvider = {
+          'provider': 'meta',
+          'model': 'muse-spark-1.3-contributor',
+          'local': false,
+        };
+      state.touch();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-model-summary-identity')),
+            )
+            .data,
+        'muse-spark-1.3-contributor',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-model-summary-qualification'),
+              ),
+            )
+            .data,
+        'Cloud provider (meta) · Privacy disclosure required',
+      );
+      final privacyButton = find.byKey(
+        const ValueKey('converse-model-summary-privacy'),
+      );
+      expect(privacyButton, findsOneWidget);
+      await tester.tap(privacyButton);
+      await tester.pump();
+      expect(openedPrivacy, 1);
+
+      // Expanding technical details does not change model or disclosure state.
+      await tester.tap(
+        find.byKey(const ValueKey('converse-model-summary-toggle')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-model-summary-details')),
+        findsOneWidget,
+      );
+      expect(find.text('Provider: meta'), findsOneWidget);
+      expect(
+        find.text('Disclosure profile: Local inference only'),
+        findsOneWidget,
+      );
+      expect(state.converseInferenceAllowed, isFalse);
+
+      // The quick picker keeps full model settings available.
+      await tester.tap(
+        find.byKey(const ValueKey('converse-model-summary-settings')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit models…'));
+      await tester.pumpAndSettle();
+      expect(openedModelSettings, 1);
+
+      // Narrow 320px at 2x text scaling remains readable without overflow.
+      _viewport(tester, const Size(320, 568));
+      await tester.pumpWidget(buildSummary(textScale: 2.0));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Transcript line one'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+    },
+  );
 }

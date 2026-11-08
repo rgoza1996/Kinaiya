@@ -49,6 +49,28 @@ remains. Mandatory network isolation and address-space/CPU-affinity controls
 belong to the trusted child launcher; constructing this low-level class does
 not install those caller-owned controls.
 
+## Production construction and settled work retention
+
+The isolated `whistle_worker.main` explicitly enables the existing native
+streaming binding after mandatory isolation. The low-level constructor retains
+its batch-compatible `enable_streaming=False` default. Enabling the worker seam
+does not select a microphone/provider path or invoke native streaming before an
+authorized stream request; ordinary batch calls remain available while idle.
+
+The managed broker retains the exact current append/finish task until its result
+passes currentness checks and the bounded acknowledgement is ready. Successful
+appends retain one last acknowledgement for exact replay, rather than every
+settled task and transcript result. Healthy serial streams retain at most one
+current work task and no completed-task history. Failed, cancelled, or uncertain
+work remains owned with its original cleanup; a settled task alone cannot prove
+process/group release or authorize replacement.
+
+Synthetic regressions cover the production `main` construction path, hundreds
+of contiguous one-sample appends and last-ACK replay, and an original operation
+that remains pending despite cancellation and later settles while cleanup is
+unconfirmed. These establish wiring and retention behavior, not actual-engine
+quality, throughput, physical audio, or the broader #49/M2 acceptance gates.
+
 ## Integration still required
 
 The next adapter must share one batch/incremental/retained-cleanup slot and bind

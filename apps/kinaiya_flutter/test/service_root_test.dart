@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -11,6 +12,8 @@ import 'package:kinaiya_flutter/api/memory_models.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/setup_dialog.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart';
+
 import 'agent_workspace_state_test.dart' show harnessJson;
 import 'decisions_inspection_test.dart' as decisions;
 import 'memory_models_test.dart' as memory;
@@ -396,7 +399,167 @@ void main() {
         expect(find.textContaining('invalid service path'), findsOneWidget);
         expect(factories, 0);
         expect(state.connection, isNull);
+        await t.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+        await t.pump();
       }
+      await t.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'connection setup explains choices in user language, preserves unsaved input across collapse, keeps errors visible, and never prints existing owner tokens',
+    (t) async {
+      const secretToken = 'secret-owner-token-do-not-print-991';
+      final state = AppState()
+        ..connect(
+          ConnectionProfile(
+            sessionUrl: 'http://127.0.0.1:8760',
+            agentUrl: 'http://127.0.0.1:8761',
+            converseUrl: 'http://127.0.0.1:8762',
+            ownerToken: secretToken,
+          ),
+          injected: mockClient(),
+        );
+      await t.pump();
+      state.connected = true;
+      state.sessionAuthenticated = false;
+      state.connectionError = null;
+      addTearDown(state.dispose);
+
+      await t.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: SetupDialog(state: state, embedded: true)),
+        ),
+      );
+      await t.pump();
+
+      // Plain-language explanations and existing token hint without revealing secret token.
+      expect(find.byKey(const ValueKey('setup-user-guide')), findsOneWidget);
+      expect(find.byKey(const ValueKey('setup-privacy-guide')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('setup-existing-token-hint')),
+        findsOneWidget,
+      );
+      expect(find.textContaining(secretToken), findsNothing);
+
+      // Pending/unauthenticated state never implies confirmed success.
+      expect(
+        find.text(
+          'Connection pending or unauthenticated — host session not yet verified.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.unconfirmed,
+      );
+      expect(find.text('Outcome unconfirmed'), findsOneWidget);
+
+      // In-progress check reports ActionOutcomeState.inProgress rather than Confirmed.
+      state.connected = false;
+      state.connectionError = 'Checking services…';
+      state.touch();
+      await t.pump();
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.inProgress,
+      );
+      expect(find.text('In progress'), findsOneWidget);
+
+      // Failed authentication reports ActionOutcomeState.failed.
+      state.connectionError =
+          'Session authentication or connection failed. Check setup.';
+      state.touch();
+      await t.pump();
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.failed,
+      );
+      expect(find.text('Action failed'), findsOneWidget);
+
+      // Confirmed connection reports ActionOutcomeState.confirmed only when connected && sessionAuthenticated.
+      state.connected = true;
+      state.sessionAuthenticated = true;
+      state.connectionError = null;
+      state.touch();
+      await t.pump();
+      expect(
+        t
+            .widget<ActionOutcomeFeedback>(
+              find.byKey(const ValueKey('setup-connection-outcome')),
+            )
+            .state,
+        ActionOutcomeState.confirmed,
+      );
+      expect(find.text('Confirmed'), findsOneWidget);
+
+      // Advanced protocol details start collapsed and expand on demand.
+      expect(find.byKey(const ValueKey('setup-advanced-panel')), findsNothing);
+      await t.ensureVisible(
+        find.byKey(const ValueKey('setup-advanced-toggle')),
+      );
+      await t.tap(find.byKey(const ValueKey('setup-advanced-toggle')));
+      await t.pump();
+      expect(
+        find.byKey(const ValueKey('setup-advanced-panel')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Connection generation:'), findsOneWidget);
+      expect(find.textContaining(secretToken), findsNothing);
+
+      // Unsaved endpoint edits survive collapsing and re-expanding, and invalid URL errors stay visible when collapsed.
+      await t.enterText(
+        find.byType(TextField).first,
+        'http://127.0.0.1:8760/a/../invalid',
+      );
+      await t.ensureVisible(
+        find.byKey(const ValueKey('setup-endpoints-toggle')),
+      );
+      await t.tap(find.byKey(const ValueKey('setup-endpoints-toggle')));
+      await t.pump();
+      expect(
+        find.byKey(const ValueKey('setup-endpoints-summary')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('http://127.0.0.1:8760/a/../invalid'),
+        findsOneWidget,
+      );
+      expect(find.textContaining(secretToken), findsNothing);
+
+      await t.tap(find.text('Connect'));
+      await t.pump();
+      expect(
+        find.byKey(const ValueKey('setup-validation-error')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('invalid service path'), findsOneWidget);
+      await t.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+      await t.pump();
+
+      // Re-expanding preserves the unsaved text in the controller.
+      await t.ensureVisible(
+        find.byKey(const ValueKey('setup-endpoints-toggle')),
+      );
+      await t.tap(find.byKey(const ValueKey('setup-endpoints-toggle')));
+      await t.pump();
+      expect(
+        t.widget<TextField>(find.byType(TextField).first).controller!.text,
+        'http://127.0.0.1:8760/a/../invalid',
+      );
+
       await t.pumpWidget(const SizedBox.shrink());
     },
   );

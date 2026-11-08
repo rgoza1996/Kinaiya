@@ -1,4 +1,4 @@
-"""Resources-owned direct batch STT child; only framed private Unix IPC."""
+"""Resources-owned batch/incremental STT child; only framed private Unix IPC."""
 
 import argparse
 import os
@@ -23,6 +23,7 @@ from packages.providers.whistle_ipc import (
     write_frame,
 )
 from packages.providers.whistle_isolation import deny_network
+from packages.providers.whistle_stream import MAX_CHUNK_SAMPLES
 
 
 def serve(directory, engine, incarnation, isolation, listener, parent_pid):
@@ -51,23 +52,56 @@ def serve(directory, engine, incarnation, isolation, listener, parent_pid):
                     or request["incarnation"] != incarnation
                     or not token(request["nonce"])
                     or not isinstance(request["kind"], str)
-                    or request["kind"] not in {"probe", "transcribe"}
+                    or request["kind"]
+                    not in {
+                        "probe",
+                        "transcribe",
+                        "stream_begin",
+                        "stream_pcm",
+                        "stream_finish",
+                    }
                 ):
                     raise ValueError("Invalid Whistle request identity")
+                kind = request["kind"]
+                response_kind = (
+                    "ready"
+                    if kind == "probe"
+                    else (
+                        "stream_ready"
+                        if kind == "stream_begin"
+                        else ("stream_result" if kind.startswith("stream_") else "result")
+                    )
+                )
                 result = {
                     "version": VERSION,
-                    "kind": "ready" if request["kind"] == "probe" else "result",
+                    "kind": response_kind,
                     "pid": os.getpid(),
                     "incarnation": incarnation,
                     "nonce": request["nonce"],
                 }
-                if request["kind"] == "transcribe":
+                if kind == "transcribe":
                     data = read_frame(fd, MAX_AUDIO_BYTES)
                     try:
                         result["text"] = engine.transcribe(data)
                     except Exception:
                         # Do not copy native error text/audio/transcripts into logs.
                         result["error"] = "transcription_failed"
+                elif kind == "stream_begin":
+                    try:
+                        engine.begin_stream()
+                    except Exception:
+                        result["error"] = "stream_failed"
+                elif kind == "stream_pcm":
+                    pcm16 = read_frame(fd, MAX_CHUNK_SAMPLES * 2)
+                    try:
+                        result["update"] = engine.stream_pcm(pcm16)
+                    except Exception:
+                        result["error"] = "stream_failed"
+                elif kind == "stream_finish":
+                    try:
+                        result["update"] = engine.finish_stream()
+                    except Exception:
+                        result["error"] = "stream_failed"
                 write_frame(fd, encode_json(result, MAX_RESPONSE_BYTES), MAX_RESPONSE_BYTES)
             except (OSError, EOFError, ValueError):
                 continue
@@ -107,7 +141,7 @@ def main():
         isolation = deny_network()
         from packages.providers.whistle_backend import WhistleEngine
 
-        engine = WhistleEngine(args.weights, args.library, args.workspace)
+        engine = WhistleEngine(args.weights, args.library, args.workspace, enable_streaming=True)
         serve(directory, engine, secrets.token_hex(32), isolation, listener, parent_pid)
 
 

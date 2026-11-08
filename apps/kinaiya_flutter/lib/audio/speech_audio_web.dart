@@ -18,13 +18,22 @@ import 'speech_audio.dart';
 @JS('kinaiyaAudio')
 external JSObject? get _bridge;
 
+class _NativePcmCaptureRefusal extends FormatException {
+  const _NativePcmCaptureRefusal()
+    : super('Native microphone capture unavailable');
+}
+
 class _WebSpeechAudio
     implements
         SpeechAudio,
         WindowSpeechAudio,
         SpeechMouthAudio,
-        AdaptiveVadAudio {
+        AdaptiveVadAudio,
+        NativePcmCaptureAudio,
+        AudioInputSelection,
+        AudioOutputSelection {
   bool get _ready => _bridge != null;
+  bool _nativePcmEnabled = false;
 
   @override
   bool get supportsVadSettings {
@@ -85,6 +94,212 @@ class _WebSpeechAudio
 
   Future<String> _str0(String name) async => _strOf(_call0(name));
   Future<String> _str1(String name, JSAny a) async => _strOf(_call1(name, a));
+
+  bool _hasMethod(String name) {
+    final method = _bridge?.getProperty<JSAny?>(name.toJS);
+    return method != null && method.isA<JSFunction>();
+  }
+
+  @override
+  bool get supportsNativePcmCapture =>
+      _ready && _hasMethod('nativePcmConfigure');
+
+  @override
+  Future<void> configureNativePcmCapture(bool enabled) async {
+    if (!supportsNativePcmCapture ||
+        await _str1('nativePcmConfigure', enabled.toJS) !=
+            (enabled ? 'native-pcm' : 'legacy')) {
+      throw StateError('Native microphone capture unavailable');
+    }
+    _nativePcmEnabled = enabled;
+  }
+
+  @override
+  Future<List<AudioInputDevice>> audioInputs() async {
+    if (!_ready || !_hasMethod('inputDevices')) {
+      throw StateError('Audio input selection unavailable');
+    }
+    try {
+      final raw = jsonDecode(await _str0('inputDevices'));
+      if (raw is Map &&
+          raw.length == 7 &&
+          raw.keys.every(
+            const {
+              'supported',
+              'pending',
+              'explicit',
+              'failed',
+              'devices',
+              'status',
+              'reason',
+            }.contains,
+          ) &&
+          raw['supported'] == true &&
+          raw['pending'] == false &&
+          raw['explicit'] is bool &&
+          raw['failed'] is bool &&
+          raw['devices'] is List &&
+          (raw['devices'] as List).isEmpty &&
+          raw['status'] == 'unavailable' &&
+          raw['reason'] == 'identifiers-unavailable') {
+        throw const AudioInputDiscoveryUnavailable(
+          AudioInputDiscoveryReason.identifiersUnavailable,
+        );
+      }
+      if (raw is! Map ||
+          raw.containsKey('reason') ||
+          raw['supported'] != true ||
+          raw['status'] != 'ready' ||
+          raw['pending'] != false ||
+          raw['failed'] != false) {
+        throw StateError('Audio input selection unavailable');
+      }
+      final devices = raw['devices'];
+      if (devices is! List || devices.length > 128) {
+        throw StateError('Audio input selection unavailable');
+      }
+      final ids = <String>{};
+      final result = <AudioInputDevice>[];
+      for (final device in devices) {
+        if (device is! Map ||
+            device['id'] is! String ||
+            (device['id'] as String).isEmpty ||
+            (device['id'] as String).length > 4096 ||
+            device['label'] is! String ||
+            (device['label'] as String).length > 4096 ||
+            device['selected'] is! bool ||
+            !ids.add(device['id'] as String)) {
+          throw StateError('Audio input selection unavailable');
+        }
+        result.add(
+          AudioInputDevice(
+            opaqueId: device['id'] as String,
+            label: device['label'] as String,
+            selected: device['selected'] as bool,
+          ),
+        );
+      }
+      return List<AudioInputDevice>.unmodifiable(result);
+    } on AudioInputDiscoveryUnavailable {
+      rethrow;
+    } catch (_) {
+      throw StateError('Audio input selection unavailable');
+    }
+  }
+
+  @override
+  Future<String> selectAudioInput(String opaqueId) {
+    if (!_ready || !_hasMethod('selectInput')) {
+      return Future.value('unavailable');
+    }
+    if (opaqueId.isEmpty || opaqueId.length > 4096) {
+      return Future.value('invalid');
+    }
+    return _outputResult(_str1('selectInput', opaqueId.toJS));
+  }
+
+  @override
+  Future<String> useDefaultAudioInput() =>
+      !_ready || !_hasMethod('defaultInput')
+      ? Future.value('unavailable')
+      : _outputResult(_str0('defaultInput'));
+
+  @override
+  Future<List<AudioOutputDevice>> audioOutputs() async {
+    if (!_ready || !_hasMethod('outputDevices')) {
+      throw StateError('Audio output selection unavailable');
+    }
+    try {
+      final raw = jsonDecode(await _str0('outputDevices'));
+      if (raw is! Map ||
+          raw['supported'] != true ||
+          raw['status'] != 'ready' ||
+          raw['pending'] != false ||
+          raw['failed'] != false) {
+        throw StateError('Audio output selection unavailable');
+      }
+      final devices = raw['devices'];
+      if (devices is! List || devices.length > 128) {
+        throw StateError('Audio output selection unavailable');
+      }
+      final result = <AudioOutputDevice>[];
+      final ids = <String>{};
+      for (final device in devices) {
+        if (device is! Map ||
+            device['id'] is! String ||
+            (device['id'] as String).isEmpty ||
+            (device['id'] as String).length > 4096 ||
+            device['label'] is! String ||
+            (device['label'] as String).length > 4096 ||
+            device['selected'] is! bool ||
+            !ids.add(device['id'] as String)) {
+          throw StateError('Audio output selection unavailable');
+        }
+        result.add(
+          AudioOutputDevice(
+            opaqueId: device['id'] as String,
+            label: device['label'] as String,
+            selected: device['selected'] as bool,
+          ),
+        );
+      }
+      return List<AudioOutputDevice>.unmodifiable(result);
+    } catch (_) {
+      throw StateError('Audio output selection unavailable');
+    }
+  }
+
+  Future<String> _outputResult(Future<String> original) async {
+    try {
+      final raw = jsonDecode(await original);
+      const statuses = {
+        'selected',
+        'default',
+        'cancelled',
+        'busy',
+        'unavailable',
+        'invalid',
+        'stopped',
+        'failed',
+      };
+      if (raw is Map && raw.length == 1 && statuses.contains(raw['status'])) {
+        return raw['status'] as String;
+      }
+    } catch (_) {}
+    return 'unavailable';
+  }
+
+  @override
+  Future<String> selectAudioOutput(String opaqueId) {
+    if (!_ready || !_hasMethod('selectOutput')) {
+      return Future.value('unavailable');
+    }
+    if (opaqueId.isEmpty || opaqueId.length > 4096) {
+      return Future.value('invalid');
+    }
+    return _outputResult(_str1('selectOutput', opaqueId.toJS));
+  }
+
+  @override
+  Future<String> chooseAudioOutput() {
+    if (!_ready || !_hasMethod('chooseOutput')) {
+      return Future.value('unavailable');
+    }
+    // Dispatch the picker directly in this non-async owner gesture handler.
+    try {
+      return _outputResult(_strOf(_call0('chooseOutput')));
+    } catch (_) {
+      return Future.value('unavailable');
+    }
+  }
+
+  @override
+  Future<String> useDefaultAudioOutput() {
+    if (!_ready || !_hasMethod('defaultOutput')) {
+      return Future.value('unavailable');
+    }
+    return _outputResult(_str0('defaultOutput'));
+  }
 
   @override
   Future<bool> get availableMic async {
@@ -332,12 +547,20 @@ class _WebSpeechAudio
     if (!_ready) return null;
     try {
       final raw = jsonDecode(await _str0('finishClip')) as Map;
+      if (raw['native_error'] == 'overflow' ||
+          raw['native_error'] == 'unavailable') {
+        throw const _NativePcmCaptureRefusal();
+      }
       final base64 = raw['base64'] as String? ?? '';
       if (base64.isEmpty) return null;
       return RecordedAudio(
         raw['mime'] as String? ?? 'audio/webm',
-        base64Decode(base64),
+        _nativePcmEnabled
+            ? List<int>.unmodifiable(base64Decode(base64))
+            : base64Decode(base64),
       );
+    } on _NativePcmCaptureRefusal {
+      rethrow;
     } catch (_) {
       return null;
     }

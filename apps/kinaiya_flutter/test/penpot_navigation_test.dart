@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -166,6 +167,30 @@ void main() {
       expect(find.byType(PresentationSettings), findsOneWidget);
       await tester.tap(find.byTooltip('Close options'));
       await routePump(tester);
+      // Tapping the hidden-Converse notice on Home opens the Setup bubbles so
+      // Converse view can be restored directly.
+      final hiddenNotice = find.byKey(
+        const ValueKey('home-converse-hidden-setup'),
+      );
+      expect(hiddenNotice, findsOneWidget);
+      await tester.tap(hiddenNotice);
+      await routePump(tester);
+      expect(find.byType(ModelSetupDialog), findsOneWidget);
+      await tester.ensureVisible(viewBubble);
+      await routePump(tester);
+      await tester.tap(viewBubble);
+      await routePump(tester);
+      await tester.ensureVisible(toggle);
+      await tester.pump();
+      await tester.tap(toggle);
+      await tester.pump();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('save-model-setup')),
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('save-model-setup')));
+      await routePump(tester);
+      expect(find.byKey(const ValueKey('navigation-converse')), findsOneWidget);
       expect(f.audio.arms, 1);
       expect(f.audio.armStops, 0);
       expect(tester.takeException(), isNull);

@@ -8,6 +8,7 @@ import '../presentation/controller.dart';
 import '../state/app_state.dart';
 import 'floating_bubbles.dart';
 import 'bubble_options_morph.dart';
+import 'options_converse_model.dart';
 
 /// Read-only host configuration and a separately saved local view preference.
 /// Opening this surface never loads a model, captures audio or changes consent.
@@ -421,10 +422,11 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
 
   Widget _bubbleFace(String section, IconData icon, double diameter) {
     final colors = Theme.of(context).colorScheme;
+    final compact = diameter < 132;
     return Container(
       width: diameter,
       height: diameter,
-      padding: const EdgeInsets.all(17),
+      padding: EdgeInsets.all(compact ? 12 : 17),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -443,14 +445,14 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: colors.primary, size: 28),
-          const SizedBox(height: 6),
+          Icon(icon, color: colors.primary, size: compact ? 22 : 28),
+          SizedBox(height: compact ? 4 : 6),
           Text(
             section,
             style: Theme.of(context).textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: compact ? 2 : 4),
           Flexible(
             child: Text(
               _value(section),
@@ -496,6 +498,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
               color: colors.surface.withValues(alpha: .94),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
+                key: ValueKey('mascot-setup-bubble-${section.toLowerCase()}'),
                 customBorder: const CircleBorder(),
                 focusNode: _bubbleFocus[section],
                 canRequestFocus: _section == null,
@@ -750,9 +753,37 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                     final wide =
                         box.maxWidth / scale >= 1050 &&
                         box.maxHeight / scale >= 650;
-                    final diameter = wide
-                        ? 178 * scale
-                        : (160 * scale).clamp(0.0, box.maxWidth - 16);
+                    final compactTwoRow =
+                        !wide &&
+                        box.maxHeight <= 380 * scale &&
+                        box.maxWidth >= (4 * 116 * scale + 48);
+                    double narrowDiameter() {
+                      final maxDiameter = (160 * scale).clamp(
+                        0.0,
+                        box.maxWidth - 16,
+                      );
+                      final minDiameter = ((compactTwoRow ? 116 : 132) * scale)
+                          .clamp(0.0, maxDiameter);
+                      final rowExtra = compactTwoRow ? 8.0 : 24.0;
+                      final verticalPad = compactTwoRow ? 12.0 : 64.0;
+                      for (
+                        var candidate = maxDiameter;
+                        candidate >= minDiameter;
+                        candidate -= 8 * scale
+                      ) {
+                        final cols = ((box.maxWidth + 16) / (candidate + 16))
+                            .floor()
+                            .clamp(1, _sections.length);
+                        final rows = (_sections.length / cols).ceil();
+                        if (rows * (candidate + rowExtra) + verticalPad <=
+                            box.maxHeight) {
+                          return candidate;
+                        }
+                      }
+                      return compactTwoRow ? minDiameter : maxDiameter;
+                    }
+
+                    final diameter = wide ? 178 * scale : narrowDiameter();
                     if (_bubbleLayoutSize != box.biggest ||
                         _bubbleDiameter != diameter) {
                       // Responsive replacement does not deliver MouseRegion.onExit.
@@ -782,13 +813,18 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                     final columns = ((box.maxWidth + 16) / (diameter + 16))
                         .floor()
                         .clamp(1, _sections.length);
-                    final fieldHeight = wide
+                    final rows = (_sections.length / columns).ceil();
+                    final rowExtra = compactTwoRow ? 8.0 : 24.0;
+                    final verticalPad = compactTwoRow ? 12.0 : 64.0;
+                    final fieldHeight =
+                        wide ||
+                            (compactTwoRow &&
+                                rows <= 2 &&
+                                rows * (diameter + 2) <= box.maxHeight)
                         ? box.maxHeight
                         : math.max(
                             box.maxHeight,
-                            (_sections.length / columns).ceil() *
-                                    (diameter + 24) +
-                                64,
+                            rows * (diameter + rowExtra) + verticalPad,
                           );
                     final field = SizedBox(
                       height: fieldHeight,
@@ -913,28 +949,300 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
   );
 }
 
-class ConverseModelSummary extends StatelessWidget {
-  const ConverseModelSummary({super.key, required this.state});
+/// Compact, disclosure-safe Converse model and privacy summary.
+///
+/// Displays the verified model identity (or explicit unavailable/unknown state)
+/// and local/cloud qualification on one compact surface alongside the existing
+/// Change / Model settings action, while keeping full technical/profile details
+/// available on explicit expansion without mutating preferences or invoking
+/// provider endpoints.
+class ConverseModelSummary extends StatefulWidget {
+  const ConverseModelSummary({
+    super.key,
+    required this.state,
+    this.onModelSettings,
+    this.onConnectionSetup,
+    this.onOpenModelOptions,
+    this.onAddModel,
+    this.menuController,
+  });
   final AppState state;
+  final VoidCallback? onModelSettings;
+  final VoidCallback? onConnectionSetup;
+  final VoidCallback? onOpenModelOptions;
+  final VoidCallback? onAddModel;
+  final MenuController? menuController;
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        state.converseProvider?['model'] as String? ??
-            'Conversation model unavailable',
-        style: Theme.of(context).textTheme.titleSmall,
+  State<ConverseModelSummary> createState() => _ConverseModelSummaryState();
+}
+
+class _ConverseModelSummaryState extends State<ConverseModelSummary> {
+  bool _expanded = false;
+  final _localMenu = MenuController();
+  final _modelFavorites = <String>{};
+  int? _favoritesGeneration;
+  AppState? _favoritesOwner;
+
+  AppState get _s => widget.state;
+
+  Widget _modelPicker() {
+    final owner = _s;
+    final client = owner.client;
+    final generation = owner.connectionGeneration;
+    if (!identical(_favoritesOwner, owner) ||
+        _favoritesGeneration != generation) {
+      _modelFavorites.clear();
+      _favoritesOwner = owner;
+      _favoritesGeneration = generation;
+    }
+    bool current() =>
+        mounted &&
+        identical(widget.state, owner) &&
+        client != null &&
+        owner.sessionAuthenticated &&
+        owner.ownsConnection(generation, client);
+    bool ownsConnection() =>
+        client != null &&
+        owner.sessionAuthenticated &&
+        owner.ownsConnection(generation, client);
+    return MenuAnchor(
+      controller: widget.menuController ?? _localMenu,
+      style: MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(
+          Theme.of(context).colorScheme.surfaceContainerLow,
+        ),
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
       ),
-      const SizedBox(height: 12),
-      Text(
-        state.converseProvider?['local'] == true
-            ? 'Local inference'
-            : 'See Connection & privacy for disclosure settings.',
+      menuChildren: [
+        Builder(
+          builder: (context) {
+            final size = MediaQuery.sizeOf(context);
+            return SizedBox(
+              width: math.min(380, math.max(180, size.width - 32)),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: math.min(550, math.max(150, size.height - 48)),
+                ),
+                child: OptionsConverseModel(
+                  api: current() ? client?.converseModels : null,
+                  active: current,
+                  compact: true,
+                  favorites: _modelFavorites,
+                  onInvalidate: () {
+                    if (current()) owner.invalidateConverseInference();
+                  },
+                  onSettled: () async {
+                    if (ownsConnection()) {
+                      await owner.revalidateConverseInference(
+                        invalidate: false,
+                      );
+                    }
+                  },
+                  onOpenModelOptions:
+                      (widget.onOpenModelOptions ?? widget.onModelSettings) ==
+                          null
+                      ? null
+                      : () {
+                          MenuController.maybeOf(context)?.close();
+                          (widget.onOpenModelOptions ??
+                              widget.onModelSettings)!();
+                        },
+                  onAddModel: widget.onAddModel == null
+                      ? null
+                      : () {
+                          MenuController.maybeOf(context)?.close();
+                          widget.onAddModel!();
+                        },
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+      builder: (context, controller, child) => TextButton.icon(
+        key: const ValueKey('converse-model-summary-settings'),
+        onPressed: () =>
+            controller.isOpen ? controller.close() : controller.open(),
+        icon: const Icon(Icons.expand_more, size: 18),
+        label: const Text('Choose model'),
       ),
-      const SizedBox(height: 8),
-      const Text('Text · Microphone via speech-to-text'),
-      const SizedBox(height: 8),
-      const Text('Open Model settings to inspect all configured roles.'),
-    ],
-  );
+    );
+  }
+
+  String get _modelLabel {
+    final model = (_s.converseProvider?['model'] as String?)?.trim();
+    if (model != null && model.isNotEmpty) return model;
+    if (!_s.connected) return 'Not connected · Conversation model unknown';
+    return 'Conversation model unavailable';
+  }
+
+  String get _qualificationLabel {
+    final info = _s.converseProvider;
+    final provider = (info?['provider'] as String?)?.trim();
+    final local = info?['local'];
+    if (!_s.connected) {
+      return 'Disconnected · Open Connection & privacy to connect';
+    }
+    if (!_s.sessionAuthenticated) {
+      return 'Session unauthenticated · Model readiness unconfirmed';
+    }
+    if (_s.resourceStatusStale || !_s.converseOnline) {
+      return 'Converse unavailable · Model readiness unconfirmed';
+    }
+    if (local is! bool) {
+      return 'Model or provider qualification unverified';
+    }
+    if (local) {
+      return provider != null && provider.isNotEmpty
+          ? 'Local inference ($provider)'
+          : 'Local inference';
+    }
+    final providerTag = provider != null && provider.isNotEmpty
+        ? provider
+        : 'cloud';
+    if (!_s.converseInferenceAllowed) {
+      return 'Cloud provider ($providerTag) · Privacy disclosure required';
+    }
+    return 'Cloud provider ($providerTag) · See Connection & privacy for disclosure settings.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final info = _s.converseProvider;
+    final provider = (info?['provider'] as String?)?.trim();
+    final isLocal = info?['local'] == true;
+    final needsAttention =
+        !_s.connected ||
+        !_s.sessionAuthenticated ||
+        _s.resourceStatusStale ||
+        !_s.converseOnline ||
+        !_s.converseInferenceAllowed ||
+        info?['local'] is! bool;
+    final profileLabel =
+        _s.connection?.backendProfile.label ?? 'Local inference only';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            InkWell(
+              onTap: () => (widget.menuController ?? _localMenu).open(),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    needsAttention
+                        ? Icons.info_outline_rounded
+                        : isLocal
+                        ? Icons.memory_rounded
+                        : Icons.cloud_outlined,
+                    size: 18,
+                    color: needsAttention
+                        ? scheme.error
+                        : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _modelLabel,
+                      key: const ValueKey('converse-model-summary-identity'),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              _qualificationLabel,
+              key: const ValueKey('converse-model-summary-qualification'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: needsAttention ? scheme.error : scheme.onSurfaceVariant,
+                fontWeight: needsAttention ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('converse-model-summary-toggle'),
+                  onPressed: () => setState(() => _expanded = !_expanded),
+                  icon: Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                  ),
+                  label: Text(_expanded ? 'Hide details' : 'Model details'),
+                ),
+                _modelPicker(),
+                if ((!isLocal || needsAttention) &&
+                    widget.onConnectionSetup != null)
+                  TextButton(
+                    key: const ValueKey('converse-model-summary-privacy'),
+                    onPressed: widget.onConnectionSetup,
+                    child: const Text('Connection & privacy'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Column(
+            key: const ValueKey('converse-model-summary-details'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Provider: ${provider != null && provider.isNotEmpty ? provider : 'unavailable'}',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Disclosure profile: $profileLabel',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                isLocal
+                    ? 'Local inference'
+                    : 'See Connection & privacy for disclosure settings.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Text · Microphone via speech-to-text',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Open Model settings to inspect all configured roles.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
 }

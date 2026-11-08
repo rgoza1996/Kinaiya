@@ -1,0 +1,125 @@
+{
+  "$defs": {
+    "MediaImageFormat": {
+      "additionalProperties": false,
+      "properties": {
+        "codec": {
+          "enum": [
+            "png",
+            "mjpeg"
+          ],
+          "title": "Codec",
+          "type": "string"
+        },
+        "container": {
+          "enum": [
+            "png",
+            "jpeg"
+          ],
+          "title": "Container",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "image",
+            "video_frame"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "pixel_format": {
+          "const": "rgb24",
+          "title": "Pixel Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "container",
+        "codec",
+        "pixel_format"
+      ],
+      "title": "MediaImageFormat",
+      "type": "object"
+    },
+    "MediaReceipt_MediaImageFormat_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaImageFormat"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaImageFormat]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaImageFormat_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaImageFormat]",
+  "type": "object"
+}

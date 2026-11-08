@@ -1,9 +1,10 @@
 """Owner-only artifact inspection and presentation state; never task execution."""
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.responses import JSONResponse, Response
 
 from services.agent.artifacts import (
     MAX_SAFE_INTEGER,
@@ -98,6 +99,57 @@ def router(runtime, auth):
         artifact_store = store()
         try:
             return envelope(artifact_store.action(artifact_id, body.model_dump()))
+        except Exception as exc:
+            raise error(exc) from exc
+
+    @routes.get("/{artifact_id}/media/{asset_id}")
+    async def media_metadata(
+        artifact_id: str = Path(min_length=1, max_length=128),
+        asset_id: str = Path(pattern=r"^media_[0-9a-f]{32}$"),
+        session_id: str = Query(min_length=1, max_length=128),
+        thread_id: str = Query(min_length=1, max_length=128),
+        epoch: int = Query(ge=1, le=MAX_SAFE_INTEGER),
+    ):
+        try:
+            return JSONResponse(
+                store().media(
+                    artifact_id,
+                    asset_id,
+                    session_id=session_id,
+                    thread_id=thread_id,
+                    epoch=epoch,
+                ),
+                headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+            )
+        except Exception as exc:
+            raise error(exc) from exc
+
+    @routes.get("/{artifact_id}/media/{asset_id}/content")
+    async def media_content(
+        artifact_id: str = Path(min_length=1, max_length=128),
+        asset_id: str = Path(pattern=r"^media_[0-9a-f]{32}$"),
+        session_id: str = Query(min_length=1, max_length=128),
+        thread_id: str = Query(min_length=1, max_length=128),
+        epoch: int = Query(ge=1, le=MAX_SAFE_INTEGER),
+        variant: Literal["source", "highlighted"] = Query(),
+    ):
+        try:
+            data = store().media(
+                artifact_id,
+                asset_id,
+                session_id=session_id,
+                thread_id=thread_id,
+                epoch=epoch,
+                variant=variant,
+            )
+            return Response(
+                data,
+                media_type="video/mp4",
+                headers={
+                    "Cache-Control": "no-store",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
         except Exception as exc:
             raise error(exc) from exc
 

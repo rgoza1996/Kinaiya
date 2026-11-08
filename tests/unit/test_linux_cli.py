@@ -4,7 +4,11 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-from test_linux_distribution import archive_release, distribution, linux_directory_links_on_windows  # noqa: F401
+from test_linux_distribution import (  # noqa: F401
+    archive_release,
+    distribution,
+    linux_directory_links_on_windows,
+)
 
 
 def cli_module():
@@ -189,3 +193,112 @@ def test_runtime_dependencies_use_isolated_hash_locked_https_wheels(tmp_path, mo
     assert "--isolated" in pip and "--require-hashes" in pip
     assert "--only-binary=:all:" in pip and "--no-input" in pip
     assert pip[pip.index("--index-url") + 1] == "https://pypi.org/simple"
+
+
+def test_cli_install_installs_missing_system_dependencies_without_upgrade(tmp_path, monkeypatch):
+    import io
+
+    cli = cli_module()
+    module = distribution()
+    layout = module.Layout.for_home(tmp_path)
+    archive, release = archive_release(tmp_path)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
+
+    preflight_calls = []
+
+    def fake_preflight(chosen, *, allow_missing_dependencies=False):
+        preflight_calls.append(allow_missing_dependencies)
+        if allow_missing_dependencies:
+            return {
+                "platform": "linux",
+                "sandbox_probe": "pending_dependencies",
+                "missing_dependencies": ["bubblewrap", "libseccomp2"],
+            }
+        return {"platform": "linux", "sandbox_probe": "passed"}
+
+    dep_calls = []
+    monkeypatch.setattr(cli, "preflight", fake_preflight)
+    monkeypatch.setattr(
+        cli, "install_missing_dependencies", lambda pkgs: dep_calls.append(list(pkgs)) or list(pkgs)
+    )
+    monkeypatch.setattr(cli, "resolve_release", lambda channel: release)
+    monkeypatch.setattr(cli, "open_release_url", lambda url: io.BytesIO(archive.read_bytes()))
+    monkeypatch.setattr(
+        cli,
+        "install_release",
+        lambda chosen, target, path: module.install_release(
+            chosen, target, path, prepare=lambda *a: None, busy=lambda: False
+        ),
+    )
+    result = cli.dispatch(
+        SimpleNamespace(command="install", channel="stable", yes=True, no_setup=True)
+    )
+    assert result["ready"] is False
+    assert dep_calls == [["bubblewrap", "libseccomp2"]]
+    assert preflight_calls == [True, False]
+
+
+def test_cli_confirm_accepts_short_y_and_rejects_n(monkeypatch):
+    from contextlib import contextmanager
+
+    from services.distribution import cli
+
+    prompts = []
+
+    @contextmanager
+    def fake_tty(answer):
+        class _Tty:
+            def write(self, text):
+                prompts.append(text)
+
+            def flush(self):
+                pass
+
+            def readline(self):
+                return answer
+
+        yield _Tty()
+
+    monkeypatch.setattr(cli, "open_terminal", lambda: fake_tty("y\n"))
+    cli.confirm(False, "plan preview")
+    assert any("(y/n) [n]: " in p for p in prompts)
+
+    monkeypatch.setattr(cli, "open_terminal", lambda: fake_tty("n\n"))
+    with pytest.raises(cli.InstallError, match="Cancelled"):
+        cli.confirm(False, "plan preview")
+
+
+@pytest.mark.parametrize(
+    "answer,pre_consented,accepted",
+    [
+        ("Y\n", False, True),
+        (" YeS \n", False, True),
+        ("N\n", False, False),
+        ("no\n", False, False),
+        ("maybe\n", False, False),
+        ("\n", False, False),
+        ("", False, False),
+        ("", True, True),
+        ("\n", True, False),
+        ("n\n", True, False),
+        ("maybe\n", True, False),
+    ],
+)
+def test_cli_confirmation_preserves_only_existing_eof_consent(
+    monkeypatch, answer, pre_consented, accepted
+):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+
+    from services.distribution import cli
+
+    @contextmanager
+    def terminal():
+        yield SimpleNamespace(write=lambda text: None, flush=lambda: None, readline=lambda: answer)
+
+    monkeypatch.setattr(cli, "open_terminal", terminal)
+    if accepted:
+        cli.confirm(False, "plan preview", pre_consented=pre_consented)
+    else:
+        with pytest.raises(cli.InstallError, match="Cancelled"):
+            cli.confirm(False, "plan preview", pre_consented=pre_consented)

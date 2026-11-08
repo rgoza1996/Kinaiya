@@ -504,10 +504,21 @@ class ToolAction(WireModel):
 
 
 class ProviderInfo(WireModel):
+    """Remote disclosure ceiling; grants no consent, execution or tool permission."""
+
     provider: str
     model: str
     local: bool
     streaming: bool = False
+    disclosure_policy: Literal["public_synthetic_only", "owner_authorized"] | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_disclosure_shape(self, handler):
+        result = handler(self)
+        # Legacy providers omit the ceiling; null stays omitted to keep old bytes.
+        if self.disclosure_policy is None:
+            result.pop("disclosure_policy", None)
+        return result
 
 
 class PluginControl(WireModel):

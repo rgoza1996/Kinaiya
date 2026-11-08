@@ -719,6 +719,16 @@ void main() {
       await tester.pumpWidget(host.app());
       await _frames(tester, count: 20);
       await inspectEverySection();
+      // Compact/medium desktop split-pane viewports scale diameter so all 8
+      // bubbles fit inside the visible viewport without scrolling below the fold.
+      await tester.binding.setSurfaceSize(const Size(760, 560));
+      await tester.pumpWidget(host.app());
+      await _frames(tester, count: 20);
+      for (final section in ['Setup', ..._sections, 'View', 'Close']) {
+        final rect = tester.getRect(_bubble(section));
+        expect(rect.top, greaterThanOrEqualTo(0));
+        expect(rect.bottom, lessThanOrEqualTo(560));
+      }
       expect(host.requests.length, 1);
       host.expectReadOnly();
     },

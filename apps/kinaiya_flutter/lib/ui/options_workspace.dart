@@ -33,6 +33,7 @@ import 'options_context_history.dart';
 import 'presentation_settings.dart';
 import 'settings_controls.dart';
 import 'setup_dialog.dart';
+import 'visual_theme.dart';
 import 'widgets.dart';
 import 'motion_transition.dart';
 
@@ -44,21 +45,25 @@ class OptionsWorkspace extends StatefulWidget {
     required this.converseControls,
     required this.onClose,
     this.initialPage = OptionsPage.overview,
+    this.startNewProvider = false,
   });
   final AppState state;
   final PresentationController presentation;
   final ConverseViewControls converseControls;
   final VoidCallback onClose;
   final OptionsPage initialPage;
+  final bool startNewProvider;
   @override
   State<OptionsWorkspace> createState() => _OptionsWorkspaceState();
 }
 
 class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   late OptionsPage _page;
+  OptionsPage? _recentPage;
   String? _harness;
   String? _auxiliaryPurpose;
   String _query = '';
+  String? _lastSearchQuery;
   final _search = TextEditingController();
   final _scaffold = GlobalKey<ScaffoldState>();
   Map<String, Object?>? _agent;
@@ -71,6 +76,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   String? _modelError, _runtimeError, _notice;
   ({AgentModelApi owner, String backendId, String text})? _modelNotice;
   bool _loading = false, _savingPreference = false;
+  late bool _startNewProvider;
   int _read = 0, _connection = -1;
 
   PendingAgentModelChange? get _pending {
@@ -122,6 +128,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   @override
   void initState() {
     super.initState();
+    _startNewProvider = widget.startNewProvider;
     _page = widget.initialPage;
     _connection = widget.state.connectionGeneration;
     widget.state.addListener(_changed);
@@ -268,14 +275,36 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     if (current()) setState(() => _loading = false);
   }
 
-  void _select(OptionsPage page) {
+  void _select(OptionsPage page, {bool fromSearch = false}) {
+    final previousQuery = _query.trim();
     _scaffold.currentState?.closeDrawer();
     setState(() {
+      if (page != OptionsPage.overview) {
+        _recentPage = page;
+      }
       _page = page;
       _harness = null;
+      _lastSearchQuery = fromSearch && previousQuery.isNotEmpty
+          ? previousQuery
+          : null;
       _query = '';
       _search.clear();
     });
+  }
+
+  void _restoreSearch({required bool wide}) {
+    final saved = _lastSearchQuery;
+    if (saved == null || saved.isEmpty) return;
+    setState(() {
+      _query = saved;
+      _search.value = TextEditingValue(
+        text: saved,
+        selection: TextSelection.collapsed(offset: saved.length),
+      );
+    });
+    if (!wide) {
+      _scaffold.currentState?.openDrawer();
+    }
   }
 
   OptionsCategory? get _category {
@@ -532,6 +561,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                       key: ValueKey('options-content-heading-divider'),
                       height: 1,
                     ),
+                    if (_page != OptionsPage.overview)
+                      _breadcrumbBar(wide: wide),
                     if (_loading) const LinearProgressIndicator(minHeight: 2),
                     if (_notice != null)
                       Padding(
@@ -648,7 +679,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
                                 wide ? 32 : 16,
                                 8,
                                 wide ? 32 : 16,
-                                24,
+                                bounds.maxHeight < 520 ? 8 : 24,
                               ),
                         child: UiFadeTransition(
                           alignment: Alignment.topLeft,
@@ -673,152 +704,385 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     },
   );
 
+  Widget _breadcrumbBar({required bool wide}) {
+    final category = _category;
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      key: const ValueKey('options-breadcrumb-bar'),
+      padding: EdgeInsets.symmetric(horizontal: wide ? 24 : 12, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLowest,
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            TextButton.icon(
+              key: const ValueKey('options-breadcrumb-all-settings'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+              onPressed: () => _select(OptionsPage.overview),
+              icon: const Icon(Icons.arrow_back, size: 16),
+              label: const Text('All settings'),
+            ),
+            if (category != null) ...[
+              const SizedBox(width: 6),
+              Text(
+                '›',
+                style: textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                category.label,
+                key: const ValueKey('options-breadcrumb-category'),
+                style: textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(width: 6),
+            Text(
+              '›',
+              style: textTheme.labelLarge?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _pageTitle,
+              key: const ValueKey('options-breadcrumb-page'),
+              style: textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (_lastSearchQuery case final savedQuery?) ...[
+              const SizedBox(width: 12),
+              TextButton.icon(
+                key: const ValueKey('options-breadcrumb-return-search'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                ),
+                onPressed: () => _restoreSearch(wide: wide),
+                icon: const Icon(Icons.search, size: 16),
+                label: Text('Back to search ("$savedQuery")'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _navigation() {
     final category = _category, searching = _query.trim().isNotEmpty;
+    final searchResults = searching
+        ? searchOptionsPages(_query)
+        : const <OptionsSearchResult>[];
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                heightFactor: 1,
-                child: Text(
-                  'Options',
-                  style: Theme.of(context).textTheme.titleLarge,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  heightFactor: 1,
+                  child: Text(
+                    'Options',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
               ),
             ),
-          ),
-          const Divider(
-            key: ValueKey('options-sidebar-heading-divider'),
-            height: 1,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-            child: TextField(
-              key: const Key('settings-search'),
-              controller: _search,
-              maxLength: 128,
-              decoration: InputDecoration(
-                hintText: 'Search options',
-                counterText: '',
-                prefixIcon: const Icon(Icons.search),
-                border: const OutlineInputBorder(),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        onPressed: () => setState(() {
-                          _query = '';
-                          _search.clear();
-                        }),
-                        icon: const Icon(Icons.clear),
-                      ),
-              ),
-              onChanged: (value) => setState(() => _query = value),
+            const Divider(
+              key: ValueKey('options-sidebar-heading-divider'),
+              height: 1,
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (searching) ...[
-                  for (final item in optionsCategories)
-                    for (final page in item.pages)
-                      if ('${item.label} ${page.label}'.toLowerCase().contains(
-                        _query.toLowerCase().trim(),
-                      ))
-                        ListTile(
-                          key: ValueKey('options-search-${page.name}'),
-                          title: Text(page.label),
-                          subtitle: Text(item.label),
-                          leading: Icon(item.icon),
-                          onTap: () => _select(page),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
+              child: TextField(
+                key: const Key('settings-search'),
+                controller: _search,
+                maxLength: 128,
+                decoration: InputDecoration(
+                  hintText: 'Search options',
+                  counterText: '',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () => setState(() {
+                            _query = '';
+                            _search.clear();
+                          }),
+                          icon: const Icon(Icons.clear),
                         ),
-                  if (!optionsCategories.any(
-                    (item) => item.pages.any(
-                      (page) => '${item.label} ${page.label}'
-                          .toLowerCase()
-                          .contains(_query.toLowerCase().trim()),
-                    ),
-                  ))
-                    const ListTile(title: Text('No matching options')),
-                ] else if (category != null) ...[
-                  for (final page in category.pages)
-                    ListTile(
-                      key: ValueKey('options-${page.name}'),
-                      selected: page == _page,
-                      selectedColor: Theme.of(
-                        context,
-                      ).colorScheme.onPrimaryContainer,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      title: Text(page.label),
-                      onTap: () => _select(page),
-                    ),
-                  const Divider(),
-                  ListTile(
-                    key: const Key('options-back'),
-                    leading: const Icon(Icons.arrow_back),
-                    title: const Text('Back'),
-                    onTap: () => _select(OptionsPage.overview),
-                  ),
-                ] else ...[
-                  for (final item in optionsCategories)
-                    ListTile(
-                      key: ValueKey(
-                        'options-category-${item.pages.first.name}',
-                      ),
-                      leading: Icon(item.icon, size: 20),
-                      title: Text(item.label),
-                      onTap: () => _select(item.pages.first),
-                    ),
-                ],
-              ],
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (searching) ...[
+                    if (searchResults.isNotEmpty &&
+                        searchResults.first.isPartial)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        child: Text(
+                          'Partial matches',
+                          key: const ValueKey('options-search-partial-heading'),
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ),
+                    for (final result in searchResults)
+                      ListTile(
+                        key: ValueKey('options-search-${result.page.name}'),
+                        title: Text(result.page.label),
+                        subtitle: Text(
+                          '${result.category.label} · ${result.page.description}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        leading: Icon(result.category.icon),
+                        onTap: () => _select(result.page, fromSearch: true),
+                      ),
+                    if (searchResults.isEmpty)
+                      const ListTile(
+                        key: ValueKey('options-search-empty'),
+                        title: Text('No matching options'),
+                        subtitle: Text(
+                          'Try searching by setting name, category, or keyword.',
+                        ),
+                      ),
+                  ] else if (category != null) ...[
+                    ListTile(
+                      key: const Key('options-back'),
+                      leading: const Icon(Icons.arrow_back),
+                      title: const Text('All settings'),
+                      subtitle: const Text(
+                        'Back to Options overview',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => _select(OptionsPage.overview),
+                    ),
+                    const Divider(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                      child: Text(
+                        category.label,
+                        key: const ValueKey('options-current-category'),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    for (final page in category.pages)
+                      KinaiyaSidebarDestination(
+                        key: ValueKey('options-${page.name}'),
+                        selected: page == _page,
+                        title: page.label,
+                        onTap: () => _select(page),
+                      ),
+                    const Divider(),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                      child: Text(
+                        'Other categories',
+                        key: const ValueKey('options-other-categories-heading'),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                    for (final item in optionsCategories.where(
+                      (item) => item != category,
+                    ))
+                      ListTile(
+                        key: ValueKey(
+                          'options-category-${item.pages.first.name}',
+                        ),
+                        dense: true,
+                        leading: Icon(item.icon, size: 18),
+                        title: Text(item.label),
+                        onTap: () => _select(item.pages.first),
+                      ),
+                  ] else ...[
+                    for (final item in optionsCategories)
+                      ListTile(
+                        key: ValueKey(
+                          'options-category-${item.pages.first.name}',
+                        ),
+                        leading: Icon(item.icon, size: 20),
+                        title: Text(item.label),
+                        onTap: () => _select(item.pages.first),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _overview() => LayoutBuilder(
     builder: (context, bounds) {
-      if (!widget.presentation.preferences.showCharacter) {
-        return const SizedBox.expand();
-      }
+      final showCharacter = widget.presentation.preferences.showCharacter;
       final selection = widget.presentation.selected;
-      if (selection?.packageJson == null) {
-        return Image.asset(
-          'assets/design/kinaiya-options-gear-v1.png',
-          key: const ValueKey('options-overview-artwork'),
-          semanticLabel: 'Kinaiya cradles a gear in front of the full moon',
-          width: double.infinity,
-          height: double.infinity,
-          fit: BoxFit.contain,
-        );
-      }
-      return Center(
-        child: MascotWidget(
-          pack: selection!.pack,
-          bundle: selection.bundle,
-          mood: 'idle',
-          size: bounds.biggest.shortestSide,
-        ),
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          if (showCharacter)
+            Positioned.fill(
+              child: selection?.packageJson == null
+                  ? Image.asset(
+                      'assets/design/kinaiya-options-gear-v1.png',
+                      key: const ValueKey('options-overview-artwork'),
+                      semanticLabel:
+                          'Kinaiya cradles a gear in front of the full moon',
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
+                    )
+                  : Center(
+                      child: MascotWidget(
+                        pack: selection!.pack,
+                        bundle: selection.bundle,
+                        mood: 'idle',
+                        size: bounds.biggest.shortestSide,
+                      ),
+                    ),
+            ),
+          Align(
+            alignment: showCharacter ? Alignment.bottomLeft : Alignment.topLeft,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: _overviewShortcuts(),
+            ),
+          ),
+        ],
       );
     },
   );
+
+  Widget _overviewShortcuts() {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final connected =
+        widget.state.connected && widget.state.sessionAuthenticated;
+    final statusHint = connected
+        ? 'Connected to host · Jump to a common configuration area.'
+        : 'Not connected to host · Configure connection, models, voice, or character.';
+    final recent = _recentPage;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 680),
+      child: DesignPanel(
+        key: const ValueKey('options-overview-shortcuts'),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quick setup shortcuts',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              statusHint,
+              key: const ValueKey('options-overview-status-hint'),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-connection'),
+                  onPressed: () => _select(OptionsPage.connection),
+                  icon: const Icon(Icons.link_outlined, size: 18),
+                  label: Text(
+                    connected ? 'Connection (Connected)' : 'Connection',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-models'),
+                  onPressed: () => _select(OptionsPage.models),
+                  icon: const Icon(Icons.diamond_outlined, size: 18),
+                  label: const Text('Models'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-voice'),
+                  onPressed: () => _select(OptionsPage.voice),
+                  icon: const Icon(Icons.graphic_eq, size: 18),
+                  label: const Text('Voice'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('options-shortcut-character'),
+                  onPressed: () => _select(OptionsPage.character),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                  label: const Text('Character'),
+                ),
+                if (recent != null &&
+                    !const {
+                      OptionsPage.connection,
+                      OptionsPage.models,
+                      OptionsPage.voice,
+                      OptionsPage.character,
+                    }.contains(recent))
+                  OutlinedButton.icon(
+                    key: const ValueKey('options-shortcut-recent'),
+                    onPressed: () => _select(recent),
+                    icon: const Icon(Icons.history, size: 18),
+                    label: Text('Recent: ${recent.label}'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _content() => switch (_page) {
     OptionsPage.overview => _overview(),
@@ -934,6 +1198,30 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     if (_runtimeError != null) Text(_runtimeError!),
   ];
 
+  Widget _sectionSubheading({
+    required Key key,
+    required String title,
+    required String subtitle,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: key,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
   Widget _modelDefaults() {
     final owner = widget.state, client = widget.state.client;
     final generation = owner.connectionGeneration;
@@ -945,70 +1233,344 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     bool ownsConnection() =>
         client != null && owner.ownsConnection(generation, client);
     return _scroll([
-      const Text(
-        'Model defaults by role. Harness-specific choices live in Harness Customization.',
-      ),
-      ..._errors,
-      OptionsConverseModel(
-        key: ObjectKey(client),
-        api: client?.converseModels,
-        active: current,
-        onInvalidate: () {
-          if (current()) owner.invalidateConverseInference();
-        },
-        onSettled: () async {
-          if (ownsConnection()) {
-            await owner.revalidateConverseInference(invalidate: false);
-          }
-        },
-      ),
-      if (_modelReadOnlyReason case final reason?) Text(reason),
-      if (_models case final models?)
-        OptionsModelEditor(
-          key: const ValueKey('agent-default-model-editor'),
-          models: models,
-          busy: _modelBusy,
-          onSave: _saveModel,
-          onSaveCatalog: (catalog, reasoning) =>
-              _saveModel(null, reasoning, catalogBinding: catalog),
-        )
-      else
-        _unavailable(
-          'Agent default',
-          'Connect to an updated Agent host to manage model profiles.',
-        ),
-      OptionsDecisionsModel(
-        key: ObjectKey(client?.decisionsModels),
-        api: client?.decisionsModels,
-        active: current,
-        onInvalidate: () {
-          if (current()) owner.invalidateDecisionsModelOptions();
-        },
-        onChanged: () {
-          if (ownsConnection()) unawaited(owner.refreshDecisionsModelOptions());
-        },
-      ),
-      if (_models case final models?)
-        OptionsAuxiliaryModels(
-          models: models,
-          initialPurpose: _auxiliaryPurpose,
-          onPurposeChanged: (value) => _auxiliaryPurpose = value,
-          busy: _modelBusy,
-          onSave: (purpose, profile, reasoning) =>
-              _saveModel(profile, reasoning, auxiliaryTask: purpose),
-          onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
-            null,
-            reasoning,
-            auxiliaryTask: purpose,
-            catalogBinding: catalog,
+      Column(
+        key: const ValueKey('models-group-overview'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Model defaults by role. Harness-specific choices live in Harness Customization.',
           ),
-        ),
-      OptionsAuxiliaryRoutes(
-        key: ObjectKey(client?.auxiliaryRoutes),
-        api: client?.auxiliaryRoutes,
-        active: current,
+          const SizedBox(height: KinaiyaDesign.spaceSm),
+          _modelRolesOverview(),
+          if (_errors.isNotEmpty) ...[
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            DesignPanel(
+              key: const ValueKey('models-group-status-errors'),
+              padding: const EdgeInsets.all(KinaiyaDesign.spaceSm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < _errors.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 4),
+                    _errors[i],
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      Column(
+        key: const ValueKey('models-group-primary-roles'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionSubheading(
+            key: const ValueKey('models-subheading-primary'),
+            title: 'Conversation, execution & routing models',
+            subtitle:
+                'Configure the primary model for each independent service owner.',
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceSm),
+          KeyedSubtree(
+            key: const ValueKey('models-group-converse'),
+            child: OptionsConverseModel(
+              key: ObjectKey(client),
+              api: client?.converseModels,
+              active: current,
+              onInvalidate: () {
+                if (current()) owner.invalidateConverseInference();
+              },
+              onSettled: () async {
+                if (ownsConnection()) {
+                  await owner.revalidateConverseInference(invalidate: false);
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceMd),
+          Column(
+            key: const ValueKey('models-group-agent-default'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_modelReadOnlyReason case final reason?) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: KinaiyaDesign.spaceSm),
+                  child: Text(reason),
+                ),
+              ],
+              if (_models case final models?)
+                OptionsModelEditor(
+                  key: const ValueKey('agent-default-model-editor'),
+                  models: models,
+                  busy: _modelBusy,
+                  onSave: _saveModel,
+                  onSaveCatalog: (catalog, reasoning) =>
+                      _saveModel(null, reasoning, catalogBinding: catalog),
+                )
+              else
+                _unavailable(
+                  'Agent default',
+                  'Connect to an updated Agent host to manage model profiles.',
+                ),
+            ],
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceMd),
+          KeyedSubtree(
+            key: const ValueKey('models-group-decisions'),
+            child: OptionsDecisionsModel(
+              key: ObjectKey(client?.decisionsModels),
+              api: client?.decisionsModels,
+              active: current,
+              onInvalidate: () {
+                if (current()) owner.invalidateDecisionsModelOptions();
+              },
+              onChanged: () {
+                if (ownsConnection()) {
+                  unawaited(owner.refreshDecisionsModelOptions());
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+      Column(
+        key: const ValueKey('models-group-auxiliary'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionSubheading(
+            key: const ValueKey('models-subheading-auxiliary'),
+            title: 'Auxiliary task models & routing',
+            subtitle:
+                'Optional specialized models for background summarization, memory, and auxiliary routes.',
+          ),
+          const SizedBox(height: KinaiyaDesign.spaceSm),
+          if (_models case final models?) ...[
+            OptionsAuxiliaryModels(
+              models: models,
+              initialPurpose: _auxiliaryPurpose,
+              onPurposeChanged: (value) => _auxiliaryPurpose = value,
+              busy: _modelBusy,
+              onSave: (purpose, profile, reasoning) =>
+                  _saveModel(profile, reasoning, auxiliaryTask: purpose),
+              onSaveCatalog: (purpose, catalog, reasoning) => _saveModel(
+                null,
+                reasoning,
+                auxiliaryTask: purpose,
+                catalogBinding: catalog,
+              ),
+            ),
+            const SizedBox(height: KinaiyaDesign.spaceMd),
+          ],
+          OptionsAuxiliaryRoutes(
+            key: ObjectKey(client?.auxiliaryRoutes),
+            api: client?.auxiliaryRoutes,
+            active: current,
+          ),
+        ],
       ),
     ]);
+  }
+
+  Widget _modelRolesOverview() {
+    final owner = widget.state;
+    final connected = owner.connected && owner.sessionAuthenticated;
+    final converseInfo = owner.converseProvider;
+    final converseModel = (converseInfo?['model'] as String?)?.trim();
+    final converseProvider = (converseInfo?['provider'] as String?)?.trim();
+    final converseLocal = converseInfo?['local'] == true;
+    final converseSelection = converseModel != null && converseModel.isNotEmpty
+        ? converseModel
+        : 'Unavailable — configure below';
+    final converseStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.converseOnline || converseInfo == null
+        ? 'Unavailable · Configure Converse model below'
+        : converseLocal
+        ? 'Configured (${converseProvider ?? 'local'} · Local) · Readiness not pre-checked'
+        : owner.converseInferenceAllowed
+        ? 'Configured (${converseProvider ?? 'cloud'} · Cloud disclosure active) · Readiness not pre-checked'
+        : 'Needs attention (${converseProvider ?? 'cloud'} · Cloud disclosure required)';
+
+    final agentInfo =
+        owner.agentProvider ??
+        (_agent?['provider'] is Map
+            ? (_agent!['provider'] as Map).cast<String, Object?>()
+            : null);
+    final agentSelection = _models != null
+        ? _models!.bindingLabel(_models!.defaultBinding)
+        : (agentInfo?['model'] as String?)?.trim().isNotEmpty == true
+        ? (agentInfo!['model'] as String).trim()
+        : 'Unavailable — configure below';
+    final agentProvider = (agentInfo?['provider'] as String?)?.trim();
+    final agentLocal = agentInfo?['local'] == true;
+    final agentStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.agentOnline || (_models == null && agentInfo == null)
+        ? 'Unavailable · Configure Agent model below'
+        : agentInfo == null
+        ? 'Configured on host · Readiness not pre-checked'
+        : agentLocal
+        ? 'Configured (${agentProvider ?? 'local'} · Local) · Readiness not pre-checked'
+        : owner.agentInferenceAllowed
+        ? 'Configured (${agentProvider ?? 'cloud'} · Cloud disclosure active) · Readiness not pre-checked'
+        : 'Needs attention (${agentProvider ?? 'cloud'} · Cloud disclosure required)';
+
+    final decisionsInfo = owner.decisionsModelOptions?.selectedInfo;
+    final decisionsConfigured =
+        owner.connection?.decisionsUrl != null &&
+        owner.connection!.decisionsUrl!.trim().isNotEmpty;
+    final decisionsSelection = decisionsInfo != null
+        ? decisionsInfo.model
+        : !connected || !decisionsConfigured
+        ? 'Unavailable — configure Decisions URL'
+        : 'Inspect in Decisions section below';
+    final decisionsStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !decisionsConfigured
+        ? 'Unavailable · Configure Decisions URL in Connection'
+        : decisionsInfo != null
+        ? 'Declared (${decisionsInfo.provider} · ${decisionsInfo.local ? 'Local' : 'Cloud'}) · Readiness not pre-checked'
+        : owner.decisionsModelOptionsStatus;
+
+    final speechReachable = connected && owner.converseOnline;
+    final sttSelection = speechReachable
+        ? 'Configured in Audio & speech'
+        : 'Unavailable — configure in Audio & speech';
+    final sttStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.converseOnline
+        ? 'Unavailable · Converse service unreachable'
+        : 'Independent speech recognizer · Readiness not pre-checked';
+    final ttsSelection = speechReachable
+        ? 'Configured in Audio & speech'
+        : 'Unavailable — configure in Audio & speech';
+    final ttsStatus = !connected
+        ? 'Unavailable (not connected)'
+        : !owner.converseOnline
+        ? 'Unavailable · Converse service unreachable'
+        : 'Independent speech synthesizer · Readiness not pre-checked';
+
+    return DesignPanel(
+      key: const ValueKey('options-models-role-overview'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Independently configurable model roles',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Each role has its own native owner and selection. Configured or declared models do not imply runtime readiness or cloud disclosure consent.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _rolePurposeRow(
+            roleKey: 'converse',
+            title: 'Converse',
+            purpose:
+                'Handles live voice and text conversation responses with Kinaiya.',
+            selection: converseSelection,
+            status: converseStatus,
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'agent',
+            title: 'Agent',
+            purpose:
+                'Plans and executes bounded background tasks, file edits, and tool calls.',
+            selection: agentSelection,
+            status: agentStatus,
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'decisions',
+            title: 'Decisions',
+            purpose:
+                'Classifies conversation turns and timing for potential Agent handoff.',
+            selection: decisionsSelection,
+            status: decisionsStatus,
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'stt',
+            title: 'Speech-to-text (STT)',
+            purpose:
+                'Transcribes spoken microphone audio into text before Converse processes it.',
+            selection: sttSelection,
+            status: sttStatus,
+            actionLabel: 'Open Audio & speech',
+            onAction: () => _select(OptionsPage.audio),
+          ),
+          const Divider(height: 16),
+          _rolePurposeRow(
+            roleKey: 'tts',
+            title: 'Text-to-speech (TTS)',
+            purpose: 'Synthesizes Kinaiya responses into spoken audio output.',
+            selection: ttsSelection,
+            status: ttsStatus,
+            actionLabel: 'Open Audio & speech',
+            onAction: () => _select(OptionsPage.audio),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rolePurposeRow({
+    required String roleKey,
+    required String title,
+    required String purpose,
+    required String selection,
+    required String status,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      key: ValueKey('model-role-card-$roleKey'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Text(
+              title,
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (actionLabel != null && onAction != null)
+              TextButton(
+                key: ValueKey('model-role-action-$roleKey'),
+                onPressed: onAction,
+                child: Text(actionLabel),
+              ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          purpose,
+          key: ValueKey('model-role-purpose-$roleKey'),
+          style: textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Selection: $selection · Reported: $status',
+          key: ValueKey('model-role-status-$roleKey'),
+          style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
   }
 
   Widget _harnesses() {
@@ -1132,6 +1694,8 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
     final generation = widget.state.connectionGeneration;
     return _scroll([
       OptionsProviderEditor(
+        startNewProfile: _startNewProvider,
+        onNewProfileStarted: () => _startNewProvider = false,
         key: ObjectKey(client),
         api: client?.providers,
         active: () =>
@@ -1148,8 +1712,28 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       Expanded(
         child:
             widget.converseControls.buildVoiceOptions?.call() ??
-            const Text(
-              'Voice options are unavailable until the Converse view is mounted.',
+            Align(
+              alignment: Alignment.topLeft,
+              child: DesignPanel(
+                key: const ValueKey('voice-group-unavailable'),
+                padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Voice & microphone detection',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: KinaiyaDesign.spaceSm),
+                    const Text(
+                      'Voice options are unavailable until the Converse view is mounted.',
+                    ),
+                  ],
+                ),
+              ),
             ),
       ),
     ],

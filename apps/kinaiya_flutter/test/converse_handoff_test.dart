@@ -1,10 +1,15 @@
 import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/state/converse_handoff.dart';
+import 'package:kinaiya_flutter/ui/agent_chat.dart';
+import 'package:kinaiya_flutter/ui/character_view.dart';
+import 'package:kinaiya_flutter/ui/widgets.dart';
 
 final scope = SessionInfo(
   sessionId: 's',
@@ -451,6 +456,369 @@ void main() {
   );
 
   test(
+    'native classification_refused emits conservative unavailable status and preserves accepted bindings (#450)',
+    () {
+      final tracker = ConverseHandoffTracker();
+      tracker.observe(source(), scope);
+      final validRefusal = event(
+        'routing.classification_refused',
+        2,
+        {
+          'source_event_id': 'source',
+          'source_revision': 1,
+          'reason': 'provider_refused',
+          'error_type': 'ProviderRefusal',
+        },
+        id: 'refusal-1',
+        causes: ['source'],
+      );
+      final notice = tracker.observe(validRefusal, scope);
+      expect(notice, isNotNull);
+      expect(notice!.status, HandoffStatus.unavailable);
+      expect(
+        notice.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      // Duplicate poll is ignored.
+      expect(tracker.observe(validRefusal, scope), isNull);
+
+      // Invalid, cross-session, stale-epoch, old-revision, or unattributed refusal records are ignored.
+      for (final invalid in [
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          origin: 'converse',
+          causes: ['source'],
+        ),
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          thread: 'other',
+          causes: ['source'],
+        ),
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          epoch: 4,
+          causes: ['source'],
+        ),
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          causes: ['unrelated'],
+        ),
+        event(
+          'routing.classification_refused',
+          3,
+          {
+            'source_event_id': 'source',
+            'source_revision': 1,
+            'reason': '',
+            'error_type': 'ProviderRefusal',
+          },
+          causes: ['source'],
+        ),
+      ]) {
+        final isolated = ConverseHandoffTracker()..observe(source(), scope);
+        expect(isolated.observe(invalid, scope), isNull);
+        expect(isolated.pendingReceipts, isEmpty);
+      }
+
+      // Revision 2 clears prior notice and accepts revision-bound refusal; old revision 1 refusal is ignored.
+      tracker.observe(
+        event('conversation.revision', 3, {
+          'target_event_id': 'source',
+          'revision': 2,
+          'text': 'Corrected request',
+        }, id: 'rev-2'),
+        scope,
+      );
+      expect(tracker.noticeForSource('source', scope), isNull);
+      expect(
+        tracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'source',
+              'source_revision': 1,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'stale-refusal',
+            causes: ['source'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      final revNotice = tracker.observe(
+        event(
+          'routing.classification_refused',
+          5,
+          {
+            'source_event_id': 'source',
+            'source_revision': 2,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          id: 'rev-refusal',
+          causes: ['rev-2'],
+        ),
+        scope,
+      );
+      expect(revNotice, isNotNull);
+      expect(revNotice!.status, HandoffStatus.unavailable);
+      expect(revNotice.sourceRevision, 2);
+
+      // Existing accepted task bindings are never overwritten by a later refusal record.
+      final acceptedTracker = ConverseHandoffTracker()
+        ..observe(source(), scope)
+        ..observe(decision(), scope);
+      expect(
+        acceptedTracker.observe(receipt('accepted'), scope)!.status,
+        HandoffStatus.accepted,
+      );
+      expect(
+        acceptedTracker.observe(
+          event(
+            'routing.classification_refused',
+            6,
+            {
+              'source_event_id': 'source',
+              'source_revision': 1,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'late-refusal',
+            causes: ['source'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        acceptedTracker.noticeForSource('source', scope)!.status,
+        HandoffStatus.accepted,
+      );
+
+      // Reverse observation order: a valid refusal at seq 20 does not block
+      // later recovery of an authoritative accepted receipt at seq 3.
+      final reverseTracker = ConverseHandoffTracker()..observe(source(), scope);
+      final earlyRefusal = event(
+        'routing.classification_refused',
+        20,
+        {
+          'source_event_id': 'source',
+          'source_revision': 1,
+          'reason': 'provider_refused',
+          'error_type': 'ProviderRefusal',
+        },
+        id: 'refusal-early',
+        causes: ['source'],
+      );
+      expect(
+        reverseTracker.observe(earlyRefusal, scope)!.status,
+        HandoffStatus.unavailable,
+      );
+      reverseTracker.observe(decision(sequence: 2), scope);
+      final recoveredAccept = reverseTracker.observe(
+        receipt('accepted', sequence: 3),
+        scope,
+      );
+      expect(recoveredAccept, isNotNull);
+      expect(recoveredAccept!.status, HandoffStatus.accepted);
+      expect(
+        reverseTracker.noticeForSource('source', scope)!.status,
+        HandoffStatus.accepted,
+      );
+      expect(reverseTracker.observe(earlyRefusal, scope), isNull);
+
+      // Historical revision-A alias cannot be combined with current revision-B payload/cause.
+      final aliasTracker = ConverseHandoffTracker()
+        ..observe(source(), scope)
+        ..observe(
+          event('conversation.revision', 2, {
+            'target_event_id': 'source',
+            'revision': 2,
+            'text': 'Rev 2',
+          }, id: 'rev-2'),
+          scope,
+        )
+        ..observe(
+          event('conversation.revision', 3, {
+            'target_event_id': 'source',
+            'revision': 3,
+            'text': 'Rev 3',
+          }, id: 'rev-3'),
+          scope,
+        );
+      expect(
+        aliasTracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'rev-2',
+              'source_revision': 3,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'mismatch-alias-rev',
+            causes: ['rev-3'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(
+        aliasTracker.observe(
+          event(
+            'routing.classification_refused',
+            4,
+            {
+              'source_event_id': 'rev-3',
+              'source_revision': 3,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'mismatch-alias-cause',
+            causes: ['rev-2'],
+          ),
+          scope,
+        ),
+        isNull,
+      );
+      expect(aliasTracker.pendingReceipts, isEmpty);
+      final validAliasRefusal = aliasTracker.observe(
+        event(
+          'routing.classification_refused',
+          5,
+          {
+            'source_event_id': 'rev-3',
+            'source_revision': 3,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          id: 'valid-alias-rev-3',
+          causes: ['rev-3'],
+        ),
+        scope,
+      );
+      expect(validAliasRefusal, isNotNull);
+      expect(validAliasRefusal!.sourceEventId, 'source');
+      expect(validAliasRefusal.sourceRevision, 3);
+    },
+  );
+
+  test(
+    'deferred classification_refused recovers skipped source and revision without decision page reads (#450)',
+    () async {
+      final correction = event('conversation.revision', 4, {
+        'target_event_id': 'source',
+        'revision': 2,
+        'text': 'Corrected request',
+      }, id: 'correction');
+      final refusal = event(
+        'routing.classification_refused',
+        20,
+        {
+          'source_event_id': 'source',
+          'source_revision': 2,
+          'reason': 'provider_refused',
+          'error_type': 'ProviderRefusal',
+        },
+        id: 'refusal-2',
+        causes: ['correction'],
+      );
+      final api = ReceiptApi()
+        ..entries = [refusal]
+        ..references = {
+          'source': source(revision: 2, text: 'Corrected request'),
+          'correction': correction,
+        };
+      final state = wired(api);
+      await state.refreshNotices();
+      expect(state.converseHistory, hasLength(1));
+      expect(
+        state.converseHistory.single.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      expect(api.causalReads, 2);
+      expect(api.decisionCursors, isEmpty);
+      state.dispose();
+
+      // Bounded alias eviction (>256 revisions on one retained source) recovers evicted alias via authenticated GETs.
+      final otherSource = source(id: 'other', sequence: 2, text: 'Other');
+      final apiEvicted = ReceiptApi()
+        ..entries = [
+          source(id: 'source', sequence: 1, text: 'Initial'),
+          otherSource,
+          correction,
+          for (var i = 0; i < 260; i++)
+            event('conversation.revision', 10 + i, {
+              'target_event_id': 'other',
+              'revision': 2 + i,
+              'text': 'Other rev ${2 + i}',
+            }, id: 'other-rev-$i'),
+          event(
+            'routing.classification_refused',
+            300,
+            {
+              'source_event_id': 'correction',
+              'source_revision': 2,
+              'reason': 'provider_refused',
+              'error_type': 'ProviderRefusal',
+            },
+            id: 'refusal-evicted-alias',
+            causes: ['correction'],
+          ),
+        ]
+        ..references = {
+          'source': source(revision: 2, text: 'Corrected request'),
+          'correction': correction,
+        };
+      final stateEvicted = wired(apiEvicted);
+      await stateEvicted.refreshNotices();
+      await stateEvicted.refreshNotices();
+      await stateEvicted.refreshNotices();
+      expect(stateEvicted.converseHistory, hasLength(1));
+      expect(stateEvicted.converseHistory.single.eventId, 'handoff:source');
+      expect(
+        stateEvicted.converseHistory.single.text,
+        'Routing unavailable. No Agent acceptance is confirmed for this input.',
+      );
+      expect(apiEvicted.causalReads, 2);
+      expect(apiEvicted.decisionCursors, isEmpty);
+      stateEvicted.dispose();
+    },
+  );
+
+  test(
     'native polling projects one waiting/accepted notice without causal lookups when fully loaded',
     () async {
       final api = ReceiptApi()
@@ -655,6 +1023,1031 @@ void main() {
       await pending;
       expect(owner.converseHistory, isEmpty);
       owner.dispose();
+    },
+  );
+
+  testWidgets(
+    'causal handoff status renders beside originating message across states, revisions and stale speech windows',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final api = ReceiptApi();
+      final state = wired(api);
+
+      // Add a typed user turn bound to eventId 'source'.
+      state.appendHistory(
+        AppView.character,
+        ChatMsg(role: 'user', text: 'Public request'),
+      );
+      state.acceptedConverseSource(scope, 'source', 0);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CharacterView(
+              state: state,
+              surface: CharacterSurface.interaction,
+              showCharacter: false,
+              richArtifactsEnabled: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 1. Decisions route suggestion alone never displays queued or accepted.
+      api.entries = [source(), decision()];
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsNothing,
+      );
+
+      // 2. Native queued receipt shows Queued beside the originating message.
+      api.entries.add(receipt('queued'));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Queued',
+      );
+      expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+      expect(find.text('Waiting for Agent acceptance.'), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.byKey(const ValueKey('converse-handoff-source')))
+            .label,
+        contains('Agent handoff Queued: Waiting for Agent acceptance.'),
+      );
+      // Positioned directly beneath the originating user bubble.
+      final userRect = tester.getRect(find.byType(MessageBubble).first);
+      final handoffRect = tester.getRect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+      );
+      expect(handoffRect.top, greaterThanOrEqualTo(userRect.bottom - 4));
+
+      // 3. Rejection, not-applied, and unknown states BEFORE terminal acceptance.
+      api.entries.add(receipt('rejected', id: 'r-rej', sequence: 4));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Rejected',
+      );
+      expect(find.byIcon(Icons.block_rounded), findsOneWidget);
+      expect(find.text('Agent did not accept this request.'), findsOneWidget);
+
+      api.entries.add(receipt('not_applied', id: 'r-na', sequence: 5));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Not applied',
+      );
+      expect(find.byIcon(Icons.do_not_disturb_on_outlined), findsOneWidget);
+
+      api.entries.add(receipt('unknown', id: 'r-unk', sequence: 6));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Unconfirmed',
+      );
+      expect(find.byIcon(Icons.help_outline_rounded), findsOneWidget);
+
+      // 4. Native accepted receipt updates status to Accepted.
+      api.entries.add(receipt('accepted', id: 'r-acc', sequence: 7));
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Accepted',
+      );
+      expect(find.byIcon(Icons.task_alt_rounded), findsOneWidget);
+      expect(
+        find.text('Agent accepted the request · Task task-1'),
+        findsOneWidget,
+      );
+
+      // 5. Typed revision invalidates prior revision receipt until new revision receipt arrives.
+      api.entries.add(
+        event('conversation.revision', 8, {
+          'target_event_id': 'source',
+          'revision': 2,
+          'text': 'Revised request',
+        }, id: 'rev-2'),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsNothing,
+      );
+
+      // 6. Speech window receipt attaches to live window and drops when window text changes.
+      api.entries.addAll([
+        source(
+          id: 'win-0',
+          sequence: 9,
+          utterance: 'utt-1',
+          index: 0,
+          text: 'Draft a checklist',
+        ),
+        event(
+          'routing.window_status',
+          10,
+          {
+            'source_event_id': 'win-0',
+            'source_sequence': 9,
+            'source_revision': 1,
+            'phase': 'agent_unavailable',
+            'reason': 'agent_status_unavailable',
+          },
+          id: 'win-unavail',
+          causes: ['win-0'],
+        ),
+      ]);
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-win-0')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-win-0')),
+            )
+            .data,
+        'Unavailable',
+      );
+      expect(find.byIcon(Icons.cloud_off_rounded), findsOneWidget);
+
+      api.entries.addAll([
+        decision(
+          window: true,
+          id: 'win-dec',
+          decisionId: 'win-d1',
+          sourceId: 'win-0',
+          sourceSequence: 9,
+          sequence: 11,
+          cause: 'win-0',
+        ),
+        receipt(
+          'applied',
+          window: true,
+          id: 'win-app',
+          sequence: 12,
+          sourceId: 'win-0',
+          sourceSequence: 9,
+          decisionId: 'win-d1',
+          cause: 'win-dec',
+        ),
+      ]);
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-win-0')),
+            )
+            .data,
+        'Applied',
+      );
+      expect(find.byIcon(Icons.published_with_changes_rounded), findsOneWidget);
+
+      // A newer speech window in the same utterance with changed text invalidates the stale window receipt.
+      api.entries.add(
+        source(
+          id: 'win-1',
+          sequence: 13,
+          utterance: 'utt-1',
+          index: 1,
+          text: 'Never mind, just chatting',
+        ),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-win-0')),
+        findsNothing,
+      );
+
+      // 7. Native classification refusal for revised typed turn renders Unavailable beside the message (#450).
+      api.entries.add(
+        event(
+          'routing.classification_refused',
+          14,
+          {
+            'source_event_id': 'source',
+            'source_revision': 2,
+            'reason': 'provider_refused',
+            'error_type': 'ProviderRefusal',
+          },
+          id: 'rev-2-refused',
+          causes: ['rev-2'],
+        ),
+      );
+      await state.refreshNotices();
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('converse-handoff-source')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Unavailable',
+      );
+      expect(
+        find.text(
+          'Routing unavailable. No Agent acceptance is confirmed for this input.',
+        ),
+        findsOneWidget,
+      );
+      semantics.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'confirmed handoff links to exact known task, reports missing/stale/unauthorized destinations without selecting unrelated task, and preserves drafts/audio/back navigation',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final api = ReceiptApi();
+      final state = wired(api);
+      state.setDraft(AppView.character, 'keep converse draft');
+      state.setDraft(AppView.agent, 'keep agent draft');
+
+      state.converseHistory.add(
+        ChatMsg(role: 'user', text: 'Run the build', eventId: 'source'),
+      );
+      api.entries = [
+        source(id: 'source', sequence: 1, text: 'Run the build'),
+        decision(id: 'dec-1', sequence: 2),
+        receipt('accepted', id: 'r-acc', sequence: 3),
+      ];
+      await state.refreshNotices();
+
+      final unrelatedTask = AgentTask(
+        taskId: 'task-unrelated',
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        objective: 'Unrelated background objective',
+        objectiveRevision: 1,
+        state: 'running',
+        idempotencyKey: 'k-unrelated',
+      );
+      final exactTask = AgentTask(
+        taskId: 'task-1',
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        objective: 'Exact handoff build objective',
+        objectiveRevision: 1,
+        state: 'running',
+        idempotencyKey: 'k-1',
+      );
+
+      // 1. Missing destination: task-1 is not in state.tasks (only unrelatedTask is).
+      state.setTasks([unrelatedTask]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => IndexedStack(
+                index: state.view == AppView.agent ? 1 : 0,
+                children: [
+                  CharacterView(state: state, showCharacter: false),
+                  AgentChat(state: state),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('converse-handoff-open-task-source')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-handoff-destination-status-source'),
+              ),
+            )
+            .data,
+        contains('Task task-1 is unavailable or retired'),
+      );
+
+      // Attempting to open a missing destination reports the missing task and never selects unrelatedTask.
+      final notice = state.handoffNotice('source')!;
+      state.agentSession = SessionInfo(
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        channel: 'agent',
+      );
+      state.openHandoffTask(notice);
+      await tester.pump();
+      expect(state.view, AppView.agent);
+      expect(state.agentNotice, contains('Task task-1 is missing or retired'));
+      expect(find.byKey(const ValueKey('agent-details-panel')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('agent-details-collapsed')),
+        findsOneWidget,
+      );
+
+      // Return to Converse via Back to Converse button.
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump();
+      expect(state.view, AppView.character);
+
+      // 2. Stale destination: task-1 belongs to epoch 1 while active session is epoch 2.
+      state.setTasks([
+        unrelatedTask,
+        AgentTask(
+          taskId: 'task-1',
+          sessionId: 'agent-s1',
+          threadId: 'agent-t1',
+          epoch: 1,
+          objective: 'Stale epoch objective',
+          objectiveRevision: 1,
+          state: 'running',
+          idempotencyKey: 'k-1',
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('converse-handoff-open-task-source')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-handoff-destination-status-source'),
+              ),
+            )
+            .data,
+        contains('Task task-1 belongs to an earlier session or epoch'),
+      );
+
+      // 3. Unauthorized destination: unauthenticated session hides link and reports reconnect hint.
+      state.setTasks([unrelatedTask, exactTask]);
+      state.sessionAuthenticated = false;
+      state.touch();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('converse-handoff-open-task-source')),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(
+                const ValueKey('converse-handoff-destination-status-source'),
+              ),
+            )
+            .data,
+        contains('Reconnect to inspect task task-1'),
+      );
+
+      // 4. Known destination: authenticated session + matching task-1 shows Open task link.
+      state.sessionAuthenticated = true;
+      state.beginTurn(5);
+      final liveTurnNonce = state.turnNonce;
+      final liveVoiceNonce = state.voiceNonce;
+      final liveSpeechEpoch = state.speechEpoch;
+      state.touch();
+      await tester.pump();
+
+      final openTaskBtn = find.byKey(
+        const ValueKey('converse-handoff-open-task-source'),
+      );
+      expect(openTaskBtn, findsOneWidget);
+
+      await tester.tap(openTaskBtn);
+      await tester.pump();
+
+      expect(state.view, AppView.agent);
+      expect(state.requestedAgentTaskId, 'task-1');
+      expect(state.agentSession?.sessionId, 'agent-s1');
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('agent-details-panel')),
+          matching: find.text('Exact handoff build objective'),
+        ),
+        findsOneWidget,
+      );
+
+      // Drafts and active audio nonces/epochs are preserved across navigation and return.
+      expect(state.converseDraft, 'keep converse draft');
+      expect(state.agentDraft, 'keep agent draft');
+      expect(state.turnNonce, liveTurnNonce);
+      expect(state.voiceNonce, liveVoiceNonce);
+      expect(state.speechEpoch, liveSpeechEpoch);
+
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump();
+      expect(state.view, AppView.character);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'verified post-handoff task progress and final result reflect native task state without inferring success (#297)',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final api = ReceiptApi();
+      final state = wired(api);
+      state.converseHistory.addAll([
+        ChatMsg(
+          role: 'user',
+          text: 'Run test suite and write report',
+          eventId: 'source',
+          windowRevision: 1,
+        ),
+        ChatMsg(
+          role: 'kinaiya',
+          text: 'All done! Your report has been written and verified.',
+          eventId: 'assistant-1',
+        ),
+      ]);
+      api.entries = [
+        source(
+          id: 'source',
+          sequence: 1,
+          text: 'Run test suite and write report',
+        ),
+        decision(id: 'dec-1', sequence: 2),
+        receipt('accepted', id: 'r-acc', sequence: 3),
+      ];
+      await state.refreshNotices();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => IndexedStack(
+                index: state.view == AppView.agent ? 1 : 0,
+                children: [
+                  CharacterView(state: state, showCharacter: false),
+                  AgentChat(state: state),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 1. Missing/unavailable task data is labeled Unknown, never inferred from assistant prose.
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task status: Unknown',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('unavailable in current Agent tasks'),
+      );
+
+      // 2. Accepted-but-pending (queued -> running).
+      AgentTask buildTask({
+        required String taskState,
+        int epoch = 2,
+        List<Evidence> evidence = const [],
+        String summary = '',
+        String? error,
+      }) => AgentTask(
+        taskId: 'task-1',
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: epoch,
+        objective: 'Run test suite and write report',
+        objectiveRevision: 1,
+        state: taskState,
+        idempotencyKey: 'k-1',
+        evidence: evidence,
+        summary: summary,
+        error: error,
+      );
+
+      state.agentSession = SessionInfo(
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        channel: 'agent',
+      );
+      state.setTasks([buildTask(taskState: 'queued')]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task queued',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        'Waiting to run in Agent.',
+      );
+
+      state.setTasks([buildTask(taskState: 'running')]);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task running',
+      );
+
+      // 3. Approval-needed shows Review approval link to existing Agent controls.
+      state.recordApprovals([
+        ApprovalRequest(
+          approvalId: 'app-1',
+          taskId: 'task-1',
+          tool: 'write_file',
+          actionDigest:
+              'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+          objectiveRevision: 1,
+          arguments: const {'path': 'report.md'},
+          reason: 'Write report',
+          sessionId: 'agent-s1',
+          threadId: 'agent-t1',
+          epoch: 2,
+          status: 'pending',
+          reissueSupported: true,
+        ),
+      ]);
+      state.setTasks([buildTask(taskState: 'awaiting_approval')]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Approval needed',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('write_file'),
+      );
+      final actionFinder = find.byKey(
+        const ValueKey('converse-handoff-task-action-source'),
+      );
+      expect(actionFinder, findsOneWidget);
+      expect(
+        find.descendant(
+          of: actionFinder,
+          matching: find.text('Review approval'),
+        ),
+        findsOneWidget,
+      );
+
+      // 4. Published artifact alone without native work evidence never shows verified Task succeeded.
+      state.recordApprovals(const []);
+      state.setTasks([
+        buildTask(
+          taskState: 'succeeded',
+          evidence: [
+            Evidence(
+              kind: 'artifact',
+              summary: 'Published preview card',
+              objectiveRevision: 1,
+              path: 'artifact://art-1',
+              sha256:
+                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              output:
+                  '{"artifact_id":"art-1","kind":"markdown","title":"Report preview"}',
+            ),
+          ],
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Finished (unverified)',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('artifact publication only'),
+      );
+
+      // 5. Succeeded with verified native execution evidence shows Task succeeded + Inspect evidence.
+      state.setTasks([
+        buildTask(
+          taskState: 'succeeded',
+          summary: 'Wrote report.md',
+          evidence: [
+            Evidence(
+              kind: 'file',
+              summary: 'wrote report.md',
+              objectiveRevision: 1,
+              path: 'report.md',
+              sha256:
+                  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+            ),
+          ],
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task succeeded',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        contains('1 verified receipt'),
+      );
+      expect(
+        find.descendant(
+          of: actionFinder,
+          matching: find.text('Inspect evidence'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(actionFinder);
+      await tester.pump();
+      expect(state.view, AppView.agent);
+      expect(state.requestedAgentTaskId, 'task-1');
+
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump();
+      expect(state.view, AppView.character);
+
+      // 6. Failure and stale/unavailable task states.
+      state.setTasks([
+        buildTask(taskState: 'failed', error: 'Test suite exited with code 1.'),
+      ]);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task failed',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-detail-source')),
+            )
+            .data,
+        'Test suite exited with code 1.',
+      );
+
+      // Stale task status (e.g. outage) marks task progress Unknown.
+      state.markTasksUnavailable();
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task status: Unknown',
+      );
+
+      // Stale session/epoch marks task progress Unknown.
+      state.setTasks([buildTask(taskState: 'running', epoch: 1)]);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-task-state-source')),
+            )
+            .data,
+        'Task status: Unknown',
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+
+  testWidgets(
+    'restrained handoff microfeedback highlights only fresh authenticated transitions and respects reduced motion across 320px and desktop (#298)',
+    (tester) async {
+      ConverseHandoffStatusBanner.resetMicrofeedbackForTesting();
+      addTearDown(ConverseHandoffStatusBanner.resetMicrofeedbackForTesting);
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final api = ReceiptApi();
+      final state = wired(api);
+      state.agentSession = SessionInfo(
+        sessionId: 'agent-s1',
+        threadId: 'agent-t1',
+        epoch: 2,
+        channel: 'agent',
+      );
+      state.setTasks([
+        AgentTask(
+          taskId: 'task-1',
+          sessionId: 'agent-s1',
+          threadId: 'agent-t1',
+          epoch: 2,
+          objective: 'Update configuration',
+          objectiveRevision: 1,
+          state: 'running',
+          idempotencyKey: 'k-1',
+        ),
+      ]);
+      state.converseHistory.add(
+        ChatMsg(
+          role: 'user',
+          text: 'Update configuration',
+          eventId: 'source',
+          windowRevision: 1,
+        ),
+      );
+      api.entries = [
+        source(id: 'source', sequence: 1, text: 'Update configuration'),
+        decision(id: 'dec-1', sequence: 2),
+        receipt('queued', id: 'r-q', sequence: 3),
+      ];
+      await state.refreshNotices();
+
+      var animateTransitions = true;
+      var disableAnimations = false;
+
+      Widget buildHarness() => MediaQuery(
+        data: MediaQueryData(disableAnimations: disableAnimations),
+        child: MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: state,
+              builder: (_, _) => IndexedStack(
+                index: state.view == AppView.agent ? 1 : 0,
+                children: [
+                  CharacterView(
+                    state: state,
+                    showCharacter: false,
+                    animateTransitions: animateTransitions,
+                  ),
+                  AgentChat(state: state),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildHarness());
+      await tester.pump();
+
+      // 1. Initial queued state is static (no transition microfeedback yet).
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Queued',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+
+      // 2. Fresh authenticated transition (queued -> unknown) animates briefly, with no perpetual spinner.
+      api.entries = [receipt('unknown', id: 'r-u', sequence: 4)];
+      await state.refreshNotices();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source')),
+            )
+            .data,
+        'Unconfirmed',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('converse-handoff-source')),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+
+      // Settles after 220ms and does not re-trigger on subsequent polls or rebuilds.
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+      await state.refreshNotices();
+      state.touch();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+
+      // 3. Rapid state change (unknown -> accepted) highlights briefly while controls stay usable at 320px.
+      await tester.binding.setSurfaceSize(const Size(320, 800));
+      await tester.pump();
+
+      api.entries = [receipt('accepted', id: 'r-acc', sequence: 5)];
+      await state.refreshNotices();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsOneWidget,
+      );
+      final openTaskFinder = find.byKey(
+        const ValueKey('converse-handoff-open-task-source'),
+      );
+      await tester.ensureVisible(openTaskFinder);
+      // Task control is immediately usable mid-transition on 320px layout.
+      await tester.tap(openTaskFinder);
+      await tester.pump();
+      expect(state.view, AppView.agent);
+      await tester.tap(find.byKey(const ValueKey('agent-return-to-converse')));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source'),
+        ),
+        findsNothing,
+      );
+
+      // 4. Reduced motion (animateTransitions: false and MediaQuery disableAnimations: true) renders static immediately.
+      animateTransitions = false;
+      disableAnimations = true;
+      state.converseHistory.add(
+        ChatMsg(
+          role: 'user',
+          text: 'Second request',
+          eventId: 'source-2',
+          windowRevision: 1,
+        ),
+      );
+      api.entries = [
+        source(id: 'source-2', sequence: 6, text: 'Second request'),
+        decision(
+          id: 'dec-2',
+          decisionId: 'decision-2',
+          sequence: 7,
+          cause: 'source-2',
+          sourceId: 'source-2',
+          sourceSequence: 6,
+        ),
+        receipt(
+          'queued',
+          id: 'r-q2',
+          sequence: 8,
+          sourceId: 'source-2',
+          sourceSequence: 6,
+          decisionId: 'decision-2',
+          cause: 'source-2',
+        ),
+      ];
+      await state.refreshNotices();
+      await tester.pumpWidget(buildHarness());
+      await tester.pump();
+
+      api.entries = [
+        receipt(
+          'rejected',
+          id: 'r-rej2',
+          sequence: 9,
+          sourceId: 'source-2',
+          sourceSequence: 6,
+          decisionId: 'decision-2',
+          cause: 'source-2',
+        ),
+      ];
+      await state.refreshNotices();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('converse-handoff-status-source-2')),
+            )
+            .data,
+        'Rejected',
+      );
+      expect(
+        find.byKey(
+          const ValueKey('converse-handoff-microfeedback-active-source-2'),
+        ),
+        findsNothing,
+      );
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      state.dispose();
+      await tester.pump(const Duration(seconds: 1));
     },
   );
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../api/capability_settings.dart';
 import '../api/capability_client.dart';
 import 'design_tokens.dart';

@@ -34,7 +34,7 @@ def _payload(text, pending, words, received, language=None, pass_ms=5):
     ).encode()
 
 
-def _mk(monkeypatch, proc=None, stop=None):
+def _mk(monkeypatch, proc=None, stop=None, missing_symbol=None):
     seen = []
     procs, stops = [], []
 
@@ -69,6 +69,11 @@ def _mk(monkeypatch, proc=None, stop=None):
         needle_stream_transcribe_process=Function(_proc),
         needle_stream_transcribe_stop=Function(_stop),
     )
+    if missing_symbol is not None:
+        delattr(lib, missing_symbol)
+        lib.needle_load = Function(
+            lambda *args: pytest.fail("Missing stream binding reached native load")
+        )
 
     def cdll(path):
         seen.append("cdll")
@@ -105,6 +110,14 @@ def test_signatures_and_fsize_before_cdll(monkeypatch):
     assert lib.needle_stream_transcribe_stop.restype is ctypes.c_int
     with pytest.raises(TypeError):
         backend.WhistleEngine("w", "l", "/synthetic/agent", enable_streaming=1)
+
+
+@pytest.mark.parametrize(
+    "missing_symbol", ["needle_stream_transcribe_process", "needle_stream_transcribe_stop"]
+)
+def test_missing_stream_binding_refuses_before_native_load(monkeypatch, missing_symbol):
+    with pytest.raises(RuntimeError, match="^Whistle stream binding failed$"):
+        _mk(monkeypatch, missing_symbol=missing_symbol)
 
 
 def test_pcm_extremes_endian_single_call(monkeypatch):

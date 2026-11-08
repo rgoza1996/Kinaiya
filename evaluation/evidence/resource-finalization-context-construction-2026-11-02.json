@@ -1,0 +1,171 @@
+{
+  "candidate_run": {
+    "all_inputs_head_runner_unchanged": true,
+    "availability": "Ignored raw files retained in publisher plus byte-exact native integration mirror; not uploaded CI artifacts. Synthetic fixtures; temporary DBs are not included in these mirrors.",
+    "command_note": "Full exact argv, basetemp/junitxml paths, explicit environment overrides, timestamps and pins remain in hash-bound local receipt.json. Full inherited environment is not archived.",
+    "elapsed_wall_s": 392.0811182460002,
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "junit_seconds": 390.293,
+    "legacy_affected_cases": 188,
+    "qualified_head": "7dd787c701c3a985f8afc5d8e750f1835c095f42",
+    "raw_bundle": "239-published-context-encoding-qualified251-v1-yxha410g",
+    "raw_sha256": {
+      "junit.xml": "f88d2aa07898a8474e24addf5412b08051e6e0f22045366bd09500678252062e",
+      "manifest.json": "f764fad5f83de72541a6882fa707e038712acbca66d905a5fb593b9b97306f17",
+      "post-pins.json": "a12410d944194fed7bcddbd6d471415e08f310481871fd13b7c4f78bd5e00987",
+      "pre-pins.json": "a12410d944194fed7bcddbd6d471415e08f310481871fd13b7c4f78bd5e00987",
+      "pytest.log": "aceb8214d5883713c8d26c9148915ce58bde9421ba96c19d36b51a80034ff3d2",
+      "receipt.json": "576871fa1165bddfc309ee2773efcaf72b005975279f82166949fd7821123516",
+      "runner-source.py": "439a00ab47a6a71ef57fd17a361f7643c1640d64e78b965fb76fd9ffb609a82d",
+      "start.json": "5227dd87079e738778a84c85417393651d700dbca8ffd53868b9c105a3b1c459"
+    },
+    "resource_contract_cases": 63,
+    "skipped": 0,
+    "test_targets": [
+      "tests/unit/test_standing_resource_finalization_contracts.py",
+      "tests/integration/test_standing_physical_finalization.py",
+      "tests/integration/test_standing_resource_finalization_api.py",
+      "tests/integration/test_standing_resources_finalization_transport_api.py",
+      "tests/integration/test_standing_physical_timeout_controls.py",
+      "tests/unit/test_standing_finalization_join_equivalence.py",
+      "tests/integration/test_agent_standing_claim_retirement.py",
+      "tests/integration/test_agent_standing_external_control_retirement.py",
+      "tests/integration/test_agent_standing_binding_retirement.py"
+    ],
+    "tests": 251,
+    "tracked_input_count": 1520
+  },
+  "case_and_cleanup_evidence": {
+    "all_raw_properties_sha256": "1aa4307ed78ec07675271b51c14fbb192500f5f9b1d50df0cd118e2ad0cb2bb0",
+    "hash_projection": "UTF-8 bytes of json.dumps(projection, separators=(',', ':'), ensure_ascii=True): ordered [classname,name] arrays and, separately, ordered per-case [property name,raw value] arrays; raw XML/manifest hashes remain authoritative.",
+    "interpretation": "Positive original join/close/reap fixture observations coexist with five deliberate logical StandingUnavailable outcomes. One failed-workspace descriptor has manual-release uncertainty; no automatic physical success is inferred. Actual inference calls0. No Task/row/registry-only cleanup proof.",
+    "logical_standing_unavailable_records": 5,
+    "native_teardown_records": 73,
+    "ordered_251_and_all_raw_properties_exact_api88": true,
+    "ordered_ids_sha256": "19fffd75aecd2620b3582a687bb72178dda57b4adbc8202f73b0c865eaa27521",
+    "physical_actual_cleanup_records": 80
+  },
+  "date": "2026-11-02",
+  "independent_artifact_review": {
+    "decision": "PASS within bounded offline scope; exact raw manifests, ordered251/all properties and original Git/pin closure verified; deliberate negative cleanup remains negative.",
+    "input_manifest_sha256": "c75eaacb3f0d8b21df32ee1de92d382d4c6d79094a36f4f24fef6da1b34d3e71",
+    "limits": "No source edits or execution, current draft-document qualification, native667 access, timing cause/repair, H64, model/live-device/CI or general physical-cleanup conclusion.",
+    "receipt_sha256": "2573bb592c374d7f1b415305e65b6bd19f1b25826c3b47855df4416f5777fe2f",
+    "review_sha256": "60b67d3fdc258dee416324bc6da4f2d3fb7b79b636d306ac6f7a20c6b5b2913e",
+    "reviewer": "/root/native_reuse_source_review/codec_field_scan_equivalence",
+    "seal_sha256": "1e1464f300b30295644101ea281147f675e38fd1dd68a1d989ceb4536cf45d49"
+  },
+  "independent_source_reviews": {
+    "actual_publisher_closure_review_sha256": "d8572058d9009f9b59a8753f32bb70af373aa98a2ab10e517f1b1db190e735be",
+    "actual_publisher_closure_seal_sha256": "7a784d4871c93aecdaf47462e8a199f5c945036d80b2883adc6bb46b7c2c0fb7",
+    "api_ownership_review_sha256": "52dc875ad60f5a6dd82a63b6fc9ee8d5b1f61819678d6b160c4b81080045e9a6",
+    "api_source_review_sha256": "b62c941c205d406f26fdb74349ac77660b5db2bf1d946d821b713acf2c219fa5",
+    "boundary": "Independent source opinions precede separate raw qualification; native-only source excluded from this publication.",
+    "two_site_completion_seal_sha256": "cabcbca40fe9b402b9ed432d69041f48d8eb4f0a06ab8d3de303c9f3418235f7",
+    "two_site_review_sha256": "4c6e5316589599f5c5bd33b92db7a1ca32f7741ee634987dc488075caea7081e"
+  },
+  "intermediate_api_only_run": {
+    "elapsed_wall_s": 407.84681848699984,
+    "errors": 0,
+    "failures": 0,
+    "independent_raw_review_sha256": "3b678bce17300a0c3734475117c2e7db158b8dc6bb37e3a5a658cdfa44e749e4",
+    "independent_raw_seal_sha256": "d84d324a4349b91ad6185eca790cc981dcf7374667eb3d1c165f8d170ee4e068",
+    "inputs_stable": true,
+    "junit_seconds": 405.985,
+    "qualified_head": "88a994db68a8992eee6db35297d4efef02720673",
+    "raw_bundle": "239-published-reply-encoding-qualified251-v1-7pqodc4c",
+    "raw_receipt_sha256": "7f874e5da87ec6ae443c20e02568b0438df1acd1a9ea77feda2022fd9aef4cc9",
+    "skipped": 0,
+    "tests": 251
+  },
+  "issues": [
+    239,
+    228
+  ],
+  "limitations": [
+    "Local offline controlled architecture/contract checks only; no model accuracy, paid provider, GPU, media, physical device, demonstration or full-roadmap qualification.",
+    "No same-source timing comparison, causal timing repair, common-cause, H64 or general physical-cleanup claim.",
+    "Native-v2 settlement/context, finite-run quota/H64, recurrence/inbox/editor remain separate unpublished integration work.",
+    "PR315 remains draft/unmerged pending final independent evidence/documentation closure and all five changed-source CI jobs; no rerun or assertion/deadline waiver.",
+    "The initial earlier API-only launcher checked an incorrect module-count assumption and exited before pytest; it was corrected to the actual saved nine-target argv. No test/source/assertion/deadline changed. This is root-reported setup history, not a reconstructed missing raw receipt."
+  ],
+  "prior_ci497": {
+    "android": "passed",
+    "availability": "Recovered decoded GitHub job logs, not original archive bytes. Earlier CI441/442/456 and local failures remain separately preserved.",
+    "complete_shared_tree": "4120017bf6d76309dfafb7c1b919403f7ee2e3f3",
+    "decoded_android_log_sha256": "2466562c60e28abf464120c807a72043ff26b16cbfbd1d1a40073561cc7a4246",
+    "decoded_python311_log_sha256": "146346c2bd253007580e54da96e1d3fbcfe5a54e198eb9d916bf960f927505b5",
+    "decoded_python312_log_sha256": "a2742a25f38c5620701a16b29269a93d65fbe3f9e989a090236784eaa8d15df1",
+    "failure": "tests/integration/test_standing_physical_finalization.py::test_complete_genuine_large_graph_and_native_reply_exceed_old262144_cap",
+    "flutter": "passed",
+    "head": "8c060bbb46f9340538c1abd16419303b9f31d6b4",
+    "ios": "passed unsigned simulator builds; no physical execution claim",
+    "observations": "Owner-report wrapper result observed while outer call/finalizer/native HTTP/thread work remained pending. No deadline-relative completion or internal cause established.",
+    "python311": "10981passed,6skipped,2deselected;export/audit passed",
+    "python312": "10980passed,1failed,6skipped,2deselected;export/audit skipped",
+    "python_actual_checkout": "c6822ee3f831ad0864dcf138b9340f50a67cb991",
+    "raw_receipt_sha256": "5f6a7c04cc81b5b5f4db677d463f9cc4a1f7180d10b26e27a5765ed726db4a78",
+    "run_id": 41549775386,
+    "tree_provenance": "Both decoded Python logs identify checkout c6822ee; the archived API-derived checkout receipt binds its tree to the exact8c tree. That temporary merge object is not available in the local Git object database; no missing object or log is reconstructed.",
+    "unchanged_outer_seconds": 8,
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/41549775386"
+  },
+  "publication_boundary": "Following publication may change only this evidence and the two linked documentation addenda. Every other qualified7dd source/test/schema/lock/UI entry must remain exact; final source/documentation closure and new applicable CI are required.",
+  "pull_request": 315,
+  "purpose": "Remove redundant same-call reconstruction of fully validated fresh replies and private legacy context digest operands while retaining complete native validation and original cleanup ownership.",
+  "recorded_at_utc": "2026-11-03T01:42:58.674649+00:00",
+  "schema_version": "1.0",
+  "source": {
+    "api_commit": "88a994db68a8992eee6db35297d4efef02720673",
+    "base": "8c060bbb46f9340538c1abd16419303b9f31d6b4",
+    "change": "The API uses existing private full-graph encoding only after complete checked_finalization/validate_request validation. The callback-crossing argument remains publicly validated. The private legacy _context hashes the exact five-field body/domain and immediately invokes the unchanged complete Context constructor. No cross-call cache, skip flag, public codec or native transaction/cleanup change.",
+    "current_main": "939ad7e04ead414cda8f5c61a8cf7e3ed2bcdaca",
+    "files": {
+      "services/session/standing_resource_finalization.py": {
+        "git_blob": "6c593100fcedaf122274e81426455a4fae6d7712",
+        "sha256": "15d786d866930d3ddfcbdff6169c988be893b9d8f4e7148f73d6b5e6ae2e208f"
+      },
+      "services/session/standing_resource_finalization_api.py": {
+        "git_blob": "79fcb8198c0c1faf71a000d53a22e26e23f49f9f",
+        "sha256": "5e2aec909eda541be3a3fcbbd9bf5e79bc2d5ed98d8387b961b3aff7e5c0b437"
+      }
+    },
+    "legacy_context_commit": "7dd787c701c3a985f8afc5d8e750f1835c095f42",
+    "native_v2_excluded": true,
+    "preserved_lockfiles": 7,
+    "preserved_old_test_paths": 336,
+    "preserved_schemas": 192,
+    "qualified_head": "7dd787c701c3a985f8afc5d8e750f1835c095f42",
+    "qualified_tree": "4a9b065bcdfaf78bbdb6748e70d4fcebd791473a"
+  },
+  "static_checks": {
+    "all_five_actual_commands_pass": true,
+    "checks": [
+      "whole-repository pinned Ruff check",
+      "whole-repository pinned Ruff format check",
+      "explicit isolated PYTHONPATH export_contracts.py",
+      "original git diff --exit-code -- schemas: wrong path; exit0 is not schema proof",
+      "git diff --check",
+      "separate corrected git diff --exit-code -- packages/contracts/schemas plus full actual192/201 pre/post/current schema hashes"
+    ],
+    "full_inherited_environment_archived": false,
+    "initial_wrong_directory_exit_is_schema_proof": false,
+    "pins_stable": true,
+    "qualified_head": "7dd787c701c3a985f8afc5d8e750f1835c095f42",
+    "raw_bundle": "239-context-encoding-static-v1-2b0xqkr9",
+    "raw_manifest_sha256": "d9cd8b900e0ed57ab195b48943599c0b4494b656cdb482415cce0e063f5a8a28",
+    "raw_receipt_sha256": "2ab9d622cfe15ed0ebefa4bf718ee30c7d7dadb89abd10118fce1b56a28ee85d",
+    "schema_bytes_unchanged": 192,
+    "schema_path_correction": {
+      "actual_schema_path": "packages/contracts/schemas",
+      "corrected_explicit_diff_exit_code": 0,
+      "initial_wrong_path": "schemas",
+      "pre_post_full_pin_proof_also_exact": true,
+      "raw_addendum": "239-schema-path-verification-addendum-v1",
+      "receipt_sha256": "a448f43bdf25aa9530ea09a608f5118518b1443f77d027f3338d4ed0d193506b"
+    },
+    "tracked_input_count": 1520
+  }
+}

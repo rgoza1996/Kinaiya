@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "enum": [
+        "bad_packet",
+        "denied",
+        "unknown_ref",
+        "stale",
+        "expired",
+        "unsupported",
+        "bound",
+        "capacity",
+        "unavailable",
+        "conflict"
+      ],
+      "title": "Error",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "error"
+  ],
+  "title": "MediaError",
+  "type": "object"
+}

@@ -584,9 +584,13 @@ The integration branch adds six strict packets in
 `packages/contracts/standing_resource_finalization.py`: binding request/receipt,
 finalize request/context, finalization and its receipt. They preserve complete
 claim, original intent, admission closure and resource observation graphs.
-Their separate codec accepts at most depth 16 and 16,384 nodes; older codecs and
-their 184 schema files are unchanged. These bounds do not apply to transcript
-metadata or establish physical cleanup.
+Their separate codec accepts at most depth 16 and 16,384 nodes. At this native
+testimony increment, older codecs and all 184 pre-existing schema files stayed
+unchanged. The current integrated tree also includes the approved main
+[native-d1](adr/0106-native-d1-decisions.md) `native_d1_systemone` enum additions
+in the two existing `DecisionsCallStart` and `DecisionsModelPin` schemas. Those
+evolutions are separate from this family's six additive schemas. These bounds
+do not apply to transcript metadata or establish physical cleanup.
 
 | Session POST route | Role | Request → response byte caps |
 |---|---|---|
@@ -615,11 +619,14 @@ transport clamp; all standing routes share one 64-operation registry and the
 existing 25-second total/five-second ingress bounds. Shutdown fences admission
 before joining actual operations and retiring collaborators.
 
-This is **native Session testimony**, not a physical Resources certificate.
-The Resources binding and operation barrier described below consume this
-testimony. Durable lease acquisition/restoration witnesses and production of
-physical reports remain unfinished. Agent supervisor retirement, positive
-settlement, active-slot release, recurrence, inbox and editor remain required.
+This increment supplies **native Session testimony**, not a physical Resources
+certificate. The Resources binding and operation barrier described below consume
+this testimony. The later [in-process Resources producer](adr/0107-standing-physical-finalization.md)
+implements durable acquisition/restoration witnesses and exact report production;
+[scoped finalization transport](adr/0108-standing-finalization-transport.md)
+exposes its Agent-role call and lookup. Agent claim-wide retirement and its
+automatic finalization caller, native Task settlement, claim/reservation and
+active-slot release, recurrence, inbox and editor remain required.
 In particular, `no-reservation` in a parsed packet cannot establish that no
 actual operation acquired resources, and no claim/reservation is released here.
 
@@ -724,6 +731,11 @@ complete #239, M7 or the roadmap.
 
 ## Agent resource completion after worker retirement
 
+The following notification contract remains for ordinary tasks. Current-process
+standing claim owners unconditionally suppress that legacy callback and instead
+use [claim-wide retirement and automatic native finalization](adr/0109-agent-claim-retirement.md).
+An incomplete Resources binder cannot fall back to early restoration.
+
 Agent now sends its existing `task_finished` notification from a separately
 retained operation after the original worker has ended successfully. Task outcome
 and `wait()` retain their existing meanings: a terminal task can precede cleanup.
@@ -754,11 +766,35 @@ preserves the original 14 behavioral failures/eight controls and the two later
 review-derived failures. Earlier qualification groups overlap with the integrated
 run and must not be added to it.
 
-This repairs the live notification ordering and dependency lifetime. It is not
-a durable Agent retirement certificate, a physical Resources report, settlement
-or claim release. Full claim-wide preflight/effect/model ownership retirement and
-the native standing-work settlement chain remain unfinished, as does exact-head
-full CI for the changed source.
+That notification increment repairs its ordering and dependency lifetime; its
+original qualification did not establish claim-wide Agent retirement or a
+physical Resources report. [ADR0109](adr/0109-agent-claim-retirement.md)
+subsequently adds current-process claim retirement and automatic native
+finalization. Native settlement, claim/slot release and the rest of the
+standing-work chain remain unfinished; applicable exact-head CI is required.
+
+## Current-process standing claim finalization
+
+Agent retains an owner before the first preflight lookup, with exact original
+intent, restricted closure capability and captured Journal/Resources clients.
+One rooted work scope retains actual preflight, worker, model cleanup, controls
+and late native HTTP/read/sole-close children. External callers are not joined
+as work. A separate finalizer fences new effects, obtains permanent native
+admission closure and Resources seal, and joins original Agent work before
+calling the existing physical finalization endpoint.
+
+Missing binding replies require original bind cleanup before lookup. Lost final
+replies reconcile the same complete native request after actual cleanup, using
+`agent-standing-finalize:` plus the original claim digest as the stable key.
+Complete binding/closure/created-proof joins remain required. Historical retained
+initials cannot certify foreign work or authorize restart adoption. Failed
+cleanup stays uncertain and preserves truthful Task evidence.
+
+Shutdown retains one closer per captured original dependency through finalizer
+gaps between RPCs. Replacement, cancellation and an empty transport registry do
+not prove retirement. [ADR0109](adr/0109-agent-claim-retirement.md) defines the
+bounded lifecycle and verification limits. This adds no public schema or new
+permission, native Task settlement, claim/slot release, recurrence or inbox.
 
 ## Native dispatch gate
 

@@ -189,7 +189,9 @@ class _HomeShellState extends State<HomeShell> {
   final _agentControls = AgentViewControls();
   int _optionsNavigation = 0;
   OptionsPage _optionsInitial = OptionsPage.overview;
+  bool _startNewProvider = false;
   _ShellPage? _beforeOptions;
+  _ShellPage? _beforeAgent;
   bool _modelSetupOpen = false;
   bool _converseVisible = true;
   bool _railExtended = false;
@@ -224,6 +226,11 @@ class _HomeShellState extends State<HomeShell> {
     _converseVisible = widget.presentation.preferences.showConverseView;
     widget.presentation.addListener(_presentationChanged);
     widget.state.addListener(_viewChanged);
+    if (widget.state.localSignInExchange != null &&
+        widget.state.localSignInState == LocalHostSignInState.idle &&
+        !widget.state.connected) {
+      unawaited(widget.state.attemptLocalSignIn());
+    }
   }
 
   @override
@@ -265,14 +272,32 @@ class _HomeShellState extends State<HomeShell> {
   void _viewChanged() {
     if (_observedView == widget.state.view) return;
     _observedView = widget.state.view;
-    if (mounted &&
-        !_closing &&
-        _workspacePage != null &&
-        (widget.state.view == AppView.agent ||
-            !const {
-              _ShellPage.home,
-              _ShellPage.converse,
-            }.contains(_workspacePage))) {
+    if (!mounted || _closing) return;
+    if (widget.state.view == AppView.agent) {
+      if (const {
+        _ShellPage.home,
+        _ShellPage.converse,
+      }.contains(_workspacePage)) {
+        _beforeAgent = _workspacePage;
+      }
+      if (_workspacePage != null) {
+        setState(() => _workspacePage = null);
+      }
+      return;
+    }
+    if (_workspacePage == null && _beforeAgent != null) {
+      setState(() {
+        _workspacePage =
+            _beforeAgent == _ShellPage.converse &&
+                !widget.presentation.preferences.showConverseView
+            ? _ShellPage.home
+            : _beforeAgent;
+      });
+    } else if (_workspacePage != null &&
+        !const {
+          _ShellPage.home,
+          _ShellPage.converse,
+        }.contains(_workspacePage)) {
       setState(() => _workspacePage = null);
     }
   }
@@ -359,12 +384,16 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
-  void _settings([OptionsPage initial = OptionsPage.overview]) {
+  void _settings([
+    OptionsPage initial = OptionsPage.overview,
+    bool startNewProvider = false,
+  ]) {
     if (_closing) return;
     _scaffoldKey.currentState?.closeDrawer();
     setState(() {
       if (_workspacePage != _ShellPage.options) _beforeOptions = _workspacePage;
       _optionsInitial = initial;
+      _startNewProvider = startNewProvider;
       _optionsNavigation++;
       _workspacePage = _ShellPage.options;
     });
@@ -713,6 +742,23 @@ class _HomeShellState extends State<HomeShell> {
                                             ? CharacterSurface.interaction
                                             : CharacterSurface.home,
                                         onModelSettings: _modelSetup,
+                                        onConnectionSetup: _setup,
+                                        onOpenModelOptions: () =>
+                                            _settings(OptionsPage.models),
+                                        onAddModel: () => _settings(
+                                          OptionsPage.providers,
+                                          true,
+                                        ),
+                                        onOpenConverse: () {
+                                          if (widget
+                                              .presentation
+                                              .preferences
+                                              .showConverseView) {
+                                            _selectPage(_ShellPage.converse);
+                                          } else {
+                                            unawaited(_openConverseChat(state));
+                                          }
+                                        },
                                         setupOpen: _modelSetupOpen,
                                         animateTransitions:
                                             widget
@@ -872,6 +918,7 @@ class _HomeShellState extends State<HomeShell> {
           presentation: widget.presentation,
           converseControls: _converseControls,
           initialPage: _optionsInitial,
+          startNewProvider: _startNewProvider,
           onClose: _closeOptions,
         ),
       );

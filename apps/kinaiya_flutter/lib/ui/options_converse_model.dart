@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
 import '../api/converse_model_client.dart';
@@ -15,11 +16,21 @@ class OptionsConverseModel extends StatefulWidget {
     required this.active,
     required this.onInvalidate,
     required this.onSettled,
+    this.compact = false,
+    this.onOpenModelOptions,
+    this.onAddModel,
+    this.favorites,
   });
   final ConverseModelsApi? api;
   final bool Function() active;
   final VoidCallback onInvalidate;
   final Future<void> Function() onSettled;
+  final bool compact;
+  final VoidCallback? onOpenModelOptions;
+  final VoidCallback? onAddModel;
+
+  /// Local presentation preference, scoped by the caller to the current host.
+  final Set<String>? favorites;
   @override
   State<OptionsConverseModel> createState() => _OptionsConverseModelState();
 }
@@ -45,6 +56,10 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
   bool _reading = false;
   int _read = 0;
   String? _error, _notice;
+  final _search = TextEditingController();
+  final _expandedChoices = <String>{};
+  final _localFavorites = <String>{};
+  final _choiceFocus = <String, FocusNode>{};
 
   _PendingConverseModel? get _ownerPending {
     final api = widget.api;
@@ -95,6 +110,9 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
       _read++;
       _snapshot = _base = null;
       _draft = null;
+      _reading = false;
+      _error = _notice = null;
+      _expandedChoices.clear();
       _observed = _ownerPending == null ? [] : [_ownerPending!];
       unawaited(_load());
     }
@@ -103,6 +121,10 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
   @override
   void dispose() {
     _read++;
+    _search.dispose();
+    for (final focus in _choiceFocus.values) {
+      focus.dispose();
+    }
     _changes.removeListener(_pendingChanged);
     super.dispose();
   }
@@ -402,6 +424,9 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
         widget.api?.hasUnconfirmedChange != true &&
         snapshot != null &&
         !stale;
+    if (widget.compact) {
+      return _compactPicker(snapshot, draft, pending, editable, stale);
+    }
     final choices = <String, ConverseModelSelection>{
       'host': ConverseModelSelection.host(),
       if (snapshot != null)
@@ -618,6 +643,296 @@ class _OptionsConverseModelState extends State<OptionsConverseModel> {
                 'The local unresolved-save limit is reached. No unknown operation is discarded to make room.',
               ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactPicker(
+    ConverseModelsSnapshot? snapshot,
+    ConverseModelSelection? draft,
+    _PendingConverseModel? pending,
+    bool editable,
+    bool stale,
+  ) {
+    final query = _search.text.trim().toLowerCase();
+    final favorites = widget.favorites ?? _localFavorites;
+    final groups = <String, List<ConverseCatalogProfile>>{};
+    for (final profile
+        in snapshot?.catalogProfiles ?? <ConverseCatalogProfile>[]) {
+      final searchable =
+          '${profile.label} ${profile.id} ${profile.provider.provider} ${profile.provider.model}'
+              .toLowerCase();
+      if (query.isEmpty || searchable.contains(query)) {
+        groups.putIfAbsent(profile.provider.provider, () => []).add(profile);
+      }
+    }
+    final providers = groups.keys.toList()..sort();
+    for (final profiles in groups.values) {
+      profiles.sort((a, b) {
+        final favoriteOrder =
+            (favorites.contains(b.binding.identity) ? 1 : 0) -
+            (favorites.contains(a.binding.identity) ? 1 : 0);
+        return favoriteOrder != 0 ? favoriteOrder : a.label.compareTo(b.label);
+      });
+    }
+    final canSave =
+        editable &&
+        snapshot != null &&
+        !snapshot.busy &&
+        snapshot.revision < converseModelRevisionLimit &&
+        _pending.length < 16;
+    final hostMatches =
+        snapshot != null &&
+        (query.isEmpty ||
+            'host configuration ${snapshot.hostInfo?.model ?? ''} ${snapshot.hostInfo?.provider ?? ''}'
+                .toLowerCase()
+                .contains(query));
+    final keyboardChoices = <String>[
+      if (canSave &&
+          hostMatches &&
+          snapshot.hostSelectable &&
+          snapshot.selection.source != 'host')
+        'host',
+      if (canSave)
+        for (final provider in providers)
+          for (final profile in groups[provider]!)
+            if (profile.selectable &&
+                snapshot.selection.targetIdentity != profile.binding.identity)
+              profile.binding.identity,
+    ];
+    FocusNode focusFor(String id) =>
+        _choiceFocus.putIfAbsent(id, () => FocusNode(debugLabel: 'Model $id'));
+    void moveChoice(int direction) {
+      if (keyboardChoices.isEmpty) return;
+      final current = keyboardChoices.indexWhere(
+        (id) => _choiceFocus[id]?.hasPrimaryFocus == true,
+      );
+      final next = current < 0
+          ? (direction > 0 ? 0 : keyboardChoices.length - 1)
+          : (current + direction).clamp(0, keyboardChoices.length - 1);
+      focusFor(keyboardChoices[next]).requestFocus();
+    }
+
+    Widget row(
+      String title,
+      String subtitle,
+      ConverseModelSelection choice,
+      bool available,
+      String details, {
+      String? reasoningBadge,
+    }) {
+      final selected =
+          snapshot?.selection.targetIdentity == choice.targetIdentity;
+      final enabled = canSave && available && !selected && draft != null;
+      final expanded = _expandedChoices.contains(choice.targetIdentity);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            key: ValueKey(('quick-model', choice.targetIdentity)),
+            focusNode: focusFor(choice.targetIdentity),
+            dense: true,
+            title: Text(title),
+            subtitle: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(subtitle),
+                if (reasoningBadge != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      reasoningBadge,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+              ],
+            ),
+            isThreeLine: reasoningBadge != null,
+            selected: selected,
+            leading: choice.source != 'catalog'
+                ? null
+                : IconButton(
+                    tooltip: favorites.contains(choice.targetIdentity)
+                        ? 'Remove $title from session favorites'
+                        : 'Favorite $title for this session',
+                    icon: Icon(
+                      favorites.contains(choice.targetIdentity)
+                          ? Icons.star
+                          : Icons.star_border,
+                    ),
+                    onPressed: () => setState(() {
+                      if (!favorites.add(choice.targetIdentity)) {
+                        favorites.remove(choice.targetIdentity);
+                      }
+                    }),
+                  ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (selected)
+                  const Icon(Icons.check, semanticLabel: 'Selected'),
+                IconButton(
+                  tooltip: '${expanded ? 'Hide' : 'Show'} details for $title',
+                  icon: Icon(
+                    expanded ? Icons.expand_less : Icons.chevron_right,
+                  ),
+                  onPressed: () => setState(() {
+                    if (expanded) {
+                      _expandedChoices.remove(choice.targetIdentity);
+                    } else {
+                      _expandedChoices.add(choice.targetIdentity);
+                    }
+                  }),
+                ),
+              ],
+            ),
+            enabled: enabled,
+            onTap: !enabled
+                ? null
+                : () {
+                    if (!_canEdit(snapshot, draft)) return;
+                    setState(() {
+                      _draft = choice;
+                      _notice = null;
+                    });
+                    _save(snapshot, choice);
+                  },
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                details,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Material(
+      type: MaterialType.transparency,
+      child: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+              moveChoice(1),
+          const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+              moveChoice(-1),
+        },
+        child: SingleChildScrollView(
+          key: const ValueKey('quick-model-picker'),
+          primary: false,
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Choose a Converse model',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('quick-model-search'),
+                autofocus: true,
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  labelText: 'Search models',
+                ),
+              ),
+              if (_reading) const LinearProgressIndicator(),
+              if (widget.api == null || !widget.active())
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'Connect and authenticate to inspect Converse models.',
+                  ),
+                ),
+              if (_error != null) Text(_error!),
+              if (_notice != null) Text(_notice!),
+              if (pending != null) _pendingCard(pending),
+              if (snapshot != null) ...[
+                if (snapshot.catalogError != null) Text(snapshot.catalogError!),
+                if (snapshot.busy)
+                  const Text(
+                    'Model changes are unavailable while Converse operations are active.',
+                  ),
+                if (stale)
+                  const Text(
+                    'Model settings changed. Refresh or open model options to review the retained draft.',
+                  ),
+                if (hostMatches) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Host configuration',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  row(
+                    snapshot.hostInfo?.model ?? 'Unavailable',
+                    snapshot.hostInfo == null
+                        ? 'Host model unavailable'
+                        : '${snapshot.hostInfo!.provider} · ${snapshot.hostInfo!.local ? 'Local' : 'Cloud'} · Readiness unknown',
+                    ConverseModelSelection.host(),
+                    snapshot.hostSelectable,
+                    'Host reasoning: ${snapshot.hostReasoning ?? 'Undeclared'}. Readiness is not verified.',
+                  ),
+                ],
+                for (final provider in providers) ...[
+                  const SizedBox(height: 8),
+                  Text(provider, style: Theme.of(context).textTheme.labelLarge),
+                  for (final profile in groups[provider]!)
+                    row(
+                      profile.label,
+                      '${profile.provider.model} · ${profile.provider.local ? 'Local' : 'Cloud'} · ${profile.selectable ? 'Readiness unknown' : profile.reason}',
+                      ConverseModelSelection.catalog(profile.binding, null),
+                      profile.selectable,
+                      '${profile.reason}\nReasoning: ${profile.reasoning ?? 'Profile default'}\nAvailable reasoning options: ${profile.reasoningOptions.isEmpty ? 'Undeclared' : profile.reasoningOptions.join(', ')}\nProfile ${profile.id} · Generation ${profile.binding.generation}',
+                      reasoningBadge: profile.reasoning == null
+                          ? null
+                          : 'Reasoning ${profile.reasoning!.toUpperCase()}',
+                    ),
+                ],
+                if (query.isNotEmpty && groups.isEmpty && !hostMatches)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text('No models match your search.'),
+                  ),
+                const SizedBox(height: 8),
+                const Text('Selecting a model does not verify its readiness.'),
+              ],
+              TextButton.icon(
+                onPressed: widget.api == null || !widget.active() || _reading
+                    ? null
+                    : () => unawaited(_load()),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh models'),
+              ),
+              if (widget.onAddModel != null)
+                TextButton.icon(
+                  onPressed: widget.onAddModel,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add custom model…'),
+                ),
+              if (widget.onOpenModelOptions != null)
+                TextButton.icon(
+                  onPressed: widget.onOpenModelOptions,
+                  icon: const Icon(Icons.settings_outlined),
+                  label: const Text('Edit models…'),
+                ),
+            ],
+          ),
         ),
       ),
     );

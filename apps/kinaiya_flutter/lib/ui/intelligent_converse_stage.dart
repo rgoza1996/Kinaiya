@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../artifacts/models.dart';
@@ -424,9 +425,21 @@ class _IntelligentConverseStageState extends State<IntelligentConverseStage> {
                     widget.state.artifactActionPending ||
                     _currentArtifact == null,
                 child: IntelligentArtifactRenderer(
-                  key: ValueKey(artifact.artifactId),
+                  key: ValueKey(
+                    '${owner.connectionGeneration}:${artifact.artifactId}',
+                  ),
                   artifact: artifact,
-                  enabled: widget.richEnabled,
+                  enabled: widget.richEnabled && _currentArtifact != null,
+                  loadMedia: (mediaArtifact, assetId, variant) async {
+                    if (!current()) throw StateError('Video owner changed');
+                    final value = await owner.loadArtifactMedia(
+                      mediaArtifact,
+                      assetId,
+                      variant,
+                    );
+                    if (!current()) throw StateError('Video owner changed');
+                    return value;
+                  },
                   onAction: (component, value) {
                     if (!current()) return Future<void>.value();
                     return owner.interactWithArtifact(component, value);
@@ -509,7 +522,10 @@ class _IntelligentConverseStageState extends State<IntelligentConverseStage> {
         }
         final wide =
             bounds.maxWidth >= 980 &&
-            bounds.maxHeight >= 760 &&
+            // Reserve the rail on ordinary desktop windows too. The portrait
+            // already shrinks with the remaining stage height; the stacked
+            // fallback is for short/keyboard-constrained or enlarged layouts.
+            bounds.maxHeight >= 600 &&
             MediaQuery.textScalerOf(context).scale(16) <= 24;
         if (!wide) {
           _scheduleGeometry();

@@ -150,6 +150,7 @@ class IntelligentArtifactComponent {
       'number',
       'select',
       'ask',
+      'media',
     });
     final title = _text(m['title'] ?? '', max: 160);
     final data = _componentData(type, m['data']);
@@ -204,6 +205,11 @@ class IntelligentArtifactComponent {
 
 Map<String, Object?> _componentData(String type, Object? value) {
   switch (type) {
+    case 'media':
+      final m = _object(value, {'asset_id'});
+      final id = _text(m['asset_id'], min: 38, max: 38);
+      if (!RegExp(r'^media_[a-f0-9]{32}$').hasMatch(id)) _invalid();
+      return {'asset_id': id};
     case 'text':
       final m = _object(value, {'text'});
       return {'text': _text(m['text'], min: 1, max: 8000)};
@@ -414,6 +420,7 @@ class IntelligentArtifact {
     ).map(IntelligentArtifactComponent.fromJson).toList();
     final ids = components.map((c) => c.id).toSet();
     if (ids.length != components.length) _invalid();
+    if (components.where((c) => c.type == 'media').length > 1) _invalid();
     _jsonBytes({
       'title': title,
       'summary': summary,

@@ -15,6 +15,7 @@ import sqlite3
 import stat
 import tempfile
 import threading
+from collections.abc import Mapping
 from pathlib import Path
 
 from core.plugins import PluginError, PluginRegistry
@@ -198,17 +199,30 @@ class PluginService:
         return value
 
     def _check_disclosure(self, version_id, provider_info):
-        if type(provider_info.local) is not bool:
+        from packages.providers.disclosure import public_only_provider
+
+        try:
+            local = (
+                provider_info.get("local")
+                if isinstance(provider_info, Mapping)
+                else provider_info.local
+            )
+        except Exception:
+            raise PluginError("Verified provider metadata is required") from None
+        if type(local) is not bool:
             raise PluginError("Verified provider metadata is required")
-        if provider_info.local:
+        try:
+            public_only = bool(public_only_provider(provider_info))
+        except ValueError:
+            raise PluginError(
+                "Plugin is unavailable under this provider disclosure policy"
+            ) from None
+        if local:
             return
         scope = self._scopes().get(version_id, "local_only")
         if self.scope_pending.exists():
             raise PluginError("Plugin disclosure change requires owner reconciliation")
-        contributor = (
-            provider_info.provider == "meta" or "contributor" in provider_info.model.lower()
-        )
-        if scope == "public_synthetic" or (not contributor and scope == "private_cloud_authorized"):
+        if scope == "public_synthetic" or (not public_only and scope == "private_cloud_authorized"):
             return
         raise PluginError("Plugin is unavailable under this provider disclosure policy")
 

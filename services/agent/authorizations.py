@@ -30,6 +30,7 @@ class _Revocation:
     receipt: AuthorizationRevokeReceipt
     append: object | None = None
     task: asyncio.Task | None = None
+    owner: object | None = None
 
 
 class AgentAuthorizations:
@@ -177,7 +178,12 @@ class AgentAuthorizations:
         ):
             # Positive journal metadata can recover a receipt without touching
             # a permit. Absence is deliberately not a CAS fence or failure.
-            lookup = getattr(self.runtime.journal, "lookup_authorization_revocation", None)
+            journal = (
+                prior.owner.journal
+                if prior is not None and prior.owner is not None
+                else self.runtime.journal
+            )
+            lookup = getattr(journal, "lookup_authorization_revocation", None)
             if lookup is not None:
                 proof = await lookup(request)
                 proof.validate_request(request)
@@ -214,7 +220,10 @@ class AgentAuthorizations:
         async def publish():
             operation.receipt = operation.receipt.model_copy(update={"journal_status": "pending"})
             try:
-                entry = await self.runtime.journal.append(operation.append)
+                journal = (
+                    self.runtime.journal if operation.owner is None else operation.owner.journal
+                )
+                entry = await journal.append(operation.append)
                 validate_revocation_entry(entry, operation.request)
             except (Exception, asyncio.CancelledError):
                 operation.receipt = operation.receipt.model_copy(
@@ -225,12 +234,25 @@ class AgentAuthorizations:
                     update={"journal_status": "confirmed"}
                 )
 
-        operation.task = asyncio.create_task(publish())
+        operation.task = (
+            asyncio.create_task(publish())
+            if operation.owner is None
+            else operation.owner._child(publish)
+        )
         self.tasks.add(operation.task)
         self.runtime._retain_workspace_worker(operation.task)
         operation.task.add_done_callback(self.tasks.discard)
 
     async def revoke(self, request):
+        rec = self.runtime._tasks.get(request.identity.task_id)
+        prior = self._prior(request)
+        owner = prior.owner if prior is not None else getattr(rec, "standing_owner", None)
+        if owner is not None:
+            request = request.model_copy(deep=True)
+            return await owner.control(lambda: self._revoke(request))
+        return await self._revoke(request)
+
+    async def _revoke(self, request):
         self._current()
         prior = self._prior(request)
         if prior is not None:
@@ -256,6 +278,8 @@ class AgentAuthorizations:
             # No await from this final identity/revision check through the
             # one-way broker transition and retained receipt installation.
             self._current()
+            if getattr(rec, "standing_owner", None) is not None:
+                rec.standing_owner.guard()
             if (
                 self.runtime._closed
                 or len(self.operations) >= self.MAX_RECEIPTS
@@ -279,7 +303,12 @@ class AgentAuthorizations:
                 revision=approval.revision,
                 journal_status="unconfirmed" if revoked else "not_required",
             )
-            operation = _Revocation(request, receipt, frozen if revoked else None)
+            operation = _Revocation(
+                request,
+                receipt,
+                frozen if revoked else None,
+                owner=getattr(rec, "standing_owner", None),
+            )
             self.operations[request.idempotency_key] = operation
             if revoked:
                 rec.resume.set()
@@ -295,6 +324,13 @@ class AgentAuthorizations:
         if self._journal_retirement is None:
 
             async def retire():
+                shutdown = self.runtime._standing_shutdown
+                if self.runtime._standing_dependencies and shutdown is None:
+                    from services.agent.resource_completion import start_standing_shutdown
+
+                    shutdown = start_standing_shutdown(self.runtime)
+                if shutdown is not None:
+                    await asyncio.shield(shutdown)
                 while True:
                     tasks = set(self.tasks)
                     for exchange in tuple(getattr(journal, "_submit_exchanges", ())):
@@ -307,7 +343,12 @@ class AgentAuthorizations:
                     await asyncio.gather(
                         *(asyncio.shield(task) for task in tasks), return_exceptions=True
                     )
-                await journal.close()
+                if self.runtime._standing_dependencies:
+                    from services.agent.resource_completion import close_standing_dependency
+
+                    await close_standing_dependency(self.runtime, journal)
+                else:
+                    await journal.close()
 
             self._journal_retirement = asyncio.create_task(retire())
             self.runtime._retain_workspace_worker(self._journal_retirement, transport=True)

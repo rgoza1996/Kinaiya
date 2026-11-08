@@ -1,0 +1,354 @@
+{
+  "author_seals": {
+    "implementation": {
+      "local_path": "/home/roggoz/.codex/worktrees/agent-write-validation/Kinaiya/.dev-run/239-native-child-observation-implementation-v1/seal.json",
+      "sha256": "101077abc53d5dfae3287751b1d159636bb7d26a9506adf4d3908d715bacd5a6"
+    },
+    "independent_oracle": {
+      "local_path": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/resource-manager/.dev-run/239-native-child-observation-oracle-v1/seal.json",
+      "sha256": "fe1b70b8936ca0657f60585e951a74f01dcb5900624cfd5f221fa3ad2e35ee0b"
+    }
+  },
+  "baseline": "aa0c3b45a11c7f2bb3f45b2a6c8a71f37aa873e4",
+  "baseline_with_frozen_oracle": "acbd95d7b065b05051394dcf2a4ec030c5809bf8",
+  "contract": {
+    "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-observation-contract-v1.md",
+    "sha256": "5bcb48c996316426cc34d3810630b8285bbaeabb734308d2812cff7650cb9912"
+  },
+  "environment": {
+    "dependencies": "Existing pinned local .venv, no installation.",
+    "execution": "Root-serialized offline CPU/ASGI/SQLite harness tests; controlled synthetic responses, explicit isolated PYTHONPATH. All1509 tracked input pins and HEAD unchanged per run.",
+    "httpx": "0.28.1",
+    "pytest": "9.1.1",
+    "python": "3.12.3"
+  },
+  "evidence_boundary": "Only this dated record is added after immutable source qualification. Raw local artifacts are ignored files identified by SHA256, not uploaded CI artifacts. Final independent evidence review is reported in PR/issue after this record is frozen.",
+  "fixture_change": {
+    "association": "Actual current _execute parent, passed original to_thread Task and identical Event are retained only when the cached shared registry maps the exact parent to that Event. Safe bound-method metadata associates the genuine owner.report cancelled callback; it is never invoked for observation.",
+    "file": "tests/integration/test_standing_physical_finalization.py",
+    "markers": "One immutable six-element bool/null tuple, initially all null. Original _call and owner.report each publish entered/result/error observations around exactly one original delegation. Snapshot reads one tuple once; no payload/result/error content is retained.",
+    "meaning": "Entry means wrapper boundary only; result/error means observed delegated return/raise. No executor queue state, callee-first-statement, future delivery, valid receipt, SQL/COMMIT or physical cleanup inference.",
+    "scope": "Only physical fixture plus synchronous timeout snapshot. One recorder per actual Session component, retained through fixture retirement; exact existing native Event-keyed map, fixed cap64 without pruning/refusal of actual work.",
+    "sha256": "dfc1c97ae84a15bcafbbb9cecf4e8c6537d1d957760e0fada8137ea412c63c8e",
+    "unchanged": "No production/client/schema/workflow/auth/permission/dependency behavior; original thread/send/read/sole-close/lifecycle ownership; all34 original test function bytes,233 assertions,49 protected deadline/wait/failure calls; existing10 top keys,32 container cap,24 frames,64-character names,32768-byte budget and diagnostic-only pruning."
+  },
+  "frozen_oracle": {
+    "assert_nodes": 91,
+    "cases": 1,
+    "cleanup": "Finally always releases the same gate, including expected cold absence failure; positively joins full genuine receipt/native lookup, original scope/work/native parent/child/report exchange/sole-close, and actual transport/coordinator/ledger retirement. No model inference.",
+    "control": "Class-level delegating genuine report gate before physical construction. Actual parent/Event from real shared registry and unique original to_thread child inventoried outside synchronous observation guard. Real report and exchange held; no replacement validator, thread_result, call, report result or cleanup owner.",
+    "file": "tests/integration/test_standing_native_child_observation.py",
+    "independence": "Separately authored from frozen contract. Author disclosed automatic implementation-seal status received before freezing without candidate source reads or case changes; no strict-blinding claim.",
+    "limits": "One held genuine report and missing-association control; not runtime coverage for every eager/error/cap64/reused-session/foreign/concurrent interleaving.",
+    "observations": "Exact original child and entered/no-result markers; missing diagnostic entry requires unavailable/null then same retained entry restored. Guarded synchronous snapshot does not advance SQL/IO/tasks/timers/Events/owner state or queues and retains bounded secret-free diagnostics.",
+    "sha256": "e9a2cdec80383dd0df400a5d44a3deb77c6d46e7d85839833ce0d2281db8a878"
+  },
+  "implementation_author": "c84d991de473c181f56cc2781aedd0f3590b822f",
+  "independent_source_review": {
+    "local_path": "/home/roggoz/.codex/worktrees/current-ui-screenshots/Kinaiya/.dev-run/239-native-child-observation-review-v1/source-and-oracle-review.json",
+    "sha256": "bb3b7f8d7597a1787ffa341e09f3abc32be27060aedb5a6aa59f0a03d97ccd03"
+  },
+  "not_claimed": [
+    "No model accuracy or inference calls; no paid/provider/Meta/account probes, GPU/model/LMStudio/device/capture/demo or live service/configuration/preview changes.",
+    "No local dependency installation, CI rerun, force-push, merge or original deadline/assertion waiver.",
+    "This diagnostic is not a historical CI cause/fix or production telemetry feature.",
+    "No full local suite or new platform result. No actual claim-wide Agent retirement/automatic finalizer, Task settlement, claim/reservation/slot release, recurrence/inbox/editor or full Roadmap/demo completion."
+  ],
+  "oracle_author": "deb3799bc42d806e64c084545055ee0611a414e5",
+  "qualification": {
+    "affected": {
+      "manifest": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-affected-v1-il_kf6em/manifest.json",
+        "sha256": "85ed92bb69bedb286aa5b425c2942a8b03419b6985b0da39ce70a792a2ae0350"
+      },
+      "receipt": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-affected-v1-il_kf6em/receipt.json",
+        "sha256": "c96065cc3026a445d0ca8d93d32df97ffbd15bb506c5b2dd30f26d5d4358ff26"
+      },
+      "result": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/integration/test_standing_physical_finalization.py",
+          "tests/integration/test_standing_physical_capture_fences.py",
+          "tests/integration/test_standing_physical_timeout_observation.py",
+          "tests/integration/test_standing_physical_timeout_controls.py",
+          "tests/integration/test_standing_native_timeout_observation.py",
+          "tests/integration/test_standing_native_child_observation.py",
+          "tests/unit/test_standing_resources_barrier_client_deadline.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-affected-v1-il_kf6em/junit.xml"
+        ],
+        "elapsed_wall_s": 296.39241680898704,
+        "exit_code": 0,
+        "head": "0a1230bf35b5646d47598f6629b8c815abf30e0c",
+        "head_after": "0a1230bf35b5646d47598f6629b8c815abf30e0c",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "78",
+            "time": "294.695",
+            "timestamp": "2026-11-02T04:42:05.920153-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-native-child-affected-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1509
+      }
+    },
+    "cold": {
+      "manifest": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-cold-v1-om03m1rr/manifest.json",
+        "sha256": "05bcea6837f1ca591b3097a0fe4166fbdc83451b2cd296069acb473ecda2e06e"
+      },
+      "receipt": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-cold-v1-om03m1rr/receipt.json",
+        "sha256": "77b42e07e823a5130c834b74b10dd7f528fad5f93f0bb8aadc0cd990993e38d2"
+      },
+      "result": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/integration/test_standing_native_child_observation.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-cold-v1-om03m1rr/junit.xml"
+        ],
+        "elapsed_wall_s": 3.87618291900435,
+        "exit_code": 1,
+        "head": "acbd95d7b065b05051394dcf2a4ec030c5809bf8",
+        "head_after": "acbd95d7b065b05051394dcf2a4ec030c5809bf8",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "1",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "1",
+            "time": "3.480",
+            "timestamp": "2026-11-02T04:40:53.501939-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-native-child-cold-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1509
+      }
+    },
+    "hot": {
+      "manifest": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-hot-v1-wwue1syl/manifest.json",
+        "sha256": "3e0b93cd93ffd7111e539fa6edd62889e91a7f58b4844f8a52fa2b1dec2ee0b8"
+      },
+      "receipt": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-hot-v1-wwue1syl/receipt.json",
+        "sha256": "81a316d9a3d673f660e7994d679a2f235d5cfe6d9a5f8eed3082501908b1cda5"
+      },
+      "result": {
+        "changed_pins": [],
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "-m",
+          "pytest",
+          "-q",
+          "-m",
+          "not live",
+          "-p",
+          "no:cacheprovider",
+          "-o",
+          "asyncio_default_fixture_loop_scope=function",
+          "-o",
+          "junit_family=xunit1",
+          "tests/integration/test_standing_native_child_observation.py",
+          "--junitxml=/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-hot-v1-wwue1syl/junit.xml"
+        ],
+        "elapsed_wall_s": 3.847895744998823,
+        "exit_code": 0,
+        "head": "0a1230bf35b5646d47598f6629b8c815abf30e0c",
+        "head_after": "0a1230bf35b5646d47598f6629b8c815abf30e0c",
+        "initial_status": "",
+        "junit": [
+          {
+            "errors": "0",
+            "failures": "0",
+            "hostname": "roggoz",
+            "name": "pytest",
+            "skipped": "0",
+            "tests": "1",
+            "time": "3.448",
+            "timestamp": "2026-11-02T04:41:33.848608-08:00"
+          }
+        ],
+        "limitations": [
+          "Offline synthetic CPU/ASGI/SQLite harness test; no model quality or live-device claim.",
+          "Task completion or empty registries alone are not original-owner cleanup proof."
+        ],
+        "phase": "239-native-child-hot-v1",
+        "pins_preserved": true,
+        "pythonpath": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya",
+        "tracked_input_count": 1509
+      }
+    },
+    "static": {
+      "manifest": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/manifest.json",
+        "sha256": "365faece304b70748af5e7c84ace43c04d94ab43534e97a3ea70efb7c9379167"
+      },
+      "receipt": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/receipt.json",
+        "sha256": "ba03956a1e9f4262594cbac76acbc5b5135a830a0281e99cbc4d20aeace4fb82"
+      },
+      "result": {
+        "baseline": "aa0c3b45a11c7f2bb3f45b2a6c8a71f37aa873e4",
+        "changed_files": [
+          "tests/integration/test_standing_physical_finalization.py",
+          "tests/integration/test_standing_native_child_observation.py"
+        ],
+        "checks": [
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "-m",
+              "ruff",
+              "check",
+              "."
+            ],
+            "exit_code": 0,
+            "log": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/check-0.log",
+            "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+          },
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "-m",
+              "ruff",
+              "format",
+              "--check",
+              "."
+            ],
+            "exit_code": 0,
+            "log": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/check-1.log",
+            "sha256": "cd40ca199b90d0d4d0907e7207cdf336395b23b6c62444e5bd1ed0f93de2124c"
+          },
+          {
+            "command": [
+              "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+              "-B",
+              "scripts/export_contracts.py"
+            ],
+            "exit_code": 0,
+            "log": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/check-2.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "command": [
+              "git",
+              "diff",
+              "--exit-code",
+              "--",
+              "packages/contracts/schemas"
+            ],
+            "exit_code": 0,
+            "log": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/check-3.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "command": [
+              "git",
+              "diff",
+              "--check",
+              "aa0c3b45a11c7f2bb3f45b2a6c8a71f37aa873e4",
+              "HEAD"
+            ],
+            "exit_code": 0,
+            "log": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/239-native-child-static-v1-__plr35o/check-4.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "frozen_oracle_assertions": 91,
+        "frozen_source_and_oracle_sha256_exact": true,
+        "head_preserved": true,
+        "main_ten_files_exact": true,
+        "outside_fixture_snapshot_ast_exact": true,
+        "pins_preserved": true,
+        "provider_or_model_testing": false,
+        "source": "0a1230bf35b5646d47598f6629b8c815abf30e0c",
+        "tracked_input_count": 1509,
+        "unchanged_original_assertions": 233,
+        "unchanged_original_test_functions": 34,
+        "unchanged_protected_call_count": 49
+      }
+    }
+  },
+  "qualified_source": "0a1230bf35b5646d47598f6629b8c815abf30e0c",
+  "requirement": "#239: distinguish the retained actual native child and observed wrapper boundaries when original physical finalization times out; related #228. Test diagnostics only, with original acceptance gates preserved.",
+  "results": {
+    "affected": "78 pass, none failed/skipped; JUnit294.695s, subprocess296.392s. Includes all34 original physical tests, all7 parametrized capture-fence cases, physical/native observation controls, new child control and12 client-return deadline tests. Both unchanged original8s cases pass locally.",
+    "cold": "One expected failure at native_child_observed absence; the synchronous guard and unconditional positive original cleanup succeeded. No unexpected/calibration failure. JUnit3.480s, subprocess3.876s.",
+    "hot": "Same unmodified one-case oracle passes. JUnit3.448s, subprocess3.848s.",
+    "static": "Whole Ruff and format784, contract export/schema identity, diff and frozen source/oracle hashes pass. All old test/assertion/protected-call sequences and AST outside allowed fixture/helper exact; all ten approved main installer/README files remain exact."
+  },
+  "retained_ci_boundary": {
+    "ci437": "Parent run41435585295 retained original large8s failure on3.11;3.12 and platforms passed. No rerun or cause/fix inferred.",
+    "ci438": {
+      "actual_merge": "f90d98b2a4cf1da70a2ab5364f89f05721ba4285",
+      "distinct_observations": [
+        "Restoration work done/noncancelled by later snapshot; unfinished scope, no pending native operation/exchange. No cached result/exception, so no timely-success or cleanup proof.",
+        "Large graph work still live in publication; original native _execute awaiting thread-result child, Event false, report response unacquired. Child state, callback boundary, native COMMIT and encoding unobserved."
+      ],
+      "head": "503cb5e6504ff724a6eba8f63712e9eee951a03e",
+      "platforms": "Flutter/web, Android and iOS passed.",
+      "python311": "10936 passed;2 original8s failures;6 skipped,2 deselected,1 warning;2374.15s; subsequent export/audit skipped.",
+      "python312": "10938 passed;6 skipped,2 deselected,1 warning;2010.31s; export/audit passed.",
+      "record": {
+        "local_path": "/home/roggoz/.codex/worktrees/model-write-authority/Kinaiya/.dev-run/228-ci438-terminal-v1.json",
+        "sha256": "16c9937eb2816677edad2994fbf9e9264958b48a2b68c8f152b46475e43e3ea1"
+      },
+      "run": 41439304168,
+      "tree": "5c12e5fd567b295d45b0e35d9ff10a0a42ab8d43"
+    },
+    "linux9": "All five parent503 Linux installation jobs passed; existing production local-fixture installation/sandbox/health scope, no official release/provider/standing-task qualification.",
+    "new_ci": "Exact changed-head CI required after integration into draftPR314. Prior green local or platform checks do not waive retained red acceptance gates.",
+    "separate_client_fix": "Inherited aa0 contains independently qualified actual client final return-deadline guard (12 oracle/316 affected pass), documented separately; not claimed to fix original physical8s failures."
+  }
+}

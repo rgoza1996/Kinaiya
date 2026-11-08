@@ -1,12 +1,47 @@
 """Native entry-scope admission shared by window consumers and transcript tools."""
 
 from collections import deque
+from collections.abc import Mapping
 
 from packages.contracts.models import SpeechWindow
 
 # This bounds native provenance traversal, not a model's context capacity. A
 # dependency is never dropped to make a retained transcript row admissible.
 MAX_CONTEXT_PROVENANCE_NODES = 256
+
+
+_DISCLOSURE_POLICIES = ("public_synthetic_only", "owner_authorized")
+_POLICY_ERROR = "Invalid provider disclosure metadata"
+
+
+def public_only_provider(info) -> bool:
+    """True for the Meta/Contributor or explicit public-only ceiling.
+
+    Accepts ProviderInfo-like attribute or mapping metadata. Validates
+    provider/model exact strings and optional policy exact literal/null;
+    invalid metadata raises a constant ValueError without reflecting data.
+    owner_authorized never relaxes the ceiling. No privacy is inferred.
+    """
+    if isinstance(info, Mapping):
+        provider = info.get("provider")
+        model = info.get("model")
+        policy = info.get("disclosure_policy", None)
+    else:
+        try:
+            provider = info.provider
+            model = info.model
+            policy = getattr(info, "disclosure_policy", None)
+        except AttributeError:
+            raise ValueError(_POLICY_ERROR) from None
+    if type(provider) is not str or not provider:
+        raise ValueError(_POLICY_ERROR) from None
+    if type(model) is not str or not model:
+        raise ValueError(_POLICY_ERROR) from None
+    if policy is None:
+        pass
+    elif type(policy) is not str or policy not in _DISCLOSURE_POLICIES:
+        raise ValueError(_POLICY_ERROR) from None
+    return provider == "meta" or "contributor" in model.lower() or policy == "public_synthetic_only"
 
 
 def scope_allowed(info, scope):
@@ -16,9 +51,16 @@ def scope_allowed(info, scope):
         "private_cloud_authorized",
     }:
         return False
-    if info.local:
+    try:
+        local = info.get("local") if isinstance(info, Mapping) else info.local
+        if type(local) is not bool:
+            return False
+        public_only = public_only_provider(info)
+    except (ValueError, AttributeError, TypeError):
+        return False
+    if local:
         return True
-    if info.provider == "meta" or "contributor" in info.model.lower():
+    if public_only:
         return scope == "public_synthetic"
     return scope in {"public_synthetic", "private_cloud_authorized"}
 

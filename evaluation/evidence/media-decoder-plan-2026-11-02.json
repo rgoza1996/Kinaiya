@@ -1,0 +1,141 @@
+{
+  "actual": {
+    "command": [
+      "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+      "-u",
+      "-B",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-o",
+      "junit_family=xunit1",
+      "tests/unit/test_media_decode_plan.py",
+      "tests/unit/test_media_decode_plan_boundaries.py",
+      "tests/unit/test_media_spool.py",
+      "tests/unit/test_media_spool_guards.py",
+      "--basetemp=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-plan-slots-rebased-spool-o6k51xbp/pytest-tmp",
+      "--junitxml=/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph/.dev-run/204-plan-slots-rebased-spool-o6k51xbp/junit.xml"
+    ],
+    "elapsed_wall_s": 21.717138949999935,
+    "errors": 0,
+    "exit_code": 0,
+    "failed": 0,
+    "inputs_unchanged": true,
+    "junit_seconds": 21.331,
+    "modules": [
+      {
+        "cases": 23,
+        "path": "tests/unit/test_media_decode_plan.py",
+        "provenance": "root source-aware tests"
+      },
+      {
+        "cases": 19,
+        "path": "tests/unit/test_media_decode_plan_boundaries.py",
+        "provenance": "B authored without plan implementation/root test bodies; public contract/API and independent prior synthetic constructors only"
+      },
+      {
+        "cases": 53,
+        "path": "tests/unit/test_media_spool.py",
+        "provenance": "unchanged baseline tests"
+      },
+      {
+        "cases": 4,
+        "path": "tests/unit/test_media_spool_guards.py",
+        "provenance": "unchanged baseline guards"
+      }
+    ],
+    "passed": 99,
+    "pythonpath": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/239-published-graph",
+    "runner_sha256": "fb9d467ca3363ab050609429a6c728ba073b87ef2207468f44afdc85fc8562be",
+    "skipped": 0,
+    "started_at": "2026-11-03T06:18:08.080305+00:00",
+    "terminal_session": 23922,
+    "tracked_input_count": 1687,
+    "warnings_recorded": 0
+  },
+  "correction_trace": [
+    {
+      "change": "Snapshot every exact native input slot with fixed bad_packet for absent fields and validate reduced clock arithmetic. This draft also introduced an unjustified bound on the absolute PTS*timebase intermediate; no tests were executed on this draft.",
+      "commit": "6af1324cb709a0ff2a11e4f881344224c85e68ff"
+    },
+    {
+      "change": "Remove only the unjustified absolute-intermediate restriction; retain original PTS I, timebase Q, common-origin SignedQ and every reduced rebased-position Q bounds. Valid large intermediates and invalid rebased numerator/denominator are tested without changing caps.",
+      "commit": "8ed4a6ac561612509b77d8593387e2eb5c296680"
+    }
+  ],
+  "implementation": {
+    "plan": "packages/resources/media_decode_plan.py",
+    "plan_doc_sha256": "9f407d322151d12af066b302918a7d9022c0cf0523ab20c231cb7643fa99aa83",
+    "plan_sha256": "83643fdbd3927a88729fbd001d9759d4f46ad3305cd72f982c1fa4b8535daf0d",
+    "scope": "Initial explicit probe-index/native-track/full-format/original-clock planning; private child grant additions retain old public spool behavior. No decoder launch or native authority is created by a plan.",
+    "spool_sha256": "a2c00aff56d36dd9e9c583abf0146cfa0a9c4bf94e1c7e35884c157873a8fe73"
+  },
+  "independent_reviews": [
+    {
+      "kind": "final corrected planning SOURCE opinion before new test body read",
+      "receipt_sha256": "03b949ef6e8eed91655017681e3877f5890a0e2f714a99ec03714d8d081f17dc",
+      "review_sha256": "dfc5448ad2566409d8d9aef8cd1625fa49208832057ac122f33f20e592563bf2",
+      "seal_sha256": "cc03a94b3270ddc43d193e181f6b86d34e32f342c93bf6794c549763452ac356",
+      "verdict": "bounded PASS"
+    },
+    {
+      "commit": "803b3771b8f08ff38fce5f9a633a37deb637cfb4",
+      "kind": "19 interface-first boundary oracle author",
+      "receipt_sha256": "d0104a774a57d42804c659e0b1c8a2c6ce43af73b63c8b26d7c4aad5456a6982",
+      "seal_sha256": "f895a53173cfde94983de431be941dca297d05004e1f8c47b6a74fd6f776efa7"
+    },
+    {
+      "kind": "separate original RAW99 artifact review",
+      "limitations": "Reviewer C authored the coupled private spool grant port; role disclosed. Opaque Git/test byte pins and raw receipts were reviewed, not test semantic bodies. No new execution. No JUnit per-original physical-cleanup properties were recorded.",
+      "receipt_sha256": "16f7a917ded1b44ca65956eabb64fd353d36dd78629850db4d13ce8fc7b6d0f0",
+      "review_sha256": "6a1950a3864b0f86dfcf7bd2cb52716cce894c50e475f41f4c678f555ecfcf67",
+      "seal_sha256": "858f273d0612bcacc5b5cde012c54a9b65993453dcfcef91b394aca0bab78298",
+      "verdict": "bounded PASS"
+    }
+  ],
+  "kind": "bounded-initial-media-decoder-plan-and-spool-regression-qualification",
+  "limitations": [
+    "This qualification does not execute the new media process pool/private spool grant; the experimental branch must not be published with process tests importing an absent production module.",
+    "No asset/runtime closure, sealed sandbox, actual PyAV decoder, currentness/admission, charged segment budgets, FD3 startup, original inner/descendant/publication settlement, continuation, model transport, transcription, Decisions or Agent delivery is qualified here.",
+    "Synthetic metadata and source plans do not establish real clock observations, permission, stream completeness, task success, H64, whole-stack memory/latency, sign-language understanding or demo acceptance.",
+    "No model/provider, paid API, GPU/device, private media, dependency install, live service/configuration or preview change was performed.",
+    "Prior failures/source opinions remain recorded; overlapping earlier passing tests are not added as unique coverage.",
+    "Full roadmap/AT64-AT66 remains incomplete."
+  ],
+  "preserved_initial_evidence": {
+    "actual_bundle": ".dev-run/204-initial-decode-plan-wp_m8n7i",
+    "actual_passed": 23,
+    "blocked_source_review_seal_sha256": "75dc892bfdb7a50ab782c55b36aac24b23b06c7ed5b038decc15be55efb49ef5",
+    "blocked_source_review_sha256": "ffffc7a67ea564d8704aedf975537bae3598f9f8e3973f4d98558839bd471d3d",
+    "receipt_sha256": "a81abbdebbc0ccb87ba556cc5a2ee14c07167ef69b33ef6118365adcbcd74daf",
+    "source": "d95ad6a05efd848e5046d38b8e8ee24695af5fcc",
+    "subsequent_source_verdict": "BLOCKED: exact native dataclass missing slots leaked AttributeError; only minimum origin was range-checked, permitting unrepresentable later rebased positions"
+  },
+  "qualified_source": "53030648ad6931b5c6f5ebcc964d83f1bd5b2ee8",
+  "qualified_tree": "5c41d2caff8e325b37b4725a16f883e0a2158a98",
+  "raw_local_artifacts": {
+    "directory": ".dev-run/204-plan-slots-rebased-spool-o6k51xbp",
+    "sha256": {
+      "junit.xml": "97907465ac30c8d3ab6e76aac075fce0fa92064c9447f1e4df58bd15deb6fcdc",
+      "manifest.json": "8c43f8956871ef5aa822c391581bace84aa7237f232ddecc1a087bdea58653c0",
+      "post-pins.json": "14f67e6577eac6d5bf359de71a45d7a1837919010e85065426c86e7453ac54a3",
+      "pre-pins.json": "14f67e6577eac6d5bf359de71a45d7a1837919010e85065426c86e7453ac54a3",
+      "pytest.log": "57362971e731aa074d1b2eb9348ba77a43b540a48c2b2297e4573efb8446ffe0",
+      "receipt.json": "767ea26eda553f29f6ad34288cdc24fc7828f9c53090c752ab1596bbd1274330"
+    },
+    "uploaded": false
+  },
+  "recorded_at": "2026-11-03T06:25:42.015672+00:00",
+  "related": [
+    "https://github.com/rgoza1996/Kinaiya/issues/204",
+    "Roadmap AT64-AT66",
+    "docs/media-decoder-plan.md"
+  ],
+  "v": 1
+}

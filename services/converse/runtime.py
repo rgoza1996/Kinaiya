@@ -9,6 +9,7 @@ from itertools import islice
 
 from anyio import CancelScope
 
+from packages.contracts.agent_outcome import OutcomeEvidenceUnavailable, read_outcome_task
 from packages.contracts.memory import MemoryBinding
 from packages.contracts.memory_context import MemoryContextPin
 from packages.contracts.models import (
@@ -239,7 +240,12 @@ class ConverseRuntime:
         self.model_settings = None
         self._model_options_unavailable = False
         self._model_preparing = set()
-        self._model_operations_extra = lambda: {"windows": 0, "stt": 0, "stt_cleanup": 0}
+        self._model_operations_extra = lambda: {
+            "windows": 0,
+            "stt": 0,
+            "stt_cleanup": 0,
+            "native_audio": 0,
+        }
         self.stt_model_settings = None
         self._stt_options_configured = False
         self._stt_options_unavailable = False
@@ -608,54 +614,66 @@ class ConverseRuntime:
     async def reconcile_stop(self, session_id, playback=None):
         playback = playback if playback is not None else self.playback[session_id]
         stop = playback.stop
-        if stop is None or stop.retired or stop.covers(stop.desired_generation):
+        if stop is None or stop.retired:
             return
-        async with stop.lock:
-            # Two writes suffice for the original request and one coalesced
-            # higher target. Further concurrent stops remain owned for a tick.
-            for _ in range(2):
-                if stop.retired or stop.covers(stop.desired_generation):
-                    return
-                current = await self.journal.session(session_id)
-                if (current.epoch, current.thread_id) != playback.scope:
-                    self._retire_stop(playback)
-                    return
-                if stop.retired or stop.covers(stop.desired_generation):
-                    return
-                if stop.request is None:
-                    stop.request = self._stop_request(
-                        session_id, playback, stop.confirmed_generation, stop.desired_generation
-                    )
-                request = stop.request
-                acknowledgement = await self.journal.append(request)
-                tts_stopped = [
-                    turn
-                    for turn in self._tts_turns
-                    if turn.event.session_id == session_id
-                    and (turn.event.epoch, turn.event.thread_id) == playback.scope
-                    and turn.generation < request.payload["next_generation_epoch"]
-                ]
-                if tts_stopped:
-                    from packages.contracts.models import JournalEntry
-                    from services.converse.model_settings import _encode
-
-                    entry = JournalEntry.model_validate(acknowledgement.model_dump(), strict=True)
-                    if entry.origin != "converse" or _encode(
-                        entry.model_dump(
-                            mode="json", exclude={"event_id", "sequence", "origin", "created_at"}
+        if not stop.covers(stop.desired_generation):
+            async with stop.lock:
+                # Two writes suffice for the original request and one coalesced
+                # higher target. Further concurrent stops remain owned for a tick.
+                for _ in range(2):
+                    if stop.retired:
+                        return
+                    if stop.covers(stop.desired_generation):
+                        break
+                    current = await self.journal.session(session_id)
+                    if (current.epoch, current.thread_id) != playback.scope:
+                        self._retire_stop(playback)
+                        return
+                    if stop.retired:
+                        return
+                    if stop.covers(stop.desired_generation):
+                        break
+                    if stop.request is None:
+                        stop.request = self._stop_request(
+                            session_id, playback, stop.confirmed_generation, stop.desired_generation
                         )
-                    ) != _encode(request.model_dump(mode="json")):
-                        raise RuntimeError("TTS stop publication is unconfirmed")
-                current = await self.journal.session(session_id)
-                if (current.epoch, current.thread_id) != playback.scope:
-                    self._retire_stop(playback)
+                    request = stop.request
+                    acknowledgement = await self.journal.append(request)
+                    tts_stopped = [
+                        turn
+                        for turn in self._tts_turns
+                        if turn.event.session_id == session_id
+                        and (turn.event.epoch, turn.event.thread_id) == playback.scope
+                        and turn.generation < request.payload["next_generation_epoch"]
+                    ]
+                    if tts_stopped:
+                        from packages.contracts.models import JournalEntry
+                        from services.converse.model_settings import _encode
+
+                        entry = JournalEntry.model_validate(
+                            acknowledgement.model_dump(), strict=True
+                        )
+                        if entry.origin != "converse" or _encode(
+                            entry.model_dump(
+                                mode="json",
+                                exclude={"event_id", "sequence", "origin", "created_at"},
+                            )
+                        ) != _encode(request.model_dump(mode="json")):
+                            raise RuntimeError("TTS stop publication is unconfirmed")
+                    current = await self.journal.session(session_id)
+                    if (current.epoch, current.thread_id) != playback.scope:
+                        self._retire_stop(playback)
+                        return
+                    stop.confirmed_generation = request.payload["next_generation_epoch"]
+                    for turn in tts_stopped:
+                        turn.acknowledge()
+                    stop.request = None
+                if stop.retired:
                     return
-                stop.confirmed_generation = request.payload["next_generation_epoch"]
-                for turn in tts_stopped:
-                    turn.acknowledge()
-                stop.request = None
-            if not stop.covers(stop.desired_generation):
-                raise RuntimeError("Newer playback stop needs reconciliation")
+                if not stop.covers(stop.desired_generation):
+                    raise RuntimeError("Newer playback stop needs reconciliation")
+        if self.tts_model_settings is not None and self.tts_model_settings.unknown_admissions():
+            await self.tts_model_settings.reconcile_settled_turns()
 
     def stop_reconciliation_batch(self, limit):
         # Rotate the existing playback map rather than scan retained history or
@@ -711,6 +729,7 @@ class ConverseRuntime:
             + len(self._tts_turns)
             + (
                 len(self.tts_model_settings._native_unsettled)
+                + len(self.tts_model_settings._reconciling)
                 if self.tts_model_settings is not None
                 else 0
             ),
@@ -1092,7 +1111,9 @@ class ConverseRuntime:
                         # Scope/currentness belong to this producer task. Explicit
                         # arguments cannot be lost across copied task contexts.
                         iterator = (
-                            synthesize_scoped(
+                            tts_turn.dispatch_native(spoken)
+                            if tts_turn is not None and tts_turn.native_binding is not None
+                            else synthesize_scoped(
                                 spoken, content_scope=content_scope, current=synthesis_current
                             )
                             if synthesize_scoped is not None
@@ -1198,6 +1219,7 @@ class ConverseRuntime:
                             operation.cleanup_failed = True
                         if tts_turn is not None:
                             tts_turn.lease.cleanup_failed = True
+                            tts_turn.lease.cleanup_actual_failed = True
                     else:
                         if operation is not None:
                             operations = self._speech.get(event.session_id)
@@ -1642,12 +1664,17 @@ class ConverseRuntime:
         await self._validate_memory_speech(event)
         if not self.admission_current(admission) or not playback.accepts(generation_epoch):
             raise ValueError("Obsolete or unauthorized speech")
+        if self.tts_model_settings is not None and self.tts_model_settings.unknown_admissions():
+            await self.tts_model_settings.reconcile_settled_turns()
         return event
 
     async def acknowledge_delivery(self, request: DeliveryRequest):
         tts_turn = self._tts_history.get((request.event_id, request.generation_epoch))
         if tts_turn is not None and request.status in {"interrupted", "delivery_unknown"}:
-            return await tts_turn.publish_terminal_delivery(request)
+            entry = await tts_turn.publish_terminal_delivery(request)
+            if self.tts_model_settings is not None and self.tts_model_settings.unknown_admissions():
+                await self.tts_model_settings.reconcile_settled_turns()
+            return entry
         event = await self.validate_speech(request.event_id, request.generation_epoch)
         if request.chunk_id != event.payload["chunk_id"]:
             raise ValueError("Wrong speech chunk")
@@ -1667,6 +1694,19 @@ class ConverseRuntime:
 
     async def outcome_notice(self, outcome):
         task = outcome.payload.get("task", outcome.payload)
+        if (
+            outcome.kind == "agent.outcome"
+            and outcome.origin == "agent-supervisor"
+            and "evidence_ref" in outcome.payload
+        ):
+            # Restoration performs authenticated reads only. Failure propagates
+            # without acknowledging the outcome or announcing empty proof.
+            try:
+                task = (await read_outcome_task(self.journal, outcome)).model_dump(mode="json")
+            except TimeoutError:
+                # Only this read-only boundary may be retried. A later timeout
+                # during announcement publication must not be reclassified.
+                raise OutcomeEvidenceUnavailable from None
         if (
             outcome.kind != "agent.outcome"
             or outcome.origin != "agent-supervisor"

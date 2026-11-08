@@ -9,6 +9,10 @@ import sqlite3
 import stat
 
 from packages.contracts.models import AppendRequest, new_id
+from packages.contracts.standing_resource_finalization import (
+    StandingResourceFinalizationReceipt,
+    StandingResourceFinalizeRequest,
+)
 from packages.contracts.standing_work import StandingConflict, StandingUnavailable
 from packages.resources.processes import _mem_available_bytes
 from services.converse.intent import ConverseIntent, OwnerIntentConflict
@@ -138,6 +142,9 @@ class ResourceCoordinator:
         from services.resources.standing_barrier import StandingBarrier
 
         self.standing_barrier = StandingBarrier(self)
+        from services.resources.standing_finalization import StandingFinalization
+
+        self.standing_finalization = StandingFinalization(self)
         self._close_owner = None
         self._retirement_complete = False
 
@@ -152,6 +159,16 @@ class ResourceCoordinator:
 
     async def lookup_standing_seal(self, request):
         return await self.standing_barrier.run("seal_lookup", request)
+
+    async def finalize_standing_claim(
+        self, request: StandingResourceFinalizeRequest
+    ) -> StandingResourceFinalizationReceipt:
+        return await self.standing_barrier.run("finalize", request)
+
+    async def lookup_standing_finalization(
+        self, request: StandingResourceFinalizeRequest
+    ) -> StandingResourceFinalizationReceipt | None:
+        return await self.standing_barrier.run("finalization_lookup", request)
 
     def register_text_lifecycle(self, *, abort, drain, release):
         """Register trusted selected-broker hooks once; never a second owner."""
@@ -333,6 +350,7 @@ class ResourceCoordinator:
             await self.standing_handoff.register()
             try:
                 await self.standing_barrier.register()
+                await self.standing_finalization.register()
             except StandingUnavailable:
                 pass
             handoff_ready = True
@@ -808,6 +826,10 @@ class ResourceCoordinator:
                 await self._save(phase="failed", reason="Owner control reconciliation failed")
 
     async def _off_locked(self):
+        return await self.standing_finalization.lifecycle(self._off_unwitnessed_locked)
+
+    async def _off_unwitnessed_locked(self):
+        self.standing_finalization.restoration_guard()
         # The durable owner gate already blocks inference even if Converse's
         # HTTP service is unavailable. Stop only workers this controller owns.
         control_error = None
@@ -1032,8 +1054,14 @@ class ResourceCoordinator:
             else new_id(),
             lease_task_id=task_id,
         )
+        if bound:
+            await self.standing_finalization.acquired(capture)
 
     async def _restore_locked(self):
+        return await self.standing_finalization.lifecycle(self._restore_unwitnessed_locked)
+
+    async def _restore_unwitnessed_locked(self):
+        self.standing_finalization.restoration_guard()
         if self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
@@ -1044,11 +1072,15 @@ class ResourceCoordinator:
         if not restored or self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
+        self.standing_finalization.restoration_guard()
+        self.standing_finalization.capture_restored()
         if self.managed_text_binding is not None:
             self._provider_locality(await self.converse.health())
             if self.local_converse_unmanaged:
                 raise RuntimeError("Selected managed text health does not match its binding")
+        self.standing_finalization.restoration_guard()
         await self.converse.enabled(True)
+        self.standing_finalization.restoration_guard()
         if self._closing or not self.intent.read().enabled:
             await self._off_locked()
             return
@@ -1092,10 +1124,12 @@ class ResourceCoordinator:
             ):
                 raise RuntimeError("Restoration lacks measured GPU headroom")
         for worker_id in self.manager.status()["workers"]:
+            self.standing_finalization.restoration_guard()
             if self._closing or not self.intent.read().enabled:
                 return False
             if self.before_start:
                 await self.before_start(worker_id)
+            self.standing_finalization.restoration_guard()
             if self._closing or not self.intent.read().enabled:
                 return False
             if worker_id == self.text_worker_id:
@@ -1117,6 +1151,7 @@ class ResourceCoordinator:
                 available = self.memory_probe()
                 if available is None or available < needed:
                     raise RuntimeError("Text restoration lacks measured minimum headroom")
+            self.standing_finalization.restoration_guard()
             try:
                 result = await self.manager.start(worker_id)
             except (Exception, asyncio.CancelledError):
@@ -1217,6 +1252,7 @@ class ResourceCoordinator:
         # This waits for settlement, including failed cleanup; Manager.close
         # still performs its independent exact-owned retirement/retry below.
         await self.standing_barrier.join_shutdown()
+        await self.standing_finalization.join_shutdown()
         while self.standing_handoff.native:
             await asyncio.wait(tuple(self.standing_handoff.native))
         async with self.lock:

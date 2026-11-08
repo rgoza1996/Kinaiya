@@ -1,13 +1,167 @@
 # Kinaiya implementation and acceptance ledger
 
-**As of:** October 30, 2026, America/Los_Angeles.<br>
+**Current snapshot date:** November 3, 2026, America/Los_Angeles.<br>
+**Current merged `main` cutoff:** [`62ce2d8c3507d6eabcdcc7842e02226cbcf57dcb`](https://github.com/rgoza1996/Kinaiya/commit/62ce2d8c3507d6eabcdcc7842e02226cbcf57dcb) (including [PR #374](https://github.com/rgoza1996/Kinaiya/pull/374) merged at [`0d64cb1498c3a41eb817669f1bb718593d223dca`](https://github.com/rgoza1996/Kinaiya/commit/0d64cb1498c3a41eb817669f1bb718593d223dca) with exact `main`-push [CI run `41625037919`](https://github.com/rgoza1996/Kinaiya/actions/runs/41625037919) passing all 5 jobs, plus subsequent merges of [PR #361](https://github.com/rgoza1996/Kinaiya/pull/361), [PR #362](https://github.com/rgoza1996/Kinaiya/pull/362), [PR #373](https://github.com/rgoza1996/Kinaiya/pull/373), [PR #368](https://github.com/rgoza1996/Kinaiya/pull/368), [PR #366](https://github.com/rgoza1996/Kinaiya/pull/366), and [PR #365](https://github.com/rgoza1996/Kinaiya/pull/365) into `62ce2d8`; earlier `main` checkpoint [`0db7b8044fed6879c3bdc0da63da05e9d4d49a57`](https://github.com/rgoza1996/Kinaiya/commit/0db7b8044fed6879c3bdc0da63da05e9d4d49a57) merged [PR #315](https://github.com/rgoza1996/Kinaiya/pull/315), whose PR head [`18c9185c8b7e07a66e418250ae32ea500df8e50e`](https://github.com/rgoza1996/Kinaiya/commit/18c9185c8b7e07a66e418250ae32ea500df8e50e) passed [CI run `41564065620`](https://github.com/rgoza1996/Kinaiya/actions/runs/41564065620); an ancestor or prior checkpoint's CI run qualifies only that tested commit, not a later `main` merge).<br>
 **Specification:** [Roadmap 0.3.2](../Roadmap.md) and [clarification.md](../clarification.md).<br>
-**Runtime source cutoff:** [`f92f6d10aa136a5d27a6d4b41af4389ece3ac828`](https://github.com/rgoza1996/Kinaiya/commit/f92f6d10aa136a5d27a6d4b41af4389ece3ac828), tree `1d6b27a87aa80dc992da7fa4c4fa2ac53bf95f41`.<br>
-**Reconciliation:** [#161](https://github.com/rgoza1996/Kinaiya/issues/161), documentation only; subsequent bounded client fixes [#151](https://github.com/rgoza1996/Kinaiya/issues/151) and [#163](https://github.com/rgoza1996/Kinaiya/issues/163) are recorded below. The subsequent bounded artifact slice is tracked by [#165](https://github.com/rgoza1996/Kinaiya/issues/165) and ADR0068.
+**Original historical baseline cutoff:** October 30, 2026, [`f92f6d10aa136a5d27a6d4b41af4389ece3ac828`](https://github.com/rgoza1996/Kinaiya/commit/f92f6d10aa136a5d27a6d4b41af4389ece3ac828), tree `1d6b27a87aa80dc992da7fa4c4fa2ac53bf95f41` ([#161](https://github.com/rgoza1996/Kinaiya/issues/161)); updated ledger reconciliation tracked by [#341](https://github.com/rgoza1996/Kinaiya/issues/341).
 
 The owner requested reconciliation before further feature work. Inputs were the implementation discussion and **Set up local Penpot for Kinaiya** design discussion through October 30, the merged source/ADRs, retained synthetic research evidence, and GitHub tracking. This records product decisions without copying private conversation contents, credentials or live user data. A design-chat assertion or assistant completion message is not independently sufficient implementation evidence.
 
 **Implemented** means the cited bounded behavior exists and has the stated verification. **Experimental** retains research, environment or reliability limits. **Unverified** identifies an acceptance gate without sufficient evidence. **Planned** identifies work without a qualified implementation. A milestone can contain all four. Open parent issues are not closed by this ledger; stale “queued” descriptions do not erase merged work. No percentage-complete or production-readiness claim is made.
+
+## Current merged snapshot (November 3, 2026 — `62ce2d8c3507d6eabcdcc7842e02226cbcf57dcb`)
+
+This section separates current merged `main` state (`62ce2d8c3507d6eabcdcc7842e02226cbcf57dcb`) from open branch work, remaining platform gaps, model/hardware observations, and the historical checkpoints below (including the earlier November 3 `0db7b8044fed6879c3bdc0da63da05e9d4d49a57` merge of PR #315) ([#341](https://github.com/rgoza1996/Kinaiya/issues/341)).
+
+### 1. Implemented and merged on `main`
+
+- **Standing-work prerequisites, physical finalization transport, Agent claim retirement, and O(N) large-graph finalization:** Merged through [PR #271](https://github.com/rgoza1996/Kinaiya/pull/271), [PR #314](https://github.com/rgoza1996/Kinaiya/pull/314) (`d2bbd30a`, [CI439](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966365) and [Linux lifecycle](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966375)), [PR #315](https://github.com/rgoza1996/Kinaiya/pull/315) (merged at `0db7b8044fed6879c3bdc0da63da05e9d4d49a57`; PR head `18c9185c8b7e07a66e418250ae32ea500df8e50e` passed [CI run `41564065620`](https://github.com/rgoza1996/Kinaiya/actions/runs/41564065620)), and [PR #374](https://github.com/rgoza1996/Kinaiya/pull/374) ([#356](https://github.com/rgoza1996/Kinaiya/issues/356), merged at `0d64cb1498c3a41eb817669f1bb718593d223dca`, exact `main`-push [CI run `41625037919`](https://github.com/rgoza1996/Kinaiya/actions/runs/41625037919) passing all 5 jobs). Includes [ADR0107](adr/0107-standing-physical-finalization.md) (in-process physical producer), [ADR0108](adr/0108-standing-finalization-transport.md) (scoped finalization/lookup transport), [ADR0109](adr/0109-agent-claim-retirement.md) (current-process Agent claim owner and automatic Resources finalizer), single-pass Resource field-graph reconstruction ([evidence](../evaluation/evidence/resource-finalization-graph-walk-2026-11-02.json)), pre-validated reply/context encoding ([evidence](../evaluation/evidence/resource-finalization-context-construction-2026-11-02.json)), and single-pass standing validation / row-encoding reuse eliminating the exponential nested revalidation timeout under the 8-second large-graph deadline. *Supersedes the "PR315 remains draft/unmerged" and "branch work" labels in the November 1–2 historical checkpoints below.*
+- **November 3 UI, Converse, Decisions, and distribution merges into `62ce2d8` (with tracked review follow-ups):**
+  - [PR #361](https://github.com/rgoza1996/Kinaiya/pull/361) (`d8b8187`, [#349](https://github.com/rgoza1996/Kinaiya/issues/349), [#350](https://github.com/rgoza1996/Kinaiya/issues/350), [#351](https://github.com/rgoza1996/Kinaiya/issues/351)): Converse quick model picker, mascot setup bubbles restoration, and Home action panel resize.
+  - [PR #362](https://github.com/rgoza1996/Kinaiya/pull/362) (`599a858`, [#353](https://github.com/rgoza1996/Kinaiya/issues/353)): recoverable Converse visibility from Home notice, narrow bubble field, and Options.
+  - [PR #373](https://github.com/rgoza1996/Kinaiya/pull/373) (`3200999`, [#340](https://github.com/rgoza1996/Kinaiya/issues/340)): Converse TTS interruption recovery from positive settlement proof (reopened in [#340](https://github.com/rgoza1996/Kinaiya/issues/340) for review follow-ups on provider-matched settlement proof and `stop_speaking` reconciliation).
+  - [PR #368](https://github.com/rgoza1996/Kinaiya/pull/368) (`dceee94`, [#335](https://github.com/rgoza1996/Kinaiya/issues/335)): Agent-compatible measured adapter selection in `kinaiya setup` (reopened in [#335](https://github.com/rgoza1996/Kinaiya/issues/335) for review follow-ups on cloud consent separation and CLI `--non-interactive` prevalidation).
+  - [PR #366](https://github.com/rgoza1996/Kinaiya/pull/366) (`938b13c`, [#337](https://github.com/rgoza1996/Kinaiya/issues/337)): streaming window cache reuse bound to admissible input (reopened in [#337](https://github.com/rgoza1996/Kinaiya/issues/337) for review follow-ups on post-truncation projection and leased model pin).
+  - [PR #365](https://github.com/rgoza1996/Kinaiya/pull/365) (`62ce2d8`, [#338](https://github.com/rgoza1996/Kinaiya/issues/338)): finalized classification refusal persistence and bounded retry (follow-up [#371](https://github.com/rgoza1996/Kinaiya/issues/371) open for HTTP journal transport attempt-count recovery and retry exhaustion).
+- **Converse handoff visibility, Options progressive disclosure, and Penpot synchronization:** Merged on `main` through [PR #329](https://github.com/rgoza1996/Kinaiya/pull/329)–[PR #334](https://github.com/rgoza1996/Kinaiya/pull/334) and [PR #343](https://github.com/rgoza1996/Kinaiya/pull/343)–[PR #348](https://github.com/rgoza1996/Kinaiya/pull/348) (`d2ba27a..939ad7e`), covering model-role plain-language status ([#302](https://github.com/rgoza1996/Kinaiya/issues/302)), semantic non-color state labels ([#306](https://github.com/rgoza1996/Kinaiya/issues/306)), progressive disclosure of connection/protocol details ([#303](https://github.com/rgoza1996/Kinaiya/issues/303)), causal Agent handoff status/task links/progress/microfeedback in Converse ([#295](https://github.com/rgoza1996/Kinaiya/issues/295)–[#298](https://github.com/rgoza1996/Kinaiya/issues/298)), visual grouping of model/voice fields ([#304](https://github.com/rgoza1996/Kinaiya/issues/304)), truthful Connect/Save confirmation ([#307](https://github.com/rgoza1996/Kinaiya/issues/307)), unified primary action states ([#308](https://github.com/rgoza1996/Kinaiya/issues/308)), Penpot master text-layer synchronization ([#286](https://github.com/rgoza1996/Kinaiya/issues/286)), and the synthetic Converse-to-Agent handoff and evidence inspection journey test ([#310](https://github.com/rgoza1996/Kinaiya/issues/310)).
+- **Previously merged Options, Agent, Decisions, and distribution slices:** Native `d1` text Decisions adapter ([ADR0106](adr/0106-native-d1-decisions.md)), Agent operating modes ([ADR0105](adr/0105-agent-operating-modes.md), [PR #227](https://github.com/rgoza1996/Kinaiya/pull/227)), bound model/execution settings writes ([ADR0088](adr/0088-bound-model-settings-writes.md), [PR #214](https://github.com/rgoza1996/Kinaiya/pull/214); [ADR0090](adr/0090-bound-execution-settings-writes.md), [PR #216](https://github.com/rgoza1996/Kinaiya/pull/216)), Agent catalog model selection ([ADR0089](adr/0089-agent-catalog-models.md)), Converse text model settings ([ADR0091](adr/0091-converse-text-model-settings.md)), approval expiry/renewal ([ADR0092](adr/0092-approval-expiry-renewal.md)), Converse note editor & provider catalog ([ADR0085](adr/0085-converse-note-editor.md), [ADR0086](adr/0086-owner-provider-catalog.md)), and deterministic Converse recovery ([PR #248](https://github.com/rgoza1996/Kinaiya/pull/248)). *Supersedes the "in-progress/under static review" notes in the October 31 addendum below.*
+
+### 2. Open/unmerged branch work (not counted as delivered on `main`)
+
+- **Multimodal intake, private spool, timed decoder child, and local `llama.cpp` media adapters** ([#204](https://github.com/rgoza1996/Kinaiya/issues/204), [#357](https://github.com/rgoza1996/Kinaiya/issues/357)):
+  - Draft [PR #355](https://github.com/rgoza1996/Kinaiya/pull/355) (`codex/204-media-integration`) and integration base `codex/204-media-bootstrap` (`33964f3`).
+  - [PR #364](https://github.com/rgoza1996/Kinaiya/pull/364) and [PR #377](https://github.com/rgoza1996/Kinaiya/pull/377) (`gemini/358-media-decoder-wire` -> `codex/204-media-integration`, [#358](https://github.com/rgoza1996/Kinaiya/issues/358)): closed `u32be_json_then_body` frame codec in `services/common/media_decoder_wire.py` and unit tests in `tests/unit/test_media_decoder_wire.py` (merged into `codex/204-media-integration`, not `main`); executable PyAV decoding and runtime qualification remain pending.
+  - [PR #375](https://github.com/rgoza1996/Kinaiya/pull/375) (`gemini/359-llama-media-transport` -> `codex/204-media-bootstrap`, [#359](https://github.com/rgoza1996/Kinaiya/issues/359)): pinned `llama.cpp` (`ddf48f85c933c1f438212a02eb21e7b001d2d37d`) Converse/Decisions media transport (`packages/providers/llama_media.py`) and pure direct-media classifier (`services/decisions/media_classifier.py`).
+- **Open November 4 demo and post-review follow-up PRs/branches** ([#357](https://github.com/rgoza1996/Kinaiya/issues/357)):
+  - [PR #360](https://github.com/rgoza1996/Kinaiya/pull/360) (`gemini/354-connection-validation-modal` -> `main`, [#354](https://github.com/rgoza1996/Kinaiya/issues/354)): connection validation error clarity and modal alert on Connect failure.
+  - [PR #363](https://github.com/rgoza1996/Kinaiya/pull/363) (`gemini/352-custom-openai-compatible-providers` -> `main`, [#352](https://github.com/rgoza1996/Kinaiya/issues/352)): `.env`-backed custom OpenAI-compatible provider profiles with custom endpoint paths and Penpot `r56`.
+  - [PR #367](https://github.com/rgoza1996/Kinaiya/pull/367) (`gemini/339-decisions-task-descriptions` -> `main`, [#339](https://github.com/rgoza1996/Kinaiya/issues/339)): disclosure-safe task descriptions in Decisions routing prompts.
+  - Reopened/follow-up branches for [#335](https://github.com/rgoza1996/Kinaiya/issues/335), [#337](https://github.com/rgoza1996/Kinaiya/issues/337), [#340](https://github.com/rgoza1996/Kinaiya/issues/340), and [#371](https://github.com/rgoza1996/Kinaiya/issues/371).
+  - Draft [PR #285](https://github.com/rgoza1996/Kinaiya/pull/285) (`codex/259-handoff-timeout-observation` -> `codex/228-standing-work`).
+
+### 3. Remaining platform implementation and recovery gaps
+
+- **Standing responsibilities and proactive inbox** ([#228](https://github.com/rgoza1996/Kinaiya/issues/228), [#239](https://github.com/rgoza1996/Kinaiya/issues/239), [#10](https://github.com/rgoza1996/Kinaiya/issues/10)): Native Task settlement, claim/reservation and active-slot release, recurrence scheduling, durable inbox, attention policy/quiet hours, and embedded owner editor remain unimplemented on `main`.
+- **End-to-end multimodal runtime and AT64–AT66** ([#204](https://github.com/rgoza1996/Kinaiya/issues/204), [#357](https://github.com/rgoza1996/Kinaiya/issues/357)): Full Session/Converse/Decisions/Agent media pipeline integration, live camera/microphone capture, optional Omni native speech output, and duplex/non-duplex acceptance remain open.
+- **Full Options, mobile call media, and clean-machine distribution** ([#208](https://github.com/rgoza1996/Kinaiya/issues/208), [#11](https://github.com/rgoza1996/Kinaiya/issues/11), [#125](https://github.com/rgoza1996/Kinaiya/issues/125), [#260](https://github.com/rgoza1996/Kinaiya/issues/260), [#13](https://github.com/rgoza1996/Kinaiya/issues/13)): Cross-role ordered provider fallback, remaining Options groups, Telecom/CallKit/duplex mobile call media, and clean-machine model/hardware installer qualification remain open.
+
+### 4. Platform correctness vs. model-quality and hardware observations
+
+- **Platform boundary (Kinaiya responsibility):** Versioned contracts, service isolation, cryptographic action permits, disclosure scopes, complete input preservation, deterministic error/refusal handling, and cancellation/restart ownership are verified by controlled-response unit and integration suites.
+- **Model-quality observations (model-dependent):** Converse local persona quality ([#97](https://github.com/rgoza1996/Kinaiya/issues/97)), Laya/`d1` multi-turn steering/new-task classification accuracy ([#49](https://github.com/rgoza1996/Kinaiya/issues/49), [#53](https://github.com/rgoza1996/Kinaiya/issues/53), [#168](https://github.com/rgoza1996/Kinaiya/issues/168)), Agent repository/UI task completion reliability ([#169](https://github.com/rgoza1996/Kinaiya/issues/169), [#186](https://github.com/rgoza1996/Kinaiya/issues/186)), M4 selector recall ([#6](https://github.com/rgoza1996/Kinaiya/issues/6)), and synthetic local `LFM3`/`d1`/`Gemma 4` modality smoke accuracy (`docs/evidence/multimodal-2026-10-31/`) measure specific models rather than harness correctness.
+- **Hardware and physical-device qualification:** The 8 GB total GPU VRAM voice target ([#4](https://github.com/rgoza1996/Kinaiya/issues/4), [#9](https://github.com/rgoza1996/Kinaiya/issues/9)), physical microphone/speaker/camera latency and echo, and physical Android/iOS device call behavior remain unverified by CPU or synthetic tests.
+
+### 5. Historical checkpoints and negative results (preserved below)
+
+The sections below retain their original October 30 – November 2 dates, source commits, and negative/timeout observations (including [CI441](https://github.com/rgoza1996/Kinaiya/actions/runs/41464568709), [CI442](https://github.com/rgoza1996/Kinaiya/actions/runs/41478156959), [CI456](https://github.com/rgoza1996/Kinaiya/actions/runs/41491251237), and [CI497](https://github.com/rgoza1996/Kinaiya/actions/runs/41549775386) on earlier Python 3.12 large-graph finalization runs, tracked for causal timing reduction in [#356](https://github.com/rgoza1996/Kinaiya/issues/356) / [PR #374](https://github.com/rgoza1996/Kinaiya/pull/374)). Where an older entry states that PR #271, PR #314, PR #315, or an Options slice was draft or unmerged at that date, refer to **§1 Implemented and merged on `main`** above for its current merged status.
+
+## November 2 merged prerequisites and Agent retirement (historical checkpoint)
+
+The subsequent [reply/context construction qualification](../evaluation/evidence/resource-finalization-context-construction-2026-11-02.json)
+records clean source `7dd787c`: all 251 checks pass with zero failures, errors or
+skips and all 1,520 tracked inputs, HEAD and runner stable. The API encodes fresh
+fully validated replies without rebuilding them again; an argument passed to an
+owner callback still receives public validation. The legacy owner's private
+context precomputation hashes the actual complete graph immediately before the
+unchanged constructor rebuilds and checks every child and semantic join. Public
+validators, fresh history/pre-commit audits, native guards and cleanup ownership
+remain. All 192 schemas, 336 old test paths and seven lockfiles are unchanged.
+Independent source and raw-evidence reviews pass within that bounded scope.
+Whole-repository Ruff/format and explicit isolated contract export pass. The
+separate native-v2 context change is excluded from this publication.
+
+[CI497](https://github.com/rgoza1996/Kinaiya/actions/runs/41549775386) on earlier
+`8c060bb` passed Python 3.11 (10,981 plus export/audit), Flutter, Android and iOS.
+Python 3.12 passed 10,980 and failed the unchanged large-graph finalization case
+at its outer eight-second deadline; its export/audit steps did not run. Both
+Python logs confirm checkout `c6822ee`, whose tree exactly matches `8c060bb`.
+The report wrapper result was observed while outer call/finalizer/native HTTP
+and thread work remained pending. This does not identify deadline-relative
+completion or a cause. Earlier red runs remain recorded below. PR315 remains
+draft/unmerged pending changed-source CI; no rerun or assertion/deadline waiver.
+These local passes establish neither a causal timing repair nor H64, model,
+live-device or demonstration readiness.
+
+The subsequent [Resource graph-walk qualification](../evaluation/evidence/resource-finalization-graph-walk-2026-11-02.json)
+records clean source `970752b`: all 251 checks pass (63 Resource contract cases
+plus the 188 affected regressions), with all 1,519 tracked inputs and HEAD stable.
+The checked field-reconstruction entry scans the full graph once; recursive
+frames retain exact shape/type/scalar checks. Constructors, public validators,
+complete encodings, caps, native observations and transaction guards remain.
+Independent source and raw-evidence reviews found no issues. All 192 old schemas
+and 336 old test paths remain unchanged. The normal merge includes main
+`939ad7e`'s Dart/Penpot changes; the Python checks do not qualify those UI changes.
+
+[CI456](https://github.com/rgoza1996/Kinaiya/actions/runs/41491251237) on earlier
+`ac280b0` passed Python 3.11 (10,981 tests plus export/audit), Flutter/web,
+Android and both unsigned iOS simulator builds. Python 3.12 passed 10,979 and
+failed the same two unchanged eight-second finalization cases; export/audit did
+not run. The reserved-lease finalizer was done at its post-timeout snapshot;
+the large-graph native report remained pending. Neither observation establishes
+deadline-relative completion or the underlying cause. Freshly recovered raw CI
+evidence is distinguished from unavailable earlier ignored receipts. PR315
+remains draft/unmerged and requires fresh changed-source CI; local passes do
+not establish a causal timing repair. No deadline/assertion waiver or CI rerun.
+
+The subsequent [fresh native-graph reuse](../evaluation/evidence/native-report-fresh-reuse-2026-11-02.json)
+qualifies source `5bae42ea` with all 188 affected regressions passing unchanged
+tests/deadlines. Only same-call repeated validation of fresh private graphs is
+removed; complete constructors, canonical graph walks, fresh observations and
+pre-commit/cleanup guards remain. Independent source and artifact reviews pass.
+This remains a local gate: PR315 is draft/unmerged and needs changed-head CI.
+
+[CI442](https://github.com/rgoza1996/Kinaiya/actions/runs/41478156959) for earlier
+`102913a7` is terminal: Python 3.11 passed 10,981 plus export/audit; Python 3.12
+passed 10,979 but failed the same two unchanged eight-second finalization cases,
+with export/audit skipped. Flutter/web and Android passed. iOS never acquired a
+hosted runner and was cancelled before any step. No rerun, assertion/deadline
+waiver or causal timing-fix claim follows from the later local passes.
+
+While this correction was qualified, main advanced to `19b8363` with six UI
+increments. Normal merge `1f4623e` preserves all 12 newer Dart app/test files
+exactly, while qualified Python/runtime/test/schema inputs remain unchanged.
+The combined publication still requires its own complete CI gate; the 188 local
+Python checks do not qualify the newly integrated Flutter behavior.
+
+[PR314](https://github.com/rgoza1996/Kinaiya/pull/314) merged the reviewed
+standing-work prerequisites into main `d2bbd30a`, whose tree exactly matches
+qualified head `a553a7d3`. All five
+[CI439 jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966365)
+passed; Python 3.11 and 3.12 each passed 10,951 tests with six skips and two
+deselections. All five
+[Linux lifecycle jobs](https://github.com/rgoza1996/Kinaiya/actions/runs/41448966375)
+also passed their 16 ordered checks. Earlier red runs remain evidence; these
+passes do not reconstruct or establish a causal fix for their timing failures.
+The older dated entries below retain their original source cutoffs.
+
+The subsequent [current-process Agent claim owner](adr/0109-agent-claim-retirement.md)
+retains preflight, original worker/model/control/HTTP cleanup and a separate
+automatic Resources finalizer. A permanent fence prevents new effects, late
+replies cannot reopen launch, and captured original clients survive replacement
+and bounded shutdown. Standing claims no longer use the early per-worker legacy
+restoration callback; ordinary behavior remains. The
+[qualification record](../evaluation/evidence/agent-claim-retirement-2026-11-02.json)
+records 30 new controlled checks and 414 existing regressions, separately
+attributed source cuts, preserved failures, fixture calibration and independent
+review. Applicable exact-head CI remains required for this new increment.
+
+[CI441](https://github.com/rgoza1996/Kinaiya/actions/runs/41464568709) subsequently
+passed Flutter/web, Android, iOS and Python 3.11, but Python 3.12 failed two
+unchanged eight-second physical-finalization cases. PR315 remains draft and
+unmerged. The follow-up source `15fbc836` removes two redundant same-call native
+validation passes while retaining fresh pre-commit observation, complete graph
+validation and the original transaction guards. Its
+[qualification record](../evaluation/evidence/native-report-validation-2026-11-02.json)
+records 188 passing affected local regressions and independent source review.
+The baseline also passed a local one-shot of the two failed cases: neither local
+result establishes the CI timeout cause or a causal timing fix. No deadline or
+assertion was relaxed; changed-head CI is still required before merge.
+
+These tests establish architectural behavior with controlled inference outputs.
+They do not qualify model accuracy, a live stack or a demonstration. Native Task
+settlement, claim/reservation and active-slot release, recurrence, inbox and
+editor remain unfinished under #228 / #239. Historical records cannot reconstruct
+lost original work ownership after restart. The full roadmap remains open.
 
 ## October 31 Options increment
 
@@ -101,6 +255,25 @@ slot release, the durable inbox and embedded owner editor remain required before
 #228 acceptance or a feature PR.
 The historical source cutoff above and frozen 8808 settings preview are unchanged;
 this addendum establishes no live model/device or full-roadmap qualification.
+
+## November 2 Resources finalization transport increment
+
+[ADR0107](adr/0107-standing-physical-finalization.md) records the separately
+qualified in-process physical producer. The subsequent
+[ADR0108 transport](adr/0108-standing-finalization-transport.md) exposes its two
+Agent-role finalization/lookup routes through the original shared operation and
+HTTP cleanup owners. Complete packets, current identity, strict limits and
+same-key native reconciliation remain required.
+
+At `fab6e613`, all 46 new transport/deadline checks and 254 affected older
+client/barrier/API checks passed. The
+[record](../evaluation/evidence/standing-finalization-transport-2026-11-02.json)
+retains the original capability-absence result, six reproduced deadline failures
+and independent/source-aware distinction. These are offline architectural
+checks; applicable exact-head CI and parent integration remain separate gates.
+Agent claim-wide retirement and its automatic finalization caller are still
+missing, followed by native settlement/release, recurrence, inbox and editor.
+No model accuracy, inference, live-device or demonstration qualification follows.
 
 ## November 1 native d1 text Decisions increment
 
@@ -417,8 +590,11 @@ at `15ea5117` passed the exact unchanged 296-case group, alongside separate 127
 contract/client and 96 native/Resources cases. These overlapping scopes do not
 establish full-project CI or reconstruct the earlier process's trigger. Complete
 validation and cleanup assertions remain required; the original failures remain
-preserved. The actual Resources report producer, durable physical witnesses and
-standing-work settlement chain are still unfinished.
+preserved. That run predates the later [in-process Resources producer](adr/0107-standing-physical-finalization.md)
+and [scoped finalization transport](adr/0108-standing-finalization-transport.md).
+Agent claim-wide retirement and its automatic finalization caller, native Task
+settlement, claim/reservation and active-slot release, recurrence, inbox and
+editor remain unfinished.
 
 The draft integration now includes the actual [Resources binding and operation
 barrier](standing-work-api.md#resources-prework-binding-and-operation-barrier):

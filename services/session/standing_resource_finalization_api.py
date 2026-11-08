@@ -13,6 +13,7 @@ from packages.contracts.standing_resource_finalization import (
     StandingResourceFinalizationReceipt,
     StandingResourceFinalizeContext,
     StandingResourceFinalizeRequest,
+    _encode,
     checked_finalization,
     finalization_bytes,
 )
@@ -105,11 +106,11 @@ class StandingResourceFinalizationOperations(StandingOwnerOperations):
             value = checked_finalization(result, _RESULTS[action])
             original = argument.context.request if action == "report" else argument
             value = value.validate_request(original)
-            if action == "report" and finalization_bytes(value.finalization) != finalization_bytes(
-                argument
-            ):
+            # Validation rebuilt every model descendant; shared leaves are immutable.
+            # The private encoder still checks the complete actual graph.
+            if action == "report" and _encode(value.finalization) != finalization_bytes(argument):
                 raise StandingUnavailable
-            raw = finalization_bytes(value)
+            raw = _encode(value)
             if len(raw) > _RESULTS[action].wire_bytes:
                 raise StandingUnavailable
             self._guard(event, deadline)

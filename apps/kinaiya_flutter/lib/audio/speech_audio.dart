@@ -73,4 +73,65 @@ abstract interface class AdaptiveVadAudio {
   Future<void> recalibrateVad();
 }
 
+/// A browser-local audio output. [opaqueId] must never be persisted, sent to a
+/// service, or included in a journal. A selection is not proof of audibility.
+class AudioOutputDevice {
+  const AudioOutputDevice({
+    required this.opaqueId,
+    required this.label,
+    this.selected = false,
+  });
+
+  final String opaqueId;
+  final String label;
+  final bool selected;
+}
+
+/// Optional output routing for this audio owner only. Discovery never opens a
+/// microphone. Picker calls must begin directly in an owner's button gesture.
+/// A pending change retains its original operation; observing it must not be
+/// timed out and replaced. Stop/dispose still fence queued playback.
+abstract interface class AudioOutputSelection {
+  Future<List<AudioOutputDevice>> audioOutputs();
+  Future<String> selectAudioOutput(String opaqueId);
+  Future<String> chooseAudioOutput();
+  Future<String> useDefaultAudioOutput();
+}
+
+/// Optional original-PCM capture for an explicitly armed native-audio Call.
+/// Configuration never acquires a microphone. Existing capture operations keep
+/// their ownership semantics; finishClip yields complete mono16k PCM16 WAV.
+abstract interface class NativePcmCaptureAudio {
+  bool get supportsNativePcmCapture;
+  Future<void> configureNativePcmCapture(bool enabled);
+}
+
+/// Session-local preference, not proof that a microphone has been acquired.
+class AudioInputDevice {
+  const AudioInputDevice({
+    required this.opaqueId,
+    required this.label,
+    this.selected = false,
+  });
+
+  final String opaqueId, label;
+  final bool selected;
+}
+
+enum AudioInputDiscoveryReason { identifiersUnavailable }
+
+class AudioInputDiscoveryUnavailable implements Exception {
+  const AudioInputDiscoveryUnavailable(this.reason);
+
+  final AudioInputDiscoveryReason reason;
+}
+
+/// Discovery and selection do not acquire microphone permission or persist IDs.
+/// A chosen input must be acquired exactly; disappearance never selects default.
+abstract interface class AudioInputSelection {
+  Future<List<AudioInputDevice>> audioInputs();
+  Future<String> selectAudioInput(String opaqueId);
+  Future<String> useDefaultAudioInput();
+}
+
 SpeechAudio speechAudio() => impl.createSpeechAudio();

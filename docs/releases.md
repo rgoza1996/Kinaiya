@@ -21,7 +21,16 @@ It must propagate HTTP/network failures rather than returning an empty feed.
   drafts and stable releases do not become nightly candidates. Select the largest
   unique build number; duplicate build identities or a malformed nightly tag are
   errors, not a reason to silently install an older release.
-- The nightly scan covers at most five pages of 100 releases. Reaching a full
+- **Scheduled nightly deduplication:** Before starting release builds, the midnight
+scheduled workflow resolves the latest published, validated nightly and compares its
+source commit SHA with the scheduled `main` snapshot. An identical SHA skips the
+build, mobile packaging and publication jobs; a new SHA or no published nightly
+continues through the existing qualification gates. Release-feed failures or invalid
+published metadata fail closed instead of being treated as permission to publish.
+Manual workflow dispatch remains available for deliberate rebuilds and is not
+subject to the unchanged-commit skip.
+
+The nightly scan covers at most five pages of 100 releases. Reaching a full
   final page is an explicit error because the global selection is incomplete.
   Operators must keep the active release inventory within this bound. The resolver
   does not trust pagination links or silently truncate the feed.

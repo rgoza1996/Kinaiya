@@ -71,11 +71,23 @@ for defaults, bounds, prototype provenance and qualification limits.
 
 The [updated owner design](../../docs/adr/0059-home-and-optional-converse.md) opens
 on moonlit **Home**, with the animated mascot seated on water. Drag the handle
-on the Home connection panel to move it around the scene; its position is kept
-while that Home view remains mounted. **Talk with Kinaiya** arms the existing live browser listener; **End conversation** stops
-that listener. The mascot and **Setup** open model/conversation settings.
+on the Home connection panel to move it around the scene, or drag its top,
+bottom, left, right, or corner edges like a window (or use arrow keys after
+focusing a resize handle) to expand or shrink its width and height; position and
+size remain while that Home view is mounted. **Talk with Kinaiya** arms the
+existing live browser listener; **End conversation** stops that listener. Tapping
+the Home or Converse mascot opens conversation suggestions and a setup shortcut.
+Suggestions are added to the existing text draft for review; they are not sent
+automatically. **Open Kinaiya setup** opens the floating setup bubbles
+(`ModelSetupDialog`), while **Connect / Setup** in the Home panel opens
+connection setup when disconnected or model/conversation settings when connected.
 The optional **Converse** view uses the supplied close-up character art, complete
 scrollable transcript, text composer, microphone controls and model summary.
+The model summary opens a searchable, provider-grouped picker using the native
+Converse model catalog and save/receipt flow. Stars are local session favorites;
+they do not change model settings. Model availability and readiness are distinct;
+a saved selection is not a readiness check. **Add custom model** opens the provider
+profile editor, while **Edit models** opens the full Models workspace.
 The default portrait's mouth follows the played audio, closing during silence
 and when playback stops. Optional timed viseme cues select mouth shapes; current
 providers use the audio-volume fallback. **Speech mouth movement** in Character

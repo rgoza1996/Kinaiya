@@ -6,6 +6,9 @@ import 'package:kinaiya_flutter/app.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
+import 'package:kinaiya_flutter/ui/agent_design.dart';
+import 'package:kinaiya_flutter/ui/design_tokens.dart';
+import 'package:kinaiya_flutter/ui/visual_theme.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart' show StatusChip;
 
 import 'client_test.dart' show mockTransport;
@@ -272,4 +275,106 @@ void main() {
       await penpotClose(tester, state);
     });
   }
+
+  testWidgets(
+    'semantic state visuals provide non-color textual meaning and icons across all variants without styling ungrounded or unknown states as completed',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final tasks = <AgentTask>[
+        penpotTask('t-running', 'running'),
+        penpotTask('t-queued', 'queued'),
+        penpotTask('t-approval', 'awaiting_approval'),
+        penpotTask('t-failed', 'failed'),
+        penpotTask(
+          't-completed',
+          'succeeded',
+          evidence: [Evidence(kind: 'file', summary: 'Grounded receipt')],
+        ),
+        penpotTask('t-ungrounded', 'succeeded'),
+        penpotTask('t-cancelled', 'cancelled'),
+      ];
+
+      expect(agentSemanticStateVariant(tasks[0]), SemanticStateVariant.active);
+      expect(agentSemanticStateVariant(tasks[1]), SemanticStateVariant.pending);
+      expect(
+        agentSemanticStateVariant(tasks[2]),
+        SemanticStateVariant.needsAttention,
+      );
+      expect(
+        agentSemanticStateVariant(tasks[3]),
+        SemanticStateVariant.failedOrBlocked,
+      );
+      expect(
+        agentSemanticStateVariant(tasks[4]),
+        SemanticStateVariant.completed,
+      );
+      // Ungrounded succeeded and cancelled/unknown never receive completed styling.
+      expect(
+        agentSemanticStateVariant(tasks[5]),
+        SemanticStateVariant.needsAttention,
+      );
+      expect(
+        agentSemanticStateVariant(tasks[6]),
+        SemanticStateVariant.unavailableOrUnknown,
+      );
+
+      final themes = <ThemeData>[
+        kinaiyaTheme(brightness: Brightness.light, designSystem: true),
+        kinaiyaTheme(brightness: Brightness.dark, designSystem: true),
+        kinaiyaTheme(
+          brightness: Brightness.dark,
+          primary: const Color(0xFF8A2BE2),
+          background: const Color(0xFF141824),
+          designSystem: true,
+        ),
+      ];
+
+      for (final theme in themes) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => Wrap(
+                  children: [
+                    for (final task in tasks) agentStatusChip(context, task),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+
+        expect(find.text('running · Active'), findsOneWidget);
+        expect(find.text('queued · Pending'), findsOneWidget);
+        expect(
+          find.text('awaiting_approval · Needs attention'),
+          findsOneWidget,
+        );
+        expect(find.text('failed · Failed or blocked'), findsOneWidget);
+        expect(find.text('succeeded · Completed'), findsOneWidget);
+        expect(find.text('succeeded · Needs attention'), findsOneWidget);
+        expect(find.text('cancelled · Unavailable or unknown'), findsOneWidget);
+
+        expect(
+          find.bySemanticsLabel(RegExp(r'Status: running · Active')),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(RegExp(r'Status: succeeded · Completed')),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp(r'Status: cancelled · Unavailable or unknown'),
+          ),
+          findsOneWidget,
+        );
+      }
+
+      semantics.dispose();
+    },
+  );
 }

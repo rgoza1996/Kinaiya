@@ -70,6 +70,70 @@ APPROVED_NATIVE_D1_SCHEMAS = {
         (b'        "native_d1_systemone",\n',),
     ),
 }
+_DISCLOSURE_BLOCK_INNER = b""",
+        "disclosure_policy": {
+          "anyOf": [
+            {
+              "enum": [
+                "public_synthetic_only",
+                "owner_authorized"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disclosure Policy"
+        }"""
+_DISCLOSURE_BLOCK_TOP = b""",
+    "disclosure_policy": {
+      "anyOf": [
+        {
+          "enum": [
+            "public_synthetic_only",
+            "owner_authorized"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Disclosure Policy"
+    }"""
+_PROVIDER_DESC = (
+    b'  "description": "Remote disclosure ceiling; grants no consent, execution'
+    b' or tool permission.",\n'
+)
+APPROVED_DISCLOSURE_SCHEMAS = {
+    "AgentExportAdmission.json": (
+        "c467b2d43e77b736246f48edc12f4b07a75378590c0f7d2eb9674540faedd832",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+    "AgentExportProviderInfo.json": (
+        "e9fcd961158cf5f6cfeceda22089ded491cc87ed0cde03c9cb5d5190d3c95188",
+        (_DISCLOSURE_BLOCK_TOP,),
+    ),
+    "AgentExportRequest.json": (
+        "4ecaa8bf554bba76deef2f2488fddcdf854dcbbab138b21587e81348dfed4ba4",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+    "ProviderInfo.json": (
+        "f328fd1aeae8a725168f1cddc1a07bdd02d52c062c819757305caced518e1d17",
+        (_PROVIDER_DESC, _DISCLOSURE_BLOCK_TOP),
+    ),
+    "StandingExportAdmission.json": (
+        "d364f2a84b51afff138f92eb6a2c3f6daa4108211509716e2c132c0ee2e53173",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+    "StandingExportRequest.json": (
+        "6f205dd43de3a43177303c790627651af8d82ac43110046e50738bf58722e54f",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+}
 
 
 def encoded(value):
@@ -304,6 +368,140 @@ def schema_pin():
     # Preserve the original184 pin plus the exact approved two-schema evolution.
     # Six finalization and two later #255 schemas are additive families.
     additive = set(CAPS) | {"TranscriptScanPage", "TranscriptScanRequest"}
+    # The first media intake family is additive too. Exclude only these exact
+    # 75 names; test_media_schema_exports separately pins their complete bytes.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "Q",
+            "SignedQ",
+            "Session",
+            "NativeRef",
+            "ConsumerRef",
+            "Fence",
+            "Reservation",
+            "SourceLimits",
+            "DecodeLimits",
+            "WireLimits",
+            "Limits",
+            "Admit",
+            "SourceAdmission",
+            "UploadPut",
+            "UploadAck",
+            "SealRequest",
+            "Seal",
+            "SourcePTS",
+            "CapturePut",
+            "CaptureAck",
+            "PacketHeader",
+            "ASRSession",
+            "ASRFeed",
+            "ASRFinish",
+            "Error",
+        )
+    }
+    # Decoder descriptions are another exact additive family. Their separate
+    # 69-schema pin must not change which original184 bytes are verified here.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "CodePin",
+            "AssetPin",
+            "Runtime",
+            "AudioFormat",
+            "ImageFormat",
+            "ClipFormat",
+            "Transform",
+            "ProbeTrack",
+            "ProbeResult",
+            "DecoderProtocol",
+            "DecoderProfile",
+            "Track",
+            "CaptureOffer",
+            "CaptureReady",
+            "DecodeReady",
+            "Segment",
+            "DecodeRequest",
+            "TrackEnd",
+            "DecodeEnd",
+            "DecodeResponse",
+            "InputEnd",
+            "DecodeBudget",
+            "Format",
+        )
+    }
+    # Session ownership/auth schemas are an exact additive 87-schema family.
+    # Preserve the original184 aggregate; the reviewed manifest is 29 x 3 names.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "AnalyzeTaskAnchor",
+            "AnchorAdmission",
+            "Child",
+            "ChildOwner",
+            "ChildOwnerAppend",
+            "CleanupReceipt",
+            "ClientPlaybackPeer",
+            "Control",
+            "DeleteReceipt",
+            "DeleteRequest",
+            "ExternalTransportPeer",
+            "KeyLookup",
+            "LegacyTaskBody",
+            "LocalExchangeCleanup",
+            "LocalProcessPeer",
+            "Lookup",
+            "NativeTaskPeer",
+            "OwnedWorkerPeer",
+            "OwnerMediaObjective",
+            "OwnerObjective",
+            "OwnerTextObjective",
+            "Peer",
+            "ProcessIdentity",
+            "Status",
+            "StatusAppend",
+            "TaskProof",
+            "TaskProofRequest",
+            "WorkerCleanup",
+            "WorkerCleanupAppend",
+        )
+    }
+    # The versioned decoder handshake is an exact additive nine-record family.
+    # Keep the old69 byte pin and this original184 aggregate unchanged.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "DecoderProtocolV2",
+            "DecoderProfileV2",
+            "ProbeClock",
+            "ProbeObservation",
+            "DecodeSelection",
+            "DecodeTrackCursor",
+            "DecodeOpenPlan",
+            "DecodeRequestV2",
+            "DecodeResponseV2",
+        )
+    }
+    # These seven history records and the explicitly named MediaRange family
+    # are additive; keep every original184 schema byte in its pinned aggregate.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "Disclosure",
+            "Consumer",
+            "Blob",
+            "TrackRange",
+            "Unit",
+            "ManifestPage",
+            "ManifestSeal",
+        )
+    }
+    additive |= {"MediaRange", "MediaReceiptMediaRange", "MediaFoundMediaRange"}
     paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
     body = bytearray()
     for path in paths:
@@ -316,6 +514,12 @@ def schema_pin():
                 assert lines.count(line) == 1
                 lines.remove(line)
             raw = b"".join(lines)
+        if path.name in APPROVED_DISCLOSURE_SCHEMAS:
+            expected, approved_chunks = APPROVED_DISCLOSURE_SCHEMAS[path.name]
+            assert hashlib.sha256(raw).hexdigest() == expected
+            for chunk in approved_chunks:
+                assert raw.count(chunk) == 1
+                raw = raw.replace(chunk, b"", 1)
         body.extend(path.name.encode() + b"\0" + raw + b"\0")
     return len(paths), hashlib.sha256(body).hexdigest()
 

@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 
 import '../character/pack.dart';
 import '../character/playback.dart';
+import 'design_tokens.dart';
 
 /// Local decorative playback. Asset loading never gates speech or runtime work.
 class MascotWidget extends StatefulWidget {
@@ -408,18 +409,139 @@ class SendMascotButton extends StatelessWidget {
 }
 
 class StatusChip extends StatelessWidget {
-  const StatusChip({super.key, required this.text, this.tone = Colors.grey});
+  const StatusChip({
+    super.key,
+    required this.text,
+    this.tone = Colors.grey,
+    this.variant,
+  });
   final String text;
   final Color tone;
+  final SemanticStateVariant? variant;
 
   @override
   Widget build(BuildContext context) {
+    final style = variant == null
+        ? null
+        : KinaiyaDesign.semanticState(context, variant!);
+    final effectiveTone = style?.tone ?? tone;
+    final foreground = Theme.of(context).colorScheme.onSurface;
     return Semantics(
-      label: 'Status: $text',
+      label: style == null ? 'Status: $text' : style.accessibleLabel(text),
       child: Chip(
-        label: Text(text),
-        backgroundColor: tone.withValues(alpha: 0.15),
-        side: BorderSide(color: tone),
+        visualDensity: style == null ? null : VisualDensity.compact,
+        materialTapTargetSize: style == null
+            ? null
+            : MaterialTapTargetSize.shrinkWrap,
+        padding: style == null
+            ? null
+            : const EdgeInsets.symmetric(horizontal: 4),
+        labelPadding: style == null
+            ? null
+            : const EdgeInsets.symmetric(horizontal: 2),
+        avatar: style == null
+            ? null
+            : Icon(style.icon, size: 14, color: foreground),
+        label: Text(
+          style == null ? text : '$text · ${style.meaning}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: foreground,
+            fontSize: style == null ? null : 9,
+          ),
+        ),
+        backgroundColor: effectiveTone.withValues(alpha: 0.15),
+        side: BorderSide(color: effectiveTone),
+      ),
+    );
+  }
+}
+
+/// Truthful outcome states for Connect, Save, or Change operations.
+enum ActionOutcomeState { idle, inProgress, confirmed, failed, unconfirmed }
+
+/// Persistent, accessible feedback banner for Connect and settings-save actions.
+///
+/// Distinguishes immediate in-progress work, native-confirmed success,
+/// actionable failure, and unconfirmed receipts without relying on transient
+/// toasts or color alone.
+class ActionOutcomeFeedback extends StatelessWidget {
+  const ActionOutcomeFeedback({
+    super.key,
+    required this.state,
+    required this.message,
+    this.messageKey,
+    this.liveRegion = true,
+  });
+
+  final ActionOutcomeState state;
+  final String message;
+  final Key? messageKey;
+  final bool liveRegion;
+
+  SemanticStateVariant get _variant => switch (state) {
+    ActionOutcomeState.idle => SemanticStateVariant.unavailableOrUnknown,
+    ActionOutcomeState.inProgress => SemanticStateVariant.pending,
+    ActionOutcomeState.confirmed => SemanticStateVariant.completed,
+    ActionOutcomeState.failed => SemanticStateVariant.failedOrBlocked,
+    ActionOutcomeState.unconfirmed => SemanticStateVariant.unavailableOrUnknown,
+  };
+
+  String get statusLabel => switch (state) {
+    ActionOutcomeState.idle => 'Status',
+    ActionOutcomeState.inProgress => 'In progress',
+    ActionOutcomeState.confirmed => 'Confirmed',
+    ActionOutcomeState.failed => 'Action failed',
+    ActionOutcomeState.unconfirmed => 'Outcome unconfirmed',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final style = KinaiyaDesign.semanticState(context, _variant);
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Semantics(
+      container: true,
+      liveRegion: liveRegion,
+      label: '$statusLabel: $message',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: style.tone.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: style.tone.withValues(alpha: 0.65)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(style.icon, size: 18, color: scheme.onSurface),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    statusLabel,
+                    style: textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    message,
+                    key: messageKey,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
