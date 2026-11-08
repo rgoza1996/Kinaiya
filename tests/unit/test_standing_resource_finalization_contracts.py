@@ -70,6 +70,70 @@ APPROVED_NATIVE_D1_SCHEMAS = {
         (b'        "native_d1_systemone",\n',),
     ),
 }
+_DISCLOSURE_BLOCK_INNER = b""",
+        "disclosure_policy": {
+          "anyOf": [
+            {
+              "enum": [
+                "public_synthetic_only",
+                "owner_authorized"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disclosure Policy"
+        }"""
+_DISCLOSURE_BLOCK_TOP = b""",
+    "disclosure_policy": {
+      "anyOf": [
+        {
+          "enum": [
+            "public_synthetic_only",
+            "owner_authorized"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Disclosure Policy"
+    }"""
+_PROVIDER_DESC = (
+    b'  "description": "Remote disclosure ceiling; grants no consent, execution'
+    b' or tool permission.",\n'
+)
+APPROVED_DISCLOSURE_SCHEMAS = {
+    "AgentExportAdmission.json": (
+        "c467b2d43e77b736246f48edc12f4b07a75378590c0f7d2eb9674540faedd832",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+    "AgentExportProviderInfo.json": (
+        "e9fcd961158cf5f6cfeceda22089ded491cc87ed0cde03c9cb5d5190d3c95188",
+        (_DISCLOSURE_BLOCK_TOP,),
+    ),
+    "AgentExportRequest.json": (
+        "4ecaa8bf554bba76deef2f2488fddcdf854dcbbab138b21587e81348dfed4ba4",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+    "ProviderInfo.json": (
+        "f328fd1aeae8a725168f1cddc1a07bdd02d52c062c819757305caced518e1d17",
+        (_PROVIDER_DESC, _DISCLOSURE_BLOCK_TOP),
+    ),
+    "StandingExportAdmission.json": (
+        "d364f2a84b51afff138f92eb6a2c3f6daa4108211509716e2c132c0ee2e53173",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+    "StandingExportRequest.json": (
+        "6f205dd43de3a43177303c790627651af8d82ac43110046e50738bf58722e54f",
+        (_DISCLOSURE_BLOCK_INNER,),
+    ),
+}
 
 
 def encoded(value):
@@ -450,6 +514,12 @@ def schema_pin():
                 assert lines.count(line) == 1
                 lines.remove(line)
             raw = b"".join(lines)
+        if path.name in APPROVED_DISCLOSURE_SCHEMAS:
+            expected, approved_chunks = APPROVED_DISCLOSURE_SCHEMAS[path.name]
+            assert hashlib.sha256(raw).hexdigest() == expected
+            for chunk in approved_chunks:
+                assert raw.count(chunk) == 1
+                raw = raw.replace(chunk, b"", 1)
         body.extend(path.name.encode() + b"\0" + raw + b"\0")
     return len(paths), hashlib.sha256(body).hexdigest()
 
