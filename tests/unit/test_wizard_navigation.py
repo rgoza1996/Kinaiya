@@ -293,3 +293,161 @@ def test_unsupported_section_and_no_tty_fail_closed(
     with pytest.raises(InstallError, match="No controlling terminal; use setup --yes"):
         cli.dispatch(model_args)
     assert not layout.config.exists()
+
+
+class InterruptingTerminal(FakeTerminal):
+    """Fake terminal where an answer entry may be an exception instance or class."""
+
+    def readline(self) -> str:
+        try:
+            item = next(self._answers)
+        except StopIteration:
+            return ""
+        if isinstance(item, BaseException):
+            raise item
+        if isinstance(item, type) and issubclass(item, BaseException):
+            raise item()
+        return str(item) + "\n"
+
+
+def test_keyboard_interrupt_cancels_cleanly_across_wizard_prompts_and_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    layout = Layout.for_home(tmp_path)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
+
+    # 1. Ctrl-C at raw prompt (e.g. Agent provider endpoint)
+    tty_raw = InterruptingTerminal(["", "", KeyboardInterrupt()])
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_raw)
+    assert not layout.config.exists()
+
+    # 2. Ctrl-C at y/n prompt (e.g. cloud disclosure)
+    tty_yn = InterruptingTerminal(
+        ["", "", "http://127.0.0.1:1234", "qwen2.5-coder", KeyboardInterrupt()]
+    )
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_yn)
+    assert not layout.config.exists()
+
+    # 3. Ctrl-C at final confirmation prompt
+    tty_confirm = InterruptingTerminal(
+        ["", "", "http://127.0.0.1:1234", "qwen2.5-coder", "no", "", "no", KeyboardInterrupt()]
+    )
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_confirm)
+    assert not layout.config.exists()
+
+    # 4. Ctrl-C in quick setup flow (ask and ask_yn)
+    tty_quick_ask = InterruptingTerminal(["http://127.0.0.1:1234", KeyboardInterrupt()])
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_quick_ask, mode="quick")
+    assert not layout.config.exists()
+
+    tty_quick_yn = InterruptingTerminal(
+        ["http://127.0.0.1:1234", "qwen2.5-coder", KeyboardInterrupt()]
+    )
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_quick_yn, mode="quick")
+    assert not layout.config.exists()
+
+    # 5. Ctrl-C in masked API key prompt (readline and getpass_fn)
+    from services.distribution.credentials import prompt_masked_api_key
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        prompt_masked_api_key(InterruptingTerminal([KeyboardInterrupt()]))
+
+    def raising_getpass(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        prompt_masked_api_key(FakeTerminal([]), getpass_fn=raising_getpass)
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        prompt_masked_api_key(InterruptingTerminal([":env", KeyboardInterrupt()]))
+
+    # 6. Ctrl-C in interactive model picker and profile picker
+    from services.distribution.model_picker import (
+        ProviderProfileChoice,
+        select_model_interactively,
+        select_profile_interactively,
+    )
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        select_model_interactively(
+            InterruptingTerminal([KeyboardInterrupt()]),
+            ["qwen2.5-coder-7b", "qwen2.5-coder-14b"],
+        )
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        select_profile_interactively(
+            InterruptingTerminal([KeyboardInterrupt()]),
+            [
+                ProviderProfileChoice(
+                    profile_id="p01",
+                    name="Local",
+                    base_url="http://127.0.0.1:1234/v1",
+                    adapter_kind="lmstudio",
+                )
+            ],
+        )
+
+    # 7. Ctrl-C in connection check: raises before save, skips cleanly after save
+    from services.distribution.connection_probe import run_interactive_connection_check
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        run_interactive_connection_check(
+            InterruptingTerminal([KeyboardInterrupt()]),
+            endpoint="http://127.0.0.1:1234/v1",
+            model="qwen2.5-coder",
+            config_saved=False,
+        )
+
+    probe_after_save = run_interactive_connection_check(
+        InterruptingTerminal([KeyboardInterrupt()]),
+        endpoint="http://127.0.0.1:1234/v1",
+        model="qwen2.5-coder",
+        config_saved=True,
+    )
+    assert probe_after_save.overall_readiness == "unverified_saved"
+
+    # 8. End-to-end launcher.main(["setup"]) exits with code 1 and clean message, no traceback
+    @contextmanager
+    def ctrl_c_tty():
+        yield InterruptingTerminal([KeyboardInterrupt()])
+
+    monkeypatch.setattr(wizard, "open_terminal", ctrl_c_tty)
+    with pytest.raises(SystemExit) as exc_info:
+        launcher.main(["setup"])
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.err == "kinaiya: Setup cancelled; no configuration written\n"
+    assert "Traceback" not in captured.err
+    assert "KeyboardInterrupt" not in captured.err
+    assert not layout.config.exists()
+
+    # 9. Ctrl-C at optional post-save custom API profile prompt preserves written config
+    tty_post_save = InterruptingTerminal(
+        [
+            "",
+            "",
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder",
+            "no",
+            "",
+            "no",
+            "yes",
+            KeyboardInterrupt(),
+        ]
+    )
+    res = wizard.run_wizard(layout, tty=tty_post_save)
+    assert res["ready"] is False
+    assert layout.config.exists()
+    assert (
+        "Cancelled; no profile was saved. Setup configuration is unchanged." in tty_post_save.output
+    )

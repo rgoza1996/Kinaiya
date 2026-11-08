@@ -307,7 +307,12 @@ class WizardNavigator:
             prompt_str += f"{c_lbl}: {RESET}"
             self.tty.write(prompt_str)
         self.tty.flush()
-        line = self.tty.readline()
+        try:
+            line = self.tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            self.tty.write("\n")
+            self.tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         return line.strip()
@@ -318,7 +323,12 @@ class WizardNavigator:
         while True:
             self.tty.write(f"{label} (y/n) [{default_hint}]: ")
             self.tty.flush()
-            line = self.tty.readline()
+            try:
+                line = self.tty.readline()
+            except (KeyboardInterrupt, EOFError):
+                self.tty.write("\n")
+                self.tty.flush()
+                raise InstallError("Setup cancelled; no configuration written") from None
             if not line:
                 raise InstallError("Setup cancelled: terminal input closed")
             cleaned = line.strip()
@@ -680,7 +690,12 @@ class WizardNavigator:
             while True:
                 self.tty.write("Write configuration and private service tokens? (y/n) [n]: ")
                 self.tty.flush()
-                confirm_line = self.tty.readline()
+                try:
+                    confirm_line = self.tty.readline()
+                except (KeyboardInterrupt, EOFError):
+                    self.tty.write("\n")
+                    self.tty.flush()
+                    raise InstallError("Setup cancelled; no configuration written") from None
                 if not confirm_line:
                     raise InstallError("Setup cancelled: terminal input closed")
                 confirm_raw = confirm_line.strip()

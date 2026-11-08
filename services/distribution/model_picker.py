@@ -451,7 +451,12 @@ def select_profile_interactively(
     tty.write(format_profile_choices(profiles, role=role, width=width))
     tty.write(_truncate_line(f"Select profile [1-{len(profiles)}] (or :cancel):", width) + "\n")
     tty.flush()
-    raw = tty.readline()
+    try:
+        raw = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        raise InstallError("Setup cancelled; no configuration written") from None
     if not raw:
         raise InstallError("Setup cancelled: terminal input closed")
     choice = raw.strip()
@@ -748,7 +753,12 @@ def _prompt_manual_model_id(
 ) -> SelectedModel:
     tty.write(_wrap_block(f"Enter exact model ID for {profile_id} ({role}):", width) + "\n")
     tty.flush()
-    line = tty.readline()
+    try:
+        line = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        raise InstallError("Setup cancelled; no configuration written") from None
     if not line:
         raise InstallError("Setup cancelled: terminal input closed")
     cleaned = line.strip()
@@ -871,7 +881,12 @@ def select_model_interactively(
             + "\n"
         )
         tty.flush()
-        line = tty.readline()
+        try:
+            line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         ans = line.strip()
@@ -941,7 +956,12 @@ def select_model_interactively(
         tty.write(_truncate_line(prompt_msg, width) + "\n")
         tty.flush()
 
-        line = tty.readline()
+        try:
+            line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         cmd = line.strip()

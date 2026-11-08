@@ -1343,6 +1343,10 @@ def main(argv=None):
             print_command_result(args, dispatch(args))
         except (InstallError, ReleaseError) as exc:
             parser.exit(1, f"kinaiya: {exc}\n")
+        except KeyboardInterrupt:
+            if args.command == "setup":
+                parser.exit(1, "kinaiya: Setup cancelled; no configuration written\n")
+            parser.exit(1, "kinaiya: operation cancelled\n")
         except (OSError, ValueError):
             parser.exit(
                 1,
