@@ -22,14 +22,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from services.distribution.installation import InstallError
-from services.distribution.terminal_ui import (
-    ASCII_SYMBOLS,
-    PALETTE,
-    UNICODE_SYMBOLS,
-    ColorMode,
-    detect_color_mode,
-    supports_unicode,
-)
 
 PASTE_START = "\x1b[200~"
 PASTE_END = "\x1b[201~"
@@ -185,10 +177,10 @@ def _curses_radiolist_screen(
         if has_colors:
             curses.start_color()
             curses.use_default_colors()
-            curses.init_pair(1, curses.COLOR_CYAN, -1)     # Accent / highlight
-            curses.init_pair(2, curses.COLOR_WHITE, -1)    # Normal text
-            curses.init_pair(3, curses.COLOR_GREEN, -1)    # Recommended / success
-            curses.init_pair(4, curses.COLOR_YELLOW, -1)   # Warning / Search
+            curses.init_pair(1, curses.COLOR_CYAN, -1)  # Accent / highlight
+            curses.init_pair(2, curses.COLOR_WHITE, -1)  # Normal text
+            curses.init_pair(3, curses.COLOR_GREEN, -1)  # Recommended / success
+            curses.init_pair(4, curses.COLOR_YELLOW, -1)  # Warning / Search
             curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Selected line
     except Exception:
         has_colors = False
@@ -228,7 +220,9 @@ def _curses_radiolist_screen(
         row = 1
         if row < max_y:
             title_text = f" {title} "[: max_x - 2]
-            stdscr.addstr(row, 2, title_text, curses.A_BOLD | (curses.color_pair(1) if has_colors else 0))
+            stdscr.addstr(
+                row, 2, title_text, curses.A_BOLD | (curses.color_pair(1) if has_colors else 0)
+            )
             row += 1
 
         if subtitle and row < max_y:
@@ -243,7 +237,9 @@ def _curses_radiolist_screen(
             if row < max_y:
                 search_display = f" Search: {search_query}_"[: max_x - 4]
                 stdscr.addstr(
-                    row, 2, search_display,
+                    row,
+                    2,
+                    search_display,
                     curses.A_BOLD | (curses.color_pair(4) if has_colors else 0),
                 )
                 row += 2
@@ -253,9 +249,11 @@ def _curses_radiolist_screen(
         max_options_display = max(1, max_y - start_row - 3)
         scroll_offset = max(0, current_vis_idx - max_options_display + 1)
 
-        for v_i in range(scroll_offset, min(len(visible_items), scroll_offset + max_options_display)):
+        for v_i in range(
+            scroll_offset, min(len(visible_items), scroll_offset + max_options_display)
+        ):
             orig_idx, item = visible_items[v_i]
-            is_selected = (v_i == current_vis_idx)
+            is_selected = v_i == current_vis_idx
             is_disabled = item.disabled
 
             pointer = "›" if is_selected else " "
@@ -272,9 +270,9 @@ def _curses_radiolist_screen(
             elif is_disabled:
                 attr = curses.A_DIM
             elif item.recommended:
-                attr = (curses.color_pair(3) if has_colors else curses.A_BOLD)
+                attr = curses.color_pair(3) if has_colors else curses.A_BOLD
             else:
-                attr = (curses.color_pair(2) if has_colors else 0)
+                attr = curses.color_pair(2) if has_colors else 0
 
             if row < max_y - 2:
                 stdscr.addstr(row, 2, line, attr)
@@ -444,7 +442,9 @@ def _curses_checklist_screen(
         row = 1
         if row < max_y:
             title_text = f" {title} "[: max_x - 2]
-            stdscr.addstr(row, 2, title_text, curses.A_BOLD | (curses.color_pair(1) if has_colors else 0))
+            stdscr.addstr(
+                row, 2, title_text, curses.A_BOLD | (curses.color_pair(1) if has_colors else 0)
+            )
             row += 1
 
         if subtitle and row < max_y:
@@ -458,7 +458,9 @@ def _curses_checklist_screen(
             if row < max_y:
                 search_display = f" Search: {search_query}_"[: max_x - 4]
                 stdscr.addstr(
-                    row, 2, search_display,
+                    row,
+                    2,
+                    search_display,
                     curses.A_BOLD | (curses.color_pair(4) if has_colors else 0),
                 )
                 row += 2
@@ -467,9 +469,11 @@ def _curses_checklist_screen(
         max_options_display = max(1, max_y - start_row - 3)
         scroll_offset = max(0, current_vis_idx - max_options_display + 1)
 
-        for v_i in range(scroll_offset, min(len(visible_items), scroll_offset + max_options_display)):
+        for v_i in range(
+            scroll_offset, min(len(visible_items), scroll_offset + max_options_display)
+        ):
             orig_idx, item = visible_items[v_i]
-            is_cursor = (v_i == current_vis_idx)
+            is_cursor = v_i == current_vis_idx
             is_checked = orig_idx in selected_set
             is_disabled = item.disabled
 
@@ -487,9 +491,9 @@ def _curses_checklist_screen(
             elif is_disabled:
                 attr = curses.A_DIM
             elif is_checked or item.recommended:
-                attr = (curses.color_pair(3) if has_colors else curses.A_BOLD)
+                attr = curses.color_pair(3) if has_colors else curses.A_BOLD
             else:
-                attr = (curses.color_pair(2) if has_colors else 0)
+                attr = curses.color_pair(2) if has_colors else 0
 
             if row < max_y - 2:
                 stdscr.addstr(row, 2, line, attr)
@@ -595,10 +599,6 @@ def _line_radiolist_fallback(
     allow_back: bool = False,
 ) -> int:
     """Deterministic numbered line prompt fallback for non-TTY / dumb terminals."""
-    color_mode = detect_color_mode(tty)
-    unicode_ok = supports_unicode(tty)
-    symbols = UNICODE_SYMBOLS if unicode_ok else ASCII_SYMBOLS
-
     out = [f"\n=== {title} ==="]
     if subtitle:
         out.append(f"  {subtitle}")

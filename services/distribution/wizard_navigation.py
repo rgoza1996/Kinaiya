@@ -39,7 +39,6 @@ from services.distribution.model_picker import (
     check_role_adapter_eligibility,
     discover_profile_models,
     format_profile_choices,
-    get_starter_provider_presets,
     is_loopback_endpoint,
     load_stored_profiles,
     save_role_model_selection,
@@ -126,7 +125,9 @@ def validate_data_path(candidate: Path | str) -> Path:
     if posix_str in PROTECTED_INSTALL_ROOTS or any(
         posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
     ):
-        raise InstallError(f"Refusing protected system root as private data directory: {normalized}")
+        raise InstallError(
+            f"Refusing protected system root as private data directory: {normalized}"
+        )
     return normalized
 
 
@@ -445,11 +446,15 @@ class WizardNavigator:
         # Line mode fallback
         c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
         c_em = PALETTE.emerald.fg_sequence(self.color_mode)
-        pointer = self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode)) if self.color_mode != ColorMode.NONE else ">"
+        pointer = (
+            self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode))
+            if self.color_mode != ColorMode.NONE
+            else ">"
+        )
         self.tty.write(f"\n{pointer} {c_lbl}Authorized Workspace Selection:{RESET}\n")
         self.tty.write(f"  [1] Default workspace ({default_ws}) {c_em}(recommended){RESET}\n")
         self.tty.write(f"  [2] Current working directory ({cwd})\n")
-        self.tty.write(f"  [3] Custom directory path...\n")
+        self.tty.write("  [3] Custom directory path...\n")
         raw = self._raw_prompt("Authorized workspace [1-3] or enter path", default=default_ws)
         cleaned = raw.strip()
         if not cleaned or cleaned == "1" or cleaned == default_ws:
@@ -459,7 +464,11 @@ class WizardNavigator:
         if cleaned == "3":
             custom_path = self._raw_prompt("Enter custom workspace path", default=default_ws)
             return str(validate_workspace_path(custom_path or default_ws))
-        if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False) or cleaned.lower() in {":quick", "quick"}:
+        if (
+            is_cancel_command(cleaned)
+            or is_back_command(cleaned, at_confirm=False)
+            or cleaned.lower() in {":quick", "quick"}
+        ):
             return cleaned
         return str(validate_workspace_path(cleaned))
 
@@ -500,10 +509,16 @@ class WizardNavigator:
         # Line mode fallback
         c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
         c_em = PALETTE.emerald.fg_sequence(self.color_mode)
-        pointer = self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode)) if self.color_mode != ColorMode.NONE else ">"
+        pointer = (
+            self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode))
+            if self.color_mode != ColorMode.NONE
+            else ">"
+        )
         self.tty.write(f"\n{pointer} {c_lbl}Private Data Directory Selection:{RESET}\n")
-        self.tty.write(f"  [1] Default private data directory ({default_data}) {c_em}(recommended){RESET}\n")
-        self.tty.write(f"  [2] Custom directory path...\n")
+        self.tty.write(
+            f"  [1] Default private data directory ({default_data}) {c_em}(recommended){RESET}\n"
+        )
+        self.tty.write("  [2] Custom directory path...\n")
         raw = self._raw_prompt("Private data directory [1-2] or enter path", default=default_data)
         cleaned = raw.strip()
         if not cleaned or cleaned == "1" or cleaned == default_data:
@@ -515,7 +530,9 @@ class WizardNavigator:
             return cleaned
         return str(validate_data_path(cleaned))
 
-    def _prompt_custom_endpoint(self, default_val: str, profile_id: str = "p03") -> ProviderProfileChoice:
+    def _prompt_custom_endpoint(
+        self, default_val: str, profile_id: str = "p03"
+    ) -> ProviderProfileChoice:
         """Prompt for custom OpenAI-compatible endpoint with /v1 check (#503)."""
         raw_url = self._raw_prompt(
             "Custom endpoint Base URL", default=default_val or "http://localhost:11434/v1"
@@ -531,9 +548,7 @@ class WizardNavigator:
         is_local = is_loopback_endpoint(raw_url)
         if not is_local:
             cred_env = (
-                self._raw_prompt(
-                    "Credential environment variable NAME only (blank if none)", ""
-                )
+                self._raw_prompt("Credential environment variable NAME only (blank if none)", "")
                 or None
             )
             adapter = "meta"
@@ -725,7 +740,12 @@ class WizardNavigator:
             return "none"
         if is_curses_available(self.tty):
             items = [
-                MenuItem("none", "none", "Standard inference without extra reasoning tokens", recommended=True),
+                MenuItem(
+                    "none",
+                    "none",
+                    "Standard inference without extra reasoning tokens",
+                    recommended=True,
+                ),
                 MenuItem("low", "low", "Light reasoning for quick multi-step tasks"),
                 MenuItem("medium", "medium", "Balanced reasoning effort"),
                 MenuItem("high", "high", "Deep deliberative reasoning for complex tasks"),
@@ -1054,7 +1074,9 @@ class WizardNavigator:
                                 index += 4
                                 continue
                             except MenuCancelled:
-                                raise InstallError("Setup cancelled; no configuration written") from None
+                                raise InstallError(
+                                    "Setup cancelled; no configuration written"
+                                ) from None
                             except MenuGoBack:
                                 if index > 0:
                                     index -= 1

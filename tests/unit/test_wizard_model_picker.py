@@ -592,7 +592,10 @@ def test_remote_cloud_denied_disclosure_avoids_network_and_falls_back(
             "yes",  # confirm write
         ]
     )
-    with pytest.raises(InstallError, match="Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"):
+    with pytest.raises(
+        InstallError,
+        match="Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure",
+    ):
         wizard.run_wizard(
             layout,
             tty=tty,
@@ -603,9 +606,7 @@ def test_remote_cloud_denied_disclosure_avoids_network_and_falls_back(
     assert network_called is False
 
 
-def test_pre_setup_config_backup_preserved(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_pre_setup_config_backup_preserved(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Issue #502: pre-setup config backup is saved before rewriting config.json."""
     from services import launcher
 
@@ -636,5 +637,3 @@ def test_pre_setup_config_backup_preserved(
     bak_file = layout.config.with_name(f"{layout.config.name}.pre-setup.bak")
     assert bak_file.exists()
     assert bak_file.read_text(encoding="utf-8") == initial_content
-
-
