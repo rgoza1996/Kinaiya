@@ -1,13 +1,13 @@
 {
   "artifact_format": 1,
-  "scope": "Final master export after native Options, scoped permissions, stacking repair, November 2 UI/UX review text layer synchronization (#286-#310), custom OpenAI-compatible .env API prototype boards (#352-#353), and the 14-step CLI Installer & Setup Wizard decision tree with curses arrow-key TUI, authenticated /models discovery, 3-way service topology (Both default, Agent-only, Converse-only), multi-role reuse, bare kinaiya command, auto-login/refresh-token flow, and Hermes-style human-readable TUI status formatting (#261, #335, #381-#402, #497-#514)",
+  "scope": "Final master export after native Options, scoped permissions, stacking repair, November 2 UI/UX review text layer synchronization (#286-#310), custom OpenAI-compatible .env API prototype boards (#352-#353), and the 14-step CLI Installer & Setup Wizard decision tree with curses arrow-key TUI, authenticated /models discovery, 3-way service topology (Both default, Agent-only, Converse-only), Converse LLM reuse with independent Decisions model configuration, bare kinaiya command, auto-login/refresh-token flow, and Hermes-style human-readable TUI status formatting (#261, #335, #381-#402, #497-#517)",
   "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
   "page_id": "1521d820-51cc-4a49-a496-12d9c823c47e",
   "archive": {
-    "bytes": 244636775,
-    "sha256": "0f59670554fab67047f60ad91fc008cf6eb9883e771597af45a4823e2a6090a6",
-    "revision": 62,
-    "modified_at": "2026-11-08T09:40:00.000000Z"
+    "bytes": 244662707,
+    "sha256": "1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c",
+    "revision": 63,
+    "modified_at": "2026-11-08T10:00:00.000000Z"
   },
   "checks": {
     "same_14_page_ids": true,
@@ -66,7 +66,7 @@
     "Corrected default Permissions and linked Task unsaved edit / unknown receipt route after stacking repair",
     "November 2 UI/UX review text layer sync across Home, Converse, Agent, Options Overview and Models boards (#286-#310)",
     "Unlimited custom OpenAI-compatible .env provider list, Add/Edit Custom API, GET /models discovery, manual fallback, and removal confirmation prototype boards (#352-#353)",
-    "14-step standalone Linux terminal CLI Installer & Setup Wizard prototype boards (no Harness GUI chrome; deterministic 68x14 ASCII Moon from Moonlit Home screen) covering bootstrap channel/install-root choices, fail-closed preflight checks (#261, #478, #514), [y/N] plan consent, 5-stage progress, Ctrl-C/ESC clean cancel & human-readable --no-setup summary (#497, #501, #510), curses arrow-key TUI & directory selector (#498, #501, #504), unified TUI provider roster with status indicators (#498, #503), 3-way service topology selector (Both Agent & Converse default, Agent only, Converse only · #513, #514) & multi-role reuse shortcut (#505), credential prompt before authenticated GET /models discovery (#498, #502), reasoning effort & compact confirmation (#391, #498), Start Kinaiya now? [Y/n] launch prompt (#506), bare kinaiya command with loopback auto-login & SHA-256 refresh token (#499, #500, #507), and Hermes-style human-readable TUI checklists for update, version, recover, rollback, rotate-owner, and uninstall (#261, #335, #381-#402, #497-#514)"
+    "14-step standalone Linux terminal CLI Installer & Setup Wizard prototype boards (no Harness GUI chrome; deterministic 68x14 ASCII Moon from Moonlit Home screen) covering bootstrap channel/install-root choices, fail-closed preflight checks (#261, #478, #514), [y/N] plan consent, 5-stage progress, Ctrl-C/ESC clean cancel & human-readable --no-setup summary (#497, #501, #510), curses arrow-key TUI & directory selector (#498, #501, #504), unified TUI provider roster with status indicators (#498, #503), 3-way service topology selector (Both Agent & Converse default, Agent only, Converse only · #513, #514) with Converse LLM reuse and independent Decisions model configuration (#517; Decisions is required whenever Converse is active), credential prompt before authenticated GET /models discovery (#498, #502), reasoning effort & compact confirmation (#391, #498), Start Kinaiya now? [Y/n] launch prompt (#506), bare kinaiya command with loopback auto-login & SHA-256 refresh token (#499, #500, #507), and Hermes-style human-readable TUI checklists for update, version, recover, rollback, rotate-owner, and uninstall (#261, #335, #381-#402, #497-#517)"
   ],
   "limitations": [
     "Selected prototype paths reviewed; not every control manually exercised.",
@@ -83,8 +83,8 @@
     "broken_cli_installer_links": []
   },
   "publication": {
-    "oid": "sha256:0f59670554fab67047f60ad91fc008cf6eb9883e771597af45a4823e2a6090a6",
-    "size": 244636775,
+    "oid": "sha256:1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c",
+    "size": 244662707,
     "remote_download_hash_verified": true,
     "destination": "rgoza1996/Kinaiya Git LFS",
     "protocol": "standard repository-authenticated LFS batch/basic upload and download"
