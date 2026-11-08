@@ -1,13 +1,13 @@
 {
   "issue": 492,
   "title": "Owner access: complete GUI first-run sign-in and recovery qualification",
-  "git_revision": "8f34ff9be50b5dafc9fab937faf4e7d32d91b92f",
+  "git_revision": "fa742e39e3926bd126f771e6ed0d2182cea622ff",
   "platform": "linux",
   "records": [
     {
       "phase": "fresh_install_automatic_signin",
       "status": "passed",
-      "session_token_prefix": "kny_sess_wj-",
+      "session_token_prefix": "kny_sess_Ny2",
       "owner_epoch": 1,
       "manual_token_required": false
     },
@@ -23,14 +23,14 @@
       "status": "passed",
       "owner_epoch_preserved": 1,
       "credential_rotated": false,
-      "session_token_prefix": "kny_sess_tw0"
+      "session_token_prefix": "kny_sess_aA8"
     },
     {
       "phase": "compromised_credential_rotation",
       "status": "passed",
       "prior_sessions_invalidated": true,
       "new_owner_epoch": 2,
-      "session_token_prefix": "kny_sess_BGF",
+      "session_token_prefix": "kny_sess_YFF",
       "exported_token_available": true
     },
     {
