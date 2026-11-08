@@ -1325,6 +1325,7 @@ def setup(
         initialize(SimpleNamespace(data_dir=layout.data, config=layout.config))
     config = json.loads(layout.config.read_text())
     config.pop("voice", None)
+    config.setdefault("providers", {})
 
     if agent_built is not None:
         config["providers"]["agent"] = dict(agent_built)

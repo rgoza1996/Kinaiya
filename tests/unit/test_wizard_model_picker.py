@@ -496,3 +496,145 @@ def test_inline_custom_endpoint_with_v1_correction_in_wizard(tmp_path: Path):
     assert cfg["providers"]["agent"]["kind"] == "lmstudio"
     assert "Hint: Local servers usually require /v1 suffix" in tty.output
 
+
+def test_remote_cloud_disclosure_and_key_before_model_discovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #502: cloud disclosure & API key must precede GET /models discovery."""
+    from services import launcher
+
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    monkeypatch.setenv("MY_TEST_CLOUD_KEY", "sk-cloud-secret-12345")
+    layout = Layout.for_home(tmp_path)
+    cloud_profile = ProviderProfileChoice(
+        profile_id="p02",
+        name="Meta Cloud",
+        base_url="https://api.together.xyz/v1",
+        adapter_kind="meta",
+        allow_cloud=True,
+        credential_env="MY_TEST_CLOUD_KEY",
+        models_path="/models",
+    )
+    payload = b'{"data": [{"id": "meta-llama/Llama-3.3-70B-Instruct"}]}'
+    captured_headers: dict[str, str] = {}
+
+    def mock_opener(req, timeout=5.0):
+        for k, v in req.headers.items():
+            captured_headers[k.lower()] = v
+        return _FakeHTTPResponse(payload, 200)
+
+    tty = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "1",  # select profile 1 (p02 cloud)
+            "yes",  # cloud disclosure prompt BEFORE discovery (#502)
+            ":env MY_TEST_CLOUD_KEY",  # API key prompt BEFORE discovery (#502)
+            "meta-llama/Llama-3.3-70B-Instruct",  # select discovered model
+            "3",  # topology: Agent only
+            "yes",  # confirm write
+        ]
+    )
+    res = wizard.run_wizard(
+        layout,
+        tty=tty,
+        profiles=[cloud_profile],
+        discover_models=True,
+        opener=mock_opener,
+    )
+    assert res["ready"] is False
+    assert captured_headers.get("authorization") == "Bearer sk-cloud-secret-12345"
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert cfg["providers"]["agent"]["model"] == "meta-llama/Llama-3.3-70B-Instruct"
+    assert cfg["providers"]["agent"]["allow_cloud"] is True
+
+
+def test_remote_cloud_denied_disclosure_avoids_network_and_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #502: denying cloud disclosure makes 0 network calls and falls back cleanly."""
+    from services import launcher
+
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    layout = Layout.for_home(tmp_path)
+    cloud_profile = ProviderProfileChoice(
+        profile_id="p02",
+        name="Meta Cloud",
+        base_url="https://api.together.xyz/v1",
+        adapter_kind="meta",
+        allow_cloud=True,
+        credential_env="KINAIYA_META_API_KEY",
+        models_path="/models",
+    )
+    network_called = False
+
+    def refusing_opener(req, timeout=5.0):
+        nonlocal network_called
+        network_called = True
+        raise AssertionError("Network call must not occur when cloud disclosure is denied")
+
+    tty = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "1",  # select profile 1 (p02 cloud)
+            "no",  # cloud disclosure prompt: DENIED (#502)
+            "manual-cloud-model",  # manual fallback model ID
+            "no",  # converse
+            "yes",  # confirm write
+        ]
+    )
+    with pytest.raises(InstallError, match="Use a credential-free loopback endpoint, or HTTPS with explicit cloud disclosure"):
+        wizard.run_wizard(
+            layout,
+            tty=tty,
+            profiles=[cloud_profile],
+            discover_models=True,
+            opener=refusing_opener,
+        )
+    assert network_called is False
+
+
+def test_pre_setup_config_backup_preserved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #502: pre-setup config backup is saved before rewriting config.json."""
+    from services import launcher
+
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    layout = Layout.for_home(tmp_path)
+    layout.config.parent.mkdir(parents=True, exist_ok=True)
+    initial_content = '{"version": 1, "custom_field": "do-not-lose"}'
+    layout.config.write_text(initial_content, encoding="utf-8")
+
+    tty = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint
+            "new-agent-model",  # model
+            "no",  # allow_cloud
+            "",  # cred env
+            "3",  # topology: option 3 (Agent only)
+            "yes",  # confirm write
+        ]
+    )
+    res = wizard.run_wizard(layout, tty=tty)
+    assert res["ready"] is False
+    bak_file = layout.config.with_name(f"{layout.config.name}.pre-setup.bak")
+    assert bak_file.exists()
+    assert bak_file.read_text(encoding="utf-8") == initial_content
+
+
