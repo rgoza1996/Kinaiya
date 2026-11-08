@@ -92,6 +92,11 @@ def configure(commands):
         action="store_true",
         help="Offer an opt-in bounded provider connection check after configuration is saved",
     )
+    setup_parser.add_argument(
+        "--no-start",
+        action="store_true",
+        help="Do not prompt to start Kinaiya services after setup completes",
+    )
     setup_parser.add_argument("--workspace", dest="setup_workspace", type=Path)
     setup_parser.add_argument("--data-dir", dest="setup_data_dir", type=Path)
     setup_parser.add_argument(
@@ -439,12 +444,28 @@ def dispatch(args):
             if section is not None:
                 return run_wizard(layout, section=section, check_connection=check_connection)
             if check_connection:
-                return (
+                res = (
                     run_wizard(layout, mode=mode, check_connection=True)
                     if mode is not None
                     else run_wizard(layout, check_connection=True)
                 )
-            return run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
+            else:
+                res = run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
+
+            if not getattr(args, "no_start", False) and sys.stdin.isatty():
+                from services.distribution.terminal import open_terminal
+                from services.distribution.wizard_flow import ask_yn
+
+                try:
+                    with open_terminal() as tty:
+                        should_start = ask_yn(tty, "Start Kinaiya now?", default=True)
+                except Exception:
+                    should_start = False
+                if should_start:
+                    from services.distribution.start_supervisor import start_local
+
+                    return start_local(layout)
+            return res
         if section is not None:
             from dataclasses import replace
 
