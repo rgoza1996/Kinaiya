@@ -101,6 +101,55 @@ def resolve_models_url(base_url: str, models_path: str = "/models") -> str:
     )
 
 
+def check_local_v1_hint(url: str) -> str | None:
+    """If url is a local server endpoint without /v1, return url with /v1 appended (#503)."""
+    try:
+        raw = url.strip()
+        if not raw or any(ord(c) <= 32 for c in raw):
+            return None
+        parsed = urllib.parse.urlsplit(raw)
+    except Exception:
+        return None
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+    path = (parsed.path or "").rstrip("/")
+    if path.endswith("/v1") or "/v1/" in path:
+        return None
+    host = parsed.hostname.lower()
+    port = parsed.port
+    is_local = host in {"localhost", "127.0.0.1", "::1"}
+    common_local_ports = {11434, 8080, 5000, 1234, 8000, 8081}
+    if is_local or port in common_local_ports:
+        new_path = (path + "/v1") if path else "/v1"
+        return urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, new_path, parsed.query, parsed.fragment)
+        )
+    return None
+
+
+def get_starter_provider_presets() -> list[ProviderProfileChoice]:
+    """Default starter provider profiles available on a fresh install (#503)."""
+    return [
+        ProviderProfileChoice(
+            profile_id="p01",
+            name="LM Studio (Local)",
+            base_url="http://127.0.0.1:1234",
+            adapter_kind="lmstudio",
+            allow_cloud=False,
+            models_path="/v1/models",
+        ),
+        ProviderProfileChoice(
+            profile_id="p02",
+            name="Meta / Muse Cloud",
+            base_url="https://api.muse.kinaiya.io/v1",
+            adapter_kind="meta",
+            allow_cloud=True,
+            credential_env="KINAIYA_META_API_KEY",
+            models_path="/models",
+        ),
+    ]
+
+
 @dataclass(frozen=True)
 class RoleAdapterEligibility:
     role: str
@@ -258,6 +307,7 @@ def load_stored_profiles(
     env_path: Path | None = None,
     config_path: Path | None = None,
     profiles: list[dict[str, Any] | ProviderProfileChoice] | None = None,
+    include_starter_presets: bool = False,
 ) -> list[ProviderProfileChoice]:
     """Load existing provider profiles without inventing a competing registry."""
     result: list[ProviderProfileChoice] = []
@@ -388,6 +438,12 @@ def load_stored_profiles(
                         selected_model=str(role_prof.get("model") or ""),
                     )
                 )
+
+    if include_starter_presets and not result:
+        for preset in get_starter_provider_presets():
+            if preset.profile_id not in seen_ids:
+                seen_ids.add(preset.profile_id)
+                result.append(preset)
 
     return result
 

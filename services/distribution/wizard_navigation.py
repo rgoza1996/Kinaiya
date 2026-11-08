@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -34,9 +35,12 @@ from services.distribution.installation import (
 from services.distribution.model_picker import (
     ProviderProfileChoice,
     SelectedModel,
+    check_local_v1_hint,
     check_role_adapter_eligibility,
     discover_profile_models,
     format_profile_choices,
+    get_starter_provider_presets,
+    is_loopback_endpoint,
     load_stored_profiles,
     save_role_model_selection,
     select_model_interactively,
@@ -53,6 +57,7 @@ VALID_SETUP_SECTIONS: tuple[str, ...] = ("workspace", "model", "converse")
 BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back"})
 CONFIRM_BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back", "b"})
 CANCEL_COMMANDS: frozenset[str] = frozenset({":cancel", ":q", "cancel", "quit"})
+_PROFILE_ID_RE = re.compile(r"^p([0-9]{2,6})$")
 
 
 def _is_local_endpoint(endpoint: str) -> bool:
@@ -510,6 +515,44 @@ class WizardNavigator:
             return cleaned
         return str(validate_data_path(cleaned))
 
+    def _prompt_custom_endpoint(self, default_val: str, profile_id: str = "p03") -> ProviderProfileChoice:
+        """Prompt for custom OpenAI-compatible endpoint with /v1 check (#503)."""
+        raw_url = self._raw_prompt(
+            "Custom endpoint Base URL", default=default_val or "http://localhost:11434/v1"
+        )
+        if not raw_url:
+            raw_url = default_val or "http://localhost:11434/v1"
+        hint = check_local_v1_hint(raw_url)
+        if hint is not None:
+            self.tty.write(f"Hint: Local servers usually require /v1 suffix (e.g. {hint}).\n")
+            fix = self._raw_yn_prompt(f"Add /v1 suffix to {raw_url}?", default="yes")
+            if fix.strip().lower() in {"y", "yes"}:
+                raw_url = hint
+        is_local = is_loopback_endpoint(raw_url)
+        if not is_local:
+            cred_env = (
+                self._raw_prompt(
+                    "Credential environment variable NAME only (blank if none)", ""
+                )
+                or None
+            )
+            adapter = "meta"
+            allow_cloud = True
+        else:
+            cred_env = None
+            adapter = "lmstudio"
+            allow_cloud = False
+        pid = profile_id if _PROFILE_ID_RE.match(profile_id) else "p03"
+        return ProviderProfileChoice(
+            profile_id=pid,
+            name="Custom OpenAI-compatible",
+            base_url=raw_url,
+            adapter_kind=adapter,
+            allow_cloud=allow_cloud,
+            credential_env=cred_env,
+            models_path="/v1/models" if raw_url.rstrip("/").endswith("/v1") else "/models",
+        )
+
     def _active_steps(self) -> list[_PromptStep]:
         steps: list[_PromptStep] = []
         converse_val = self.answers.get("converse", self.defaults.get("converse", "no"))
@@ -762,11 +805,64 @@ class WizardNavigator:
                             index += 4
                             continue
                     else:
-                        persisted = load_stored_profiles(env_path=env_path)
-                        if persisted:
+                        persisted = load_stored_profiles(
+                            env_path=env_path,
+                            include_starter_presets=(self.profiles is None),
+                        )
+                        if is_curses_available(self.tty):
+                            menu_items = []
+                            for p in persisted:
+                                elig = p.eligibility_for("agent")
+                                status_tag = "● Local" if not p.allow_cloud else "● Cloud"
+                                menu_items.append(
+                                    MenuItem(
+                                        label=f"{p.name} ({status_tag})",
+                                        value=p,
+                                        description=f"{p.base_url} [{p.adapter_kind}]",
+                                        recommended=(not p.allow_cloud),
+                                        disabled=(not elig.eligible),
+                                    )
+                                )
+                            menu_items.append(
+                                MenuItem(
+                                    label="Custom OpenAI-compatible endpoint (manual URL)...",
+                                    value=":custom",
+                                    description="Ollama, vLLM, llama.cpp, or remote API",
+                                )
+                            )
+                            try:
+                                selected_idx = curses_radiolist(
+                                    "Select Provider",
+                                    menu_items,
+                                    default_index=0,
+                                    subtitle="Choose a local or cloud LLM provider for the Agent.",
+                                    allow_back=True,
+                                    tty=self.tty,
+                                )
+                                chosen_item = menu_items[selected_idx].effective_value
+                                if chosen_item == ":custom":
+                                    custom_prof = self._prompt_custom_endpoint(
+                                        default, profile_id=f"p{len(persisted) + 1:02d}"
+                                    )
+                                    self._apply_chosen_profile(custom_prof, term_width=term_width)
+                                else:
+                                    self._apply_chosen_profile(chosen_item, term_width=term_width)
+                                steps = self._active_steps()
+                                index += 4
+                                continue
+                            except MenuCancelled:
+                                raise InstallError("Setup cancelled; no configuration written") from None
+                            except MenuGoBack:
+                                if index > 0:
+                                    index -= 1
+                                else:
+                                    self.tty.write("Already at the first step.\n")
+                                steps = self._active_steps()
+                                continue
+                        elif persisted:
                             self.tty.write(
                                 format_profile_choices(persisted, role="agent", width=term_width)
-                                + "\n"
+                                + f"  {len(persisted) + 1}. Custom OpenAI-compatible endpoint (manual URL)...\n"
                             )
                             raw_ep = self._raw_prompt(step.label, default)
                             if is_cancel_command(raw_ep):
@@ -778,8 +874,16 @@ class WizardNavigator:
                                     self.tty.write("Already at the first step.\n")
                                 steps = self._active_steps()
                                 continue
-                            picked_prof: ProviderProfileChoice | None = None
                             token_ep = raw_ep.strip().lower()
+                            if token_ep in {str(len(persisted) + 1), ":custom", "custom"}:
+                                custom_prof = self._prompt_custom_endpoint(
+                                    default, profile_id=f"p{len(persisted) + 1:02d}"
+                                )
+                                self._apply_chosen_profile(custom_prof, term_width=term_width)
+                                steps = self._active_steps()
+                                index += 4
+                                continue
+                            picked_prof: ProviderProfileChoice | None = None
                             if token_ep.isdigit():
                                 p_idx = int(token_ep)
                                 if 1 <= p_idx <= len(persisted):

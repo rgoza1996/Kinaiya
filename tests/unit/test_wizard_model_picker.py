@@ -15,9 +15,11 @@ from services.distribution.installation import InstallError, Layout
 from services.distribution.model_picker import (
     MAX_DISCOVERED_MODELS,
     ProviderProfileChoice,
+    check_local_v1_hint,
     check_role_adapter_eligibility,
     discover_profile_models,
     format_profile_choices,
+    get_starter_provider_presets,
     load_role_model_selection,
     load_stored_profiles,
     save_role_model_selection,
@@ -430,3 +432,67 @@ def test_wizard_integration_with_stored_profiles_and_discovery(
     reloaded = load_role_model_selection(layout2.config, "agent")
     assert reloaded.identity == ("p01", "deepseek-coder-v2")
     assert reloaded.qualified_id == "p01:deepseek-coder-v2"
+
+
+def test_starter_provider_presets_and_roster():
+    """Issue #503: starter presets provide LM Studio and Meta cloud with proper adapters."""
+    presets = get_starter_provider_presets()
+    assert len(presets) >= 2
+    lmstudio_preset = presets[0]
+    assert lmstudio_preset.profile_id == "p01"
+    assert lmstudio_preset.adapter_kind == "lmstudio"
+    assert not lmstudio_preset.allow_cloud
+    assert "127.0.0.1:1234" in lmstudio_preset.base_url
+
+    meta_preset = presets[1]
+    assert meta_preset.profile_id == "p02"
+    assert meta_preset.adapter_kind == "meta"
+    assert meta_preset.allow_cloud
+    assert meta_preset.credential_env == "KINAIYA_META_API_KEY"
+
+    # load_stored_profiles with include_starter_presets=True on clean machine
+    loaded = load_stored_profiles(include_starter_presets=True)
+    assert len(loaded) >= 2
+    assert loaded[0].profile_id == "p01"
+
+
+def test_check_local_v1_hint():
+    """Issue #503: smart /v1 local server detection."""
+    # Ollama on 11434 lacking /v1
+    assert check_local_v1_hint("http://localhost:11434") == "http://localhost:11434/v1"
+    assert check_local_v1_hint("http://127.0.0.1:11434") == "http://127.0.0.1:11434/v1"
+    # llama.cpp on 8080 lacking /v1
+    assert check_local_v1_hint("http://127.0.0.1:8080") == "http://127.0.0.1:8080/v1"
+
+    # Already has /v1 -> no hint
+    assert check_local_v1_hint("http://localhost:11434/v1") is None
+    assert check_local_v1_hint("http://127.0.0.1:1234/v1") is None
+
+    # Remote cloud url without standard local ports -> no hint
+    assert check_local_v1_hint("https://api.openai.com/v1") is None
+    assert check_local_v1_hint("https://api.example.com") is None
+
+
+def test_inline_custom_endpoint_with_v1_correction_in_wizard(tmp_path: Path):
+    """Issue #503: wizard inline custom endpoint with /v1 correction prompt."""
+    layout = Layout.for_home(tmp_path)
+    tty = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "3",  # provider option 3: Custom OpenAI-compatible
+            "http://localhost:11434",  # entered without /v1
+            "y",  # accept /v1 hint -> becomes http://localhost:11434/v1
+            "my-custom-ollama-model",  # model
+            "no",  # converse
+            "yes",  # confirm write
+        ]
+    )
+    res = wizard.run_wizard(layout, tty=tty)
+    assert res["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert cfg["providers"]["agent"]["base_url"] == "http://localhost:11434/v1"
+    assert cfg["providers"]["agent"]["model"] == "my-custom-ollama-model"
+    assert cfg["providers"]["agent"]["kind"] == "lmstudio"
+    assert "Hint: Local servers usually require /v1 suffix" in tty.output
+
