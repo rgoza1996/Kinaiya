@@ -1,13 +1,13 @@
 {
   "artifact_format": 1,
-  "scope": "Final master export after native Options, scoped permissions, stacking repair, November 2 UI/UX review text layer synchronization (#286-#310), custom OpenAI-compatible .env API prototype boards (#352-#353), and the 14-step CLI Installer & Setup Wizard decision tree with all choice branches (#261, #335, #336, #381-#402)",
+  "scope": "Final master export after native Options, scoped permissions, stacking repair, November 2 UI/UX review text layer synchronization (#286-#310), custom OpenAI-compatible .env API prototype boards (#352-#353), and the 14-step CLI Installer & Setup Wizard decision tree with curses arrow-key TUI, authenticated /models discovery, multi-role reuse, bare kinaiya command, and auto-login/refresh-token flow (#261, #335, #336, #381-#402, #497-#507)",
   "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
   "page_id": "1521d820-51cc-4a49-a496-12d9c823c47e",
   "archive": {
-    "bytes": 244442723,
-    "sha256": "a1a9c6f91c57978874407ea6166dbdbd7669cfb6ebd23edc528fae55aaf4390c",
-    "revision": 59,
-    "modified_at": "2026-11-03T23:45:00.000000Z"
+    "bytes": 244585315,
+    "sha256": "c7c8386e93df35a81c0f7d03316d8bfd062cfe43b9234488a17fc877e4409491",
+    "revision": 60,
+    "modified_at": "2026-11-08T03:30:00.000000Z"
   },
   "checks": {
     "same_14_page_ids": true,
@@ -66,7 +66,7 @@
     "Corrected default Permissions and linked Task unsaved edit / unknown receipt route after stacking repair",
     "November 2 UI/UX review text layer sync across Home, Converse, Agent, Options Overview and Models boards (#286-#310)",
     "Unlimited custom OpenAI-compatible .env provider list, Add/Edit Custom API, GET /models discovery, manual fallback, and removal confirmation prototype boards (#352-#353)",
-    "14-step standalone Linux terminal CLI Installer & Setup Wizard prototype boards (no Harness GUI chrome; deterministic 68x14 ASCII Moon from Moonlit Home screen) covering bootstrap channel/install-root choices, preflight/APT strict no-upgrade refusals, [y/N] plan consent, 5-stage progress, Quick vs Advanced vs --section wizard modes, local/cloud/picker provider choices, Converse toggle & independent role profiles, masked API key & disclosure consent, first-run custom .env profile creation, bounded connection probe states, completion summary, kinaiya start / doctor / rotate-owner, and update/recover/rollback/uninstall lifecycle branches (#261, #335, #336, #381-#402)"
+    "14-step standalone Linux terminal CLI Installer & Setup Wizard prototype boards (no Harness GUI chrome; deterministic 68x14 ASCII Moon from Moonlit Home screen) covering bootstrap channel/install-root choices, preflight/APT strict no-upgrade refusals, [y/N] plan consent, 5-stage progress, Ctrl-C/ESC clean cancel (#497, #501), curses arrow-key TUI & directory selector (#498, #501, #504), unified TUI provider roster with status indicators (#498, #503), Converse toggle & multi-role reuse shortcut (#505), credential prompt before authenticated GET /models discovery (#498, #502), reasoning effort & compact confirmation (#391, #498), Start Kinaiya now? [Y/n] launch prompt (#506), bare kinaiya command with loopback auto-login & SHA-256 refresh token (#499, #500, #507), and update/recover/rollback/uninstall lifecycle branches (#261, #335, #336, #381-#402, #497-#507)"
   ],
   "limitations": [
     "Selected prototype paths reviewed; not every control manually exercised.",
@@ -83,8 +83,8 @@
     "broken_cli_installer_links": []
   },
   "publication": {
-    "oid": "sha256:ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7",
-    "size": 232727891,
+    "oid": "sha256:c7c8386e93df35a81c0f7d03316d8bfd062cfe43b9234488a17fc877e4409491",
+    "size": 244585315,
     "remote_download_hash_verified": true,
     "destination": "rgoza1996/Kinaiya Git LFS",
     "protocol": "standard repository-authenticated LFS batch/basic upload and download"

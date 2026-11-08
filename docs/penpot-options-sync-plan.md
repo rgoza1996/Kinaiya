@@ -1,6 +1,6 @@
 # Options: editable Penpot synchronization
 
-Updated November 3, 2026 for [#208](https://github.com/rgoza1996/Kinaiya/issues/208), [#286](https://github.com/rgoza1996/Kinaiya/issues/286), [#352](https://github.com/rgoza1996/Kinaiya/issues/352), and [#382](https://github.com/rgoza1996/Kinaiya/issues/382).
+Updated November 7, 2026 for [#208](https://github.com/rgoza1996/Kinaiya/issues/208), [#286](https://github.com/rgoza1996/Kinaiya/issues/286), [#352](https://github.com/rgoza1996/Kinaiya/issues/352), [#382](https://github.com/rgoza1996/Kinaiya/issues/382), and [#497](https://github.com/rgoza1996/Kinaiya/issues/497)–[#507](https://github.com/rgoza1996/Kinaiya/issues/507).
 **Status: applied to the existing master, selected paths visually reviewed, and
 final native archive inspected. The Git LFS object was uploaded and its full
 remote download rehashed successfully; the pointer/docs are submitted by PR.**
@@ -8,8 +8,8 @@ This increment synchronizes provider/catalog, Agent models, immutable notes,
 three-tool scoped permissions, the November 2 UI/UX review usability
 improvements (`#286–#310`), the unlimited custom OpenAI-compatible `.env`
 provider & model discovery prototype boards (`#352–#353`), and the 14-step CLI
-Installer & Setup Wizard decision tree with all choice branches (`#261`, `#335`,
-`#336`, `#381–#402`). It does not complete the full
+Installer & Setup Wizard decision tree with curses arrow-key TUI, authenticated `/models` discovery, multi-role reuse, bare `kinaiya` launch, and loopback auto-login/refresh-token flows (`#261`, `#335`,
+`#336`, `#381–#402`, `#497–#507`). It does not complete the full
 [Options delivery goal](options-delivery-plan.md).
 
 ## Exact master and export
@@ -20,13 +20,15 @@ Installer & Setup Wizard decision tree with all choice branches (`#261`, `#335`,
 | Team | `aed0c863-4a2a-8195-8008-de835100d87c` |
 | Project | `aed0c863-4a2a-8195-8008-de835102e964` |
 | Current page | `1521d820-51cc-4a49-a496-12d9c823c47e` — **00 · Home & Converse · Updated** |
-| Final archive revision | 58, modified `2026-11-03T23:10:00.000000Z` |
+| Final archive revision | 60, modified `2026-11-08T03:30:00.000000Z` |
 | Export | `penpot/export-files` v1, Penpot `2.18.5-RC1` |
 | Git LFS file | `assets/penpot/Kinaiya-Converse-Agent.penpot` |
-| Size | 232,727,891 bytes |
-| SHA-256 | `ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7` |
+| Size | 244,585,315 bytes |
+| SHA-256 | `c7c8386e93df35a81c0f7d03316d8bfd062cfe43b9234488a17fc877e4409491` |
 
-The previous tracked revisions were revision 56 (`228,859,935` bytes, SHA-256
+The previous tracked revisions were revision 59 (`244,442,723` bytes, SHA-256
+`a1a9c6f91c57978874407ea6166dbdbd7669cfb6ebd23edc528fae55aaf4390c`), revision 58 (`232,727,891` bytes, SHA-256
+`ec2dacaf99160eff3bc19eca26a46ab35f8791451e4dd7288f4a714a4be180f7`), revision 56 (`228,859,935` bytes, SHA-256
 `739417a5f93a0f46783032fa18b599f8a83e02fdad18519d76f605934a584eec`), revision
 55 (`228,843,262` bytes, SHA-256
 `198427eef1e7aafd65b0ef3013ac76e2fabd43cbaefdff6126c5e2a3f3325bf0`), revision
@@ -46,7 +48,7 @@ All changes were made in the same master; no replacement draft was imported.
 | --- | --- | --- |
 | Provider profiles | Declaration forms, exact generations, Meta text, native LM Studio, compatible and Laya entries, explicit edit/remove and unknown outcomes. | [ADR0086](adr/0086-owner-provider-catalog.md), [catalog API](provider-catalog-api.md), `options_provider_editor.dart` |
 | Custom OpenAI-compatible `.env` APIs (`#352`) | Unlimited custom OpenAI-compatible profiles (`p01..p06+`, no 5-slot cap) persisted in user-local `0600` `.env` (`KINAIYA_CUSTOM_PROVIDER_IDS`), custom endpoint path fields (`chat_completions_path`, `models_path`, and optional engine-specific endpoints such as `/v1/systemone` for `llama.cpp` vs standard `/v1` for `LM Studio`), optional maximum output tokens (blank = up to model), global/per-model reasoning effort in `Models` instead of per-provider reasoning effort, Add/Edit Custom API, masked key rotation, `GET {base_url}{models_path}` discovery, manual model ID fallback, `(provider_profile_id, model_id)` disambiguation, and referenced-profile removal confirmation. | [#352](https://github.com/rgoza1996/Kinaiya/issues/352), `services/settings/custom_providers_env.py`, `options_provider_editor.dart`, `options_model_editor.dart` |
-| CLI Installer & Setup Wizard decision tree (`#261`, `#335`, `#336`, `#381–#402`) | 28 paired prototype boards (14 motion-on, 14 motion-off) and 702 prototype links covering every choice and branch in `install.sh` and `kinaiya` CLI onboarding: channel (`stable` vs `nightly`), install root (`~/.local/share/kinaiya` vs `./kinaiya` vs custom `--workspace`/`--data-dir`), strict APT no-upgrade/no-remove solver & preflight refusals, `[y/N]` plan consent, 5-stage human progress & `--json` mode, `--no-setup` / cancelled / existing-config preservation, Quick vs Advanced vs `--section` wizard modes, `:back`/`:cancel` navigation, local vs cloud vs searchable model picker, Converse toggle & independent Converse/Decisions role profiles, cloud disclosure consent & masked API key entry (`0600 providers.env`) vs env-var reference, first-run named custom `.env` profile creation, bounded connection verification probe states (`not_checked`, `verified`, `auth_failed`, `unreachable`), completion summary & readiness badges, `kinaiya start` / local sign-in ticket exchange / `kinaiya doctor` / `rotate-owner`, and `update` / `recover` / `rollback` / `uninstall` lifecycle branches. | [#261](https://github.com/rgoza1996/Kinaiya/issues/261), [#382](https://github.com/rgoza1996/Kinaiya/issues/382), `install.sh`, `services/distribution/cli.py`, `services/distribution/wizard.py`, `services/distribution/wizard_flow.py` |
+| CLI Installer & Setup Wizard decision tree (`#261`, `#335`, `#336`, `#381–#402`, `#497–#507`) | 28 paired prototype boards (14 motion-on, 14 motion-off) and 668 prototype links covering every choice and branch in `install.sh` and `kinaiya` CLI/TUI onboarding: channel (`stable` vs `nightly`), install root (`~/.local/share/kinaiya` vs `./kinaiya` vs custom `--workspace`/`--data-dir`), strict APT no-upgrade/no-remove solver & preflight refusals, `[y/N]` plan consent, 5-stage human progress & `--json` mode, `Ctrl-C`/`ESC` clean cancel (`#497`, `#501`) / `--no-setup` / existing-config preservation, curses arrow-key TUI (`#498`, `#501`) & interactive directory browser (`#498`, `#504`), unified TUI provider roster with status indicators (`#498`, `#503`), Converse toggle & multi-role reuse shortcut (`#505`), cloud disclosure & credential prompt before authenticated `GET /models` discovery (`#498`, `#502`), reasoning effort & compact confirmation (`#391`, `#498`), completion summary & `Start Kinaiya now? [Y/n]` prompt (`#506`), bare `kinaiya` command (`#500`) with loopback auto-login & SHA-256 refresh tokens (`#499`, `#507`), `kinaiya doctor` / `rotate-owner`, and `update` / `recover` / `rollback` / `uninstall` lifecycle branches. | [#261](https://github.com/rgoza1996/Kinaiya/issues/261), [#382](https://github.com/rgoza1996/Kinaiya/issues/382), [#497](https://github.com/rgoza1996/Kinaiya/issues/497)–[#507](https://github.com/rgoza1996/Kinaiya/issues/507), `install.sh`, `services/distribution/cli.py`, `services/distribution/wizard.py`, `services/distribution/wizard_flow.py` |
 | Credentials | Imported key/reference forms, rotation into immutable generations and explicit profile rebinding; synthetic values only. | Same editor and protected native credential owner |
 | Agent models | Host versus saved generation, exact configuration identity, retained unavailable generations and explicit new-generation choice. | [ADR0089](adr/0089-agent-catalog-models.md), `options_model_editor.dart` |
 | Harness and auxiliary | Dedicated exact-harness editors, inheritance/custom states and the five supported auxiliary text purposes. | [ADR0082](adr/0082-task-pinned-auxiliary-models.md), ADR0089 |
@@ -85,6 +87,7 @@ The following recovery/final versions were saved in Penpot:
 7. **Unlimited custom OpenAI-compatible .env API prototype boards & hidden Converse recovery sync** (revision 55).
 8. **Custom endpoint path fields, optional blank max output tokens, and global/per-model reasoning effort sync** (revision 56).
 9. **14-step standalone OS terminal CLI Installer & Setup Wizard decision tree with multi-color ANSI syntax highlighting, multi-tone deterministic 68×14 ASCII Home Moon, and all choice branches** (revisions 57–59).
+10. **Synchronized 14-step CLI/TUI onboarding decision tree for curses arrow-key TUI, interactive workspace directory browser, credential-before-`/models` discovery, multi-role reuse shortcut, post-setup launch prompt, bare `kinaiya` entrypoint, and loopback auto-login + SHA-256 refresh tokens (`#497–#507`)** (revision 60).
 
 Visual review caught labels hidden beneath imported backgrounds in the scoped
 patch. A guarded repair reordered 840 existing interface layers on 14 boards.
