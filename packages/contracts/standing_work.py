@@ -44,7 +44,8 @@ _ERROR = "Invalid standing work contract"
 _PROOF_ERROR = "Standing work proof does not match the original request"
 _DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 _TIME = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]\Z")
-_INSTANT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\Z")
+# Keep wire instants canonical even when a newer parser normalizes 24:00:00.
+_INSTANT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z\Z")
 
 
 class StandingConflict(ValueError):

@@ -410,10 +410,19 @@ def test_selected_official_voice_allowlist(voice):
     assert tts.validate_voice("Supertonic 3", voice) == voice
 
 
+def test_ming3_tiny_voice_allowlist_and_device_requirements():
+    assert tts.validate_voice("Ming 3 Tiny", None) == "US_Emma"
+    assert tts.validate_voice("Ming 3 Tiny", "US_Emma") == "US_Emma"
+    assert tts.validate_tts_device("Ming 3 Tiny", "cuda") == "cuda"
+    with pytest.raises(ValueError, match="Ming 3 Tiny requires GPU"):
+        tts.validate_tts_device("Ming 3 Tiny", "cpu")
+
+
 @pytest.mark.parametrize(
     "profile,voice",
     [
-        ("Ming 3 Tiny", None),
+        ("Ming 3 Tiny", "af_heart"),
+        ("Ming 3 Tiny", "../US_Emma"),
         ("unknown", "F1"),
         ("Supertonic 3", "../F1"),
         ("Supertonic 3", "af_heart"),

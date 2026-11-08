@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -12,6 +13,7 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/setup_dialog.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
+
 import 'agent_workspace_state_test.dart' show harnessJson;
 import 'decisions_inspection_test.dart' as decisions;
 import 'memory_models_test.dart' as memory;
@@ -397,6 +399,8 @@ void main() {
         expect(find.textContaining('invalid service path'), findsOneWidget);
         expect(factories, 0);
         expect(state.connection, isNull);
+        await t.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+        await t.pump();
       }
       await t.pumpWidget(const SizedBox.shrink());
     },
@@ -542,6 +546,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('invalid service path'), findsOneWidget);
+      await t.tap(find.byKey(const ValueKey('setup-validation-alert-ok')));
+      await t.pump();
 
       // Re-expanding preserves the unsaved text in the controller.
       await t.ensureVisible(

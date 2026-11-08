@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'converse_models.dart'
     show ConverseCatalogBinding, ConverseCatalogProfile;
 import 'tool_permissions.dart' show permissionJsonDecode;

@@ -14,6 +14,13 @@ from packages.contracts.models import SCHEMA_VERSION, ToolAction
 
 NATIVE_TOOL_ORDER: tuple[str, ...] = get_args(ToolAction.model_fields["tool"].annotation)
 MAX_NATIVE_TOOLS = 16
+# Optional additive action; published legacy protocol constants stay frozen.
+SUPPORTED_NATIVE_TOOL_ORDER = NATIVE_TOOL_ORDER[:-1] + (
+    "run_task_harness",
+    "run_task_program",
+    "finish",
+)
+MAX_EXTENDED_NATIVE_TOOLS = 18
 # Unbound provider calls retain the pre-discovery protocol selection. Only a
 # trusted runtime snapshot can advertise the new operation to an inference.
 LEGACY_NATIVE_TOOL_ORDER = tuple(
@@ -29,6 +36,8 @@ _OPTIONAL_GROUPS = (
     ("publish_ui",),
     ("consult_model",),
     ("tool_catalog",),
+    ("run_task_harness",),
+    ("run_task_program",),
 )
 
 
@@ -42,7 +51,7 @@ class NativeToolDescriptor:
     kind: Literal["native"] = field(default="native", init=False)
 
     def __post_init__(self) -> None:
-        if type(self.name) is not str or self.name not in NATIVE_TOOL_ORDER:
+        if type(self.name) is not str or self.name not in SUPPORTED_NATIVE_TOOL_ORDER:
             raise ValueError("Native tool name must be a known protocol action")
         object.__setattr__(self, "qualified_id", f"native:{self.name}")
 
@@ -92,23 +101,25 @@ class NativeToolSnapshot:
             type(self.owner_disabled) is not tuple
             or len(set(self.owner_disabled)) != len(self.owner_disabled)
             or any(
-                name not in NATIVE_TOOL_ORDER or name == "finish" for name in self.owner_disabled
+                name not in SUPPORTED_NATIVE_TOOL_ORDER or name == "finish"
+                for name in self.owner_disabled
             )
             or self.owner_disabled
-            != tuple(name for name in NATIVE_TOOL_ORDER if name in self.owner_disabled)
+            != tuple(name for name in SUPPORTED_NATIVE_TOOL_ORDER if name in self.owner_disabled)
             or any(name in names for name in self.owner_disabled)
         ):
             raise ValueError("Invalid explicit native owner mask")
-        if (
-            type(names) is not tuple
-            or not (1 if masked else len(base)) <= len(names) <= MAX_NATIVE_TOOLS
+        if type(names) is not tuple or not (1 if masked else len(base)) <= len(names) <= (
+            MAX_EXTENDED_NATIVE_TOOLS
+            if any(name in names for name in ("run_task_harness", "run_task_program"))
+            else MAX_NATIVE_TOOLS
         ):
             raise ValueError("Native tool snapshot requires a bounded tuple of protocol actions")
-        if any(type(name) is not str or name not in NATIVE_TOOL_ORDER for name in names):
+        if any(type(name) is not str or name not in SUPPORTED_NATIVE_TOOL_ORDER for name in names):
             raise ValueError("Native tool snapshot contains an unknown protocol action")
         if len(set(names)) != len(names):
             raise ValueError("Native tool snapshot cannot contain duplicate actions")
-        if names != tuple(name for name in NATIVE_TOOL_ORDER if name in names):
+        if names != tuple(name for name in SUPPORTED_NATIVE_TOOL_ORDER if name in names):
             raise ValueError("Native tool snapshot must follow protocol order")
         if not all(name in names for name in base if not masked or name not in self.owner_disabled):
             raise ValueError("Native tool snapshot must retain every base operation")
@@ -134,6 +145,8 @@ def native_tool_snapshot(
     artifacts_available: bool = False,
     auxiliary_available: bool = False,
     catalog_available: bool = False,
+    task_harness_available: bool = False,
+    task_program_available: bool = False,
 ) -> NativeToolSnapshot:
     """Project trusted strict booleans; grants never remove base operations."""
     flags = (
@@ -144,6 +157,8 @@ def native_tool_snapshot(
         ("artifacts_available", artifacts_available),
         ("auxiliary_available", auxiliary_available),
         ("catalog_available", catalog_available),
+        ("task_harness_available", task_harness_available),
+        ("task_program_available", task_program_available),
     )
     enabled = set(_BASE_TOOLS)
     for (flag, value), group in zip(flags, _OPTIONAL_GROUPS, strict=True):
@@ -151,7 +166,9 @@ def native_tool_snapshot(
             raise ValueError(f"{flag} requires a strict boolean")
         if value:
             enabled.update(group)
-    return NativeToolSnapshot(tuple(name for name in NATIVE_TOOL_ORDER if name in enabled))
+    return NativeToolSnapshot(
+        tuple(name for name in SUPPORTED_NATIVE_TOOL_ORDER if name in enabled)
+    )
 
 
 _agent_tools: ContextVar[NativeToolSnapshot | None] = ContextVar("agent_native_tools", default=None)

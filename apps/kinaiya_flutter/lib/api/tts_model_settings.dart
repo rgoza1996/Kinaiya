@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'tool_permissions.dart' show permissionJsonDecode;
 
 const ttsModelRevisionLimit = 9007199254740990;
@@ -285,6 +286,7 @@ class TtsModelsSnapshot {
       'speech',
       'stt',
       'stt_cleanup',
+      'native_audio',
       'playback_pending',
       'memory_pending',
       'leases',

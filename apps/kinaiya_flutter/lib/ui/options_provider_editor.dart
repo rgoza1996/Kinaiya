@@ -36,12 +36,26 @@ class _PendingProviderChange {
   String get operation => body['operation'] as String;
 }
 
+class _PendingCustomProviderChange {
+  _PendingCustomProviderChange(this.owner, this.body, this.successNotice);
+  final ProviderApi owner;
+  final Map<String, Object?> body;
+  final String Function(CustomProvidersSnapshot) successNotice;
+  bool inFlight = false, uncertain = false, confirmed = false;
+  String message = 'Saving custom provider (.env) change…';
+  String get key => body['client_operation_id'] as String;
+  String get action => body['action'] as String;
+  int get expectedRevision => body['expected_revision'] as int;
+}
+
 class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   // Unresolved exact requests only, never durable storage. A confirmed receipt
   // removes all body references, including an imported key, even after closure.
   static final _pending = <String, _PendingProviderChange>{};
+  static final _pendingCustom = <String, _PendingCustomProviderChange>{};
   static final _pendingEvents = ValueNotifier<int>(0);
   _PendingProviderChange? _observedPending;
+  _PendingCustomProviderChange? _observedCustomPending;
   final _form = GlobalKey<FormState>();
   final _id = TextEditingController(), _label = TextEditingController();
   final _endpoint = TextEditingController(), _model = TextEditingController();
@@ -51,7 +65,25 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   final _headLen = TextEditingController(), _artifact = TextEditingController();
   final _confidence = TextEditingController();
   final _credentialId = TextEditingController(), _key = TextEditingController();
+  final _customName = TextEditingController(),
+      _customBaseUrl = TextEditingController(),
+      _customChatPath = TextEditingController(text: '/chat/completions'),
+      _customModelsPath = TextEditingController(text: '/models'),
+      _customEndpoints = TextEditingController(),
+      _customMaxOutputTokens = TextEditingController(),
+      _customApiKey = TextEditingController(),
+      _customModel = TextEditingController();
   ProviderCatalogSnapshot? _catalog;
+  CustomProvidersSnapshot _customCatalog =
+      const CustomProvidersSnapshot.empty();
+  bool _customCatalogLoaded = false;
+  CustomProviderProfile? _editingCustom;
+  String? _customRoleReasoningOverride;
+  bool _customEnabled = true,
+      _customAllowRemoteHttp = false,
+      _customClearKey = false,
+      _customBusy = false;
+  String? _customDiscoveryBanner;
   ProviderProfile? _editing;
   ProviderCredential? _editingCredential;
   String _screen = 'list', _tab = 'profiles', _kind = 'compatible';
@@ -59,6 +91,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   bool _cloud = false, _import = true, _reading = false;
   String? _error, _notice, _formError;
   int _readVersion = 0;
+  int _refreshSeq = 0;
   bool _newProfileRequested = false;
 
   bool _current(ProviderApi api, bool Function() capturedActive) =>
@@ -68,20 +101,30 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       widget.active();
   _PendingProviderChange? get _operation =>
       widget.api == null ? null : _pending[widget.api!.baseUrl];
+  _PendingCustomProviderChange? get _customOperation =>
+      widget.api == null ? null : _pendingCustom[widget.api!.baseUrl];
   bool get _enabled =>
       widget.api != null &&
       widget.active() &&
       _catalog != null &&
       _operation == null &&
-      _pending.length < 16;
+      _customOperation == null &&
+      (_pending.length + _pendingCustom.length) < 16;
 
   @override
   void initState() {
     super.initState();
     _newProfileRequested = widget.startNewProfile;
     _observedPending = _operation;
+    _observedCustomPending = _customOperation;
+    if (_observedCustomPending != null) {
+      _tab = 'custom_apis';
+    }
     _pendingEvents.addListener(_pendingChanged);
     unawaited(_refresh());
+    if (_tab == 'custom_apis') {
+      unawaited(_refreshCustomProviders());
+    }
   }
 
   @override
@@ -89,23 +132,38 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.api, widget.api)) {
       _readVersion++;
+      _refreshSeq++;
       _key.clear();
+      _customApiKey.clear();
       _catalog = null;
+      _customCatalog = const CustomProvidersSnapshot.empty();
+      _customCatalogLoaded = false;
+      _editingCustom = null;
+      _customDiscoveryBanner = null;
       _error = null;
       _notice = null;
       _screen = 'list';
       _editing = null;
       _editingCredential = null;
       _observedPending = _operation;
+      _observedCustomPending = _customOperation;
+      if (_observedCustomPending != null) {
+        _tab = 'custom_apis';
+      }
       unawaited(_refresh());
+      if (_tab == 'custom_apis') {
+        unawaited(_refreshCustomProviders());
+      }
     }
   }
 
   @override
   void dispose() {
     _readVersion++;
+    _refreshSeq++;
     _pendingEvents.removeListener(_pendingChanged);
     _key.clear();
+    _customApiKey.clear();
     for (final controller in [
       _id,
       _label,
@@ -121,6 +179,14 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _confidence,
       _credentialId,
       _key,
+      _customName,
+      _customBaseUrl,
+      _customChatPath,
+      _customModelsPath,
+      _customEndpoints,
+      _customMaxOutputTokens,
+      _customApiKey,
+      _customModel,
     ]) {
       controller.dispose();
     }
@@ -130,7 +196,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   void _pendingChanged() {
     if (!mounted || !widget.active()) return;
     final previous = _observedPending, current = _operation, api = widget.api;
+    final previousCustom = _observedCustomPending,
+        currentCustom = _customOperation;
     _observedPending = current;
+    _observedCustomPending = currentCustom;
     setState(() {});
     if (previous != null &&
         current == null &&
@@ -146,6 +215,18 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'Confirmed saved catalog change. Active role state is separate.';
       });
       unawaited(_refresh());
+    }
+    if (previousCustom != null &&
+        currentCustom == null &&
+        previousCustom.confirmed &&
+        api != null &&
+        api.sameOwner(previousCustom.owner)) {
+      setState(() {
+        _screen = 'list';
+        _customApiKey.clear();
+        _editingCustom = null;
+        _notice ??= previousCustom.successNotice(_customCatalog);
+      });
     }
   }
 
@@ -327,7 +408,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       _voice.text = config?['voice'] as String? ?? '';
       _cloud = config?['allow_cloud'] == true;
       _effort = config?['reasoning_effort'] as String?;
-      _max.text = '${config?['max_tokens'] ?? 2048}';
+      _max.text = config?['max_tokens'] != null
+          ? '${config!['max_tokens']}'
+          : '';
       _context.text = '${config?['context_tokens'] ?? ''}';
       _timeout.text = '${config?['timeout_s'] ?? 90}';
       _maxLen.text = '${config?['max_len'] ?? ''}';
@@ -407,10 +490,12 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           _kind != 'native_d1' &&
           _kind != 'meta_stt' &&
           _kind != 'openrouter_tts') ...{
-        'max_tokens': int.tryParse(_max.text),
+        'max_tokens': _max.text.trim().isEmpty
+            ? (_kind == 'lmstudio' ? 128 : 2048)
+            : int.tryParse(_max.text.trim()),
         'reasoning_effort': _effort,
       },
-      if (_kind == 'meta' || _kind == 'compatible')
+      if (_kind == 'meta' || _kind == 'compatible' || _kind == 'measured_chat')
         'context_tokens': _context.text.isEmpty
             ? null
             : int.tryParse(_context.text),
@@ -565,6 +650,53 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     ]);
   }
 
+  Widget _customPendingPanel(_PendingCustomProviderChange pending) {
+    final api = widget.api!;
+    if (!api.sameOwner(pending.owner)) {
+      return _panel([
+        const Text(
+          'An unresolved custom provider change belongs to another owner connection. Reconnect that owner to reconcile it before editing this endpoint.',
+          key: Key('custom-pending-owner-mismatch'),
+        ),
+      ]);
+    }
+    return _panel([
+      _title(
+        pending.inFlight
+            ? 'Saving custom provider change'
+            : 'Confirm this custom provider change',
+      ),
+      Text(pending.message, key: const Key('custom-pending-message')),
+      Text(
+        'Operation ID: ${pending.key} · Expected revision: ${pending.expectedRevision}',
+        key: const Key('custom-pending-operation-id'),
+      ),
+      const Text(
+        'A timeout does not prove failure. Pending data stays in this app’s memory only.',
+      ),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          OutlinedButton(
+            key: const Key('custom-check-receipt-button'),
+            onPressed: pending.inFlight || !widget.active()
+                ? null
+                : _checkCustomReceipt,
+            child: const Text('Check receipt'),
+          ),
+          FilledButton(
+            key: const Key('custom-retry-request-button'),
+            onPressed: pending.inFlight || !widget.active()
+                ? null
+                : () => unawaited(_sendCustom(pending, api)),
+            child: const Text('Retry same request'),
+          ),
+        ],
+      ),
+    ]);
+  }
+
   Widget _profileEditor() {
     final activeCredentials = _catalog!.credentials
         .where((c) => !c.removed)
@@ -632,6 +764,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               child: Text('OpenAI-compatible endpoint'),
             ),
             DropdownMenuItem(
+              value: 'measured_chat',
+              child: Text('Measured local chat · Converse'),
+            ),
+            DropdownMenuItem(
               value: 'laya',
               child: Text('Laya · typed Decisions'),
             ),
@@ -660,7 +796,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                       }
                       _effort = kind == 'meta'
                           ? 'xhigh'
-                          : kind == 'lmstudio'
+                          : kind == 'lmstudio' || kind == 'measured_chat'
                           ? 'none'
                           : null;
                       _max.text = kind == 'lmstudio' ? '128' : '2048';
@@ -727,7 +863,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           const Text(
             'Meta is a cloud provider, including when reached through a local budget gateway. Contributor disclosure restrictions still apply.',
           ),
-        if (_kind != 'lmstudio' && _kind != 'native_d1')
+        if (_kind != 'lmstudio' &&
+            _kind != 'native_d1' &&
+            _kind != 'measured_chat')
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _cloud,
@@ -803,41 +941,35 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
             'Maximum output tokens',
             maxLength: 5,
             numeric: true,
-            validator: (v) =>
-                _number(v, 16, _kind == 'lmstudio' ? 2048 : 65536),
-          ),
-          DropdownButtonFormField<String>(
-            key: ValueKey('provider-effort-$_kind-$_effort'),
-            initialValue: _effort ?? 'default',
-            decoration: const InputDecoration(
-              labelText: 'Configured reasoning effort',
-              border: OutlineInputBorder(),
+            help:
+                'Optional — leave blank to let the model decide its own maximum output tokens.',
+            validator: (v) => _number(
+              v,
+              16,
+              _kind == 'lmstudio' ? 2048 : 65536,
+              optional: true,
             ),
-            items: [
-              if (_kind == 'compatible')
-                const DropdownMenuItem(
-                  value: 'default',
-                  child: Text('Provider default · unspecified'),
-                ),
-              for (final effort
-                  in _kind == 'lmstudio' ? ['none'] : providerEfforts)
-                DropdownMenuItem(value: effort, child: Text(effort)),
-            ],
-            onChanged: _enabled && _kind != 'lmstudio'
-                ? (value) => setState(() {
-                    _effort = value == 'default' ? null : value;
-                  })
-                : null,
+          ),
+          const Text(
+            'Reasoning effort is configured globally or per model in Models (not per provider).',
           ),
         ],
-        if (_kind == 'meta' || _kind == 'compatible')
+        if (_kind == 'meta' ||
+            _kind == 'compatible' ||
+            _kind == 'measured_chat')
           _field(
             _context,
-            'Declared context tokens · optional',
+            _kind == 'measured_chat'
+                ? 'Declared context tokens'
+                : 'Declared context tokens · optional',
             maxLength: 16,
             numeric: true,
-            validator: (v) =>
-                _number(v, 64, providerMaxRevision, optional: true),
+            validator: (v) => _number(
+              v,
+              64,
+              providerMaxRevision,
+              optional: _kind != 'measured_chat',
+            ),
             help:
                 'An explicit declaration is not an actual prompt count or model qualification.',
           ),
@@ -909,6 +1041,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
         if (_kind == 'compatible')
           const Text(
             'Compatible API shape alone does not provide native measured Agent/Converse admission. The role owner must report support; this profile is unqualified.',
+          ),
+        if (_kind == 'measured_chat')
+          const Text(
+            'Measured text chat for Converse. The local endpoint must support exact input-token counts. Audio and video are not enabled by this profile.',
           ),
         const Text('Connection and model readiness have not been checked.'),
         if (_formError != null) Text(_formError!),
@@ -1068,6 +1204,656 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
     );
   }
 
+  Future<void> _refreshCustomProviders() async {
+    final api = widget.api, seq = ++_refreshSeq;
+    final active = widget.active;
+    if (api == null || !widget.active()) return;
+    setState(() {
+      _customBusy = true;
+      _error = null;
+    });
+    try {
+      final snap = await api.inspectCustomProviders();
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _customCatalog = snap;
+          _customCatalogLoaded = true;
+        });
+      }
+    } catch (_) {
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _error = 'Custom .env provider store could not be read from host.';
+        });
+      }
+    } finally {
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _customBusy = false;
+        });
+      }
+    }
+  }
+
+  void _clearCustomPending(_PendingCustomProviderChange pending) {
+    if (identical(_pendingCustom[pending.owner.baseUrl], pending)) {
+      _pendingCustom.remove(pending.owner.baseUrl);
+      pending.body.clear();
+      _pendingEvents.value++;
+    }
+  }
+
+  Future<void> _sendCustom(
+    _PendingCustomProviderChange pending,
+    ProviderApi api,
+  ) async {
+    if (!api.sameOwner(pending.owner) || pending.inFlight) return;
+    final active = widget.active;
+    final wasUncertain = pending.uncertain;
+    final seq = ++_refreshSeq;
+    pending.inFlight = true;
+    _pendingEvents.value++;
+    if (_current(api, active)) {
+      setState(() {
+        _customBusy = true;
+      });
+    }
+    try {
+      final snap = await api.changeCustomProvider(pending.body);
+      if (!snap.matchesOperation(pending.body)) {
+        throw const ProviderFailure(
+          'Custom provider receipt did not match',
+          unconfirmed: true,
+        );
+      }
+      pending.confirmed = true;
+      _clearCustomPending(pending);
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _customCatalog = snap;
+          _customCatalogLoaded = true;
+          _customApiKey.clear();
+          _editingCustom = null;
+          _screen = 'list';
+          _notice = pending.successNotice(snap);
+          _formError = null;
+          _error = null;
+        });
+      }
+    } on ProviderFailure catch (failure) {
+      if (!failure.unconfirmed && !wasUncertain) {
+        _clearCustomPending(pending);
+        if (_current(api, active) && seq == _refreshSeq) {
+          setState(() {
+            final msg = failure.status == 409
+                ? 'Custom provider catalog changed (revision conflict). Refresh and review the current revision before saving again.'
+                : 'Custom API settings were rejected. Verify Base URL (HTTPS or loopback HTTP), endpoint paths, and Model ID.';
+            if (_screen == 'custom_api') {
+              _formError = msg;
+            } else {
+              _error = msg;
+            }
+          });
+        }
+      } else {
+        pending.uncertain = true;
+        pending.message =
+            'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
+      }
+    } catch (_) {
+      pending.uncertain = true;
+      pending.message =
+          'Custom provider save outcome is unconfirmed. Reconcile this exact request before making another change.';
+    } finally {
+      pending.inFlight = false;
+      _pendingEvents.value++;
+      if (_current(api, active)) {
+        setState(() {
+          _customBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkCustomReceipt() async {
+    final api = widget.api, pending = _customOperation;
+    final active = widget.active;
+    if (api == null ||
+        pending == null ||
+        pending.inFlight ||
+        !api.sameOwner(pending.owner)) {
+      return;
+    }
+    final seq = ++_refreshSeq;
+    pending.inFlight = true;
+    _pendingEvents.value++;
+    setState(() {
+      _customBusy = true;
+    });
+    try {
+      final receipt = await api.customReceipt(pending.key);
+      if (receipt.found && receipt.status == 'committed') {
+        if (!receipt.matches(pending.body)) throw const FormatException();
+        pending.confirmed = true;
+        _clearCustomPending(pending);
+        if (_current(api, active) && seq == _refreshSeq) {
+          setState(() {
+            _customCatalog = receipt.snapshot;
+            _customCatalogLoaded = true;
+            _customApiKey.clear();
+            _editingCustom = null;
+            _screen = 'list';
+            _notice = pending.successNotice(receipt.snapshot);
+            _formError = null;
+            _error = null;
+          });
+        }
+      } else {
+        pending.message =
+            'No committed receipt is visible yet (host revision ${receipt.currentRevision}). The earlier request may still commit; retry only this same request.';
+      }
+    } on ProviderFailure catch (failure) {
+      pending.message = failure.status == 404
+          ? 'No committed receipt is visible yet. The earlier request may still commit; retry only this same request.'
+          : 'Custom provider receipt inspection is unavailable. The save outcome remains unconfirmed.';
+    } catch (_) {
+      pending.message =
+          'Custom provider receipt did not establish this save. Keep the exact request for reconciliation.';
+    } finally {
+      pending.inFlight = false;
+      _pendingEvents.value++;
+      if (_current(api, active)) {
+        setState(() {
+          _customBusy = false;
+        });
+      }
+    }
+  }
+
+  void _beginCustom(
+    Map<String, Object?> fields, {
+    required String Function(CustomProvidersSnapshot) successNotice,
+    int? capturedRevision,
+  }) {
+    final api = widget.api;
+    if (api == null ||
+        !_enabled ||
+        _customBusy ||
+        !_customCatalogLoaded ||
+        _customCatalog.revision >= providerMaxRevision) {
+      return;
+    }
+    final expectedRevision = capturedRevision ?? _customCatalog.revision;
+    final body = <String, Object?>{
+      ...fields,
+      'expected_revision': expectedRevision,
+      'client_operation_id': const Uuid().v4(),
+    };
+    final pending = _PendingCustomProviderChange(api, body, successNotice);
+    _pendingCustom[api.baseUrl] = pending;
+    _pendingEvents.value++;
+    _customApiKey.clear();
+    _notice = null;
+    _formError = null;
+    _error = null;
+    unawaited(_sendCustom(pending, api));
+  }
+
+  void _customApiForm([CustomProviderProfile? profile]) {
+    setState(() {
+      _tab = 'custom_apis';
+      _screen = 'custom_api';
+      _editingCustom = profile;
+      _formError = null;
+      _notice = null;
+      _customDiscoveryBanner = null;
+      _customName.text = profile?.name ?? '';
+      _customBaseUrl.text = profile?.baseUrl ?? '';
+      _customChatPath.text =
+          profile?.chatCompletionsPath ?? '/chat/completions';
+      _customModelsPath.text = profile?.modelsPath ?? '/models';
+      _customEndpoints.text = profile?.customEndpoints ?? '';
+      _customMaxOutputTokens.text = profile?.maxOutputTokens != null
+          ? '${profile!.maxOutputTokens}'
+          : '';
+      _customApiKey.clear();
+      _customModel.text = profile?.selectedModel ?? '';
+      _customEnabled = profile?.enabled ?? true;
+      _customAllowRemoteHttp = profile?.allowRemoteHttp ?? false;
+      _customClearKey = false;
+    });
+  }
+
+  Future<void> _saveCustomApi() async {
+    final api = widget.api;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
+    final name = _customName.text.trim();
+    final baseUrl = _customBaseUrl.text.trim();
+    final chatPath = _customChatPath.text.trim().isEmpty
+        ? '/chat/completions'
+        : _customChatPath.text.trim();
+    final modelsPath = _customModelsPath.text.trim().isEmpty
+        ? '/models'
+        : _customModelsPath.text.trim();
+    final customEndpoints = _customEndpoints.text.trim();
+    final maxTokensRaw = _customMaxOutputTokens.text.trim();
+    int? maxOutputTokens;
+    if (maxTokensRaw.isNotEmpty) {
+      maxOutputTokens = int.tryParse(maxTokensRaw);
+      if (maxOutputTokens == null || maxOutputTokens < 1) {
+        setState(
+          () => _formError =
+              'Maximum Output Tokens must be a positive integer or left blank for model default.',
+        );
+        return;
+      }
+    }
+    final apiKey = _customApiKey.text.trim();
+    final modelId = _customModel.text.trim();
+    if (name.isEmpty) {
+      setState(() => _formError = 'Enter a Custom Provider Name.');
+      return;
+    }
+    if (baseUrl.isEmpty) {
+      setState(() => _formError = 'Enter an OpenAI-Compatible Base URL.');
+      return;
+    }
+    final editing = _editingCustom;
+    final payload = editing == null
+        ? <String, Object?>{
+            'action': 'add_custom_provider',
+            'name': name,
+            'base_url': baseUrl,
+            'chat_completions_path': chatPath,
+            'models_path': modelsPath,
+            'custom_endpoints': customEndpoints,
+            'max_output_tokens': maxOutputTokens,
+            'api_key': apiKey,
+            'enabled': _customEnabled,
+            'selected_model': modelId,
+            'allow_remote_http': _customAllowRemoteHttp,
+          }
+        : <String, Object?>{
+            'action': 'update_custom_provider',
+            'profile_id': editing.profileId,
+            'name': name,
+            'base_url': baseUrl,
+            'chat_completions_path': chatPath,
+            'models_path': modelsPath,
+            'custom_endpoints': customEndpoints,
+            'max_output_tokens': maxOutputTokens,
+            'clear_max_output_tokens': maxOutputTokens == null,
+            if (apiKey.isNotEmpty) 'api_key': apiKey,
+            'clear_api_key': _customClearKey,
+            'enabled': _customEnabled,
+            'selected_model': modelId,
+            'allow_remote_http': _customAllowRemoteHttp,
+          };
+    _beginCustom(
+      payload,
+      successNotice: (snap) => editing == null
+          ? 'Saved custom API "$name" to ${snap.envFileName} (0600).'
+          : 'Updated custom API "$name" in ${snap.envFileName} (0600).',
+    );
+  }
+
+  Future<void> _setGlobalReasoningEffort(String effort) async {
+    _beginCustom(<String, Object?>{
+      'action': 'set_global_reasoning_effort',
+      'reasoning_effort': effort,
+    }, successNotice: (_) => 'Updated global reasoning effort to $effort.');
+  }
+
+  Future<void> _discoverCustomModels(CustomProviderProfile profile) async {
+    final api = widget.api;
+    final active = widget.active;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
+    final seq = ++_refreshSeq;
+    final capturedRev = _customCatalog.revision;
+    final opId = const Uuid().v4();
+    setState(() {
+      _customBusy = true;
+      _error = null;
+      _customDiscoveryBanner =
+          'Querying GET ${profile.baseUrl}${profile.modelsPath} for ${profile.name}…';
+    });
+    try {
+      final result = await api.discoverCustomModels(
+        profile.profileId,
+        expectedRevision: capturedRev,
+        clientOperationId: opId,
+      );
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _customCatalog = result.snapshot;
+          _customCatalogLoaded = true;
+          _customDiscoveryBanner = result.message;
+          final refreshed = result.snapshot.profiles
+              .where((p) => p.profileId == profile.profileId)
+              .firstOrNull;
+          if (_editingCustom?.profileId == profile.profileId &&
+              refreshed != null) {
+            _editingCustom = refreshed;
+            if (_customModel.text.trim().isEmpty &&
+                refreshed.selectedModel.isNotEmpty) {
+              _customModel.text = refreshed.selectedModel;
+            }
+          }
+        });
+      }
+    } catch (_) {
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() {
+          _customDiscoveryBanner =
+              'Could not query /models for ${profile.name}. You can still save a manual Model ID.';
+        });
+      }
+    } finally {
+      if (_current(api, active) && seq == _refreshSeq) {
+        setState(() => _customBusy = false);
+      }
+    }
+  }
+
+  Future<void> _toggleCustomEnabled(
+    CustomProviderProfile profile,
+    bool enabled,
+  ) async {
+    _beginCustom(
+      <String, Object?>{
+        'action': 'set_custom_provider_enabled',
+        'profile_id': profile.profileId,
+        'enabled': enabled,
+      },
+      successNotice: (_) =>
+          '${profile.name} (${profile.profileId}) is now ${enabled ? 'enabled' : 'disabled'}.',
+    );
+  }
+
+  Future<void> _bindCustomRole(
+    CustomProviderProfile profile,
+    String role,
+  ) async {
+    final api = widget.api;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
+    final modelId = profile.selectedModel.trim().isNotEmpty
+        ? profile.selectedModel.trim()
+        : (profile.discoveredModels.isNotEmpty
+              ? profile.discoveredModels.first
+              : '');
+    if (modelId.isEmpty) {
+      setState(() {
+        _error =
+            'Select or enter a Model ID on ${profile.name} before binding it to $role.';
+      });
+      return;
+    }
+    _beginCustom(
+      <String, Object?>{
+        'action': 'bind_custom_role_model',
+        'role': role,
+        'profile_id': profile.profileId,
+        'model_id': modelId,
+        if (_customRoleReasoningOverride != null)
+          'reasoning_effort': _customRoleReasoningOverride,
+      },
+      successNotice: (_) =>
+          'Saved proposed $role selection for ${profile.name} (${profile.profileId}:$modelId) · proposed_unavailable pending native role-runtime admission.',
+    );
+  }
+
+  Future<void> _removeCustomProfile(
+    CustomProviderProfile profile, {
+    bool confirmed = false,
+  }) => _confirmAndRemoveCustomProfile(profile, confirmed: confirmed);
+
+  Future<void> _confirmAndRemoveCustomProfile(
+    CustomProviderProfile profile, {
+    bool confirmed = false,
+  }) async {
+    final api = widget.api;
+    final generation = widget.active;
+    if (api == null || !_enabled || _customBusy || !_customCatalogLoaded) {
+      return;
+    }
+    final capturedRevision = _customCatalog.revision;
+    final capturedStateSha256 = _customCatalog.stateSha256;
+    final capturedProfileId = profile.profileId;
+    final capturedName = profile.name;
+    final capturedBaseUrl = profile.baseUrl;
+    final capturedSelectedModel = profile.selectedModel;
+    final capturedReferencedBy = List<String>.unmodifiable(
+      profile.referencedBy,
+    );
+    if (capturedReferencedBy.isNotEmpty && !confirmed) {
+      final approve = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          key: const Key('custom-api-remove-confirm-dialog'),
+          title: Text('Remove $capturedName ($capturedProfileId)?'),
+          content: Text(
+            'This custom provider is currently referenced by: ${capturedReferencedBy.join(', ')}.\n\n'
+            'Removing it retains those role bindings as unavailable (needs reselection) in ${_customCatalog.envFileName} without renumbering remaining custom provider IDs.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              key: const Key('confirm-remove-custom-api-button'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Remove anyway'),
+            ),
+          ],
+        ),
+      );
+      if (approve != true || !mounted) return;
+      if (!_current(api, generation) || !_enabled || _customBusy) return;
+      if (!_customCatalogLoaded) return;
+      final currentProfile = _customCatalog.profiles
+          .where((p) => p.profileId == capturedProfileId)
+          .firstOrNull;
+      if (currentProfile == null ||
+          _customCatalog.revision != capturedRevision ||
+          _customCatalog.stateSha256 != capturedStateSha256 ||
+          currentProfile.name != capturedName ||
+          currentProfile.baseUrl != capturedBaseUrl ||
+          currentProfile.selectedModel != capturedSelectedModel) {
+        setState(() {
+          _error =
+              'Custom provider state changed while confirmation was open. Refresh and review before removing $capturedName.';
+        });
+        return;
+      }
+      confirmed = true;
+    }
+    _beginCustom(
+      <String, Object?>{
+        'action': 'remove_custom_provider',
+        'profile_id': capturedProfileId,
+        'confirm_referenced': confirmed,
+      },
+      capturedRevision: capturedRevision,
+      successNotice: (_) =>
+          'Removed $capturedName ($capturedProfileId). Remaining profile IDs were not renumbered.',
+    );
+  }
+
+  Widget _customApiEditor() {
+    final editing = _editingCustom;
+    final discovered = editing?.discoveredModels ?? const <String>[];
+    final currentModel = _customModel.text.trim();
+    return _panel([
+      _title(
+        editing == null
+            ? 'Add Custom OpenAI-Compatible API (.env)'
+            : 'Edit ${editing.name} (${editing.profileId})',
+      ),
+      Text(
+        'Provider Type: Custom OpenAI-compatible API (.env) · Persisted in user-local ${_customCatalog.envFileName} with 0600 permissions. '
+        'Unlimited custom OpenAI-compatible endpoints are supported without renumbering profile IDs.',
+      ),
+      _field(
+        _customName,
+        'Custom Provider Name',
+        maxLength: 96,
+        help:
+            'Display name (e.g. OpenRouter, Together AI, Groq, Local llama.cpp, LM Studio).',
+      ),
+      _field(
+        _customBaseUrl,
+        'OpenAI-Compatible Base URL',
+        maxLength: 512,
+        help:
+            'Normalized automatically so GET {base_url}/models never duplicates /v1 or /models.',
+      ),
+      _field(
+        _customChatPath,
+        'Chat Completions Endpoint Path',
+        maxLength: 160,
+        help: 'Default: /chat/completions (appended to Base URL).',
+      ),
+      _field(
+        _customModelsPath,
+        'Models Discovery Endpoint Path',
+        maxLength: 160,
+        help: 'Default: /models (used by Discover / Refresh Models).',
+      ),
+      _field(
+        _customEndpoints,
+        'Custom / Engine-Specific Endpoints · optional',
+        maxLength: 256,
+        help:
+            'Optional extra routes supported by this inference engine — e.g. /v1/systemone for llama.cpp; leave blank for LM Studio.',
+      ),
+      _field(
+        _customMaxOutputTokens,
+        'Maximum Output Tokens · optional (blank = up to model)',
+        maxLength: 7,
+        numeric: true,
+        help:
+            'Leave blank so the model uses its own native maximum output tokens. LLMs vary widely in max output tokens.',
+      ),
+      _field(
+        _customApiKey,
+        'API Key (.env)',
+        maxLength: 512,
+        secret: true,
+        help: editing != null && editing.hasApiKey
+            ? 'Stored key: ${editing.maskedApiKey} — leave blank to preserve existing key, or enter a new key to rotate.'
+            : 'Stored in KINAIYA_PROVIDER_<ID>_API_KEY (0600). Leave blank for unauthenticated local servers.',
+      ),
+      if (editing != null && editing.hasApiKey)
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _customClearKey,
+          title: const Text('Clear stored API key on save'),
+          onChanged: _enabled && !_customBusy
+              ? (val) => setState(() => _customClearKey = val)
+              : null,
+        ),
+      if (discovered.isNotEmpty)
+        DropdownButtonFormField<String>(
+          key: ValueKey('custom-discovered-model-$currentModel'),
+          initialValue: discovered.contains(currentModel) ? currentModel : null,
+          decoration: const InputDecoration(
+            labelText: 'Discovered /models (unverified capabilities)',
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final mid in discovered)
+              DropdownMenuItem(value: mid, child: Text('$mid · unverified')),
+          ],
+          onChanged: _enabled && !_customBusy
+              ? (val) {
+                  if (val != null) {
+                    setState(() => _customModel.text = val);
+                  }
+                }
+              : null,
+        ),
+      _field(
+        _customModel,
+        'Manual or Selected Model ID',
+        maxLength: 160,
+        help:
+            'Qualified as (profile_id, model_id) so identical model IDs across providers never collide. Works even when GET /models is unsupported.',
+      ),
+      if (editing != null)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            key: Key('editor-discover-models-${editing.profileId}'),
+            onPressed: _enabled && !_customBusy
+                ? () => unawaited(_discoverCustomModels(editing))
+                : null,
+            icon: const Icon(Icons.travel_explore),
+            label: const Text('Discover / Refresh Models (GET /models)'),
+          ),
+        ),
+      if (_customDiscoveryBanner != null)
+        Text(
+          _customDiscoveryBanner!,
+          key: const Key('custom-discovery-banner'),
+        ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _customEnabled,
+        title: const Text('Enable this custom provider profile'),
+        onChanged: _enabled && !_customBusy
+            ? (val) => setState(() => _customEnabled = val)
+            : null,
+      ),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _customAllowRemoteHttp,
+        title: const Text('Allow remote HTTP (non-loopback without TLS)'),
+        subtitle: const Text(
+          'Remote endpoints require HTTPS by default; enable only for trusted LAN gateways.',
+        ),
+        onChanged: _enabled && !_customBusy
+            ? (val) => setState(() => _customAllowRemoteHttp = val)
+            : null,
+      ),
+      const Text(
+        'Reasoning effort is configured globally or per model in Models (not per provider). '
+        'Capability reporting: chat, streaming, reasoning, multimodal, tool-use, and Agent qualification are reported as unverified for custom /models endpoints.',
+      ),
+      if (_formError != null) Text(_formError!),
+      Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          FilledButton(
+            key: const Key('save-custom-api-button'),
+            onPressed: _enabled && !_customBusy
+                ? () => unawaited(_saveCustomApi())
+                : null,
+            child: const Text('Save Custom API'),
+          ),
+          OutlinedButton(
+            onPressed: !_customBusy
+                ? () => setState(() {
+                    _customApiKey.clear();
+                    _editingCustom = null;
+                    _screen = 'list';
+                    _formError = null;
+                  })
+                : null,
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    ]);
+  }
+
   Widget _catalogEntry(String title, String subtitle, List<Widget> actions) =>
       LayoutBuilder(
         builder: (context, constraints) {
@@ -1104,18 +1890,194 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
       children: [
         Expanded(
           child: _title(
-            _tab == 'profiles' ? 'Provider profiles' : 'Credential references',
+            _tab == 'profiles'
+                ? 'Provider profiles'
+                : _tab == 'credentials'
+                ? 'Credential references'
+                : 'Custom OpenAI-Compatible APIs (.env)',
           ),
         ),
         FilledButton.icon(
+          key: _tab == 'custom_apis'
+              ? const Key('add-custom-api-button')
+              : null,
           onPressed: _enabled
-              ? () => _tab == 'profiles' ? _profileForm() : _credentialForm()
+              ? () => _tab == 'profiles'
+                    ? _profileForm()
+                    : _tab == 'credentials'
+                    ? _credentialForm()
+                    : _customApiForm()
               : null,
           icon: const Icon(Icons.add),
-          label: Text(_tab == 'profiles' ? 'Add profile' : 'Register key'),
+          label: Text(
+            _tab == 'profiles'
+                ? 'Add profile'
+                : _tab == 'credentials'
+                ? 'Register key'
+                : 'Add Custom API',
+          ),
         ),
       ],
     ),
+    if (_tab == 'custom_apis') ...[
+      Text(
+        'Unlimited user-local profiles in ${_customCatalog.envFileName} (0600) · '
+        '${_customCatalog.profiles.length} configured · Capabilities reported as unverified',
+      ),
+      Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              key: ValueKey(
+                'custom-global-reasoning-effort-${_customCatalog.globalReasoningEffort}',
+              ),
+              initialValue:
+                  const [
+                    'none',
+                    'minimal',
+                    'low',
+                    'medium',
+                    'high',
+                  ].contains(_customCatalog.globalReasoningEffort)
+                  ? _customCatalog.globalReasoningEffort
+                  : 'medium',
+              decoration: const InputDecoration(
+                labelText: 'Global Reasoning Effort (default across models)',
+                helperText:
+                    'Applies globally unless overridden per model when binding a role.',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'none', child: Text('none')),
+                DropdownMenuItem(value: 'minimal', child: Text('minimal')),
+                DropdownMenuItem(value: 'low', child: Text('low')),
+                DropdownMenuItem(
+                  value: 'medium',
+                  child: Text('medium (Global default)'),
+                ),
+                DropdownMenuItem(value: 'high', child: Text('high')),
+              ],
+              onChanged: _enabled && !_customBusy
+                  ? (val) {
+                      if (val != null) {
+                        unawaited(_setGlobalReasoningEffort(val));
+                      }
+                    }
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              key: ValueKey(
+                'custom-per-model-reasoning-override-${_customRoleReasoningOverride ?? 'global'}',
+              ),
+              initialValue: _customRoleReasoningOverride ?? 'global',
+              decoration: const InputDecoration(
+                labelText: 'Per-Model Reasoning Override (for role binding)',
+                helperText:
+                    'Optional per-model reasoning effort when clicking Use for Converse / Agent.',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'global',
+                  child: Text('Inherit global reasoning effort'),
+                ),
+                DropdownMenuItem(value: 'none', child: Text('none')),
+                DropdownMenuItem(value: 'minimal', child: Text('minimal')),
+                DropdownMenuItem(value: 'low', child: Text('low')),
+                DropdownMenuItem(value: 'medium', child: Text('medium')),
+                DropdownMenuItem(value: 'high', child: Text('high')),
+              ],
+              onChanged: _enabled && !_customBusy
+                  ? (val) {
+                      setState(() {
+                        _customRoleReasoningOverride =
+                            (val == null || val == 'global') ? null : val;
+                      });
+                    }
+                  : null,
+            ),
+          ),
+        ],
+      ),
+      if (_customDiscoveryBanner != null)
+        Text(
+          _customDiscoveryBanner!,
+          key: const Key('custom-discovery-banner'),
+        ),
+      if (_customCatalog.roleBindings.values.any((b) => b != null))
+        SelectableText(
+          'Proposed custom role selections (pending native role-runtime admission · not active in live runtime): '
+          '${_customCatalog.roleBindings.entries.where((e) => e.value != null).map((e) => '${e.key} → ${e.value!.providerName} (${e.value!.qualifiedModelId} · status: ${e.value!.status}${e.value!.unavailableReason != null ? ' [${e.value!.unavailableReason}]' : ''} · reasoning: ${e.value!.effectiveReasoningEffort})').join(' · ')}',
+          key: const Key('custom-role-bindings-summary'),
+        ),
+      if (_customCatalog.profiles.isEmpty)
+        const Text(
+          'No custom .env APIs saved yet. Click "Add Custom API" to configure OpenRouter, Together, Groq, vLLM, Ollama, llama.cpp, or any OpenAI-compatible endpoint.',
+        ),
+      for (final custom in _customCatalog.profiles)
+        _catalogEntry(
+          '${custom.name} (${custom.profileId})',
+          '${custom.baseUrl} · ${custom.enabled ? 'Enabled' : 'Disabled'} · '
+              '${custom.hasApiKey ? 'API key ${custom.maskedApiKey}' : 'No API key'}\n'
+              'Endpoints: chat ${custom.chatCompletionsPath} · models ${custom.modelsPath}'
+              '${custom.customEndpoints.isEmpty ? '' : ' · custom ${custom.customEndpoints}'}\n'
+              'Max output tokens: ${custom.maxOutputTokens == null ? 'Up to model (blank)' : '${custom.maxOutputTokens}'} · '
+              'Model: ${custom.selectedModel.isEmpty ? 'None selected' : '${custom.qualifiedModelId} (unverified)'}'
+              '${custom.discoveredModels.isEmpty ? '' : ' · ${custom.discoveredModels.length} discovered via /models'}'
+              '${custom.referencedBy.isEmpty ? '' : '\nReferenced by: ${custom.referencedBy.join(', ')}'}',
+          [
+            Switch(
+              key: Key('custom-api-enabled-${custom.profileId}'),
+              value: custom.enabled,
+              onChanged: _enabled && !_customBusy
+                  ? (val) => unawaited(_toggleCustomEnabled(custom, val))
+                  : null,
+            ),
+            TextButton(
+              key: Key('custom-api-discover-${custom.profileId}'),
+              onPressed: _enabled && !_customBusy
+                  ? () => unawaited(_discoverCustomModels(custom))
+                  : null,
+              child: const Text('Discover / Refresh Models'),
+            ),
+            if (custom.enabled &&
+                (custom.selectedModel.isNotEmpty ||
+                    custom.discoveredModels.isNotEmpty)) ...[
+              TextButton(
+                key: Key('custom-api-bind-converse-${custom.profileId}'),
+                onPressed: _enabled && !_customBusy
+                    ? () => unawaited(_bindCustomRole(custom, 'converse'))
+                    : null,
+                child: const Text('Use for Converse'),
+              ),
+              TextButton(
+                key: Key('custom-api-bind-agent-${custom.profileId}'),
+                onPressed: _enabled && !_customBusy
+                    ? () => unawaited(_bindCustomRole(custom, 'agent'))
+                    : null,
+                child: const Text('Use for Agent'),
+              ),
+            ],
+            TextButton(
+              key: Key('custom-api-edit-${custom.profileId}'),
+              onPressed: _enabled && !_customBusy
+                  ? () => _customApiForm(custom)
+                  : null,
+              child: const Text('Edit'),
+            ),
+            TextButton(
+              key: Key('custom-api-remove-${custom.profileId}'),
+              onPressed: _enabled && !_customBusy
+                  ? () => unawaited(_removeCustomProfile(custom))
+                  : null,
+              child: const Text('Remove'),
+            ),
+          ],
+        ),
+    ],
     if (_tab == 'profiles' && _catalog!.profiles.isEmpty)
       const Text(
         'No saved profiles yet. Add a provider to save its connection settings.',
@@ -1176,6 +2138,7 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
   @override
   Widget build(BuildContext context) {
     final operation = _operation;
+    final customOperation = _customOperation;
     return Material(
       type: MaterialType.transparency,
       child: Column(
@@ -1197,21 +2160,39 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                         value: 'credentials',
                         label: Text('Credentials'),
                       ),
+                      ButtonSegment(
+                        value: 'custom_apis',
+                        label: Text('Custom APIs (.env)'),
+                      ),
                     ],
                     selected: {_tab},
-                    onSelectionChanged: operation == null
-                        ? (values) => setState(() {
-                            _tab = values.single;
-                            _screen = 'list';
-                            _key.clear();
-                            _formError = null;
-                          })
+                    onSelectionChanged:
+                        operation == null && customOperation == null
+                        ? (values) {
+                            final nextTab = values.single;
+                            setState(() {
+                              _tab = nextTab;
+                              _screen = 'list';
+                              _key.clear();
+                              _customApiKey.clear();
+                              _formError = null;
+                            });
+                            if (nextTab == 'custom_apis') {
+                              unawaited(_refreshCustomProviders());
+                            }
+                          }
                         : null,
                   ),
                   OutlinedButton.icon(
                     onPressed:
                         widget.api != null && widget.active() && !_reading
-                        ? _refresh
+                        ? () {
+                            if (_tab == 'custom_apis') {
+                              unawaited(_refreshCustomProviders());
+                            } else {
+                              unawaited(_refresh());
+                            }
+                          }
                         : null,
                     icon: const Icon(Icons.refresh),
                     label: const Text('Refresh'),
@@ -1226,6 +2207,10 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
           if (_screen == 'list') const SizedBox(height: 16),
           if (operation != null) ...[
             _pendingPanel(operation),
+            const SizedBox(height: 16),
+          ],
+          if (customOperation != null) ...[
+            _customPendingPanel(customOperation),
             const SizedBox(height: 16),
           ],
           if (_notice != null)
@@ -1249,7 +2234,9 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
                   : 'Provider management is unavailable on this host.',
             )
           else ...[
-            if (_pending.length >= 16 && operation == null)
+            if ((_pending.length + _pendingCustom.length) >= 16 &&
+                operation == null &&
+                customOperation == null)
               const Text(
                 'The app retains its maximum unresolved endpoint changes. Reconcile those requests before saving another endpoint.',
               ),
@@ -1257,6 +2244,8 @@ class _OptionsProviderEditorState extends State<OptionsProviderEditor> {
               _profileEditor()
             else if (_screen == 'credential')
               _credentialEditor()
+            else if (_screen == 'custom_api')
+              _customApiEditor()
             else
               _catalogList(),
             if (_screen == 'list' && _formError != null)

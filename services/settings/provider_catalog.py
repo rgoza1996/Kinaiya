@@ -20,7 +20,15 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from services.settings.credentials import CredentialVault, valid_key
 
@@ -37,6 +45,7 @@ _OPERATIONS = {
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")]
 Generation = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 Effort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+MetaEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 
 def _text(value, limit):
@@ -113,10 +122,25 @@ class MetaProfile(TextProfile):
     credential: CredentialBinding
     max_tokens: int = Field(default=2048, ge=16, le=65536)
     context_tokens: int | None = Field(default=None, ge=64, le=MAX_REVISION)
-    reasoning_effort: Effort = "xhigh"
+    reasoning_effort: MetaEffort = "xhigh"
+    timeout_s: int = Field(default=600, ge=1, le=1800)
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_timeout_shape(self, handler):
+        result = handler(self)
+        # Existing immutable generations never stored this additive field.
+        # Preserve their exact canonical bytes/digest; an explicit new timeout
+        # remains part of its new generation's configuration identity.
+        if "timeout_s" not in self.model_fields_set:
+            result.pop("timeout_s", None)
+        return result
 
     @model_validator(mode="after")
     def bounds(self):
+        from packages.providers.meta_policy import meta_reasoning_options
+
+        if self.reasoning_effort not in meta_reasoning_options(self.model):
+            raise ValueError("Meta reasoning effort is unavailable for this exact model")
         if not self.allow_cloud:
             raise ValueError("Meta requires explicit cloud authorization")
         self.base_url = _origin(self.base_url, cloud=True)
@@ -138,6 +162,32 @@ class CompatibleProfile(TextProfile):
     def bounds(self):
         self.base_url = _origin(self.base_url, cloud=self.allow_cloud)
         if self.context_tokens is not None and self.max_tokens >= self.context_tokens:
+            raise ValueError("Response reserve must fit the declared context")
+        return self
+
+
+class MeasuredChatProfile(TextProfile):
+    kind: Literal["measured_chat"]
+    allow_cloud: Literal[False] = False
+    credential: CredentialBinding | None = None
+    max_tokens: int = Field(default=2048, ge=16, le=65536)
+    context_tokens: int = Field(ge=64, le=MAX_REVISION)
+    reasoning_effort: Effort = "none"
+    timeout_s: int = Field(default=90, ge=1, le=900)
+
+    @field_validator("allow_cloud", mode="before")
+    @classmethod
+    def local_only(cls, value):
+        if type(value) is not bool or value is not False:
+            raise ValueError("Measured chat is local only")
+        return value
+
+    @model_validator(mode="after")
+    def bounds(self):
+        self.base_url = _origin(self.base_url, cloud=False)
+        if urlsplit(self.base_url).hostname not in {"127.0.0.1", "::1"} or "\\" in self.base_url:
+            raise ValueError("Measured chat requires a literal loopback endpoint")
+        if self.max_tokens >= self.context_tokens:
             raise ValueError("Response reserve must fit the declared context")
         return self
 
@@ -294,6 +344,7 @@ class OpenRouterTTSProfile(StrictSettings):
 ProfileConfig = Annotated[
     MetaProfile
     | CompatibleProfile
+    | MeasuredChatProfile
     | LMStudioProfile
     | LayaProfile
     | NativeD1Profile
@@ -524,6 +575,8 @@ def _storage(path, workspace, *, report_created=False):
 
 class ProviderCatalog:
     def __init__(self, path, workspace, *, env_refs=None):
+        self.path = Path(path)
+        self.workspace = Path(workspace)
         self.db = _storage(path, workspace)
         try:
             self.db.execute("PRAGMA synchronous=FULL")
@@ -662,13 +715,15 @@ class ProviderCatalog:
                     if kind == "meta_stt"
                     else ["decisions"]
                     if kind in {"laya", "native_d1", "openrouter_decisions"}
+                    else ["converse"]
+                    if kind == "measured_chat"
                     else ["agent", "converse", "auxiliary"]
                     if kind == "lmstudio"
                     else ["agent", "converse", "decisions", "auxiliary"],
                     "supported_inputs": ["audio"] if kind == "meta_stt" else ["text"],
-                    "measured_complete_interface": kind == "lmstudio"
+                    "measured_complete_interface": kind in {"lmstudio", "measured_chat"}
                     or (kind == "meta" and profile["config"]["context_tokens"] is not None),
-                    "measured_stream_interface": kind == "lmstudio"
+                    "measured_stream_interface": kind in {"lmstudio", "measured_chat"}
                     or (kind == "meta" and profile["config"]["context_tokens"] is not None),
                     "qualification": "not_checked",
                     "readiness": "unknown",

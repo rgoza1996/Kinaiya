@@ -716,9 +716,12 @@ async def _native_stack(tmp_path, native_root, *, count, allow_unknown_shutdown)
     finally:
         # Fault tests deliberately retain native uncertainty. Retiring this
         # disposable fixture's actual handles cannot certify that old outcome.
-        db.fault = None
-        if db.in_transaction:
-            sqlite3.Connection.rollback(db)
+        # Synchronize on store.lock so fixture cleanup never rolls back an
+        # in-flight background worker transaction holding store.lock (#482).
+        with store.lock:
+            db.fault = None
+            if db.in_transaction:
+                sqlite3.Connection.rollback(db)
         try:
             try:
                 await lifespan.__aexit__(None, None, None)
@@ -728,6 +731,10 @@ async def _native_stack(tmp_path, native_root, *, count, allow_unknown_shutdown)
                 assert app.state.media_owner_shutdown_unconfirmed is True
         finally:
             spool.close()
+            with store.lock:
+                db.fault = None
+                if db.in_transaction:
+                    sqlite3.Connection.rollback(db)
             try:
                 store.close()
             except JournalError:
@@ -1356,3 +1363,34 @@ async def test_pending_sixteen_slot_cap_reuse_conflict_and_known_no_effect_relea
             env.store.reset(env.session["session_id"], _media_change=change).epoch
             == env.session["epoch"] + 1
         )
+
+
+@pytest.mark.asyncio
+async def test_reset_background_cleanup_transaction_is_not_rolled_back_by_fixture_teardown(
+    tmp_path,
+):
+    entered = threading.Event()
+    release = threading.Event()
+    in_tx_observed = []
+
+    async with _stack(tmp_path) as env:
+        assert isinstance(env, _Env)
+        assert isinstance(env.db, sqlite3.Connection)
+        source, grant = await env.admit()
+        original_store_cleanup = env.owner._store_cleanup
+
+        def observed_store_cleanup(token, source, kind, outcome):
+            if kind == "decoder" and not entered.is_set():
+                assert isinstance(env.db, sqlite3.Connection)
+                in_tx_observed.append(env.db.in_transaction)
+                entered.set()
+                release.wait(0.2)
+            return original_store_cleanup(token, source, kind, outcome)
+
+        with patch.object(env.owner, "_store_cleanup", side_effect=observed_store_cleanup):
+            async with env.connected(source, grant):
+                response = await _api_change(env, "reset")
+                assert response.status_code == 200
+                assert response.json()["epoch"] == env.session["epoch"] + 1
+            await _event(entered)
+    assert in_tx_observed == [True]

@@ -3,3 +3,6 @@ import 'credential_picker_stub.dart'
     as platform;
 
 Future<String?> chooseCredential() => platform.chooseCredential();
+
+Future<void> exportCredential(String filename, String content) =>
+    platform.exportCredential(filename, content);

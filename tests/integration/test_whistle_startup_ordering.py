@@ -69,6 +69,8 @@ def load(data, count):
 class Library:
     needle_load = Function(load)
     needle_transcribe = Function(lambda *args: (_ for _ in ()).throw(AssertionError('No inference')))
+    needle_stream_transcribe_process = Function(lambda *args: (_ for _ in ()).throw(AssertionError('No inference')))
+    needle_stream_transcribe_stop = Function(lambda *args: (_ for _ in ()).throw(AssertionError('No inference')))
 
 def fake_cdll(path):
     verify()

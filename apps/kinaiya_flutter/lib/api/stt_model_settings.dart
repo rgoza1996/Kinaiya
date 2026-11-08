@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'tool_permissions.dart' show permissionJsonDecode;
 
 const sttModelRevisionLimit = 9007199254740990;
@@ -235,6 +236,7 @@ class SttModelsSnapshot {
       'speech',
       'stt',
       'stt_cleanup',
+      'native_audio',
       'playback_pending',
       'memory_pending',
       'leases',

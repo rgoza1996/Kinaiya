@@ -19,12 +19,12 @@ export PATH="$HOME/.local/bin:$PATH"
 # 2. Configure (the bootstrap normally launches this wizard for you):
 kinaiya setup
 
-# 3. Start the loopback host (Session + Agent; Converse/Decisions only if enabled):
-kinaiya serve host
+# 3. Start the loopback host and matching web UI in one command:
+kinaiya start         # launches loopback services, matching web UI (127.0.0.1:8780), and opens browser with automatic sign-in
 
-# 4. In a second terminal: export the owner sign-in file, then serve the web UI.
-kinaiya owner-login   # writes data/owner-login.txt with mode 0600; token is not printed
-kinaiya web           # http://127.0.0.1:8780
+# Or independently in separate terminals:
+kinaiya serve host    # Session + Agent (Converse/Decisions only if enabled)
+kinaiya web           # http://127.0.0.1:8780 with automatic local launch handoff
 ```
 
 - **Location.** The default layout is described in [Locations and PATH](#locations-and-path).
@@ -41,32 +41,70 @@ kinaiya web           # http://127.0.0.1:8780
   `provider_connection: not_checked`; it does not contact the provider. Your first
   real request is the first live inference. *Planned:* an explicit bounded
   connection check (#391) and `kinaiya doctor` (#392).
-- **Owner credentials.** Internal service tokens in `data/service-tokens.json`
-  (mode 0600) are managed by Kinaiya; do not edit or share them. `owner-login`
-  exports only the owner credential for the local web UI. *Planned:* automatic
-  one-time local sign-in (#393, #396), owner-credential rotation (#394), and a
-  single `kinaiya start` command (#395).
+- **Owner credentials and GUI access.** Internal service tokens in `data/service-tokens.json`
+  (mode 0600) are managed by Kinaiya; do not edit or share them.
+  - **Automatic local sign-in:** Launching via `kinaiya start` or `kinaiya web`
+    automatically exchanges a single-use loopback launch handoff for a scoped owner
+    session (`kny_sess_...`) in memory, without requiring manual token entry or terminal
+    commands (#393, #396, #492).
+  - **Access recovery:** When automatic sign-in cannot complete (e.g. handoff expired or
+    interrupted), the GUI provides **Recover access** to restore the session using a local
+    authorization proof (such as your private credential file `service-tokens.json` or a
+    local challenge file) without rotating the underlying credential (#492).
+  - **Credential rotation:** For potentially compromised credentials, the GUI and CLI
+    (`kinaiya auth rotate-owner`) support atomic owner credential replacement,
+    invalidating prior credentials, active owner sessions, and outstanding handoffs (#394, #492).
+  - **Import / export:** The GUI supports loading an exported owner file (`owner-login.txt`)
+    or `service-tokens.json`, and exporting an in-memory owner credential to a private file
+    via browser download. CLI export remains available via `kinaiya owner-login` (#395).
 
 ## Candidate baseline and prerequisites
 
-- Native Ubuntu **22.04 or 24.04**, `x86_64` or `aarch64`.
-- Python **3.11–3.13**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
+- Native Ubuntu **22.04, 24.04, or 26.04**, `x86_64` or `aarch64`.
+- Python **3.11–3.14**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
   default Python 3.10 is insufficient; select an explicitly installed interpreter.
+  Ubuntu 26.04's default Python 3.14 is accepted; if its venv support is missing,
+  the installer plans `python3.14-venv` under the same no-upgrade policy below.
 - `bubblewrap`, `libseccomp2`, at least **1 GiB** free for Agent-only staging,
   working GitHub/PyPI HTTPS access, and a writable private user home.
 - The actual bubblewrap namespace probe must succeed. A container/VPS kernel may
   deny it even with bubblewrap installed. Fix the host policy with the host
   administrator, or use a supported host; **never disable isolation** to install.
-- **Ubuntu 24.04** enables `kernel.apparmor_restrict_unprivileged_userns=1` by
-  default, which denies the probe. Do not set that sysctl to `0` globally; have an
+- **Ubuntu 24.04/26.04** enables `kernel.apparmor_restrict_unprivileged_userns=1`
+  by default. If the installed bubblewrap profile does not permit the probe, do
+  not set that sysctl to `0` globally; have an
   administrator review and load the bwrap-only profile in
   [`docs/examples/apparmor-bwrap`](examples/apparmor-bwrap)
   (`sudo install -m 0644 docs/examples/apparmor-bwrap /etc/apparmor.d/kinaiya-bwrap`
   then `sudo apparmor_parser -r /etc/apparmor.d/kinaiya-bwrap`). It permits only
   `/usr/bin/bwrap` to create user namespaces; the restriction stays on for every
   other program.
-- Windows, macOS, WSL, other distros, Python 3.14, GPUs and optional voice/model
+- Windows, macOS, WSL, other distros, Python 3.15+, GPUs and optional voice/model
   backends are not qualified by this installer.
+
+Ubuntu 26.04/Python 3.14 support requires a release containing this host-admission
+change as well as an updated bootstrap. Older nightlies still reject the host
+during the bundled runtime's preflight even when a newer `install.sh` accepts it.
+Do not edit a downloaded release or bypass its checks; publish a new qualified
+nightly through the existing release workflow. Accepting this candidate baseline
+does not qualify optional voice/model wheels for Python 3.14.
+
+[Retained native Ubuntu 26.04/Python 3.14 lifecycle evidence](../evaluation/evidence/linux-install-ubuntu2604-py314-2026-11-04.json)
+records the exact implementation commit, x86_64 host, locked runtime preparation,
+real sandbox denials, service readiness, update recovery, rollback, and uninstall.
+These were local unqualified release fixtures, not published releases or live
+provider tests. Ubuntu 26.04 ARM64 lifecycle remains unmeasured by this run.
+
+Full-suite verification also checks interpreter compatibility: standing UTC
+instants retain their existing `00:00:00`–`23:59:59` wire range even if a newer
+stdlib parser normalizes `24:00:00`, and JSON diagnostics follow the actual
+installed parser/encoder guard rather than inventing a fixed nesting limit.
+The default Ubuntu 26.04 bwrap AppArmor profile currently denies execution of
+the sealed optional GGUF worker; [#481](https://github.com/rgoza1996/Kinaiya/issues/481)
+retains that failing native test. Agent-only installation and isolation passed;
+this evidence does not qualify managed GGUF execution or justify relaxing the
+host policy. An intermittent media-reset cleanup failure observed in CI is
+tracked separately in [#482](https://github.com/rgoza1996/Kinaiya/issues/482).
 
 The installer never runs `sudo apt-get update` or `sudo apt-get upgrade`, never
 upgrades, downgrades, or removes existing system packages, never changes kernel
@@ -109,7 +147,7 @@ sh install.sh --workspace "$HOME/My Work" --data-dir "$HOME/Private Kinaiya Data
 ```
 
 When `KINAIYA_PYTHON` is not set, `install.sh` automatically selects a supported
-Python `3.11`–`3.13` interpreter (`python3`, `python3.13`, `python3.12`, or
+Python `3.11`–`3.14` interpreter (`python3`, `python3.14`, `python3.13`, `python3.12`, or
 `python3.11`) if installed. The release source allowlist includes root
 `install.sh`, `services/distribution/*`, and `packages/distribution/*`.
 
@@ -162,6 +200,12 @@ stale launcher. Keep the saved layout, or use a separately reviewed relocation.
 ## Setup and launch
 
 For a new configuration, choose one setup form:
+
+Installer, CLI and setup confirmations accept `y`/`n` and `yes`/`no`, without
+regard to case. Prompts show `(y/n) [n]`; Enter declines. Setup repeats an invalid
+boolean answer and cancels on closed terminal input before saving configuration
+or credentials. The installer and CLI retain the existing EOF exception only
+when installation-location selection already recorded explicit consent.
 
 ```sh
 kinaiya setup
@@ -240,16 +284,23 @@ has not been established by this change; owner artwork review remains a gate.
 ## Owner web client
 
 ```sh
+kinaiya start        # launches host services and matching web UI with automatic local sign-in
 kinaiya web          # matching release's prebuilt assets, 127.0.0.1:8780 only
 kinaiya owner-login  # exports owner sign-in to a new mode-0600 local file
+kinaiya auth rotate-owner  # replaces owner credential, invalidating prior sessions and handoffs
 ```
 
-The server exposes only the embedded compiled web root, never source, directory
-listings, credentials or logs containing request URLs. Enter the configured
-loopback Session/Agent host endpoints in the owner UI and sign in using the
-private owner credential file. Do not give this credential to companions or
-mobile clients. General companion pairing/remote deployment is not implemented
-by this installer; do not expose the loopback servers on a public interface.
+The web server exposes only the embedded compiled web root, never source, directory
+listings, credentials, or logs containing request URLs. On first launch, same-origin
+loopback requests automatically exchange a single-use handoff for a scoped owner session
+in memory. If the handoff window expires or access is interrupted, the GUI provides
+**Recover access** to restore the session using a local authorization proof (such as
+selecting `service-tokens.json` or generating a local challenge). For potentially compromised
+credentials, **Replace owner credential** in the GUI or `kinaiya auth rotate-owner` in the CLI
+atomically rotates the credential, increments the epoch, and invalidates all existing sessions.
+Do not give owner credentials to companions or mobile clients. General companion pairing
+and remote deployment require separate explicit authorization; do not expose loopback servers
+on a public interface.
 
 If the matching release lacks prebuilt web files, `kinaiya web` refuses without
 downloading Flutter. Explicit developer alternative: install a reviewed Flutter
@@ -308,13 +359,15 @@ None of them requires editing JSON or `.env` files by hand.
 
 | Symptom | What to do |
 | --- | --- |
-| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04, install the narrow AppArmor profile described there; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
+| **Unsupported host or sandbox refused** (bootstrap/setup preflight stops; `bwrap` namespaces denied) | Use a qualified host from [prerequisites](#candidate-baseline-and-prerequisites). On Ubuntu 24.04/26.04, install the narrow AppArmor profile described there if the probe is denied; do not disable AppArmor or run as root. Rerun the same `install.sh` command afterwards. |
 | **Install destination inaccessible or protected** | Choose an absolute, user-owned, symlink-free path outside the Agent workspace and outside system directories, then rerun with `--workspace` / `--data-dir`. Nothing is written when preflight refuses. |
 | **Model endpoint unavailable** | Start or fix the provider (for local LM Studio, load the model and confirm the loopback endpoint), then restart `kinaiya serve host`. Setup's saved configuration stays valid; to change the endpoint or model, rerun `kinaiya setup`. |
 | **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |
 | **Missing web assets** (`kinaiya web` refuses) | The matching release has no prebuilt UI. Install a release that includes it (`kinaiya update --plan`, then `kinaiya update --yes`), or follow the developer path in [Owner web client](#owner-web-client) in a separate checkout. Kinaiya never downloads Flutter for you. |
 | **Interrupted install or update** | Stop managed services, then run `kinaiya recover --yes`. It reconciles the pending transaction without deleting the active generation or data. If a release is broken, `kinaiya rollback --generation <id> --yes` restores retained code/runtime only. |
-| **Lost owner sign-in file** | Run `kinaiya owner-login --output <new-path>`. It creates a new 0600 file and refuses to overwrite an existing one; internal service tokens are unchanged. Delete stale exports you no longer need. |
+| **Lost access / expired handoff** | In the GUI, click **Recover access** and provide local authorization (e.g. select `service-tokens.json` from your data directory or generate a local challenge) to restore an authenticated session without rotating credentials. Or via CLI: `kinaiya owner-login --output <new-path>` to export a new 0600 file. |
+| **Potentially compromised credential** | In the GUI, click **Replace owner credential** on the host card, review the effects, and confirm. Or via CLI: `kinaiya auth rotate-owner`. Both invalidate previous credentials, existing owner sessions, and outstanding handoffs. |
+| **Corrupt or missing credential storage** | Setup and recovery refuse to silently reinitialize missing or corrupt private storage. Preserve existing files for recovery and check filesystem permissions (`chmod 0700` on data directory, `chmod 0600` on `service-tokens.json`), or run `kinaiya setup` / restore a backup. |
 
 Rerunning `install.sh` or `kinaiya setup` on an existing installation preserves
 existing configuration and refuses silent reinitialization.

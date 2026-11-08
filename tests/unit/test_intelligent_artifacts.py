@@ -685,6 +685,40 @@ def test_verify(tmp_path):
         s.close()
 
 
+@pytest.mark.parametrize(
+    "stored_scope", ["local_only", "public_synthetic", "private_cloud_authorized"]
+)
+@pytest.mark.parametrize(
+    "candidate_scope",
+    [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized",
+        None,
+        False,
+        0,
+        "unknown",
+        [],
+        {},
+    ],
+)
+def test_verify_requires_exact_valid_native_content_scope(tmp_path, stored_scope, candidate_scope):
+    s = new_store(tmp_path)
+    try:
+        task = mk_task(scope=stored_scope)
+        publication = pub_basic(s, task)
+        evidence = mk_ev(publication["artifact_id"], publication["content_sha256"], 1)
+        candidate = copy.copy(task)
+        candidate.content_scope = candidate_scope
+        assert s.verify(evidence, candidate) is (
+            type(candidate_scope) is str and candidate_scope == stored_scope
+        )
+        del candidate.content_scope
+        assert s.verify(evidence, candidate) is False
+    finally:
+        s.close()
+
+
 def test_quotas_small(tmp_path, monkeypatch):
     s = new_store(tmp_path, "q.db")
     try:

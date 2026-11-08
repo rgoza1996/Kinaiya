@@ -422,10 +422,11 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
 
   Widget _bubbleFace(String section, IconData icon, double diameter) {
     final colors = Theme.of(context).colorScheme;
+    final compact = diameter < 132;
     return Container(
       width: diameter,
       height: diameter,
-      padding: const EdgeInsets.all(17),
+      padding: EdgeInsets.all(compact ? 12 : 17),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -444,14 +445,14 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: colors.primary, size: 28),
-          const SizedBox(height: 6),
+          Icon(icon, color: colors.primary, size: compact ? 22 : 28),
+          SizedBox(height: compact ? 4 : 6),
           Text(
             section,
             style: Theme.of(context).textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: compact ? 2 : 4),
           Flexible(
             child: Text(
               _value(section),
@@ -497,6 +498,7 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
               color: colors.surface.withValues(alpha: .94),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
+                key: ValueKey('mascot-setup-bubble-${section.toLowerCase()}'),
                 customBorder: const CircleBorder(),
                 focusNode: _bubbleFocus[section],
                 canRequestFocus: _section == null,
@@ -751,12 +753,19 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                     final wide =
                         box.maxWidth / scale >= 1050 &&
                         box.maxHeight / scale >= 650;
+                    final compactTwoRow =
+                        !wide &&
+                        box.maxHeight <= 380 * scale &&
+                        box.maxWidth >= (4 * 116 * scale + 48);
                     double narrowDiameter() {
                       final maxDiameter = (160 * scale).clamp(
                         0.0,
                         box.maxWidth - 16,
                       );
-                      final minDiameter = (132 * scale).clamp(0.0, maxDiameter);
+                      final minDiameter = ((compactTwoRow ? 116 : 132) * scale)
+                          .clamp(0.0, maxDiameter);
+                      final rowExtra = compactTwoRow ? 8.0 : 24.0;
+                      final verticalPad = compactTwoRow ? 12.0 : 64.0;
                       for (
                         var candidate = maxDiameter;
                         candidate >= minDiameter;
@@ -766,11 +775,12 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                             .floor()
                             .clamp(1, _sections.length);
                         final rows = (_sections.length / cols).ceil();
-                        if (rows * (candidate + 24) + 64 <= box.maxHeight) {
+                        if (rows * (candidate + rowExtra) + verticalPad <=
+                            box.maxHeight) {
                           return candidate;
                         }
                       }
-                      return maxDiameter;
+                      return compactTwoRow ? minDiameter : maxDiameter;
                     }
 
                     final diameter = wide ? 178 * scale : narrowDiameter();
@@ -803,13 +813,18 @@ class _ModelSetupDialogState extends State<ModelSetupDialog>
                     final columns = ((box.maxWidth + 16) / (diameter + 16))
                         .floor()
                         .clamp(1, _sections.length);
-                    final fieldHeight = wide
+                    final rows = (_sections.length / columns).ceil();
+                    final rowExtra = compactTwoRow ? 8.0 : 24.0;
+                    final verticalPad = compactTwoRow ? 12.0 : 64.0;
+                    final fieldHeight =
+                        wide ||
+                            (compactTwoRow &&
+                                rows <= 2 &&
+                                rows * (diameter + 2) <= box.maxHeight)
                         ? box.maxHeight
                         : math.max(
                             box.maxHeight,
-                            (_sections.length / columns).ceil() *
-                                    (diameter + 24) +
-                                64,
+                            rows * (diameter + rowExtra) + verticalPad,
                           );
                     final field = SizedBox(
                       height: fieldHeight,
@@ -985,9 +1000,11 @@ class _ConverseModelSummaryState extends State<ConverseModelSummary> {
         mounted &&
         identical(widget.state, owner) &&
         client != null &&
-        owner.connected &&
         owner.sessionAuthenticated &&
-        owner.converseOnline &&
+        owner.ownsConnection(generation, client);
+    bool ownsConnection() =>
+        client != null &&
+        owner.sessionAuthenticated &&
         owner.ownsConnection(generation, client);
     return MenuAnchor(
       controller: widget.menuController ?? _localMenu,
@@ -1024,7 +1041,7 @@ class _ConverseModelSummaryState extends State<ConverseModelSummary> {
                     if (current()) owner.invalidateConverseInference();
                   },
                   onSettled: () async {
-                    if (current()) {
+                    if (ownsConnection()) {
                       await owner.revalidateConverseInference(
                         invalidate: false,
                       );

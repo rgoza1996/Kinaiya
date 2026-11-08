@@ -54,6 +54,16 @@ OPTIONAL_TOOLS = (
 )
 
 
+def deep_ui_rejection_reason():
+    """Follow the real interpreter guard; the UI object stays invalid either way."""
+    raw = '{"components":' + "[" * 10000 + "0" + "]" * 10000 + "}"
+    try:
+        json.dumps(json.loads(raw), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except RecursionError:
+        return "nesting_limit"
+    return "field_shape"
+
+
 def spec():
     return {
         "title": "Synthetic UI 🌱",
@@ -211,8 +221,8 @@ async def test_inner_non_text_ui_argument_has_a_typed_constant_reason(exchange, 
         pytest.param('{"' + MARKER + '":"\\ud800"}', "invalid_unicode", id="escaped-surrogate"),
         pytest.param(
             '{"components":' + "[" * 10000 + "0" + "]" * 10000 + "}",
-            "nesting_limit",
-            id="actual-nesting-limit",
+            deep_ui_rejection_reason(),
+            id="deeply-nested-invalid-object",
         ),
         pytest.param("[]", "not_object", id="array"),
         pytest.param("null", "not_object", id="null-json"),
@@ -371,7 +381,12 @@ async def test_closed_unavailable_response_still_only_returns_the_native_refusal
 
 
 @pytest.mark.parametrize("stage", ["ui_arguments", "ui_wire", "unavailable_action"])
-async def test_generic_decoder_failure_maps_to_constant_decode_limit(exchange, monkeypatch, stage):
+@pytest.mark.parametrize(
+    "error,reason", [(ValueError, "decode_limit"), (RecursionError, "nesting_limit")]
+)
+async def test_generic_decoder_failure_maps_to_constant_diagnostic(
+    exchange, monkeypatch, stage, error, reason
+):
     decode = whistle_ipc.decode_json
     failed = []
     inner = encoded_spec()
@@ -383,7 +398,7 @@ async def test_generic_decoder_failure_maps_to_constant_decode_limit(exchange, m
         def fail_selected(value, limit):
             if value == target:
                 failed.append(True)
-                raise ValueError(MARKER + " parser repr at line 1 column 17")
+                raise error(MARKER + " parser repr at line 1 column 17")
             return decode(value, limit)
 
         monkeypatch.setattr(whistle_ipc, "decode_json", fail_selected)
@@ -393,7 +408,7 @@ async def test_generic_decoder_failure_maps_to_constant_decode_limit(exchange, m
         exchange,
         reply,
         stage,
-        "decode_limit",
+        reason,
         snapshot=native_tool_snapshot() if stage == "unavailable_action" else None,
     )
     assert failed == [True]

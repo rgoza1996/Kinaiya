@@ -9,6 +9,7 @@ from itertools import islice
 
 from anyio import CancelScope
 
+from packages.contracts.agent_outcome import OutcomeEvidenceUnavailable, read_outcome_task
 from packages.contracts.memory import MemoryBinding
 from packages.contracts.memory_context import MemoryContextPin
 from packages.contracts.models import (
@@ -239,7 +240,12 @@ class ConverseRuntime:
         self.model_settings = None
         self._model_options_unavailable = False
         self._model_preparing = set()
-        self._model_operations_extra = lambda: {"windows": 0, "stt": 0, "stt_cleanup": 0}
+        self._model_operations_extra = lambda: {
+            "windows": 0,
+            "stt": 0,
+            "stt_cleanup": 0,
+            "native_audio": 0,
+        }
         self.stt_model_settings = None
         self._stt_options_configured = False
         self._stt_options_unavailable = False
@@ -1688,6 +1694,19 @@ class ConverseRuntime:
 
     async def outcome_notice(self, outcome):
         task = outcome.payload.get("task", outcome.payload)
+        if (
+            outcome.kind == "agent.outcome"
+            and outcome.origin == "agent-supervisor"
+            and "evidence_ref" in outcome.payload
+        ):
+            # Restoration performs authenticated reads only. Failure propagates
+            # without acknowledging the outcome or announcing empty proof.
+            try:
+                task = (await read_outcome_task(self.journal, outcome)).model_dump(mode="json")
+            except TimeoutError:
+                # Only this read-only boundary may be retried. A later timeout
+                # during announcement publication must not be reclassified.
+                raise OutcomeEvidenceUnavailable from None
         if (
             outcome.kind != "agent.outcome"
             or outcome.origin != "agent-supervisor"

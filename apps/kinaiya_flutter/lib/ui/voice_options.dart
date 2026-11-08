@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../audio/vad_settings.dart';
+import '../audio/speech_audio.dart';
 import 'design_tokens.dart';
 
 /// Presentation-only Voice options sheet for Converse.
@@ -11,9 +11,9 @@ import 'design_tokens.dart';
 /// Opening or closing this surface never starts, stops, rearms, or
 /// otherwise touches capture; it only forwards explicit setting changes.
 ///
-/// In streaming-window mode the sheet shows live Decisions timing and hides
-/// the fallback silence control. Otherwise it shows the fallback clip
-/// silence control.
+/// Native audio takes display priority and shows buffered whole-utterance
+/// end-of-speech controls. Modular streaming-window mode shows Decisions timing
+/// and hides the fallback silence control; modular clip mode shows that control.
 class VoiceOptionsSheet extends StatelessWidget {
   const VoiceOptionsSheet({
     super.key,
@@ -21,23 +21,224 @@ class VoiceOptionsSheet extends StatelessWidget {
     required this.silenceChoices,
     required this.onSilenceChanged,
     required this.windowMode,
+    this.nativeAudio = false,
     this.embedded = false,
     this.vadSettings,
     this.onVadChanged,
     this.onRecalibrate,
     this.busy = false,
     this.notice,
+    this.audioOutputs,
+    this.audioOutputBusy = false,
+    this.audioOutputNotice,
+    this.onAudioOutputSelected,
+    this.onChooseAudioOutput,
+    this.onDefaultAudioOutput,
+    this.onRefreshAudioOutputs,
+    this.audioInputs,
+    this.audioInputBusy = false,
+    this.audioInputNotice,
+    this.onAudioInputSelected,
+    this.onDefaultAudioInput,
+    this.onRefreshAudioInputs,
   });
 
   final int endSilenceMs;
   final List<int> silenceChoices;
   final ValueChanged<int> onSilenceChanged;
-  final bool windowMode, embedded;
+  final bool windowMode, nativeAudio, embedded;
   final VadSettings? vadSettings;
   final ValueChanged<VadSettings>? onVadChanged;
   final VoidCallback? onRecalibrate;
   final bool busy;
   final String? notice;
+  final List<AudioOutputDevice>? audioOutputs;
+  final bool audioOutputBusy;
+  final String? audioOutputNotice;
+  final ValueChanged<String>? onAudioOutputSelected;
+  final VoidCallback? onChooseAudioOutput;
+  final VoidCallback? onDefaultAudioOutput;
+  final VoidCallback? onRefreshAudioOutputs;
+  final List<AudioInputDevice>? audioInputs;
+  final bool audioInputBusy;
+  final String? audioInputNotice;
+  final ValueChanged<String>? onAudioInputSelected;
+  final VoidCallback? onDefaultAudioInput, onRefreshAudioInputs;
+
+  Widget _inputOptions(BuildContext context) {
+    final devices = audioInputs ?? const <AudioInputDevice>[];
+    final selected = devices.where((device) => device.selected).toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KinaiyaDesign.spaceMd),
+      child: DesignPanel(
+        key: const ValueKey('voice-group-input'),
+        padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Audio input', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose an input for the next Call or recording in this session. Refreshing devices does not activate a microphone. Permission and device labels are controlled by your browser.',
+            ),
+            if (devices.isNotEmpty) ...[
+              const SizedBox(height: KinaiyaDesign.spaceSm),
+              InputDecorator(
+                key: const ValueKey('audio-input-device'),
+                decoration: const InputDecoration(labelText: 'Available input'),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selected.length == 1
+                        ? selected.single.opaqueId
+                        : null,
+                    hint: const Text('Choose an input'),
+                    isExpanded: true,
+                    items: [
+                      for (final device in devices)
+                        DropdownMenuItem(
+                          value: device.opaqueId,
+                          child: Text(
+                            device.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: audioInputBusy || onAudioInputSelected == null
+                        ? null
+                        : (id) {
+                            if (id != null) onAudioInputSelected!(id);
+                          },
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  key: const ValueKey('audio-input-default'),
+                  onPressed: audioInputBusy ? null : onDefaultAudioInput,
+                  child: const Text('Use browser default input'),
+                ),
+                TextButton(
+                  key: const ValueKey('audio-input-refresh'),
+                  onPressed: audioInputBusy ? null : onRefreshAudioInputs,
+                  child: const Text('Refresh inputs'),
+                ),
+              ],
+            ),
+            if (audioInputBusy) const LinearProgressIndicator(),
+            if (audioInputNotice != null)
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  audioInputNotice!,
+                  key: const ValueKey('audio-input-notice'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _outputOptions(BuildContext context) {
+    final devices = audioOutputs ?? const <AudioOutputDevice>[];
+    final selected = devices.where((device) => device.selected).toList();
+    final selectedId = selected.length == 1 ? selected.single.opaqueId : null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: KinaiyaDesign.spaceMd),
+      child: DesignPanel(
+        key: const ValueKey('voice-group-output'),
+        padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Audio output',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Choose where this session plays speech. This does not change your microphone or system default.',
+            ),
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            if (devices.isNotEmpty)
+              InputDecorator(
+                key: const ValueKey('audio-output-device'),
+                decoration: const InputDecoration(
+                  labelText: 'Available output',
+                  helperText:
+                      'Device permission and availability are controlled by your browser.',
+                  helperMaxLines: 4,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: selectedId,
+                    hint: const Text('Choose an output'),
+                    isExpanded: true,
+                    items: [
+                      for (final device in devices)
+                        DropdownMenuItem(
+                          value: device.opaqueId,
+                          child: Text(
+                            device.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: audioOutputBusy || onAudioOutputSelected == null
+                        ? null
+                        : (id) {
+                            if (id != null) onAudioOutputSelected!(id);
+                          },
+                  ),
+                ),
+              ),
+            const SizedBox(height: KinaiyaDesign.spaceSm),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  key: const ValueKey('audio-output-choose'),
+                  onPressed: audioOutputBusy ? null : onChooseAudioOutput,
+                  child: const Text('Choose output'),
+                ),
+                OutlinedButton(
+                  key: const ValueKey('audio-output-default'),
+                  onPressed: audioOutputBusy ? null : onDefaultAudioOutput,
+                  child: const Text('Use system default'),
+                ),
+                TextButton(
+                  key: const ValueKey('audio-output-refresh'),
+                  onPressed: audioOutputBusy ? null : onRefreshAudioOutputs,
+                  child: const Text('Refresh devices'),
+                ),
+              ],
+            ),
+            if (audioOutputBusy)
+              const LinearProgressIndicator(
+                semanticsLabel: 'Selecting audio output',
+              ),
+            if (audioOutputNotice != null || audioOutputs == null) ...[
+              const SizedBox(height: KinaiyaDesign.spaceSm),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  audioOutputNotice ??
+                      'Audio output selection is unavailable in this browser.',
+                  key: const ValueKey('audio-output-notice'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _duration({
     required String label,
@@ -193,7 +394,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                   label: const Text('Recalibrate room noise'),
                 ),
               ),
-              if (!windowMode) ...[
+              if (nativeAudio || !windowMode) ...[
                 const SizedBox(height: KinaiyaDesign.spaceMd),
                 _duration(
                   label: 'Speech confirmation',
@@ -262,6 +463,17 @@ class VoiceOptionsSheet extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (audioInputs != null ||
+                          audioInputNotice != null ||
+                          onDefaultAudioInput != null ||
+                          onRefreshAudioInputs != null)
+                        _inputOptions(context),
+                      if (audioOutputs != null ||
+                          audioOutputNotice != null ||
+                          onChooseAudioOutput != null ||
+                          onDefaultAudioOutput != null ||
+                          onRefreshAudioOutputs != null)
+                        _outputOptions(context),
                       if (vadSettings case final settings?)
                         _dynamicOptions(context, settings),
                       DesignPanel(
@@ -284,18 +496,24 @@ class VoiceOptionsSheet extends StatelessWidget {
                               crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Text(
-                                  windowMode ? 'Live' : 'Clip capture fallback',
+                                  nativeAudio
+                                      ? 'Buffered native audio'
+                                      : windowMode
+                                      ? 'Live'
+                                      : 'Clip capture fallback',
                                 ),
-                                if (windowMode) ...[
+                                if (windowMode && !nativeAudio) ...[
                                   const Text('Conversation timing'),
                                   const Text(
                                     'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.',
                                     style: TextStyle(fontSize: 12),
                                   ),
                                 ] else ...[
-                                  const Tooltip(
-                                    message: 'Silence that ends a voice clip',
-                                    child: Text('Silence'),
+                                  Tooltip(
+                                    message: nativeAudio
+                                        ? 'End-of-speech detection for a buffered native utterance'
+                                        : 'Silence that ends a voice clip',
+                                    child: const Text('Silence'),
                                   ),
                                   DropdownButton<int>(
                                     value: endSilenceMs,
@@ -316,14 +534,18 @@ class VoiceOptionsSheet extends StatelessWidget {
                                             onSilenceChanged(v);
                                           },
                                   ),
-                                  const Text(
-                                    'Fallback clip capture: silence ends the clip. Not live model timing.',
-                                    style: TextStyle(fontSize: 12),
+                                  Text(
+                                    nativeAudio
+                                        ? 'Buffered native whole-utterance capture: end-of-speech detection finalizes each utterance, up to 30 seconds.'
+                                        : 'Fallback clip capture: silence ends the clip. Not live model timing.',
+                                    style: const TextStyle(fontSize: 12),
                                   ),
                                 ],
-                                const Text(
-                                  'Call for live listening · Tell for one message',
-                                  style: TextStyle(fontSize: 12),
+                                Text(
+                                  nativeAudio
+                                      ? 'Call captures whole utterances · Tell sends one message'
+                                      : 'Call for live listening · Tell for one message',
+                                  style: const TextStyle(fontSize: 12),
                                 ),
                               ],
                             ),

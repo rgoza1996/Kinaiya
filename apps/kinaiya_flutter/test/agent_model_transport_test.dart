@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/agent_model_client.dart';
 import 'package:kinaiya_flutter/api/agent_model_settings.dart';
 import 'package:kinaiya_flutter/api/client.dart';
+
 import 'agent_model_settings_test.dart';
 
 class ModelTestClient extends http.BaseClient {

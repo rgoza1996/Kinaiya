@@ -98,7 +98,7 @@ flowchart TB
 
 ## Get started
 
-Kinaiya runs on a native Linux host (**Ubuntu 22.04 or 24.04**, `x86_64` or `aarch64`, `Python 3.11–3.13`) with a Flutter web interface. Other Linux distributions (such as Debian 12), WSL, macOS, and Windows are not qualified by the candidate installer. Read the [Linux installation and recovery guide](docs/linux-installation.md) for the complete first-use quickstart and recovery paths; **never run the installer as root**.
+Kinaiya runs on a native Linux host (**Ubuntu 22.04, 24.04, or 26.04**, `x86_64` or `aarch64`, `Python 3.11–3.14`) with a Flutter web interface. Other Linux distributions (such as Debian 12), WSL, macOS, and Windows are not qualified by the candidate installer. Read the [Linux installation and recovery guide](docs/linux-installation.md) for the complete first-use quickstart and recovery paths; **never run the installer as root**.
 
 ### Native Linux quick install (single command)
 
@@ -116,7 +116,7 @@ curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh |
 
 ```mermaid
 flowchart LR
-    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04 · Python 3.11–3.13"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
+    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04/26.04 · Python 3.11–3.14"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
     B --> C["3. Release Verification<br/>HTTPS + Immutable Tag + SHA-256"]
     C --> D["4. Isolated Runtime<br/>Per-Generation .venv + Locked Wheels"]
     D --> E["5. Interactive Setup Wizard<br/>~/.config/kinaiya/config.json"]
@@ -179,7 +179,7 @@ Need to recover from a missing `bwrap` namespace policy, invalid API key, unreac
 <details>
 <summary><strong>Contributor / local source checkout verification commands</strong></summary>
 
-When working directly in a repository checkout on Ubuntu 22.04/24.04 (`sh install.sh` or `scripts/install.sh` can also be run locally):
+When working directly in a repository checkout on Ubuntu 22.04/24.04/26.04 (`sh install.sh` or `scripts/install.sh` can also be run locally):
 
 ```bash
 ruff check .
@@ -201,7 +201,7 @@ The planned hackathon demonstration is a focused slice through the larger [Roadm
 3. **Agent completes useful work** in its sandboxed workspace and reports verifiable evidence of the result.
 4. **Direct Agent Chat remains available** while Converse is off.
 5. **Self-building harness evaluation:** Agent generates an executable harness extension, evaluates it against a pinned baseline, and demonstrates safe rejection, promotion, or rollback.
-6. **Verified Meta integration:** Exercised if event requirements, account access, and applicable terms allow it (Meta is a target integration, not a hard product dependency; the core stays provider-configurable).
+6. **Verified Meta API integration (opt-in, provider-configurable core):** Demonstrated against live Meta Responses, `/v1/responses/input_tokens` exact prompt-count admission, buffered Meta STT (`muse-voice-transcribe-1.0`), and typed `action_format: "typed-v2"` structured actions on public/synthetic inputs through the local admission proxy — see [ADR 0002 (real-provider integration gate)](docs/adr/0002-verified-integration-slice.md), [ADR 0061 (explicit Meta Converse & exact prompt measurement)](docs/adr/0061-explicit-meta-converse.md), [ADR 0072 (typed Meta action wire)](docs/adr/0072-typed-meta-action-wire.md), [ADR 0083 (synthetic multimodal qualification)](docs/adr/0083-synthetic-multimodal-qualification.md), [bounded budget accounting](docs/meta-budget-tests.md), and the retained [Stage B live run receipt](evaluation/evidence/stage-b-2026-10-26.json). Meta remains an explicit opt-in provider behind typed disclosure scopes (`allow_cloud`), not a hard product dependency; physical microphone/camera calling, live provider billing, and full end-to-end demo qualification remain separate open gates.
 
 ### Current stage & qualification matrix
 
@@ -213,7 +213,7 @@ The planned hackathon demonstration is a focused slice through the larger [Roadm
 | **Agent (`:8761`) & Sandbox** | `bubblewrap` + `libseccomp2` isolation (`x86_64` & `aarch64`), one-use SHA-256 action permits, native submit admission, `Off`/`On-Demand` mode control | Isolated context-selector harnesses, compute-plugin host, local `/skills` and `/mcp` management | General autonomous improvement (12-case screen rejected candidate), full MCP OAuth conformance |
 | **Converse (`:8762`) & Voice** | Retained live-listening windows, audio-clock mouth motion, sleeping/wake scene, complete-prompt context budgeting | GPU Whisper/Kokoro profile, CPU Whistle STT, Supertonic 3 CPU, VibeVoice 0.5B CPU, OpenRouter TTS, GGUF worker | Sustained realtime CPU voice latency, 8 GB combined GPU voice qualification, clean-machine model installer |
 | **Decisions (`:8763`)** | Finalized-message routing (`ignore`/`queue`/`steer`/`interrupt`), two-axis live-window routing, owner trace inspection API | Typed local Laya Jev worker with pinned snapshot verification, synthetic multimodal probes | Promotion of Laya as reference default, calibrated probabilistic routing |
-| **Distribution & Clients** | Native Linux single-command installer/updater/rollback (`Ubuntu 22.04/24.04`), Flutter web UI, deterministic Android APK & iOS sideload IPA bundlers | Scheduled midnight-Pacific (`America/Los_Angeles`) nightly pipeline, GitHub OIDC build-provenance attestations | Production store signing secrets, physical clean-device mobile & desktop voice qualification |
+| **Distribution & Clients** | Native Linux single-command installer/updater/rollback (`Ubuntu 22.04/24.04/26.04`), Flutter web UI, deterministic Android APK & iOS sideload IPA bundlers | Scheduled midnight-Pacific (`America/Los_Angeles`) nightly pipeline, GitHub OIDC build-provenance attestations | Production store signing secrets, physical clean-device mobile & desktop voice qualification |
 
 ---
 

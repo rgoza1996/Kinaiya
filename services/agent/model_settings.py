@@ -34,7 +34,7 @@ from services.settings.provider_factory import (
 )
 
 HOST_PROFILE = "host-default"
-EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
+EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
 MAX_SETTINGS_BYTES = 512 * 1024
 AUXILIARY_TASKS = {
     "analysis": "Analysis",
@@ -208,10 +208,20 @@ class AgentModelSettings:
                 self.failures.add(name)
         for name in [HOST_PROFILE, *factories]:
             levels = declarations.get(name, [])
+            from packages.providers.meta_policy import LEGACY_META_EFFORTS, meta_reasoning_options
+
+            declared = self.base.get(name)
+            allowed = (
+                meta_reasoning_options(declared.info.model)
+                if declared is not None and declared.info.provider == "meta"
+                else LEGACY_META_EFFORTS
+                if declared is not None
+                else EFFORTS
+            )
             if (
                 not isinstance(levels, list)
                 or len(levels) > 6
-                or any(type(level) is not str or level not in EFFORTS for level in levels)
+                or any(type(level) is not str or level not in allowed for level in levels)
                 or len(set(levels)) != len(levels)
                 or (levels and name == HOST_PROFILE and host_factory is None)
             ):
@@ -431,6 +441,17 @@ class AgentModelSettings:
         # mutable attributes. Read its protected adapter, never mutate it.
         adapter = getattr(provider, "provider", provider)
         value = getattr(adapter, "reasoning_effort", getattr(adapter, "effort", None))
+        if value == "max":
+            from packages.providers.meta_policy import WONDER_STANDARD_MODEL
+
+            info = getattr(adapter, "info", None)
+            return (
+                value
+                if info is not None
+                and info.provider == "meta"
+                and info.model == WONDER_STANDARD_MODEL
+                else None
+            )
         return value if type(value) is str and value in EFFORTS else None
 
     @staticmethod
@@ -1087,6 +1108,8 @@ class AgentModelSettings:
         }
 
     def _catalog_profiles(self):
+        from packages.providers.meta_policy import meta_reasoning_options
+
         if self.catalog is None:
             return []
         profiles = self.catalog.snapshot()["profiles"]
@@ -1120,7 +1143,7 @@ class AgentModelSettings:
                     "auxiliary_selectable": selectable,
                     "provider": declaration_info(config).model_dump(),
                     "reasoning": config.get("reasoning_effort"),
-                    "reasoning_options": ["none", "minimal", "low", "medium", "high", "xhigh"]
+                    "reasoning_options": list(meta_reasoning_options(config["model"]))
                     if kind == "meta"
                     else ["none"]
                     if kind == "lmstudio"

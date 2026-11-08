@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinaiya_flutter/api/models.dart';
@@ -6,6 +7,7 @@ import 'package:kinaiya_flutter/audio/speech_audio.dart';
 import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
+
 import 'live_capture_test.dart' show CaptureAudio, ControlledApi;
 
 final session = SessionInfo(

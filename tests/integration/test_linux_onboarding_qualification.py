@@ -339,11 +339,9 @@ async def test_clean_linux_install_to_first_session_end_to_end_journey(tmp_path,
         ]
     )
     setup_result = wizard.run_wizard(layout, tty=tty)
-    assert setup_result == {
-        "ready": False,
-        "provider_connection": "not_checked",
-        "next": "kinaiya serve host",
-    }
+    assert setup_result["ready"] is False
+    assert setup_result["provider_connection"] == "not_checked"
+    assert setup_result["next"] == "kinaiya serve host"
     assert "Provider connection is not checked" in tty.output
 
     config = json.loads(layout.config.read_text(encoding="utf-8"))
@@ -518,7 +516,7 @@ async def test_layout_and_configuration_matrix_spaces_idempotency_and_bootstrap_
     ):
         bootstrap.run(["--channel", "nightly"], invoking_dir=tmp_path)
     assert "Choose install location [1]: " in decline_tty.output
-    assert "Review the plan. Type yes to download and install: " in decline_tty.output
+    assert "Review the plan. Download and install? (y/n) [n]: " in decline_tty.output
     assert not list(bootstrap_home.iterdir())
     plan_json = json.loads(plan_stdout.getvalue().strip())
     assert plan_json["channel"] == "nightly"
