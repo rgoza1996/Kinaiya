@@ -627,24 +627,25 @@ class WizardNavigator:
         self.tty.write("  [2] Both Agent & Converse (configure independently)\n")
         self.tty.write("  [3] Agent only\n")
         self.tty.write("  [4] Converse only\n")
-        raw = self._raw_prompt(
-            "Enable optional Converse text services? (y/n/reuse/1-4)",
-            default=default_hint,
-        )
-        cleaned = raw.strip().lower()
-        if not cleaned:
-            return "yes" if default_bool else "no"
-        if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
-            return cleaned
-        if cleaned in {"1", "reuse", "r"}:
-            return "reuse"
-        if cleaned in {"2", "yes", "y", "both"}:
-            return "yes"
-        if cleaned in {"3", "no", "n", "agent", "agent_only"}:
-            return "no"
-        if cleaned in {"4", "converse", "converse_only"}:
-            return "converse_only"
-        return cleaned
+        while True:
+            raw = self._raw_prompt(
+                "Enable optional Converse text services? (y/n/reuse/1-4)",
+                default=default_hint,
+            )
+            cleaned = raw.strip().lower()
+            if not cleaned:
+                return "yes" if default_bool else "no"
+            if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
+                return cleaned
+            if cleaned in {"1", "reuse", "r"}:
+                return "reuse"
+            if cleaned in {"2", "yes", "y", "both"}:
+                return "yes"
+            if cleaned in {"3", "no", "n", "agent", "agent_only"}:
+                return "no"
+            if cleaned in {"4", "converse", "converse_only"}:
+                return "converse_only"
+            self.tty.write("Please enter y or n.\n")
 
     def _apply_role_reuse_shortcut(self, default_val: str) -> None:
         """Apply fast-path role reuse for Converse while requiring independent Decisions model (#505, #517)."""

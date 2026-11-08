@@ -6,6 +6,7 @@ import hashlib
 import os
 import shlex
 import stat
+import time
 
 import pytest
 
@@ -167,6 +168,9 @@ def test_snapshot_refuses_invalid_raw_fd_or_bytes(opened, tmp_path, damage):
 def test_snapshot_refuses_same_length_mutation_during_copy(opened, monkeypatch):
     program, _, (descriptor, _) = opened
     original = program.read_bytes()
+    # Backdate initial mtime so kernel-updated mtime on write cannot collide on coarse clocks
+    past = max(1, int(time.time()) - 100)
+    os.utime(program, (past, past))
     real_pread = os.pread
 
     def mutate(fd, count, offset):
