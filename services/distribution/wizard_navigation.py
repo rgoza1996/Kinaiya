@@ -450,7 +450,7 @@ class WizardNavigator:
         self.tty.write(f"  [1] Default workspace ({default_ws}) {c_em}(recommended){RESET}\n")
         self.tty.write(f"  [2] Current working directory ({cwd})\n")
         self.tty.write(f"  [3] Custom directory path...\n")
-        raw = self._raw_prompt("Select workspace [1-3] or enter path", default=default_ws)
+        raw = self._raw_prompt("Authorized workspace [1-3] or enter path", default=default_ws)
         cleaned = raw.strip()
         if not cleaned or cleaned == "1" or cleaned == default_ws:
             return str(validate_workspace_path(default_ws))
@@ -504,7 +504,7 @@ class WizardNavigator:
         self.tty.write(f"\n{pointer} {c_lbl}Private Data Directory Selection:{RESET}\n")
         self.tty.write(f"  [1] Default private data directory ({default_data}) {c_em}(recommended){RESET}\n")
         self.tty.write(f"  [2] Custom directory path...\n")
-        raw = self._raw_prompt("Select data directory [1-2] or enter path", default=default_data)
+        raw = self._raw_prompt("Private data directory [1-2] or enter path", default=default_data)
         cleaned = raw.strip()
         if not cleaned or cleaned == "1" or cleaned == default_data:
             return str(validate_data_path(default_data))
@@ -553,10 +553,115 @@ class WizardNavigator:
             models_path="/v1/models" if raw_url.rstrip("/").endswith("/v1") else "/models",
         )
 
+    def _prompt_service_topology(self, default_val: str) -> str:
+        """Prompt for 3-way service topology selection (#513, #505, #517)."""
+        default_bool = default_val.strip().lower() in {"yes", "y", "both", "1"}
+        default_hint = "both" if default_bool else "no"
+
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    label="Both Agent & Converse (Reuse Agent LLM)",
+                    value="reuse",
+                    description="Autonomous Agent + Converse dialogue (reuses Agent LLM) + independent Decisions router",
+                    recommended=True,
+                ),
+                MenuItem(
+                    label="Both Agent & Converse (Configure independently)",
+                    value="yes",
+                    description="Custom models for Agent, Converse dialogue, and Decisions router",
+                ),
+                MenuItem(
+                    label="Agent only",
+                    value="no",
+                    description="Run autonomous coding Agent only; Converse and Decisions disabled",
+                ),
+                MenuItem(
+                    label="Converse only",
+                    value="converse_only",
+                    description="Run conversational voice/dialogue character with Decisions timing without Agent",
+                ),
+            ]
+            try:
+                selected_idx = curses_radiolist(
+                    "Service Topology Selection",
+                    items,
+                    default_index=0,
+                    subtitle="Kinaiya supports Both Agent & Converse (default), Agent-only, and Converse-only.",
+                    allow_back=True,
+                    tty=self.tty,
+                )
+                return items[selected_idx].effective_value
+            except MenuCancelled:
+                raise InstallError("Setup cancelled; no configuration written") from None
+            except MenuGoBack:
+                return ":back"
+
+        # Line-mode fallback
+        c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+        c_em = PALETTE.emerald.fg_sequence(self.color_mode)
+        pointer = (
+            self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode))
+            if self.color_mode != ColorMode.NONE
+            else ">"
+        )
+        self.tty.write(f"\n{pointer} {c_lbl}Service Topology Selection:{RESET}\n")
+        self.tty.write(
+            f"  [1] Both Agent & Converse (reuse Agent LLM) {c_em}(recommended){RESET}\n"
+        )
+        self.tty.write("  [2] Both Agent & Converse (configure independently)\n")
+        self.tty.write("  [3] Agent only\n")
+        self.tty.write("  [4] Converse only\n")
+        raw = self._raw_prompt(
+            "Enable optional Converse text services? (y/n/reuse/1-4)",
+            default=default_hint,
+        )
+        cleaned = raw.strip().lower()
+        if not cleaned:
+            return "yes" if default_bool else "no"
+        if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
+            return cleaned
+        if cleaned in {"1", "reuse", "r"}:
+            return "reuse"
+        if cleaned in {"2", "yes", "y", "both"}:
+            return "yes"
+        if cleaned in {"3", "no", "n", "agent", "agent_only"}:
+            return "no"
+        if cleaned in {"4", "converse", "converse_only"}:
+            return "converse_only"
+        return cleaned
+
+    def _apply_role_reuse_shortcut(self, default_val: str) -> None:
+        """Apply fast-path role reuse for Converse while requiring independent Decisions model (#505, #517)."""
+        self._record_answer("converse", "yes")
+        endpoint_raw = self.answers.get("endpoint", self.defaults["endpoint"])
+        adapter, endpoint = parse_endpoint_input(endpoint_raw)
+        model = self.answers.get("model", self.defaults["model"])
+        allow_cloud = self.answers.get("allow_cloud", self.defaults["allow_cloud"])
+        cred_env = self.answers.get("credential_env", self.defaults["credential_env"])
+
+        conv_adapter = "lmstudio" if adapter == "lmstudio" else "compatible"
+        self._record_answer("converse_adapter", conv_adapter)
+        self._record_answer("converse_endpoint", endpoint)
+        self._record_answer("converse_model", model)
+        self._record_answer("converse_allow_cloud", allow_cloud)
+        self._record_answer("converse_credential_env", cred_env)
+
+        # Decisions router model must be set independently (#517)
+        self._record_answer("decisions_adapter", "compatible")
+        self._record_answer("decisions_endpoint", endpoint)
+        self._record_answer("decisions_allow_cloud", allow_cloud)
+        self._record_answer("decisions_credential_env", cred_env)
+        dec_model = self._raw_prompt(
+            "Decisions router model name (independent model required, e.g. meta-llama/llama-3.2-3b-instruct)",
+            default="meta-llama/llama-3.2-3b-instruct",
+        )
+        self._record_answer("decisions_model", dec_model or "meta-llama/llama-3.2-3b-instruct")
+
     def _active_steps(self) -> list[_PromptStep]:
         steps: list[_PromptStep] = []
         converse_val = self.answers.get("converse", self.defaults.get("converse", "no"))
-        converse_enabled = converse_val.strip().lower() == "yes"
+        converse_enabled = converse_val.strip().lower() in {"yes", "converse_only"}
         for step in _ALL_STEPS:
             if self.section is not None and step.section != self.section:
                 continue
@@ -599,7 +704,7 @@ class WizardNavigator:
     def _record_answer(self, key: str, value: str) -> None:
         previous = self.answers.get(key)
         self.answers[key] = value
-        if key == "converse" and value.strip().lower() != "yes":
+        if key == "converse" and value.strip().lower() not in {"yes", "converse_only"}:
             # Discard any stale Converse/Decisions answers when Converse is disabled.
             for dep in _CONVERSE_DEPENDENT_KEYS:
                 self.answers.pop(dep, None)
@@ -729,7 +834,6 @@ class WizardNavigator:
                 default = self._default_for(step.key)
                 if step.key in {
                     "allow_cloud",
-                    "converse",
                     "converse_allow_cloud",
                     "decisions_allow_cloud",
                 }:
@@ -740,6 +844,27 @@ class WizardNavigator:
                         else:
                             self.tty.write("Already at the first step.\n")
                         steps = self._active_steps()
+                        continue
+                    self._record_answer(step.key, raw)
+                    steps = self._active_steps()
+                    index += 1
+                    continue
+
+                if step.key == "converse":
+                    raw = self._prompt_service_topology(default)
+                    if is_cancel_command(raw):
+                        raise InstallError("Setup cancelled; no configuration written")
+                    if is_back_command(raw, at_confirm=False):
+                        if index > 0:
+                            index -= 1
+                        else:
+                            self.tty.write("Already at the first step.\n")
+                        steps = self._active_steps()
+                        continue
+                    if raw == "reuse":
+                        self._apply_role_reuse_shortcut(default)
+                        steps = self._active_steps()
+                        index += len(_CONVERSE_DEPENDENT_KEYS) + 1
                         continue
                     self._record_answer(step.key, raw)
                     steps = self._active_steps()
@@ -1017,7 +1142,10 @@ class WizardNavigator:
         credential_env = (
             self.answers.get("credential_env", self.defaults["credential_env"]).strip() or None
         )
-        converse = self.answers.get("converse", self.defaults["converse"]).strip().lower() == "yes"
+        converse_raw = self.answers.get("converse", self.defaults["converse"]).strip().lower()
+        is_converse_only = converse_raw == "converse_only"
+        converse = converse_raw in {"yes", "converse_only"}
+        agent_enabled = not is_converse_only
         converse_profile: dict[str, Any] | None = None
         decisions_profile: dict[str, Any] | None = None
         if converse:
@@ -1086,6 +1214,7 @@ class WizardNavigator:
                 allow_cloud=allow_cloud,
                 credential_env=credential_env,
                 converse=converse,
+                agent=agent_enabled,
                 converse_profile=converse_profile,
                 decisions_profile=decisions_profile,
             )
@@ -1106,6 +1235,7 @@ class WizardNavigator:
             "allow_cloud": allow_cloud,
             "credential_env": agent_credential_env,
             "converse": converse,
+            "agent": agent_enabled,
         }
         if adapter is not None:
             setup_kwargs["adapter"] = adapter

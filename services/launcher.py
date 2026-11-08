@@ -462,8 +462,12 @@ def managed_guard_roots():
 
 def host_service_names(config):
     """Managed default has no Converse, Decisions, resources, voice or model work."""
-    names = ["session", "agent"]
-    if config.get("distribution", {}).get("converse") is True:
+    dist = config.get("distribution") if isinstance(config.get("distribution"), dict) else {}
+    agent_enabled = dist.get("agent", True) is not False
+    names = ["session"]
+    if agent_enabled:
+        names.append("agent")
+    if dist.get("converse") is True:
         names += ["converse", "decisions"]
     if config.get("resources", {}).get("enabled") is True:
         names.append("resources")

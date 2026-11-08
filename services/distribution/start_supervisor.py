@@ -63,8 +63,14 @@ def required_service_ports(config: Mapping[str, Any], *, web_port: int = 8780) -
     validated_web_port = _validate_port(web_port, "web")
     ports: dict[str, int] = {
         "session": _service_port(config, "session", DEFAULT_PORTS["session"]),
-        "agent": _service_port(config, "agent", DEFAULT_PORTS["agent"]),
     }
+    agent_enabled = (
+        config.get("distribution", {}).get("agent", True) is not False
+        if isinstance(config.get("distribution"), Mapping)
+        else True
+    )
+    if agent_enabled:
+        ports["agent"] = _service_port(config, "agent", DEFAULT_PORTS["agent"])
     converse_enabled = (
         isinstance(config.get("distribution"), Mapping)
         and config["distribution"].get("converse") is True

@@ -529,3 +529,95 @@ def test_structured_workspace_selection_custom_path_and_protected_refusal(
     with pytest.raises(InstallError, match="control characters"):
         validate_workspace_path("/tmp/bad\x01path")
 
+
+def test_service_topology_reuse_shortcut_with_independent_decisions_model(
+    tmp_path: Path,
+) -> None:
+    """Issues #505, #513, #517: 1-step Converse role reuse with independent Decisions model."""
+    layout = Layout.for_home(tmp_path)
+    tty = FakeTerminal(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint
+            "qwen2.5-coder-32b",  # model
+            "no",  # allow_cloud
+            "",  # credential_env
+            "1",  # topology: option 1 (reuse Agent LLM)
+            "meta-llama/llama-3.2-3b-instruct",  # independent Decisions router model (#517)
+            "yes",  # confirm write
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    # Agent
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-32b"
+    assert cfg["providers"]["agent"]["base_url"] == "http://127.0.0.1:1234"
+    # Converse reuses Agent LLM
+    assert cfg["providers"]["converse"]["model"] == "qwen2.5-coder-32b"
+    assert cfg["providers"]["converse"]["base_url"] == "http://127.0.0.1:1234"
+    # Decisions has independent router model (#517)
+    assert cfg["providers"]["decisions"]["model"] == "meta-llama/llama-3.2-3b-instruct"
+    assert cfg["distribution"]["converse"] is True
+    assert "Service Topology Selection:" in tty.output
+
+
+def test_service_topology_agent_only(tmp_path: Path) -> None:
+    """Issue #513: Agent-only mode disables Converse and Decisions."""
+    layout = Layout.for_home(tmp_path)
+    tty = FakeTerminal(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint
+            "qwen2.5-coder-32b",  # model
+            "no",  # allow_cloud
+            "",  # credential_env
+            "3",  # topology: option 3 (Agent only)
+            "yes",  # confirm write
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-32b"
+    assert cfg["distribution"]["converse"] is False
+
+
+def test_service_topology_converse_only(tmp_path: Path) -> None:
+    """Issue #513: Converse-only mode enables Converse & Decisions without Agent."""
+    layout = Layout.for_home(tmp_path)
+    tty = FakeTerminal(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint (initial fallback)
+            "qwen2.5-coder-32b",  # model (initial fallback)
+            "no",  # allow_cloud
+            "",  # credential_env
+            "4",  # topology: option 4 (Converse only)
+            "compatible",  # converse_adapter
+            "http://127.0.0.1:1234",  # converse_endpoint
+            "converse-dialogue-model",  # converse_model
+            "no",  # converse_allow_cloud
+            "",  # converse_credential_env
+            "compatible",  # decisions_adapter
+            "http://127.0.0.1:1234",  # decisions_endpoint
+            "meta-llama/llama-3.2-3b-instruct",  # decisions_model
+            "no",  # decisions_allow_cloud
+            "",  # decisions_credential_env
+            "yes",  # confirm write
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert "agent" not in cfg["providers"]
+    assert cfg["providers"]["converse"]["model"] == "converse-dialogue-model"
+    assert cfg["providers"]["decisions"]["model"] == "meta-llama/llama-3.2-3b-instruct"
+    assert cfg["distribution"]["converse"] is True
+    assert cfg["distribution"]["agent"] is False
+
+
+

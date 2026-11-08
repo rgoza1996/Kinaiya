@@ -936,6 +936,11 @@ def _check_provider_references(
         }
 
     dist = config.get("distribution")
+    agent_enabled = (
+        dist.get("agent", True) is not False
+        if isinstance(dist, dict) and "agent" in dist
+        else True
+    )
     converse_enabled = (
         bool(dist.get("converse"))
         if isinstance(dist, dict) and "converse" in dist
@@ -952,7 +957,7 @@ def _check_provider_references(
         if role not in providers and role != "agent":
             continue
         raw_profile = providers.get(role)
-        role_enabled = True if role == "agent" else converse_enabled
+        role_enabled = agent_enabled if role == "agent" else converse_enabled
         if not isinstance(raw_profile, dict):
             if role_enabled:
                 failures.append(f"Provider role {role!r} is missing or not an object.")
@@ -1180,10 +1185,17 @@ def _check_service_reachability(
         _extract_port(config, "converse_port", "converse_url", 8762) if converse_enabled else None
     )
 
+    agent_enabled = True
+    if isinstance(config, dict):
+        dist = config.get("distribution")
+        if isinstance(dist, dict) and "agent" in dist and dist.get("agent") is False:
+            agent_enabled = False
+
     target_ports: list[tuple[str, int]] = [
         ("session", session_port),
-        ("agent", agent_port),
     ]
+    if agent_enabled:
+        target_ports.append(("agent", agent_port))
     if converse_port is not None:
         target_ports.append(("converse", converse_port))
 
