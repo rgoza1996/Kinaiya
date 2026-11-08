@@ -504,6 +504,17 @@ Agent coordinates subagents without requiring a character per worker. Parent acc
 
 Connecting Converse to an external agent is different from Kinaiya Agent using skills originally written for that agent. Both are required directions of interoperability. The skill manager, MCP host, plugin host, and command registry belong to Agent infrastructure and remain usable with Converse absent. Their contracts are specified in Sections 31–32.
 
+### 8.5 Agent-agnostic Converse and standalone dialogue runtime
+
+Future plans include decoupling Converse so it can operate as an agent-agnostic voice and conversational dialogue runtime:
+
+1. **Standalone Converse mode**: Converse operates with its conversational LLM, voice pipeline (STT/TTS), and an independent Decisions router model without requiring Kinaiya Agent to be configured or started.
+2. **External agent runtime delegation**: Through the Section 8.2 adapter contract, Converse delegates authorized tasks across versioned HTTP/SSE endpoints to external agent runtimes (such as Pi, Hermes Agent, OpenClaw, or custom workers) rather than assuming a local Kinaiya Agent process.
+3. **Decoupled capabilities**: Character personality, expressive speech, and natural-language interaction live exclusively in Converse. The target agent manages its own internal skills, MCP servers, tools, and execution harnesses without leaking foreign commands, syntax, or agent prompts into the dialogue interface.
+4. **Independent Decisions routing**: As an architectural invariant, Decisions timing and routing remain coupled to Converse dialogue (for turn-taking gates, barge-in, and speech release) but strictly decoupled from agent implementation specifics.
+
+This capability is tracked on the roadmap as a future architectural milestone rather than claimed as currently shipped behavior.
+
 ## 9. Action truth and completion reporting
 
 The shared transcript records speech, but a spoken claim cannot create an execution fact. Converse saying “done” must not mark a task complete; an Agent model declaring success must not bypass required evidence.
