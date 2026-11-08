@@ -75,8 +75,8 @@ The master design also includes a 14-step interactive **CLI Installer & Setup
 Wizard decision tree** (28 paired standalone OS terminal boards in motion-on and
 motion-off variants, rendered outside the Harness GUI with a deterministic 68×14
 ASCII filter adaptation of Kinaiya's moon from the Moonlit Home screen) covering
-every choice and branch in `install.sh` and `kinaiya` CLI onboarding
-(`#261`, `#335`, `#336`, `#381–#402`):
+every choice and branch in `install.sh` and `kinaiya` CLI/TUI onboarding
+(`#261`, `#335`, `#336`, `#381–#402`, `#497–#507`):
 1. **01 · Bootstrap Entry**: release channel (`stable` vs `nightly`), install root
    location (`~/.local/share/kinaiya` default XDG vs invoking directory `./kinaiya`
    vs custom `--workspace`/`--data-dir`), and human stage progress vs `--json`.
@@ -90,40 +90,17 @@ every choice and branch in `install.sh` and `kinaiya` CLI onboarding
    quiet log (`~/.cache/kinaiya/install.log`, `#384`), default handoff to
    `kinaiya setup`, `--no-setup`, existing `config.json` preservation, and
    staging rollback on failure.
-5. **05 · Cancelled (`[n]`), `--no-setup`, or Existing Config Preserved**:
-   non-destructive exit branches where zero files are mutated or existing
-   configuration is preserved.
-6. **06 · Setup Wizard Mode Choice**: width-aware ASCII mascot (`#386`), Quick
-   Setup (`--quick` / `:quick`, `#387`), Advanced Setup (`--advanced`), targeted
-   section reconfiguration (`--section`, `#388`), and `:back` / `:cancel`.
-7. **07 · Provider Adapter & Model Choice**: local loopback (`lmstudio`,
-   `compatible`), remote cloud (`meta`, OpenRouter), searchable model picker
-   (`#390`), manual model ID fallback, and adapter validation (`#335`).
-8. **08 · Converse Toggle & Independent Per-Role Profiles**: Agent-only default
-   (`Converse = n`) vs enabled Converse (`Converse = y`) with independent
-   Converse and Decisions adapters, cloud disclosure consent, and credentials
-   (`#335`).
-9. **09 · Cloud Disclosure (`y/n`) & Credential Branches**: masked API-key paste
-   saved to `0600 ~/.config/kinaiya/providers.env` (`#389`), environment variable
-   name reference, keeping an existing key, or clearing a saved key.
-10. **10 · First-Run Named Custom `.env` API Profile (`#402`)**: creating a new
-    named profile (`p01..p07+`) with custom endpoints and optional blank max
-    tokens, choosing an existing profile, or skipping without disturbing setup.
-11. **11 · Bounded Connection Verification Probe (`#391`) & Final Write `[y/N]`**:
-    probe outcomes (`[CONFIGURED · UNTESTED]`, `[VERIFIED · MODEL LISTED]`,
-    `[AUTH FAILED · 401]`, `[UNREACHABLE · OFFLINE]`) and final `[y/N]` write
-    confirmation.
-12. **12 · Setup Completion Summary & Truthful Readiness Badges (`#397`)**:
-    written `0600` file summary, truthful `ready: false` badge until host starts,
-    and immediate next action branches.
-13. **13 · First Session Launch (`kinaiya start`), Auto Local Sign-In (`#393`) &
-    `kinaiya doctor` (`#392`)**: one-command local launch (`#395`), single-use
-    local owner sign-in exchange (`#393`), trusted local UI auto-connect (`#396`),
-    and owner credential rotation (`#394`).
-14. **14 · Lifecycle & Recovery CLI Branches**: `kinaiya update --plan` vs
-    `kinaiya update`, `kinaiya recover`, `kinaiya rollback --generation <id>`,
-    and `kinaiya uninstall` (default data retention vs `--delete-data
-    --confirm-data-deletion DELETE`, never deleting `workspace`).
+5. **05 · Cancelled (`Ctrl-C` / `ESC` / `[n]`), `--no-setup`, or Existing Config Preserved**:
+   graceful `KeyboardInterrupt`/`EOFError` signal handling (`Setup cancelled. Exiting.`, exit `130`, `#497`, `#501`) and non-destructive exit branches where zero files are mutated or existing configuration is preserved.
+6. **06 · Curses Arrow-Key TUI & Workspace Selector**: width-aware ASCII mascot (`#386`), curses arrow-key menu (`curses.use_default_colors()`, non-TTY line fallback, `#498`, `#501`), interactive workspace directory browser (`#498`, `#504`), Quick Setup (`--quick`), Advanced Setup (`--advanced`), targeted section reconfiguration (`--section`, `#388`), and `ESC`/`:back`/`Ctrl-C`.
+7. **07 · Unified TUI Provider Roster (`#498`, `#503`)**: unified arrow-key provider menu with `[✓ configured]` / `[● running :1234]` status badges across local (`lmstudio`, `llama.cpp`, `compatible`), cloud (`meta`, OpenRouter), and unlimited custom OpenAI-compatible `.env` profiles (`p01..p07+`, `#352`, `#402`).
+8. **08 · Converse Toggle & Multi-Role Reuse Shortcut (`#335`, `#505`)**: Agent-only default (`Converse = n`) vs enabled Converse (`Converse = y`) with a single-keystroke reuse shortcut (`Reuse Agent profile for Converse & Decisions [Recommended]`) or independent per-role provider/model/disclosure configuration.
+9. **09 · Cloud Disclosure & Credential Prompt Before `/models` (`#389`, `#498`, `#502`)**: explicit remote cloud disclosure (`y/n`) and `[K]eep` / `[R]eplace` / `[C]lear` / env-var credential handling (`0600 ~/.config/kinaiya/providers.env`) collected *before* live model discovery so authenticated endpoints can be queried.
+10. **10 · Authenticated `GET /models` Picker & Reasoning Effort (`#352`, `#498`, `#502`)**: live authenticated `GET {base_url}{models_path}` discovery (`Authorization: Bearer` + engine routes like `/v1/systemone`), interactive curses model picker with manual model ID fallback, optional blank max tokens, and reasoning effort (`none`/`low`/`medium`/`high`).
+11. **11 · Bounded Connection Verification Probe (`#391`) & Compact Final Confirmation (`#498`)**: probe outcomes (`[CONFIGURED · UNTESTED]`, `[VERIFIED · MODEL LISTED]`, `[AUTH FAILED · 401]`, `[UNREACHABLE · OFFLINE]`) and compact TUI confirmation (`[✓ Save & Apply]` / `[← Back]` / `[✕ Cancel]`).
+12. **12 · Setup Completion Summary, Readiness Badges (`#397`) & Immediate Launch Prompt (`#506`)**: written `0600` file summary, truthful `ready: false` badge until host starts, and post-setup `Start Kinaiya now? [Y/n]` prompt (`execv` into `kinaiya start`).
+13. **13 · Bare `kinaiya` Launch (`#500`), Loopback Auto-Login & SHA-256 Refresh Token (`#393`, `#396`, `#499`, `#507`) & `kinaiya doctor` (`#392`)**: bare `kinaiya` default entrypoint (starts supervisor + UI when configured or offers `kinaiya setup`), loopback auto-bootstrap (`POST /v1/auth/bootstrap-ticket` + `POST /v1/auth/refresh` rotating 30-day SHA-256 hashed refresh token in `0600 ui-session.json`), and `kinaiya auth rotate-owner` (`#394`).
+14. **14 · Lifecycle & Recovery CLI Branches**: `kinaiya update --plan` vs `kinaiya update`, `kinaiya recover`, `kinaiya rollback --generation <id>`, and `kinaiya uninstall` (default data retention vs `--delete-data --confirm-data-deletion DELETE`, never deleting `workspace`).
 
 The app implementation follows [ADR 0059](../../docs/adr/0059-home-and-optional-converse.md);
 the updated bubbles, transitions and speech behavior follow
@@ -182,23 +159,24 @@ status indicators distinguishable from the behavior of the running product.
 ## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-59, modified `2026-11-03T23:45:00.000000Z`. It contains fourteen pages and 369
+60, modified `2026-11-08T03:30:00.000000Z`. It contains fourteen pages and 369
 real top-level boards (291 on the current page), excluding root sentinels.
-Archive size: **244,442,723 bytes**; SHA-256:
-`a1a9c6f91c57978874407ea6166dbdbd7669cfb6ebd23edc528fae55aaf4390c`.
+Archive size: **244,585,315 bytes**; SHA-256:
+`c7c8386e93df35a81c0f7d03316d8bfd062cfe43b9234488a17fc877e4409491`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
 motion detail/state boards were added in revision 53, revision 54 synchronized
 twenty editable text layers across the Home, Converse, Agent and Options
 Overview/Models boards (`#286–#310`), revisions 55–56 updated the Provider,
 Models, and Home/Character boards (`#352–#353`) and added twelve paired Custom API
-prototype boards (`#352`), and revisions 57–59 add twenty-eight paired standalone
+prototype boards (`#352`), and revisions 57–60 add and synchronize twenty-eight paired standalone
 OS terminal CLI Installer & Setup Wizard prototype boards (`#261`, `#335`, `#336`,
-`#381–#402`: 14 motion-on and 14 motion-off standalone terminal screens with
+`#381–#402`, `#497–#507`: 14 motion-on and 14 motion-off standalone terminal screens with
 multi-color ANSI terminal syntax highlighting and the multi-tone deterministic
 68×14 ASCII Moon from the Moonlit Home screen, linking every choice
-and branch in `install.sh`, `kinaiya setup`, `kinaiya start`, `kinaiya doctor`,
-`kinaiya auth rotate-owner`, `kinaiya update`, `kinaiya recover`, `kinaiya rollback`,
+and branch in `install.sh`, `kinaiya` bare command, `kinaiya setup` curses arrow-key TUI,
+authenticated `GET /models` discovery, `kinaiya start`, loopback auto-login & SHA-256 refresh tokens,
+`kinaiya doctor`, `kinaiya auth rotate-owner`, `kinaiya update`, `kinaiya recover`, `kinaiya rollback`,
 and `kinaiya uninstall`).
 All prior real board identities, names and geometry remain; the other thirteen
 pages and all 100 uploaded artwork metadata/blob paths remain byte-exact.
