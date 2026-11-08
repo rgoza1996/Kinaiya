@@ -622,16 +622,18 @@ def test_kinaiya_help_subcommand(capsys: pytest.CaptureFixture) -> None:
     assert "usage:" in out
 
 
-def test_setup_no_start_flag_bypasses_start(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_setup_no_start_flag_bypasses_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Issue #506: --no-start saves configuration without prompting or starting services."""
     layout = Layout.for_home(tmp_path)
     monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
 
     from services.distribution import wizard
+
     monkeypatch.setattr(wizard, "run_wizard", lambda *args, **kwargs: {"status": "wizard_done"})
 
     parser = launcher.build_parser()
     args = parser.parse_args(["setup", "--no-start"])
     res = cli.dispatch(args)
     assert res == {"status": "wizard_done"}
-

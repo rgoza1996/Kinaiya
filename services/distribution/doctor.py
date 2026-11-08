@@ -937,9 +937,7 @@ def _check_provider_references(
 
     dist = config.get("distribution")
     agent_enabled = (
-        dist.get("agent", True) is not False
-        if isinstance(dist, dict) and "agent" in dist
-        else True
+        dist.get("agent", True) is not False if isinstance(dist, dict) and "agent" in dist else True
     )
     converse_enabled = (
         bool(dist.get("converse"))

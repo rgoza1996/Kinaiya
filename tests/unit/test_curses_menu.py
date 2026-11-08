@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import curses
-import io
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -73,7 +71,10 @@ def test_sanitize_pasted_input():
     pasted = "\x1b[200~sk-ant-secret-key-123\x1b[201~"
     assert sanitize_pasted_input(pasted) == "sk-ant-secret-key-123"
     # Newlines
-    assert sanitize_pasted_input("\r\n  http://localhost:11434/v1  \n") == "  http://localhost:11434/v1  "
+    assert (
+        sanitize_pasted_input("\r\n  http://localhost:11434/v1  \n")
+        == "  http://localhost:11434/v1  "
+    )
 
 
 def test_flush_stdin_safely_handles_errors():
@@ -115,7 +116,9 @@ def test_is_curses_available():
 
 def test_line_radiolist_fallback():
     options = [
-        MenuItem(label="LM Studio", description="Local loopback http://127.0.0.1:1234", recommended=True),
+        MenuItem(
+            label="LM Studio", description="Local loopback http://127.0.0.1:1234", recommended=True
+        ),
         MenuItem(label="Meta / Muse Cloud", description="Managed cloud service"),
         MenuItem(label="Custom endpoint", description="Manual URL"),
     ]
@@ -167,9 +170,7 @@ def test_line_checklist_fallback():
 
     # Default indices (0 and 1) on ENTER
     tty = _FakeTTY([""])
-    indices = curses_checklist(
-        "Select Services", options, default_indices=[0, 1], tty=tty
-    )
+    indices = curses_checklist("Select Services", options, default_indices=[0, 1], tty=tty)
     assert indices == [0, 1]
 
     # Select 1,3
@@ -195,7 +196,7 @@ def test_mock_curses_radiolist_screen():
     mock_stdscr.getmaxyx.return_value = (24, 80)
     mock_stdscr.getch.side_effect = [
         curses.KEY_DOWN,  # Move to Option B
-        10,               # ENTER
+        10,  # ENTER
     ]
 
     selected = _curses_radiolist_screen(mock_stdscr, "Test Title", items, default_index=0)
@@ -219,10 +220,10 @@ def test_mock_curses_radiolist_esc_disambiguation():
     mock_stdscr = MagicMock()
     mock_stdscr.getmaxyx.return_value = (24, 80)
     mock_stdscr.getch.side_effect = [
-        27,        # ESC
+        27,  # ESC
         ord("["),  # CSI
         ord("B"),  # Down arrow
-        10,        # ENTER
+        10,  # ENTER
     ]
     selected = _curses_radiolist_screen(mock_stdscr, "Test", items)
     assert selected == 1
@@ -240,7 +241,7 @@ def test_mock_curses_checklist_screen():
         ord(" "),  # Space toggles Option A
         curses.KEY_DOWN,
         ord(" "),  # Space toggles Option B
-        10,        # ENTER confirms
+        10,  # ENTER confirms
     ]
 
     result = _curses_checklist_screen(mock_stdscr, "Test Checklist", items, default_indices=[])
@@ -257,11 +258,11 @@ def test_mock_curses_search_and_select():
     mock_stdscr = MagicMock()
     mock_stdscr.getmaxyx.return_value = (24, 80)
     mock_stdscr.getch.side_effect = [
-        ord("/"),      # enter search mode
-        ord("c"),      # query 'c'
-        ord("h"),      # query 'ch'
-        10,            # exit search mode / confirm search
-        10,            # ENTER select
+        ord("/"),  # enter search mode
+        ord("c"),  # query 'c'
+        ord("h"),  # query 'ch'
+        10,  # exit search mode / confirm search
+        10,  # ENTER select
     ]
 
     selected = _curses_radiolist_screen(mock_stdscr, "Select Fruit", items)
@@ -300,4 +301,3 @@ def test_cli_main_keyboard_interrupt_handling():
         with pytest.raises(SystemExit) as exc_info:
             cli.main(["setup"])
         assert exc_info.value.code == 1
-

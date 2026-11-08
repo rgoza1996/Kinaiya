@@ -1276,9 +1276,7 @@ def setup(
     elif converse:
         base_ep = agent_built["base_url"] if agent_built else (endpoint or "http://127.0.0.1:1234")
         base_model = (
-            agent_built["model"]
-            if agent_built
-            else (model or "meta-llama/llama-3.2-3b-instruct")
+            agent_built["model"] if agent_built else (model or "meta-llama/llama-3.2-3b-instruct")
         )
         base_kind = (
             ("lmstudio" if agent_built["kind"] == "lmstudio" else "compatible")
@@ -1302,9 +1300,7 @@ def setup(
     elif converse:
         base_ep = agent_built["base_url"] if agent_built else (endpoint or "http://127.0.0.1:1234")
         base_model = (
-            agent_built["model"]
-            if agent_built
-            else (model or "meta-llama/llama-3.2-3b-instruct")
+            agent_built["model"] if agent_built else (model or "meta-llama/llama-3.2-3b-instruct")
         )
         base_cloud = agent_built["allow_cloud"] if agent_built else allow_cloud
         base_cred = agent_built.get("api_key_env") if agent_built else credential_env

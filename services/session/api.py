@@ -561,7 +561,9 @@ def create_app(
         )
         origin = request.headers.get("origin")
         client_host = request.client.host if request.client is not None else None
-        refresh_token = str(payload.get("refresh_token", "")).strip() if isinstance(payload, dict) else ""
+        refresh_token = (
+            str(payload.get("refresh_token", "")).strip() if isinstance(payload, dict) else ""
+        )
         try:
             broker = LocalOwnerSignInBroker.from_auth(auth)
             result = broker.refresh_session(

@@ -60,7 +60,9 @@ def format_update_report(
         lines.append(f"   {ok_sym} Built isolated virtual environment")
         lines.append(f"   {ok_sym} Switched active generation symlink")
         lines.append(f"   {ok_sym} Preserved configuration, databases, and private tokens")
-        lines.append(f"{ok_sym} {c_bold}Successfully updated!{RESET} Run 'kinaiya' to start services.")
+        lines.append(
+            f"{ok_sym} {c_bold}Successfully updated!{RESET} Run 'kinaiya' to start services."
+        )
         return "\n".join(lines) + "\n"
 
     action = result.get("action", "current")
@@ -71,7 +73,9 @@ def format_update_report(
     if action == "current":
         lines.append(f"{c_bold}{c_head}Kinaiya Update Check{RESET}")
         lines.append(f" {arr_sym} Update channel: {channel}")
-        lines.append(f" {arr_sym} Latest release: {ver}" + (f" ({source_sha})" if source_sha else ""))
+        lines.append(
+            f" {arr_sym} Latest release: {ver}" + (f" ({source_sha})" if source_sha else "")
+        )
         lines.append(f"   {ok_sym} Host & sandbox prerequisites verified")
         lines.append(f"   {ok_sym} Core runtime and service contracts up to date")
         lines.append(f"   {ok_sym} Prebuilt Web UI assets up to date")
@@ -88,12 +92,16 @@ def format_update_report(
         action_verb = "Upgrade" if action == "upgrade" else "Downgrade"
         lines.append(f"{c_bold}{c_head}Kinaiya Update Available ({action_verb}){RESET}")
         lines.append(f" {arr_sym} Update channel: {channel}")
-        lines.append(f" {arr_sym} Target release: {ver}" + (f" ({source_sha})" if source_sha else ""))
+        lines.append(
+            f" {arr_sym} Target release: {ver}" + (f" ({source_sha})" if source_sha else "")
+        )
         if size_mb:
             lines.append(f" {arr_sym} Download size: {size_mb}")
         lines.append(f"   {warn_sym} Running local services must be stopped before applying update")
         lines.append(f"   {ok_sym} Configuration and data will be preserved (no database rollback)")
-        lines.append(f"Run {c_bold}'kinaiya update --yes'{RESET} to download and apply this update.")
+        lines.append(
+            f"Run {c_bold}'kinaiya update --yes'{RESET} to download and apply this update."
+        )
     else:
         lines.append(f"{c_bold}{c_head}Kinaiya Update Status: {action}{RESET}")
         lines.append(f" {arr_sym} Channel: {channel}, Target: {ver}")
@@ -128,7 +136,9 @@ def format_version_report(
     lines.append(f" {arr_sym} Managed install: {'Yes' if result.get('managed') else 'No'}")
     if result.get("install"):
         lines.append(f" {arr_sym} Install root: {result['install']}")
-    lines.append(f" {arr_sym} Diagnostics: Run 'kinaiya doctor' to verify service and sandbox health")
+    lines.append(
+        f" {arr_sym} Diagnostics: Run 'kinaiya doctor' to verify service and sandbox health"
+    )
 
     return "\n".join(lines) + "\n"
 

@@ -618,6 +618,3 @@ def test_service_topology_converse_only(tmp_path: Path) -> None:
     assert cfg["providers"]["decisions"]["model"] == "meta-llama/llama-3.2-3b-instruct"
     assert cfg["distribution"]["converse"] is True
     assert cfg["distribution"]["agent"] is False
-
-
-
