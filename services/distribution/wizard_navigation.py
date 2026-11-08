@@ -719,6 +719,30 @@ class WizardNavigator:
         elif key == "converse_model" and previous is not None and previous != value:
             self.answers.pop("decisions_model", None)
 
+    def _prompt_reasoning_effort(self, *, adapter_kind: str, default: str = "none") -> str:
+        """Prompt for reasoning effort level ('none', 'low', 'medium', 'high') (#502)."""
+        if adapter_kind == "lmstudio":
+            return "none"
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem("none", "none", "Standard inference without extra reasoning tokens", recommended=True),
+                MenuItem("low", "low", "Light reasoning for quick multi-step tasks"),
+                MenuItem("medium", "medium", "Balanced reasoning effort"),
+                MenuItem("high", "high", "Deep deliberative reasoning for complex tasks"),
+            ]
+            try:
+                selected_idx = curses_radiolist(
+                    "Reasoning Effort Selection",
+                    items,
+                    default_index=0,
+                    subtitle="Select reasoning effort level for model inference.",
+                    tty=self.tty,
+                )
+                return items[selected_idx].effective_value
+            except (MenuCancelled, MenuGoBack):
+                return default
+        return default
+
     def _apply_chosen_profile(
         self,
         chosen_prof: ProviderProfileChoice,
@@ -730,19 +754,68 @@ class WizardNavigator:
             raise InstallError(elig.reason)
         adapter = chosen_prof.adapter_kind
         endpoint = chosen_prof.base_url
+        is_remote = not is_loopback_endpoint(endpoint) or chosen_prof.allow_cloud
         allow_cloud = chosen_prof.allow_cloud
         credential_env = chosen_prof.credential_env
+        active_api_key = chosen_prof.api_key
+
+        workspace_val = self.answers.get("workspace", self.defaults["workspace"])
+        data_val = self.answers.get("data", self.defaults["data"])
+        chosen_tmp = self.replace_fn(
+            self.layout,
+            workspace=Path(workspace_val).expanduser(),
+            data=Path(data_val).expanduser(),
+        )
+        env_path = default_providers_env_path(chosen_tmp)
+
+        # 1. Cloud disclosure consent if remote/cloud provider (#502)
+        if is_remote and self.discover_models:
+            raw_cloud = self._raw_yn_prompt(
+                "Allow disclosure of authorized content to this cloud provider?",
+                default="yes" if allow_cloud else "no",
+            )
+            allow_cloud = raw_cloud.strip().lower() in {"yes", "y", "true", "1"}
+
+            # 2. Masked API key handling before model discovery (#502)
+            if allow_cloud and not active_api_key:
+                existing_present = (
+                    LocalCredentialsStore(env_path).has_api_key(chosen_prof.profile_id)
+                    if env_path.exists() and not env_path.is_symlink()
+                    else False
+                )
+                key_action = prompt_masked_api_key(
+                    self.tty,
+                    profile_id=chosen_prof.profile_id,
+                    endpoint=endpoint,
+                    existing_present=existing_present,
+                    getpass_fn=self.getpass_fn,
+                    allow_bare_env_name=True,
+                )
+                self.key_action = key_action
+                credential_env = key_action.credential_env
+                if key_action.action == "set":
+                    active_api_key = key_action.api_key
+                elif key_action.action == "env_ref" and credential_env:
+                    active_api_key = os.environ.get(credential_env, "")
+
+        prof_for_discovery = replace(
+            chosen_prof,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            api_key=active_api_key,
+        )
+
         if self.discover_models:
             from services.distribution.terminal_animation import BrandedActivityIndicator
 
             with BrandedActivityIndicator(
                 self.tty,
-                f"Discovering models for {chosen_prof.profile_id}",
+                f"Discovering models for {prof_for_discovery.profile_id}",
                 width=term_width,
             ) as indicator:
                 indicator.tick("GET /models")
                 disc = discover_profile_models(
-                    chosen_prof,
+                    prof_for_discovery,
                     allow_cloud_disclosed=allow_cloud,
                     opener=self.opener,
                 )
@@ -761,7 +834,7 @@ class WizardNavigator:
             sel = select_model_interactively(
                 self.tty,
                 disc,
-                profile_id=chosen_prof.profile_id,
+                profile_id=prof_for_discovery.profile_id,
                 role="agent",
                 adapter_kind=adapter,
                 endpoint=endpoint,
@@ -772,8 +845,8 @@ class WizardNavigator:
         else:
             sel = select_model_interactively(
                 self.tty,
-                chosen_prof.discovered_models,
-                profile_id=chosen_prof.profile_id,
+                prof_for_discovery.discovered_models,
+                profile_id=prof_for_discovery.profile_id,
                 role="agent",
                 adapter_kind=adapter,
                 endpoint=endpoint,
@@ -781,6 +854,11 @@ class WizardNavigator:
                 allow_cloud=allow_cloud,
                 width=term_width,
             )
+
+        # 3. Reasoning effort selection (#502)
+        effort = self._prompt_reasoning_effort(adapter_kind=adapter, default="none")
+        sel = replace(sel, reasoning_effort=effort)
+
         ep_recorded = f"{adapter}={endpoint}" if adapter not in {"lmstudio", "meta"} else endpoint
         self._record_answer("endpoint", ep_recorded)
         self._record_answer("model", sel.model_id)
@@ -1244,6 +1322,11 @@ class WizardNavigator:
         if decisions_profile is not None:
             setup_kwargs["decisions_profile"] = decisions_profile
         if chosen.config.exists():
+            backup_path = chosen.config.with_name(f"{chosen.config.name}.pre-setup.bak")
+            try:
+                shutil.copy2(chosen.config, backup_path)
+            except Exception:
+                pass
             setup_kwargs["allow_existing"] = True
         result = self.setup_fn(chosen, **setup_kwargs)
         env_path = default_providers_env_path(chosen)

@@ -241,6 +241,7 @@ class SelectedModel:
     credential_env: str | None = None
     allow_cloud: bool = False
     selection_source: str = "discovered"
+    reasoning_effort: str = "none"
 
     @property
     def identity(self) -> tuple[str, str]:
@@ -1147,7 +1148,9 @@ def save_role_model_selection(
     }
     if selection.credential_env:
         role_entry["api_key_env"] = selection.credential_env
-    if selection.adapter_kind == "lmstudio":
+    if hasattr(selection, "reasoning_effort") and selection.reasoning_effort:
+        role_entry["reasoning_effort"] = selection.reasoning_effort
+    elif selection.adapter_kind == "lmstudio":
         role_entry.setdefault("max_tokens", 128)
         role_entry.setdefault("reasoning_effort", "none")
     elif selection.adapter_kind == "meta":
