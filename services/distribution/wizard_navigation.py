@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -16,7 +17,20 @@ from services.distribution.credentials import (
     default_providers_env_path,
     prompt_masked_api_key,
 )
-from services.distribution.installation import InstallError, Layout, read_json
+from services.distribution.curses_menu import (
+    MenuCancelled,
+    MenuGoBack,
+    MenuItem,
+    curses_radiolist,
+    is_curses_available,
+)
+from services.distribution.installation import (
+    PROTECTED_INSTALL_ROOTS,
+    PROTECTED_INSTALL_TREES,
+    InstallError,
+    Layout,
+    read_json,
+)
 from services.distribution.model_picker import (
     ProviderProfileChoice,
     SelectedModel,
@@ -71,6 +85,44 @@ def is_back_command(raw: str, *, at_confirm: bool = False) -> bool:
     if at_confirm and token.startswith(("back ", ":back ")):
         return True
     return token in (CONFIRM_BACK_COMMANDS if at_confirm else BACK_COMMANDS)
+
+
+def validate_workspace_path(candidate: Path | str) -> Path:
+    """Validate and normalize an authorized workspace root directory (#504).
+
+    Ensures the path is non-empty, contains no control characters, expands '~',
+    and refuses protected system roots.
+    """
+    raw = str(candidate).strip()
+    if not raw:
+        raise InstallError("Workspace path cannot be empty")
+    if any(ord(c) < 32 for c in raw):
+        raise InstallError("Workspace path must not contain control characters")
+    expanded = Path(os.path.expanduser(raw))
+    normalized = Path(os.path.abspath(expanded))
+    posix_str = normalized.as_posix()
+    if posix_str in PROTECTED_INSTALL_ROOTS or any(
+        posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
+    ):
+        raise InstallError(f"Refusing protected system root as workspace directory: {normalized}")
+    return normalized
+
+
+def validate_data_path(candidate: Path | str) -> Path:
+    """Validate and normalize a private data root directory (#504)."""
+    raw = str(candidate).strip()
+    if not raw:
+        raise InstallError("Private data directory path cannot be empty")
+    if any(ord(c) < 32 for c in raw):
+        raise InstallError("Private data directory path must not contain control characters")
+    expanded = Path(os.path.expanduser(raw))
+    normalized = Path(os.path.abspath(expanded))
+    posix_str = normalized.as_posix()
+    if posix_str in PROTECTED_INSTALL_ROOTS or any(
+        posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
+    ):
+        raise InstallError(f"Refusing protected system root as private data directory: {normalized}")
+    return normalized
 
 
 def parse_endpoint_input(endpoint_input: str) -> tuple[str | None, str]:
@@ -345,6 +397,118 @@ class WizardNavigator:
                 return "no"
             self.tty.write("Please enter y or n.\n")
             self.tty.flush()
+
+    def _prompt_workspace_choice(self, default_val: str) -> str:
+        cwd = os.environ.get("KINAIYA_INVOKING_PWD") or os.getcwd()
+        default_ws = default_val or str(self.layout.workspace)
+
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    label=f"Default workspace ({default_ws})",
+                    value=default_ws,
+                    recommended=True,
+                ),
+                MenuItem(
+                    label=f"Current working directory ({cwd})",
+                    value=cwd,
+                ),
+                MenuItem(
+                    label="Custom directory path...",
+                    value=":custom",
+                ),
+            ]
+            try:
+                selected_idx = curses_radiolist(
+                    "Select Authorized Workspace",
+                    items,
+                    default_index=0,
+                    subtitle="Kinaiya tools and shell execution are strictly confined to this root.",
+                    allow_back=False,
+                    tty=self.tty,
+                )
+                chosen_val = items[selected_idx].effective_value
+                if chosen_val == ":custom":
+                    raw_custom = self._raw_prompt("Enter custom workspace path", default_ws)
+                    return str(validate_workspace_path(raw_custom or default_ws))
+                return str(validate_workspace_path(chosen_val))
+            except MenuCancelled:
+                raise InstallError("Setup cancelled; no configuration written") from None
+            except MenuGoBack:
+                return ":back"
+
+        # Line mode fallback
+        c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+        c_em = PALETTE.emerald.fg_sequence(self.color_mode)
+        pointer = self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode)) if self.color_mode != ColorMode.NONE else ">"
+        self.tty.write(f"\n{pointer} {c_lbl}Authorized Workspace Selection:{RESET}\n")
+        self.tty.write(f"  [1] Default workspace ({default_ws}) {c_em}(recommended){RESET}\n")
+        self.tty.write(f"  [2] Current working directory ({cwd})\n")
+        self.tty.write(f"  [3] Custom directory path...\n")
+        raw = self._raw_prompt("Select workspace [1-3] or enter path", default=default_ws)
+        cleaned = raw.strip()
+        if not cleaned or cleaned == "1" or cleaned == default_ws:
+            return str(validate_workspace_path(default_ws))
+        if cleaned == "2":
+            return str(validate_workspace_path(cwd))
+        if cleaned == "3":
+            custom_path = self._raw_prompt("Enter custom workspace path", default=default_ws)
+            return str(validate_workspace_path(custom_path or default_ws))
+        if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False) or cleaned.lower() in {":quick", "quick"}:
+            return cleaned
+        return str(validate_workspace_path(cleaned))
+
+    def _prompt_data_choice(self, default_val: str) -> str:
+        default_data = default_val or str(self.layout.data)
+
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    label=f"Default private data directory ({default_data})",
+                    value=default_data,
+                    recommended=True,
+                ),
+                MenuItem(
+                    label="Custom data directory path...",
+                    value=":custom",
+                ),
+            ]
+            try:
+                selected_idx = curses_radiolist(
+                    "Select Private Data Directory",
+                    items,
+                    default_index=0,
+                    subtitle="Internal storage for journals, auth tokens, and session state.",
+                    allow_back=True,
+                    tty=self.tty,
+                )
+                chosen_val = items[selected_idx].effective_value
+                if chosen_val == ":custom":
+                    raw_custom = self._raw_prompt("Enter custom private data path", default_data)
+                    return str(validate_data_path(raw_custom or default_data))
+                return str(validate_data_path(chosen_val))
+            except MenuCancelled:
+                raise InstallError("Setup cancelled; no configuration written") from None
+            except MenuGoBack:
+                return ":back"
+
+        # Line mode fallback
+        c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+        c_em = PALETTE.emerald.fg_sequence(self.color_mode)
+        pointer = self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode)) if self.color_mode != ColorMode.NONE else ">"
+        self.tty.write(f"\n{pointer} {c_lbl}Private Data Directory Selection:{RESET}\n")
+        self.tty.write(f"  [1] Default private data directory ({default_data}) {c_em}(recommended){RESET}\n")
+        self.tty.write(f"  [2] Custom directory path...\n")
+        raw = self._raw_prompt("Select data directory [1-2] or enter path", default=default_data)
+        cleaned = raw.strip()
+        if not cleaned or cleaned == "1" or cleaned == default_data:
+            return str(validate_data_path(default_data))
+        if cleaned == "2":
+            custom_path = self._raw_prompt("Enter custom private data path", default=default_data)
+            return str(validate_data_path(custom_path or default_data))
+        if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
+            return cleaned
+        return str(validate_data_path(cleaned))
 
     def _active_steps(self) -> list[_PromptStep]:
         steps: list[_PromptStep] = []
@@ -636,7 +800,12 @@ class WizardNavigator:
                             index += 1
                             continue
 
-                raw = self._raw_prompt(step.label, default)
+                if step.key == "workspace":
+                    raw = self._prompt_workspace_choice(default)
+                elif step.key == "data":
+                    raw = self._prompt_data_choice(default)
+                else:
+                    raw = self._raw_prompt(step.label, default)
                 if is_cancel_command(raw):
                     raise InstallError("Setup cancelled; no configuration written")
                 if is_back_command(raw, at_confirm=False):
