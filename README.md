@@ -660,9 +660,9 @@ disclosure or change captured input scopes.
 
 **Research scope:** Kinaiya investigates self-extension, selected formal verification, empirical evaluation, and eventual evidence-guided self-improvement. It **does not claim to solve the general problem of safe, correct, or optimal recursive self-improvement**. These are mathematical limitations, not merely engineering tasks awaiting better models.
 
-**Halting problem.** For an arbitrary program \(p\) and input \(x\), consider a hypothetical total computable decider:
+**Halting problem.** For an arbitrary program $p$ and input $x$, consider a hypothetical total computable decider:
 
-$
+$$
 H(p,x)=
 \begin{cases}
 1 & \text{if }p(x)\text{ halts},\\
@@ -670,53 +670,53 @@ H(p,x)=
 \end{cases}
 \qquad
 \nexists\,H\text{ that is total, computable, and correct for all }(p,x).
-$
+$$
 
 Consequently, arbitrary generated executables cannot all be classified correctly as terminating or nonterminating by one general algorithm. Specific programs or restricted classes can still admit termination proofs.
 
-**Rice's theorem.** Let \(\varphi_e\) denote the partial computable function computed by program \(e\), and let \(P\) be a nontrivial *extensional* (semantic) property of partial computable functions. Then
+**Rice's theorem.** Let $\varphi_e$ denote the partial computable function computed by program $e$, and let $P$ be a nontrivial *extensional* (semantic) property of partial computable functions. Then
 
-$
+$$
 I_P=\{e\in\mathbb N:P(\varphi_e)\},
 \qquad
 P\text{ nontrivial and semantic}\ \Longrightarrow\ I_P\text{ undecidable}.
-$
+$$
 
 No total computable decision procedure can settle every such behavioral property for every arbitrary program. This does **not** rule out sound but incomplete analyses, proofs for individual extensions, or decidable restricted languages.
 
-**Gödel's first incompleteness theorem.** For a consistent, effectively axiomatized formal theory \(T\) containing sufficient arithmetic, there are sentences independent of \(T\). In particular, for an appropriately constructed Gödel sentence \(G_T\),
+**Gödel's first incompleteness theorem.** For a consistent, effectively axiomatized formal theory $T$ containing sufficient arithmetic, there are sentences independent of $T$. In particular, for an appropriately constructed Gödel sentence $G_T$,
 
-$
+$$
 T\nvdash G_T
 \qquad\text{and}\qquad
 T\nvdash\neg G_T.
-$
+$$
 
 **Gödel's second incompleteness theorem.** Under the usual additional derivability assumptions, such a consistent theory cannot prove its own appropriately formalized consistency:
 
-$
+$$
 \operatorname{Con}(T)\equiv
 \neg\operatorname{Prov}_T(\ulcorner\bot\urcorner),
 \qquad
 T\nvdash\operatorname{Con}(T).
-$
+$$
 
 These results constrain universal claims about formal reasoning; they do not mean that particular correctness or safety properties cannot be proven.
 
 **Proofs are relative to specifications and assumptions.** A machine-checked judgment such as
 
-$
+$$
 T\vdash \operatorname{Correct}(p,S)
-$
+$$
 
-supports the stated property of extension \(p\) relative to specification \(S\), the formalization, and the trusted checking environment. It does not establish that \(S\) fully expresses the user's intent, that the executable faithfully corresponds to the proved model, or that the checker and surrounding system are free of defects. Lean, Rocq (formerly Coq), and Isabelle are possible future tools for *selected* proof obligations, not universal correctness oracles.
+supports the stated property of extension $p$ relative to specification $S$, the formalization, and the trusted checking environment. It does not establish that $S$ fully expresses the user's intent, that the executable faithfully corresponds to the proved model, or that the checker and surrounding system are free of defects. Lean, Rocq (formerly Coq), and Isabelle are possible future tools for *selected* proof obligations, not universal correctness oracles.
 
-**Empirical gains are also conditional.** For paired evaluation tasks \(x_1,\ldots,x_n\), an observed improvement
+**Empirical gains are also conditional.** For paired evaluation tasks $x_1,\ldots,x_n$, an observed improvement
 
-$
+$$
 \widehat{\Delta}=\frac1n\sum_{i=1}^{n}
 \bigl[Q(H_{\mathrm{new}},x_i)-Q(H_{\mathrm{old}},x_i)\bigr]>0
-$
+$$
 
 does not establish universal superiority. Benchmark overfitting, evaluator manipulation, reward hacking, and distribution shift remain possible even when measured scores improve. Proof obligations reduce some risks but cannot eliminate specification gaming.
 
