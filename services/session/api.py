@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
@@ -497,7 +499,9 @@ def create_app(
         origin = request.headers.get("origin") or (
             payload.get("origin") if isinstance(payload.get("origin"), str) else None
         )
-        cookie_seal = parse_handoff_cookie(request.headers.get("cookie")) or (
+        store_path = getattr(auth, "token_store_path", None)
+        data_dir = Path(store_path).parent if store_path else None
+        cookie_seal = parse_handoff_cookie(request.headers.get("cookie"), data_dir=data_dir) or (
             payload.get("cookie_seal") if isinstance(payload.get("cookie_seal"), str) else None
         )
         client_host = request.client.host if request.client is not None else None
@@ -515,6 +519,59 @@ def create_app(
                 client_host=client_host,
                 sec_fetch_site=request.headers.get("sec-fetch-site"),
                 expected_host_generation=expected_gen,
+            )
+        except LocalSignInError as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": str(exc)},
+                headers={"Cache-Control": "no-store"},
+            )
+        return JSONResponse(status_code=200, content=result, headers={"Cache-Control": "no-store"})
+
+    @app.post("/v1/auth/refresh-session")
+    async def local_auth_refresh(request: Request):
+        from fastapi.responses import JSONResponse
+
+        from services.common.owner_signin import (
+            LocalOwnerSignInBroker,
+            LocalSignInError,
+        )
+
+        raw = bytearray()
+        async for chunk in request.stream():
+            if len(raw) + len(chunk) > 4096:
+                raise HTTPException(
+                    413,
+                    "Refresh request exceeds byte bound",
+                    headers={"Cache-Control": "no-store"},
+                )
+            raw.extend(chunk)
+        payload = {}
+        if raw:
+            try:
+                payload = json.loads(bytes(raw).decode("utf-8"))
+            except Exception:
+                raise HTTPException(
+                    422,
+                    "Invalid JSON in refresh request",
+                    headers={"Cache-Control": "no-store"},
+                ) from None
+        csrf = request.headers.get("x-kinaiya-local-handoff") or request.headers.get(
+            "x-kinaiya-local-ui"
+        )
+        origin = request.headers.get("origin")
+        client_host = request.client.host if request.client is not None else None
+        refresh_token = (
+            str(payload.get("refresh_token", "")).strip() if isinstance(payload, dict) else ""
+        )
+        try:
+            broker = LocalOwnerSignInBroker.from_auth(auth)
+            result = broker.refresh_session(
+                refresh_token=refresh_token,
+                client_host=client_host,
+                origin=origin,
+                csrf_header=csrf,
+                sec_fetch_site=request.headers.get("sec-fetch-site"),
             )
         except LocalSignInError as exc:
             return JSONResponse(

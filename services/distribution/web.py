@@ -11,13 +11,14 @@ from urllib.parse import unquote, urlsplit
 
 from services.common.owner_signin import (
     CHALLENGE_PATHS,
-    HANDOFF_COOKIE_NAME,
     HANDOFF_PATHS,
     RECOVERY_PATHS,
+    REFRESH_PATHS,
     ROTATION_PATHS,
     STORAGE_STATUS_PATHS,
     LocalOwnerSignInBroker,
     LocalSignInError,
+    get_handoff_cookie_name,
     parse_handoff_cookie,
 )
 from services.distribution.installation import InstallError, current_receipt, operation_lock
@@ -28,6 +29,7 @@ FORBIDDEN_ASSET_NAMES = frozenset(
         "local-owner-handoff.json",
         "local-owner-sessions.json",
         "local-recovery-challenge.json",
+        "device-refresh-tokens.json",
         "owner-login.txt",
     }
 )
@@ -99,6 +101,7 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
                 *CHALLENGE_PATHS,
                 *RECOVERY_PATHS,
                 *ROTATION_PATHS,
+                *REFRESH_PATHS,
             )
             if raw_path not in valid_post_paths:
                 self._write_json(404, {"detail": "Not found"})
@@ -142,10 +145,30 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
                 "X-Kinaiya-Local-UI"
             )
             server_port = getattr(self.server, "server_port", None)
+            cookie_name = get_handoff_cookie_name(broker.directory if broker else None)
             clear_cookie = (
-                f"{HANDOFF_COOKIE_NAME}=; HttpOnly; SameSite=Strict; "
+                f"{cookie_name}=; HttpOnly; SameSite=Strict; "
                 "Path=/__kinaiya/local-signin; Max-Age=0"
             )
+
+            if raw_path in REFRESH_PATHS:
+                token = str(body_json.get("refresh_token", "")).strip()
+                try:
+                    result = broker.refresh_session(
+                        refresh_token=token,
+                        client_host=client_host,
+                        origin=origin,
+                        csrf_header=csrf_header,
+                        sec_fetch_site=sec_fetch_site,
+                        server_port=server_port,
+                    )
+                    self._write_json(200, result)
+                except LocalSignInError as exc:
+                    self._write_json(
+                        exc.status_code,
+                        {"detail": str(exc), "code": exc.__class__.__name__},
+                    )
+                return
 
             if raw_path in CHALLENGE_PATHS:
                 try:
@@ -208,7 +231,9 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
                     )
                 return
 
-            cookie_seal = parse_handoff_cookie(self.headers.get("Cookie"))
+            cookie_seal = parse_handoff_cookie(
+                self.headers.get("Cookie"), data_dir=broker.directory if broker else None
+            )
             try:
                 result = broker.consume_handoff(
                     cookie_seal=cookie_seal,
@@ -240,6 +265,7 @@ def asset_handler(root, *, broker: LocalOwnerSignInBroker | None = None):
                 *CHALLENGE_PATHS,
                 *RECOVERY_PATHS,
                 *ROTATION_PATHS,
+                *REFRESH_PATHS,
             )
             if raw_path in action_paths:
                 self.send_error(405)

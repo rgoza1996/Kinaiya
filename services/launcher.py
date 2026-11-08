@@ -462,8 +462,12 @@ def managed_guard_roots():
 
 def host_service_names(config):
     """Managed default has no Converse, Decisions, resources, voice or model work."""
-    names = ["session", "agent"]
-    if config.get("distribution", {}).get("converse") is True:
+    dist = config.get("distribution") if isinstance(config.get("distribution"), dict) else {}
+    agent_enabled = dist.get("agent", True) is not False
+    names = ["session"]
+    if agent_enabled:
+        names.append("agent")
+    if dist.get("converse") is True:
         names += ["converse", "decisions"]
     if config.get("resources", {}).get("enabled") is True:
         names.append("resources")
@@ -1291,7 +1295,8 @@ def build_parser():
         default="local_only",
         help="Disclosure grant for this Agent input; defaults to local-only",
     )
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(dest="command", required=False)
+    commands.add_parser("help", help="Show this help message and exit")
     commands.add_parser("init")
     login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
     login.add_argument("--output", type=Path)
@@ -1319,6 +1324,35 @@ def build_parser():
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "help":
+        parser.print_help()
+        parser.exit(0)
+    if args.command is None:
+        from services.distribution.cli import chosen_layout
+
+        layout = chosen_layout(args)
+        if not layout.config.exists():
+            sys.stderr.write("No configuration found — starting setup.\n")
+            args.command = "setup"
+            args.section = None
+            args.mode = None
+            args.yes = False
+            args.check_connection = False
+            args.no_start = False
+            args.auto_start = True
+            args.quick = False
+            args.advanced = False
+            args.endpoint = None
+            args.model = None
+            args.credential_env = None
+            args.allow_cloud = False
+            args.converse = False
+        else:
+            args.command = "start"
+            args.no_browser = False
+            args.json = False
+            args.web_port = 8780
+            args.timeout = 15.0
     if args.command in {
         "auth",
         "install",

@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -92,6 +93,11 @@ def configure(commands):
         action="store_true",
         help="Offer an opt-in bounded provider connection check after configuration is saved",
     )
+    setup_parser.add_argument(
+        "--no-start",
+        action="store_true",
+        help="Do not prompt to start Kinaiya services after setup completes",
+    )
     setup_parser.add_argument("--workspace", dest="setup_workspace", type=Path)
     setup_parser.add_argument("--data-dir", dest="setup_data_dir", type=Path)
     setup_parser.add_argument(
@@ -118,7 +124,14 @@ def configure(commands):
     updater.add_argument(
         "--json", action="store_true", help="Emit deterministic machine-readable JSON output"
     )
-    commands.add_parser("version", help="Verify and show installed immutable provenance")
+    version_parser = commands.add_parser(
+        "version", help="Verify and show installed immutable provenance"
+    )
+    version_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON output",
+    )
     doctor = commands.add_parser(
         "doctor",
         help="Read-only local installation, configuration, and connection diagnostics",
@@ -165,11 +178,21 @@ def configure(commands):
     )
     recovery = commands.add_parser("recover", help="Reconcile an interrupted managed transaction")
     recovery.add_argument("--yes", action="store_true")
+    recovery.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON output",
+    )
     rollback = commands.add_parser(
         "rollback", help="Restore retained code only; never restore databases"
     )
     rollback.add_argument("--generation", required=True)
     rollback.add_argument("--yes", action="store_true")
+    rollback.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON output",
+    )
     uninstall = commands.add_parser(
         "uninstall", help="Remove managed application; retain user data by default"
     )
@@ -177,6 +200,11 @@ def configure(commands):
     uninstall.add_argument("--delete-data", action="store_true")
     uninstall.add_argument(
         "--confirm-data-deletion", help="Must be DELETE to authorize data/config/cache deletion"
+    )
+    uninstall.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON output",
     )
     auth_parser = commands.add_parser(
         "auth", help="Manage owner credentials without exposing secret values"
@@ -188,6 +216,11 @@ def configure(commands):
     )
     rotate_owner.add_argument(
         "--yes", action="store_true", help="Confirm owner credential rotation and revocation"
+    )
+    rotate_owner.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit deterministic machine-readable JSON output",
     )
     rotate_owner.add_argument(
         "--data-dir",
@@ -348,9 +381,10 @@ def print_command_result(args, result):
     import shutil
     import sys
 
-    if getattr(args, "command", None) == "start":
+    cmd = getattr(args, "command", None)
+    if cmd == "start":
         return
-    if getattr(args, "command", None) == "doctor":
+    if cmd == "doctor":
         from services.distribution.doctor import format_doctor_report
 
         is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
@@ -364,6 +398,44 @@ def print_command_result(args, result):
                 end="",
             )
         return
+
+    # Lifecycle commands with human-readable TUI output (#510)
+    is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    json_flag = bool(getattr(args, "json", False))
+    no_color = bool(os.environ.get("NO_COLOR"))
+
+    if not json_flag and is_tty and isinstance(result, dict):
+        if cmd == "update":
+            from services.distribution.lifecycle_formatting import format_update_report
+
+            print(format_update_report(result, no_color=no_color, is_tty=True), end="")
+            return
+        if cmd == "version":
+            from services.distribution.lifecycle_formatting import format_version_report
+
+            print(format_version_report(result, no_color=no_color, is_tty=True), end="")
+            return
+        if cmd == "auth" and getattr(args, "auth_command", None) == "rotate-owner":
+            from services.distribution.lifecycle_formatting import format_auth_report
+
+            print(format_auth_report(result, no_color=no_color, is_tty=True), end="")
+            return
+        if cmd == "recover":
+            from services.distribution.lifecycle_formatting import format_recover_report
+
+            print(format_recover_report(result, no_color=no_color, is_tty=True), end="")
+            return
+        if cmd == "rollback":
+            from services.distribution.lifecycle_formatting import format_rollback_report
+
+            print(format_rollback_report(result, no_color=no_color, is_tty=True), end="")
+            return
+        if cmd == "uninstall":
+            from services.distribution.lifecycle_formatting import format_uninstall_report
+
+            print(format_uninstall_report(result, no_color=no_color, is_tty=True), end="")
+            return
+
     print(json.dumps(result, indent=2))
 
 
@@ -439,12 +511,28 @@ def dispatch(args):
             if section is not None:
                 return run_wizard(layout, section=section, check_connection=check_connection)
             if check_connection:
-                return (
+                res = (
                     run_wizard(layout, mode=mode, check_connection=True)
                     if mode is not None
                     else run_wizard(layout, check_connection=True)
                 )
-            return run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
+            else:
+                res = run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
+
+            if not getattr(args, "no_start", False) and sys.stdin.isatty():
+                from services.distribution.terminal import open_terminal
+                from services.distribution.wizard_flow import ask_yn
+
+                try:
+                    with open_terminal() as tty:
+                        should_start = ask_yn(tty, "Start Kinaiya now?", default=True)
+                except Exception:
+                    should_start = False
+                if should_start:
+                    from services.distribution.start_supervisor import start_local
+
+                    return start_local(layout)
+            return res
         if section is not None:
             from dataclasses import replace
 
@@ -704,6 +792,10 @@ def main(argv=None):
         print_command_result(args, dispatch(args))
     except (InstallError, ReleaseError) as exc:
         parser.exit(1, f"kinaiya: {exc}\n")
+    except KeyboardInterrupt:
+        if getattr(args, "command", "") == "setup":
+            parser.exit(1, "kinaiya: Setup cancelled; no configuration written\n")
+        parser.exit(1, "kinaiya: operation cancelled\n")
     except (OSError, ValueError):
         parser.exit(
             1,

@@ -1017,6 +1017,7 @@ def reconfigure_section(
     allow_cloud=False,
     credential_env=None,
     converse=False,
+    agent=True,
     context_tokens=None,
     converse_profile=None,
     decisions_profile=None,
@@ -1153,6 +1154,9 @@ def reconfigure_section(
             dist = config.get("distribution")
             dist_map = dict(dist) if isinstance(dist, dict) else {}
             dist_map["converse"] = enable_converse
+            if not agent:
+                dist_map["agent"] = False
+                config["providers"].pop("agent", None)
             config["distribution"] = dist_map
 
         atomic_json(layout.config, config)
@@ -1190,6 +1194,7 @@ def setup(
     allow_cloud=False,
     credential_env=None,
     converse=False,
+    agent=True,
     context_tokens=None,
     roles=None,
     converse_profile=None,
@@ -1209,6 +1214,7 @@ def setup(
             allow_cloud=allow_cloud,
             credential_env=credential_env,
             converse=converse,
+            agent=agent,
             context_tokens=context_tokens,
             converse_profile=converse_profile,
             decisions_profile=decisions_profile,
@@ -1238,18 +1244,21 @@ def setup(
             raise InstallError("Conflicting decisions role configuration")
         role_map["decisions"] = decisions_profile
 
-    if "agent" in role_map:
-        agent_built = _build_role_from_mapping("agent", role_map["agent"])
+    if agent:
+        if "agent" in role_map:
+            agent_built = _build_role_from_mapping("agent", role_map["agent"])
+        else:
+            agent_built = _build_role_profile(
+                "agent",
+                endpoint=endpoint,
+                model=model,
+                kind=selected_kind,
+                allow_cloud=allow_cloud,
+                credential_env=credential_env,
+                context_tokens=context_tokens,
+            )
     else:
-        agent_built = _build_role_profile(
-            "agent",
-            endpoint=endpoint,
-            model=model,
-            kind=selected_kind,
-            allow_cloud=allow_cloud,
-            credential_env=credential_env,
-            context_tokens=context_tokens,
-        )
+        agent_built = None
 
     converse_built = (
         _build_role_from_mapping("converse", role_map["converse"])
@@ -1265,27 +1274,43 @@ def setup(
     if converse_built is not None:
         effective_converse = converse_built
     elif converse:
-        converse_default_kind = "lmstudio" if agent_built["kind"] == "lmstudio" else "compatible"
+        base_ep = agent_built["base_url"] if agent_built else (endpoint or "http://127.0.0.1:1234")
+        base_model = (
+            agent_built["model"] if agent_built else (model or "meta-llama/llama-3.2-3b-instruct")
+        )
+        base_kind = (
+            ("lmstudio" if agent_built["kind"] == "lmstudio" else "compatible")
+            if agent_built
+            else (selected_kind or "compatible")
+        )
+        base_cloud = agent_built["allow_cloud"] if agent_built else allow_cloud
+        base_cred = agent_built.get("api_key_env") if agent_built else credential_env
         effective_converse = _build_role_profile(
             "converse",
-            endpoint=agent_built["base_url"],
-            model=agent_built["model"],
-            kind=converse_default_kind,
-            allow_cloud=agent_built["allow_cloud"],
-            credential_env=agent_built.get("api_key_env"),
+            endpoint=base_ep,
+            model=base_model,
+            kind=base_kind,
+            allow_cloud=base_cloud,
+            credential_env=base_cred,
         )
     else:
         effective_converse = None
     if decisions_built is not None:
         effective_decisions = decisions_built
     elif converse:
+        base_ep = agent_built["base_url"] if agent_built else (endpoint or "http://127.0.0.1:1234")
+        base_model = (
+            agent_built["model"] if agent_built else (model or "meta-llama/llama-3.2-3b-instruct")
+        )
+        base_cloud = agent_built["allow_cloud"] if agent_built else allow_cloud
+        base_cred = agent_built.get("api_key_env") if agent_built else credential_env
         effective_decisions = _build_role_profile(
             "decisions",
-            endpoint=agent_built["base_url"],
-            model=agent_built["model"],
+            endpoint=base_ep,
+            model=base_model,
             kind="compatible",
-            allow_cloud=agent_built["allow_cloud"],
-            credential_env=agent_built.get("api_key_env"),
+            allow_cloud=base_cloud,
+            credential_env=base_cred,
         )
     else:
         effective_decisions = None
@@ -1296,14 +1321,21 @@ def setup(
         initialize(SimpleNamespace(data_dir=layout.data, config=layout.config))
     config = json.loads(layout.config.read_text())
     config.pop("voice", None)
+    config.setdefault("providers", {})
 
-    config["providers"]["agent"] = dict(agent_built)
+    if agent_built is not None:
+        config["providers"]["agent"] = dict(agent_built)
+    else:
+        config["providers"].pop("agent", None)
     if effective_converse is not None:
         config["providers"]["converse"] = dict(effective_converse)
     if effective_decisions is not None:
         config["providers"]["decisions"] = dict(effective_decisions)
 
-    config["distribution"] = {"converse": bool(converse or converse_built is not None)}
+    dist_map: dict[str, Any] = {"converse": bool(converse or converse_built is not None)}
+    if not agent:
+        dist_map["agent"] = False
+    config["distribution"] = dist_map
     atomic_json(layout.config, config)
     return {"ready": False, "provider_connection": "not_checked", "next": "kinaiya serve host"}
 

@@ -564,3 +564,76 @@ def test_start_sigint_ctrl_c_terminates_only_owned_children_and_removes_state_fi
     for child in spawned.values():
         assert child.poll() is not None
         assert child.signals_received == [signal.SIGINT]
+
+
+def test_bare_kinaiya_routes_to_setup_when_unconfigured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Issue #499: bare kinaiya routes to setup when config.json is missing."""
+    layout = Layout.for_home(tmp_path)
+    monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
+    setup_called = False
+
+    def fake_dispatch(args):
+        nonlocal setup_called
+        assert args.command == "setup"
+        setup_called = True
+        return {"status": "setup_completed"}
+
+    monkeypatch.setattr(cli, "dispatch", fake_dispatch)
+    monkeypatch.setattr(cli, "print_command_result", lambda args, res: None)
+
+    launcher.main([])
+
+    assert setup_called is True
+    err = capsys.readouterr().err
+    assert "No configuration found — starting setup." in err
+
+
+def test_bare_kinaiya_routes_to_start_when_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #499: bare kinaiya routes to start when config.json exists."""
+    layout, ports = _prepare_fixture_layout(tmp_path, converse=False)
+    monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
+    start_called = False
+
+    def fake_dispatch(args):
+        nonlocal start_called
+        assert args.command == "start"
+        start_called = True
+        return {"status": "started"}
+
+    monkeypatch.setattr(cli, "dispatch", fake_dispatch)
+    monkeypatch.setattr(cli, "print_command_result", lambda args, res: None)
+
+    launcher.main([])
+
+    assert start_called is True
+
+
+def test_kinaiya_help_subcommand(capsys: pytest.CaptureFixture) -> None:
+    """Issue #499: kinaiya help and kinaiya --help display usage cleanly and exit 0."""
+    with pytest.raises(SystemExit) as exc_info:
+        launcher.main(["help"])
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "Kinaiya independent runtimes and Agent CLI" in out
+    assert "usage:" in out
+
+
+def test_setup_no_start_flag_bypasses_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #506: --no-start saves configuration without prompting or starting services."""
+    layout = Layout.for_home(tmp_path)
+    monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
+
+    from services.distribution import wizard
+
+    monkeypatch.setattr(wizard, "run_wizard", lambda *args, **kwargs: {"status": "wizard_done"})
+
+    parser = launcher.build_parser()
+    args = parser.parse_args(["setup", "--no-start"])
+    res = cli.dispatch(args)
+    assert res == {"status": "wizard_done"}

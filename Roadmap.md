@@ -160,6 +160,14 @@ See [clarification.md §16](clarification.md#16-converse-model-choice-performanc
 | D49 | Audio-only conversation still has a traceable transcript for history and text-based consumers. | Prefer available native input transcription and aligned reply text; otherwise transcribe the corresponding audio incrementally in one retained streaming session per speaker stream when supported. Preserve user versus assistant provenance, stable revisions, generated versus played delivery and cancellation. Use repeated rolling-window decoding only when required by the selected backend; Omni alone does not establish streaming ASR. |
 | D50 | Multimodal Decisions consumes supported media directly without waiting for transcription. | Feed authorized bounded audio/image/video to the verified model/backend path in parallel with transcript generation. Text-only Decisions retains the transcription bridge. Join both representations to the same source identity and supersession rules so later text does not duplicate an Agent action. Direct media production routing remains unimplemented/unqualified. |
 
+### 2.4 Owner clarification on November 8: service topology modes and agent-agnostic Converse
+
+| ID | Accepted decision | Requirement and current boundary |
+|---|---|---|
+| D51 | Setup and runtime support three explicit service topologies: **Both Agent & Converse (default)**, **Agent-only**, and **Converse-only**. | First-run setup and reconfiguration allow choosing **Both Agent & Converse** as the default topology, **Agent-only** (Session + Agent without Converse/Decisions), or **Converse-only** (standalone conversational character without configuring or starting an Agent worker). Tracked in [#513](https://github.com/rgoza1996/Kinaiya/issues/513) and [#514](https://github.com/rgoza1996/Kinaiya/issues/514). |
+| D52 | Converse is planned to be completely agent-agnostic. | Converse owns character personality and dialogue independently of which agent runtime is attached (or whether any agent runtime is present). Future roadmap work enables Converse (and Decisions routing when an agent is attached) to operate standalone in Converse-only mode or pair with external agent runtimes (such as Hermes Agent, OpenClaw, Pi, or other versioned §8.2 adapter implementations) without requiring Kinaiya Agent. External-agent adapters remain planned roadmap items rather than shipped functionality. |
+| D53 | Decisions is required whenever Converse is installed. | Decisions is a necessity whenever Converse is active (both in **Both Agent & Converse** and in **Converse-only** mode) because Decisions governs real-time conversational timing gates, speech turn-taking, and barge-in / interruption handling. In Agent-only mode, Converse and Decisions are off; whenever Converse is active, Decisions must be configured with an independent model. Tracked in [#517](https://github.com/rgoza1996/Kinaiya/issues/517). |
+
 ## 3. Scope and non-goals
 
 ### 3.1 Initial product scope
@@ -233,7 +241,7 @@ Separate runtimes do not require a fleet of containers. A single launcher may su
 
 ### 4.3 Independence requirements
 
-A clean Agent-only installation must not import or initialize STT, TTS, character rendering, or Converse inference. A Converse installation with an external agent must not need Kinaiya's adaptive-harness implementation.
+A clean Agent-only installation must not import or initialize STT, TTS, character rendering, or Converse inference. A Converse-only installation must operate standalone without requiring an Agent provider profile or worker process, and a future agent-agnostic Converse installation with an external agent must not need Kinaiya's adaptive-harness implementation.
 
 Disabling either service must produce a clear capability change, not a broken session. A frontend reconnection retrieves the existing session and outstanding actions rather than starting duplicate work.
 
@@ -495,6 +503,17 @@ Agent coordinates subagents without requiring a character per worker. Parent acc
 ### 8.4 Skills, MCP, plugins, and commands
 
 Connecting Converse to an external agent is different from Kinaiya Agent using skills originally written for that agent. Both are required directions of interoperability. The skill manager, MCP host, plugin host, and command registry belong to Agent infrastructure and remain usable with Converse absent. Their contracts are specified in Sections 31–32.
+
+### 8.5 Agent-agnostic Converse and standalone dialogue runtime
+
+Future plans include decoupling Converse so it can operate as an agent-agnostic voice and conversational dialogue runtime:
+
+1. **Standalone Converse mode**: Converse operates with its conversational LLM, voice pipeline (STT/TTS), and an independent Decisions router model without requiring Kinaiya Agent to be configured or started.
+2. **External agent runtime delegation**: Through the Section 8.2 adapter contract, Converse delegates authorized tasks across versioned HTTP/SSE endpoints to external agent runtimes (such as Pi, Hermes Agent, OpenClaw, or custom workers) rather than assuming a local Kinaiya Agent process.
+3. **Decoupled capabilities**: Character personality, expressive speech, and natural-language interaction live exclusively in Converse. The target agent manages its own internal skills, MCP servers, tools, and execution harnesses without leaking foreign commands, syntax, or agent prompts into the dialogue interface.
+4. **Independent Decisions routing**: As an architectural invariant, Decisions timing and routing remain coupled to Converse dialogue (for turn-taking gates, barge-in, and speech release) but strictly decoupled from agent implementation specifics.
+
+This capability is tracked on the roadmap as a future architectural milestone rather than claimed as currently shipped behavior.
 
 ## 9. Action truth and completion reporting
 

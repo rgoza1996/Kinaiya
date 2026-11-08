@@ -159,22 +159,24 @@ status indicators distinguishable from the behavior of the running product.
 ## Reviewed native Options and November 2 UI/UX synchronization
 
 The current Git LFS archive is the same **Kinaiya — Master design** file, revision
-61, modified `2026-11-08T09:00:00.000000Z`. It contains fourteen pages and 369
+63, modified `2026-11-08T10:00:00.000000Z`. It contains fourteen pages and 369
 real top-level boards (291 on the current page), excluding root sentinels.
-Archive size: **244,656,257 bytes**; SHA-256:
-`f69640bda6dddfe9249c17ae3648d4e951566fdd81affc0248035f4118f2cc34`.
+Archive size: **244,662,707 bytes**; SHA-256:
+`1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c`.
 
 Sixty-two existing Options content areas were updated and sixty-two paired
 motion detail/state boards were added in revision 53, revision 54 synchronized
 twenty editable text layers across the Home, Converse, Agent and Options
 Overview/Models boards (`#286–#310`), revisions 55–56 updated the Provider,
 Models, and Home/Character boards (`#352–#353`) and added twelve paired Custom API
-prototype boards (`#352`), and revisions 57–61 add and synchronize twenty-eight paired standalone
-OS terminal CLI Installer & Setup Wizard prototype boards (`#261`, `#335`, `#336`,
-`#381–#402`, `#497–#511`: 14 motion-on and 14 motion-off standalone terminal screens with
+prototype boards (`#352`), and revisions 57–63 add and synchronize twenty-eight paired standalone
+OS terminal CLI Installer & Setup Wizard prototype boards (`#261`, `#335`,
+`#381–#402`, `#497–#517`: 14 motion-on and 14 motion-off standalone terminal screens with
 multi-color ANSI terminal syntax highlighting and the multi-tone deterministic
 68×14 ASCII Moon from the Moonlit Home screen, linking every choice
 and branch in `install.sh`, `kinaiya` bare command, `kinaiya setup` curses arrow-key TUI,
+3-way service topology selection (`Both Agent & Converse` default, `Agent only`, `Converse only`),
+Converse LLM reuse with independent Decisions model selection (Decisions is required whenever Converse is active),
 authenticated `GET /models` discovery, `kinaiya start`, loopback auto-login & SHA-256 refresh tokens,
 and Hermes-style human-readable TUI status checklists for `kinaiya doctor`, `kinaiya auth rotate-owner`,
 `kinaiya update`, `kinaiya version`, `kinaiya recover`, `kinaiya rollback`,
