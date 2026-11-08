@@ -18,9 +18,9 @@ integration. Model tool schemas must not expose ``authority``,
 ``invocation``, or ``content_scope`` choices.
 
 Only the configured launcher imports this service. Base Agent paths must
-not import it, and this module imports nothing from ``services.*``,
-``packages.providers.*``, or any optional dependency: stdlib plus the
-reviewed ``packages.ecosystem.skills`` helpers only.
+not import it. This module uses the pure native disclosure predicate and
+reviewed ``packages.ecosystem.skills`` helpers; it imports no service,
+inference adapter, provider SDK, or optional dependency.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ import json
 import os
 import re
 import stat as _stat
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -48,6 +49,7 @@ from packages.ecosystem.skills import (
     _parse_skill_md_bytes,
     _require_real_dir,
 )
+from packages.providers.disclosure import public_only_provider
 
 # -- public constants (bounds are part of the contract) -------------------------
 
@@ -135,12 +137,14 @@ def _is_meta_contributor(provider: str, model: str) -> bool:
 
 
 def _provider_flags(provider_info: Any) -> tuple[bool, bool]:
-    """Return ``(local, contributor)`` from a ProviderInfo-like object.
+    """Return ``(local, public_only)`` from a ProviderInfo-like object.
 
     Accepts attribute or mapping access; anything else (or wrongly typed
-    fields) is rejected instead of guessed.
+    fields, including an invalid disclosure policy) is rejected instead of
+    guessed. The second element is the public-only ceiling: Meta/Contributor
+    or explicit public_synthetic_only. owner_authorized never relaxes it.
     """
-    if isinstance(provider_info, dict):
+    if isinstance(provider_info, Mapping):
         local = provider_info.get("local")
         provider = provider_info.get("provider")
         model = provider_info.get("model")
@@ -160,7 +164,11 @@ def _provider_flags(provider_info: Any) -> tuple[bool, bool]:
         raise _fail("provider_info.provider must be a non-empty string")
     if not isinstance(model, str) or not model:
         raise _fail("provider_info.model must be a non-empty string")
-    return local, _is_meta_contributor(provider, model)
+    try:
+        public_only = bool(public_only_provider(provider_info))
+    except ValueError:
+        raise _fail("provider disclosure policy is invalid") from None
+    return local, public_only
 
 
 def _scope_allows(scope: str, *, local: bool, contributor: bool) -> bool:

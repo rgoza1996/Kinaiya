@@ -7,6 +7,7 @@ import json
 import re
 import shlex
 import sqlite3
+from collections.abc import Mapping
 from pathlib import Path
 
 from packages.commands.task_intents import (
@@ -28,6 +29,7 @@ from packages.contracts.models import (
     ProviderInfo,
     TaskRequest,
 )
+from packages.providers.disclosure import public_only_provider
 
 
 def parse(text):
@@ -158,14 +160,17 @@ class Registry:
         if service is None:
             return
         settings = getattr(self.runtime, "model_settings", None)
-        configured = settings.default_info() if settings is not None else None
-        info = (
-            ProviderInfo.model_validate(configured)
-            if configured is not None
-            else self.runtime.provider.info
-            if settings is None
-            else None
-        )
+        try:
+            configured = settings.default_info() if settings is not None else None
+            info = (
+                ProviderInfo.model_validate(configured)
+                if configured is not None
+                else self.runtime.provider.info
+                if settings is None
+                else None
+            )
+        except (ValueError, TypeError, AttributeError):
+            info = None
         rows, after = [], 0
         for _ in range(8):
             page = await service.list_owner(after=after, limit=8)
@@ -194,17 +199,23 @@ class Registry:
             ):
                 continue
             available = row.get("enabled", False) and row.get("status") == "ready"
-            contributor = info is not None and (
-                info.provider == "meta" or "contributor" in info.model.lower()
-            )
+            try:
+                public_only = bool(info is not None and public_only_provider(info))
+                local = info.get("local") if isinstance(info, Mapping) else info.local
+                provider_invalid = type(local) is not bool
+            except (ValueError, TypeError, AttributeError):
+                public_only = False
+                provider_invalid = True
+                local = False
             scope = row.get("scope", "local_only")
             available = (
                 available
                 and info is not None
+                and not provider_invalid
                 and (
-                    info.local
+                    local
                     or scope == "public_synthetic"
-                    or (not contributor and scope == "private_cloud_authorized")
+                    or (not public_only and scope == "private_cloud_authorized")
                 )
             )
             self._skill_commands.append(
