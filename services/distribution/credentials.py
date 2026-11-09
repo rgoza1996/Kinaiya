@@ -699,7 +699,7 @@ def prompt_masked_api_key(
     lowered = cleaned.lower()
     if lowered in {":cancel", ":q", "cancel", "quit"}:
         raise InstallError("Setup cancelled; no configuration written")
-    if lowered in {":back", "<", "back"}:
+    if lowered in {":back", "<", "back", "previous", "prev"}:
         return MaskedKeyAction(
             action="back",
             profile_id=pid,
@@ -736,6 +736,15 @@ def prompt_masked_api_key(
         if not env_line:
             raise InstallError("Setup cancelled: terminal input closed")
         env_candidate = env_line.strip()
+        if env_candidate.lower() in {":back", "<", "back", "previous", "prev"}:
+            return MaskedKeyAction(
+                action="back",
+                profile_id=pid,
+                endpoint=endpoint,
+                credential_env=None,
+                api_key=None,
+                masked_display="[back]",
+            )
     elif lowered.startswith(":env "):
         env_candidate = cleaned[5:].strip()
     elif cleaned.upper().startswith("ENV:"):

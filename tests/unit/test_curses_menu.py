@@ -301,3 +301,65 @@ def test_cli_main_keyboard_interrupt_handling():
         with pytest.raises(SystemExit) as exc_info:
             cli.main(["setup"])
         assert exc_info.value.code == 1
+
+
+def test_curses_radiolist_eof_spin_guard_raises_instead_of_hanging():
+    """Issue #543: repeated getch() == -1 (piped stdin EOF) must abort instead of spinning."""
+    items = [MenuItem(label="Workspace Default"), MenuItem(label="Workspace CWD")]
+
+    mock_stdscr = MagicMock()
+    mock_stdscr.getmaxyx.return_value = (24, 80)
+    mock_stdscr.getch.return_value = -1
+
+    with pytest.raises(MenuCancelled, match="EOF"):
+        _curses_radiolist_screen(mock_stdscr, "Select Authorized Workspace", items)
+    assert mock_stdscr.getch.call_count == 32
+
+    mock_stdscr_check = MagicMock()
+    mock_stdscr_check.getmaxyx.return_value = (24, 80)
+    mock_stdscr_check.getch.return_value = -1
+    with pytest.raises(MenuCancelled, match="EOF"):
+        _curses_checklist_screen(mock_stdscr_check, "Select Services", items)
+    assert mock_stdscr_check.getch.call_count == 32
+
+
+def test_ensure_stdin_tty_rebinds_fd_zero_when_stdin_is_pipe(monkeypatch: pytest.MonkeyPatch):
+    """Issue #543: _ensure_stdin_tty binds fd 0 to active_tty.fileno() when stdin is piped."""
+    from services.distribution.curses_menu import _ensure_stdin_tty
+
+    dup2_calls: list[tuple[int, int]] = []
+
+    class _FakeTTYWithFD:
+        def fileno(self) -> int:
+            return 7
+
+    monkeypatch.setattr("os.isatty", lambda fd: fd == 7)
+    monkeypatch.setattr("os.dup", lambda fd: 99)
+    monkeypatch.setattr("os.dup2", lambda src, dst: dup2_calls.append((src, dst)))
+    monkeypatch.setattr("os.close", lambda fd: None)
+
+    with _ensure_stdin_tty(_FakeTTYWithFD()):
+        assert dup2_calls == [(7, 0)]
+    assert dup2_calls == [(7, 0), (99, 0)]
+
+
+def test_curses_radiolist_selectable_previous_step_and_previous_keyword():
+    """Issue #545: allow_back=True appends selectable '← Previous step' item and accepts 'previous'."""
+    items = [MenuItem(label="Option 1"), MenuItem(label="Option 2")]
+
+    # Selecting the appended '← Previous step' item (index 2) raises MenuGoBack
+    mock_stdscr = MagicMock()
+    mock_stdscr.getmaxyx.return_value = (24, 80)
+    mock_stdscr.getch.side_effect = [
+        curses.KEY_DOWN,  # move to Option 2 (idx 1)
+        curses.KEY_DOWN,  # move to ← Previous step (idx 2)
+        10,  # ENTER
+    ]
+    with pytest.raises(MenuGoBack):
+        _curses_radiolist_screen(mock_stdscr, "Select Provider", items, allow_back=True)
+
+    # Line fallback accepts 'previous' and 'prev'
+    for keyword in ("previous", "prev", "back", ":back", "<"):
+        tty = _FakeTTY([keyword])
+        with pytest.raises(MenuGoBack):
+            curses_radiolist("Select Provider", items, allow_back=True, tty=tty)

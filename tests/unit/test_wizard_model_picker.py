@@ -637,3 +637,93 @@ def test_pre_setup_config_backup_preserved(tmp_path: Path, monkeypatch: pytest.M
     bak_file = layout.config.with_name(f"{layout.config.name}.pre-setup.bak")
     assert bak_file.exists()
     assert bak_file.read_text(encoding="utf-8") == initial_content
+
+
+def test_endpoint_agnostic_direct_masked_api_key_for_custom_cloud_and_local_endpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #544: direct masked API key entry works for both cloud and local endpoints without export."""
+    from services import launcher
+    from services.distribution.credentials import LocalCredentialsStore
+
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+
+    # 1. Custom remote endpoint (https://openrouter.ai/api/v1) with direct pasted API key (no export!)
+    layout_cloud = Layout.for_home(tmp_path / "cloud_home")
+    captured_cloud_headers: dict[str, str] = {}
+    cloud_payload = b'{"data": [{"id": "anthropic/claude-3.7-sonnet"}]}'
+
+    def cloud_opener(req, timeout=5.0):
+        for k, v in req.headers.items():
+            captured_cloud_headers[k.lower()] = v
+        return _FakeHTTPResponse(cloud_payload, 200)
+
+    tty_cloud = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "3",  # Custom OpenAI-compatible endpoint
+            "https://openrouter.ai/api/v1",  # Custom Base URL
+            "y",  # Cloud disclosure consent
+            "sk-or-v1-direct-secret-987654",  # Direct masked API key (not an env var name!)
+            "",  # Press Enter to select sole discovered model
+            "3",  # Agent only
+            "yes",  # Confirm write
+        ]
+    )
+    res_cloud = wizard.run_wizard(
+        layout_cloud,
+        tty=tty_cloud,
+        discover_models=True,
+        opener=cloud_opener,
+    )
+    assert res_cloud["ready"] is False
+    assert "Credential environment variable NAME only" not in tty_cloud.output
+    assert captured_cloud_headers.get("authorization") == "Bearer sk-or-v1-direct-secret-987654"
+    store_cloud = LocalCredentialsStore(layout_cloud.data / "providers.env")
+    assert store_cloud.get_api_key("p03") == "sk-or-v1-direct-secret-987654"
+
+    cfg_cloud = json.loads(layout_cloud.config.read_text(encoding="utf-8"))
+    assert cfg_cloud["providers"]["agent"]["model"] == "anthropic/claude-3.7-sonnet"
+    assert cfg_cloud["providers"]["agent"]["api_key_env"] == "KINAIYA_PROVIDER_P03_API_KEY"
+    # Verify launcher.provider resolves the key from providers.env without shell export!
+    built_provider = launcher.provider(cfg_cloud, "agent")
+    assert (
+        built_provider.http.headers.get("authorization") == "Bearer sk-or-v1-direct-secret-987654"
+    )
+
+    # 2. Local LM Studio endpoint (p01) with optional direct API key (e.g. LM Studio auth token)
+    layout_local = Layout.for_home(tmp_path / "local_home")
+    captured_local_headers: dict[str, str] = {}
+    local_payload = b'{"data": [{"id": "qwen2.5-coder-14b-instruct"}]}'
+
+    def local_opener(req, timeout=5.0):
+        for k, v in req.headers.items():
+            captured_local_headers[k.lower()] = v
+        return _FakeHTTPResponse(local_payload, 200)
+
+    tty_local = _FakeTTY(
+        [
+            "",  # workspace
+            "",  # data
+            "1",  # LM Studio (local) p01
+            "lms-local-token-abc12345",  # Direct masked API key on local endpoint
+            "",  # Press Enter to select sole discovered model
+            "3",  # Agent only
+            "yes",  # Confirm write
+        ]
+    )
+    res_local = wizard.run_wizard(
+        layout_local,
+        tty=tty_local,
+        discover_models=True,
+        opener=local_opener,
+    )
+    assert res_local["ready"] is False
+    assert captured_local_headers.get("authorization") == "Bearer lms-local-token-abc12345"
+    store_local = LocalCredentialsStore(layout_local.data / "providers.env")
+    assert store_local.get_api_key("p01") == "lms-local-token-abc12345"

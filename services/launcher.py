@@ -185,17 +185,57 @@ def converse_native_audio(config, runtime, data_dir, workspace):
     )
 
 
-def provider(config, role, *, resource_state=None, service_token=None, workspace=None):
+def _resolve_api_key_env(config, key_ref: str | None, *, data_dir: str | Path | None = None) -> str:
+    """Resolve an API key from os.environ or the user-private 0600 providers.env store (#544)."""
+    if not key_ref:
+        return ""
+    env_val = os.environ.get(key_ref, "")
+    if env_val:
+        return env_val
+    candidate_dirs: list[Path] = []
+    if data_dir is not None and str(data_dir).strip():
+        candidate_dirs.append(Path(data_dir).expanduser())
+    dist = config.get("distribution") if isinstance(config, dict) else None
+    data_dir_raw = dist.get("data_dir") if isinstance(dist, dict) else None
+    if isinstance(data_dir_raw, str) and data_dir_raw.strip():
+        candidate_dirs.append(Path(data_dir_raw).expanduser())
+    for cand_dir in candidate_dirs:
+        try:
+            from services.distribution.credentials import LocalCredentialsStore
+
+            for filename in ("providers.env", "custom_providers.env"):
+                env_path = cand_dir / filename
+                if env_path.is_file() and not env_path.is_symlink():
+                    stored = LocalCredentialsStore(env_path).load_env_map().get(key_ref, "")
+                    if stored:
+                        return stored
+        except Exception:
+            pass
+    return ""
+
+
+def provider(
+    config,
+    role,
+    *,
+    resource_state=None,
+    service_token=None,
+    workspace=None,
+    data_dir=None,
+):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
     profile = dict(config["providers"][role])
+    providers_env_dir = profile.pop("providers_env_dir", None) or data_dir
+    for _meta_key in ("profile_id", "qualified_model_id", "selection_source"):
+        profile.pop(_meta_key, None)
     kind = profile.pop("kind")
     if kind == "meta":
         if role == "agent":
             profile.setdefault("structured_actions", True)
         key_ref = profile.pop("api_key_env", None)
         if key_ref and not profile.get("api_key"):
-            profile["api_key"] = os.environ.get(key_ref, "")
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
         result = MetaResponsesProvider(**profile)
     elif kind == "measured_chat":
         if role != "converse":
@@ -206,13 +246,15 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             raise ValueError("Measured chat is local only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
-            profile["api_key"] = os.environ.get(key_ref, "")
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
         result = MeasuredChatProvider(**profile)
     elif kind == "lmstudio":
         if role not in {"converse", "agent", "auxiliary"}:
             raise SystemExit("Native LM Studio supports Converse, Agent and auxiliary text only")
         from packages.providers.lmstudio import LMStudioProvider
 
+        profile.pop("api_key_env", None)
+        profile.pop("api_key", None)
         # The adapter owns exact native counting, prediction and cleanup. Each
         # model factory call constructs a fresh instance; auxiliary requests
         # must not share the primary Agent's active operation/cleanup state.
@@ -227,7 +269,7 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             raise SystemExit("OpenRouter decisions is a typed Decisions provider only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
-            profile["api_key"] = os.environ.get(key_ref, "")
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
         if kind == "native_d1":
             from packages.providers.native_d1 import NativeD1RoutingProvider
 
@@ -749,7 +791,12 @@ def serve(args):
         from services.settings.provider_factory import UnavailableHostProvider
 
         try:
-            host_provider = provider(config, "agent", resource_state=resource_state)
+            host_provider = provider(
+                config,
+                "agent",
+                resource_state=resource_state,
+                data_dir=args.data_dir.resolve(),
+            )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             # This is an unavailable host profile, never a fallback. Keep the
             # owner catalog/Options control plane available so a valid saved
@@ -813,7 +860,10 @@ def serve(args):
         profiles = {
             name: (
                 lambda profile=profile: provider(
-                    {"providers": {"agent": profile}}, "agent", resource_state=resource_state
+                    {"providers": {"agent": profile}},
+                    "agent",
+                    resource_state=resource_state,
+                    data_dir=args.data_dir.resolve(),
                 )
             )
             for name, profile in config.get("agent_profiles", {}).items()
@@ -847,6 +897,7 @@ def serve(args):
                     {"providers": {role: selected}},
                     role,
                     resource_state=None if auxiliary else resource_state,
+                    data_dir=args.data_dir.resolve(),
                 )
                 if auxiliary and resource_state is not None:
                     from services.resources.providers import ResourceBoundProvider
@@ -962,6 +1013,7 @@ def serve(args):
                 resource_state=resource_state,
                 service_token=tokens["converse"],
                 workspace=args.workspace.resolve(),
+                data_dir=args.data_dir.resolve(),
             )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Converse")
@@ -1128,7 +1180,12 @@ def serve(args):
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             catalog = None
         try:
-            host_provider = provider(config, "decisions", resource_state=resource_state)
+            host_provider = provider(
+                config,
+                "decisions",
+                resource_state=resource_state,
+                data_dir=args.data_dir.resolve(),
+            )
         except (OSError, ValueError, ProviderError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Decisions")
         try:

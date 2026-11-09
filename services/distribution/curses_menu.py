@@ -18,6 +18,7 @@ import os
 import re
 import sys
 from collections.abc import Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,6 +27,9 @@ from services.distribution.installation import InstallError
 PASTE_START = "\x1b[200~"
 PASTE_END = "\x1b[201~"
 _PASTE_MARKER_RE = re.compile(r"\x1b\[20[01]~")
+_GO_BACK_SENTINEL = "_kinaiya_go_back_"
+_MAX_CONSECUTIVE_EOF = 32
+_BACK_TOKENS = frozenset({":back", "<", "b", "back", "previous", "prev"})
 
 
 class MenuCancelled(BaseException):
@@ -142,6 +146,67 @@ def is_curses_available(tty: Any = None, env: dict[str, str] | None = None) -> b
         return False
 
 
+@contextmanager
+def _ensure_stdin_tty(active_tty: Any):
+    """Ensure C file descriptor 0 (STDIN_FILENO) is bound to a real TTY before curses.wrapper.
+
+    curses.initscr() reads keyboard input from C file descriptor 0 (STDIN_FILENO), not from
+    Python's tty stream object. When invoked via `curl ... | sh`, fd 0 may be a closed pipe
+    (EOF) while `active_tty` is an open `/dev/tty` handle on fd >= 3 (#543).
+    """
+    try:
+        stdin_is_tty = os.isatty(0)
+    except OSError:
+        stdin_is_tty = False
+    if stdin_is_tty:
+        yield
+        return
+
+    tty_fd: int | None = None
+    opened_dev_tty_fd: int | None = None
+    saved_stdin_fd: int | None = None
+    try:
+        if hasattr(active_tty, "fileno"):
+            try:
+                cand_fd = active_tty.fileno()
+                if isinstance(cand_fd, int) and cand_fd >= 0 and os.isatty(cand_fd):
+                    tty_fd = cand_fd
+            except (OSError, ValueError):
+                tty_fd = None
+        if tty_fd is None and hasattr(active_tty, "fileno"):
+            try:
+                opened_dev_tty_fd = os.open("/dev/tty", os.O_RDONLY)
+                if os.isatty(opened_dev_tty_fd):
+                    tty_fd = opened_dev_tty_fd
+            except OSError:
+                tty_fd = None
+        if tty_fd is not None and tty_fd != 0:
+            try:
+                saved_stdin_fd = os.dup(0)
+            except OSError:
+                saved_stdin_fd = None
+            try:
+                os.dup2(tty_fd, 0)
+            except OSError:
+                pass
+        yield
+    finally:
+        if saved_stdin_fd is not None:
+            try:
+                os.dup2(saved_stdin_fd, 0)
+            except OSError:
+                pass
+            try:
+                os.close(saved_stdin_fd)
+            except OSError:
+                pass
+        if opened_dev_tty_fd is not None:
+            try:
+                os.close(opened_dev_tty_fd)
+            except OSError:
+                pass
+
+
 def _to_menu_items(options: Sequence[str | MenuItem]) -> list[MenuItem]:
     items: list[MenuItem] = []
     for opt in options:
@@ -185,9 +250,20 @@ def _curses_radiolist_screen(
     except Exception:
         has_colors = False
 
-    current_idx = max(0, min(default_index, len(items) - 1))
+    display_items = list(items)
+    if allow_back and not any(it.value == _GO_BACK_SENTINEL for it in display_items):
+        display_items.append(
+            MenuItem(
+                label="← Previous step",
+                value=_GO_BACK_SENTINEL,
+                description="Return to previous setup step",
+            )
+        )
+
+    current_idx = max(0, min(default_index, len(display_items) - 1))
     search_query = ""
     search_active = False
+    consecutive_eof = 0
 
     while True:
         stdscr.erase()
@@ -196,14 +272,14 @@ def _curses_radiolist_screen(
         # Filter items if search query is present
         if search_query:
             scored: list[tuple[float, int, MenuItem]] = []
-            for orig_idx, item in enumerate(items):
+            for orig_idx, item in enumerate(display_items):
                 sc = fuzzy_score(search_query, item.label)
                 if sc is not None:
                     scored.append((sc, orig_idx, item))
             scored.sort(key=lambda x: x[0], reverse=True)
             visible_items = [(orig_idx, item) for _, orig_idx, item in scored]
         else:
-            visible_items = list(enumerate(items))
+            visible_items = list(enumerate(display_items))
 
         # Clamp current_idx within visible items
         if not visible_items:
@@ -300,7 +376,11 @@ def _curses_radiolist_screen(
             raise MenuCancelled("Menu selection cancelled by user") from None
 
         if ch == -1:
+            consecutive_eof += 1
+            if consecutive_eof >= _MAX_CONSECUTIVE_EOF:
+                raise MenuCancelled("Terminal input closed (EOF)")
             continue
+        consecutive_eof = 0
 
         # Handle Search Mode typing
         if search_active:
@@ -334,6 +414,8 @@ def _curses_radiolist_screen(
             if visible_items:
                 selected_item = visible_items[current_vis_idx][1]
                 if not selected_item.disabled:
+                    if selected_item.value == _GO_BACK_SENTINEL:
+                        raise MenuGoBack("User requested step rewind")
                     return visible_items[current_vis_idx][0]
         # Left arrow / back
         elif allow_back and ch in (curses.KEY_LEFT, ord("h"), ord("H"), ord("b"), ord("B")):
@@ -414,6 +496,7 @@ def _curses_checklist_screen(
     current_idx = 0
     search_query = ""
     search_active = False
+    consecutive_eof = 0
 
     while True:
         stdscr.erase()
@@ -519,7 +602,11 @@ def _curses_checklist_screen(
             raise MenuCancelled("Menu selection cancelled by user") from None
 
         if ch == -1:
+            consecutive_eof += 1
+            if consecutive_eof >= _MAX_CONSECUTIVE_EOF:
+                raise MenuCancelled("Terminal input closed (EOF)")
             continue
+        consecutive_eof = 0
 
         if search_active:
             if ch in (10, 13):
@@ -626,7 +713,7 @@ def _line_radiolist_fallback(
         raise MenuCancelled("Terminal input closed")
 
     choice = raw.strip()
-    if allow_back and choice.lower() in (":back", "b", "back"):
+    if allow_back and choice.lower() in _BACK_TOKENS:
         raise MenuGoBack("User requested step rewind")
     if choice.lower() in (":cancel", "q", "quit", ":q"):
         raise MenuCancelled("Menu selection aborted")
@@ -685,7 +772,7 @@ def _line_checklist_fallback(
         raise MenuCancelled("Terminal input closed")
 
     choice = raw.strip()
-    if allow_back and choice.lower() in (":back", "b", "back"):
+    if allow_back and choice.lower() in _BACK_TOKENS:
         raise MenuGoBack("User requested step rewind")
     if choice.lower() in (":cancel", "q", "quit", ":q"):
         raise MenuCancelled("Menu selection aborted")
@@ -738,14 +825,15 @@ def curses_radiolist(
         )
 
     try:
-        return curses.wrapper(
-            _curses_radiolist_screen,
-            title,
-            items,
-            default_index=default_index,
-            subtitle=subtitle,
-            allow_back=allow_back,
-        )
+        with _ensure_stdin_tty(active_tty):
+            return curses.wrapper(
+                _curses_radiolist_screen,
+                title,
+                items,
+                default_index=default_index,
+                subtitle=subtitle,
+                allow_back=allow_back,
+            )
     finally:
         flush_stdin()
 
@@ -780,13 +868,14 @@ def curses_checklist(
         )
 
     try:
-        return curses.wrapper(
-            _curses_checklist_screen,
-            title,
-            items,
-            default_indices=default_indices,
-            subtitle=subtitle,
-            allow_back=allow_back,
-        )
+        with _ensure_stdin_tty(active_tty):
+            return curses.wrapper(
+                _curses_checklist_screen,
+                title,
+                items,
+                default_indices=default_indices,
+                subtitle=subtitle,
+                allow_back=allow_back,
+            )
     finally:
         flush_stdin()
