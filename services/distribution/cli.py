@@ -32,6 +32,14 @@ from services.distribution.installation import (
     source_artifact,
     update_plan,
 )
+from services.distribution.lifecycle_formatting import (
+    format_auth_report,
+    format_recover_report,
+    format_rollback_report,
+    format_uninstall_report,
+    format_update_report,
+    format_version_report,
+)
 from services.distribution.stage_progress import (
     StageReporter,
     activate_reporter,
@@ -406,33 +414,21 @@ def print_command_result(args, result):
 
     if not json_flag and is_tty and isinstance(result, dict):
         if cmd == "update":
-            from services.distribution.lifecycle_formatting import format_update_report
-
             print(format_update_report(result, no_color=no_color, is_tty=True), end="")
             return
         if cmd == "version":
-            from services.distribution.lifecycle_formatting import format_version_report
-
             print(format_version_report(result, no_color=no_color, is_tty=True), end="")
             return
         if cmd == "auth" and getattr(args, "auth_command", None) == "rotate-owner":
-            from services.distribution.lifecycle_formatting import format_auth_report
-
             print(format_auth_report(result, no_color=no_color, is_tty=True), end="")
             return
         if cmd == "recover":
-            from services.distribution.lifecycle_formatting import format_recover_report
-
             print(format_recover_report(result, no_color=no_color, is_tty=True), end="")
             return
         if cmd == "rollback":
-            from services.distribution.lifecycle_formatting import format_rollback_report
-
             print(format_rollback_report(result, no_color=no_color, is_tty=True), end="")
             return
         if cmd == "uninstall":
-            from services.distribution.lifecycle_formatting import format_uninstall_report
-
             print(format_uninstall_report(result, no_color=no_color, is_tty=True), end="")
             return
 

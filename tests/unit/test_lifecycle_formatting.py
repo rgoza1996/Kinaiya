@@ -166,6 +166,17 @@ def test_print_command_result_renders_checklist_on_tty(capsys):
     assert "Already up to date!" in out
 
 
+def test_print_command_result_renders_uninstall_checklist_on_tty(capsys):
+    """Issue #531: verify uninstall command formatting succeeds without deferred import failure."""
+    args = SimpleNamespace(command="uninstall", json=False)
+    result = {"action": "uninstalled", "data_deleted": False, "workspace_deleted": False}
+    with patch("sys.stdout.isatty", return_value=True):
+        print_command_result(args, result)
+    out = capsys.readouterr().out
+    assert "Kinaiya Uninstallation Complete" in out
+    assert "User configuration and private data directories preserved" in out
+
+
 def test_print_command_result_respects_json_flag(capsys):
     args = SimpleNamespace(command="update", json=True)
     result = {"action": "current", "version": "0.1.0"}
