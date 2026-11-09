@@ -674,3 +674,27 @@ def test_setup_no_start_flag_bypasses_start(
     args = parser.parse_args(["setup", "--no-start"])
     res = cli.dispatch(args)
     assert res == {"status": "wizard_done"}
+
+
+def test_direct_agent_reports_friendly_error_when_services_are_offline(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    """Issue #537: kinaiya agent prints an actionable error without traceback when services are offline."""
+    closed_port = _free_ports(1)[0]
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    config_path = data_dir / "config.json"
+    atomic_json(
+        config_path,
+        {
+            "session_url": f"http://127.0.0.1:{closed_port}",
+            "agent_url": f"http://127.0.0.1:{closed_port}",
+        },
+    )
+    with pytest.raises(SystemExit) as exc_info:
+        launcher.main(["--data-dir", str(data_dir), "agent", "summarize notes"])
+    assert exc_info.value.code == 1
+    err = capsys.readouterr().err
+    assert f"kinaiya: Cannot reach local services at http://127.0.0.1:{closed_port}." in err
+    assert "Start them with 'kinaiya start' or 'kinaiya serve host'." in err
+    assert "Traceback" not in err
