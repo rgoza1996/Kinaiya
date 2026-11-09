@@ -618,3 +618,56 @@ def test_service_topology_converse_only(tmp_path: Path) -> None:
     assert cfg["providers"]["decisions"]["model"] == "meta-llama/llama-3.2-3b-instruct"
     assert cfg["distribution"]["converse"] is True
     assert cfg["distribution"]["agent"] is False
+
+
+def test_universal_previous_back_across_custom_url_api_key_and_manual_model_substeps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #545: 'back' and 'previous' rewind across manual model, API key, disclosure, custom URL, data, and workspace."""
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    layout = Layout.for_home(tmp_path)
+
+    def empty_opener(req, timeout=5.0):
+        raise OSError("connection refused")
+
+    tty = FakeTerminal(
+        [
+            "3",  # workspace -> Custom directory path...
+            "previous",  # at Enter custom workspace path -> back to workspace menu
+            "1",  # workspace -> Default workspace
+            "2",  # data -> Custom directory path...
+            "back",  # at Enter custom private data path -> back to data menu
+            "1",  # data -> Default private data directory
+            "3",  # provider -> Custom OpenAI-compatible endpoint
+            "back",  # at Custom endpoint Base URL -> back to provider menu
+            "3",  # provider -> Custom OpenAI-compatible endpoint again
+            "https://openrouter.ai/api/v1",  # Custom Base URL
+            "y",  # Cloud disclosure consent
+            "",  # Skip API key -> GET /models fails -> lands on Enter exact model ID
+            "back",  # at Enter exact model ID -> rewinds to Masked API key prompt!
+            "previous",  # at Masked API key prompt -> rewinds to Cloud disclosure prompt!
+            "back",  # at Cloud disclosure prompt -> rewinds to Custom endpoint Base URL!
+            "http://127.0.0.1:1234/v1",  # Change Custom Base URL to local loopback
+            "",  # Skip local API key -> lands on Enter exact model ID
+            "qwen2.5-coder-7b",  # Enter manual model ID
+            "1",  # Topology -> Both Agent & Converse (reuse)
+            "back",  # at Decisions router model prompt -> rewinds to Topology selection!
+            "3",  # Topology -> Agent only
+            "yes",  # Confirm write
+        ]
+    )
+    res = wizard.run_wizard(
+        layout,
+        tty=tty,
+        discover_models=True,
+        opener=empty_opener,
+    )
+    assert res["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert cfg["providers"]["agent"]["base_url"] == "http://127.0.0.1:1234/v1"
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-7b"
+    assert cfg["distribution"]["converse"] is False

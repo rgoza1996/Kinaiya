@@ -519,6 +519,10 @@ def select_profile_interactively(
     choice = raw.strip()
     if choice.lower() in (":cancel", "q", "quit"):
         raise InstallError("Setup cancelled: profile selection aborted")
+    if choice.lower() in {":back", "<", "back", "previous", "prev"}:
+        from services.distribution.curses_menu import MenuGoBack
+
+        raise MenuGoBack("User requested step rewind")
 
     selected: ProviderProfileChoice | None = None
     if choice == "" and len(profiles) == 1:
@@ -821,6 +825,10 @@ def _prompt_manual_model_id(
     cleaned = line.strip()
     if cleaned.lower() in (":cancel", "q", "quit"):
         raise InstallError("Setup cancelled: manual model entry aborted")
+    if cleaned.lower() in {":back", "<", "back", "previous", "prev"}:
+        from services.distribution.curses_menu import MenuGoBack
+
+        raise MenuGoBack("User requested step rewind")
     valid_model = _validate_manual_model_id(cleaned)
     return SelectedModel(
         profile_id=profile_id,
@@ -971,6 +979,10 @@ def select_model_interactively(
             )
         if ans.lower() in (":cancel", "q", "quit"):
             raise InstallError("Setup cancelled: model selection aborted")
+        if ans.lower() in {":back", "<", "back", "previous", "prev"}:
+            from services.distribution.curses_menu import MenuGoBack
+
+            raise MenuGoBack("User requested step rewind")
         valid_direct = _validate_manual_model_id(ans)
         return SelectedModel(
             profile_id=pid,
@@ -1026,6 +1038,10 @@ def select_model_interactively(
 
         if lower in (":cancel", "q", "quit"):
             raise InstallError("Setup cancelled: model selection aborted")
+        if lower in {":back", "<", "back", "previous", "prev"}:
+            from services.distribution.curses_menu import MenuGoBack
+
+            raise MenuGoBack("User requested step rewind")
         if lower in ("m", ":manual"):
             return _prompt_manual_model_id(
                 tty,
@@ -1137,7 +1153,11 @@ def save_role_model_selection(
         data = {"providers": {}, "distribution": {"converse": False}}
 
     providers = data.setdefault("providers", {})
+    existing_role = (
+        dict(providers[selection.role]) if isinstance(providers.get(selection.role), dict) else {}
+    )
     role_entry: dict[str, Any] = {
+        **existing_role,
         "kind": selection.adapter_kind,
         "base_url": selection.endpoint,
         "model": selection.model_id,
@@ -1148,9 +1168,11 @@ def save_role_model_selection(
     }
     if selection.credential_env:
         role_entry["api_key_env"] = selection.credential_env
+    if hasattr(config_or_layout, "data"):
+        role_entry["providers_env_dir"] = str(config_or_layout.data)
     if hasattr(selection, "reasoning_effort") and selection.reasoning_effort:
         role_entry["reasoning_effort"] = selection.reasoning_effort
-    elif selection.adapter_kind == "lmstudio":
+    if selection.adapter_kind == "lmstudio":
         role_entry.setdefault("max_tokens", 128)
         role_entry.setdefault("reasoning_effort", "none")
     elif selection.adapter_kind == "meta":

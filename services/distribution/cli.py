@@ -772,9 +772,17 @@ def dispatch(args):
 
             reporter.start_stage("setup_handoff")
             # The bootstrap interpreter intentionally lacks runtime dependencies.
-            result["setup_exit_code"] = subprocess.run(
-                [str(layout.bin / "kinaiya"), "setup"], check=False
-            ).returncode
+            setup_cmd = [str(layout.bin / "kinaiya"), "setup"]
+            if not sys.stdin.isatty():
+                try:
+                    with open("/dev/tty", "rb", buffering=0) as tty_in:
+                        result["setup_exit_code"] = subprocess.run(
+                            setup_cmd, stdin=tty_in, check=False
+                        ).returncode
+                except OSError:
+                    result["setup_exit_code"] = subprocess.run(setup_cmd, check=False).returncode
+            else:
+                result["setup_exit_code"] = subprocess.run(setup_cmd, check=False).returncode
             if result["setup_exit_code"]:
                 reporter.fail_stage(
                     "setup_handoff",
