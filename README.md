@@ -104,12 +104,15 @@ Kinaiya runs on a native Linux host (**Ubuntu 22.04, 24.04, or 26.04**, `x86_64`
 
 Run the single-command installer to check host prerequisites, print the installation plan before making changes, install any missing system dependencies (`bubblewrap`, `libseccomp2`, `python3.<minor>-venv`), verify and stage the release runtime in an isolated `.venv`, install the `~/.local/bin/kinaiya` launcher, and launch the interactive setup wizard:
 
-```sh
-# Interactive bootstrap + setup wizard (experimental nightly release channel):
-curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+Interactive bootstrap and setup wizard (experimental nightly release channel):
 
-# Or review the printed JSON plan first without --yes (type 'no' at the prompt to exit with zero changes),
-# or customize initial disjoint workspace and data directories:
+```sh
+curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- --channel nightly
+```
+
+Or review the printed JSON plan first without `--yes` (type `no` at the prompt to exit with zero changes), or customize initial disjoint workspace and data directories:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh | sh -s -- \
   --channel nightly --workspace "$HOME/Kinaiya Workspace" --data-dir "$HOME/.local/share/kinaiya/data"
 ```
