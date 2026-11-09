@@ -34,6 +34,7 @@ from services.distribution.installation import (
 )
 from services.distribution.lifecycle_formatting import (
     format_auth_report,
+    format_install_report,
     format_recover_report,
     format_rollback_report,
     format_uninstall_report,
@@ -413,6 +414,9 @@ def print_command_result(args, result):
     no_color = bool(os.environ.get("NO_COLOR"))
 
     if not json_flag and is_tty and isinstance(result, dict):
+        if cmd == "install":
+            print(format_install_report(result, no_color=no_color, is_tty=True), end="")
+            return
         if cmd == "update":
             print(format_update_report(result, no_color=no_color, is_tty=True), end="")
             return

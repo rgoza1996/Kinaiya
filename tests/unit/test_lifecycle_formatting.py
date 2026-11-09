@@ -9,6 +9,7 @@ from unittest.mock import patch
 from services.distribution.cli import print_command_result
 from services.distribution.lifecycle_formatting import (
     format_auth_report,
+    format_install_report,
     format_recover_report,
     format_rollback_report,
     format_uninstall_report,
@@ -175,6 +176,34 @@ def test_print_command_result_renders_uninstall_checklist_on_tty(capsys):
     out = capsys.readouterr().out
     assert "Kinaiya Uninstallation Complete" in out
     assert "User configuration and private data directories preserved" in out
+
+
+def test_format_install_report_and_print_command_result(capsys):
+    """Issue #536: kinaiya install renders human-readable checklist on TTY instead of raw JSON."""
+    result = {
+        "installed": {
+            "version": "0.1.0-nightly.16+62333cb107e7",
+            "channel": "nightly",
+            "source_sha": "62333cb107e77e4b37d00d110609a57d3819c3cf",
+        },
+        "ready": False,
+        "launcher": "/home/user/.local/bin/kinaiya",
+        "log": "/home/user/.cache/kinaiya/install.log",
+        "next": "kinaiya setup; kinaiya serve host",
+    }
+    rendered = format_install_report(result, no_color=True, is_tty=True)
+    assert "Kinaiya Installation Complete" in rendered
+    assert "Release channel: nightly" in rendered
+    assert "0.1.0-nightly.16+62333cb107e7 (62333cb107e7)" in rendered
+    assert "Launcher: /home/user/.local/bin/kinaiya" in rendered
+    assert "Successfully installed!" in rendered
+
+    args = SimpleNamespace(command="install", json=False)
+    with patch("sys.stdout.isatty", return_value=True):
+        print_command_result(args, result)
+    out = capsys.readouterr().out
+    assert "Kinaiya Installation Complete" in out
+    assert "Successfully installed!" in out
 
 
 def test_print_command_result_respects_json_flag(capsys):

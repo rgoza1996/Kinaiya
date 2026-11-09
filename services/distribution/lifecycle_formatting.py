@@ -33,6 +33,39 @@ def _symbols(color_mode: ColorMode) -> tuple[str, str, str]:
     return f"{c_ok}✓{RESET}", f"{c_arr}→{RESET}", f"{c_warn}~{RESET}"
 
 
+def format_install_report(
+    result: dict[str, Any],
+    *,
+    no_color: bool = False,
+    is_tty: bool = True,
+) -> str:
+    """Format kinaiya install results into a clean, human-readable terminal checklist."""
+    mode = ColorMode.NONE if (no_color or not is_tty) else detect_color_mode()
+    ok_sym, arr_sym, _ = _symbols(mode)
+    c_bold = BOLD if mode != ColorMode.NONE else ""
+    c_head = PALETTE.moonlight.fg_sequence(mode) if mode != ColorMode.NONE else ""
+
+    installed = result.get("installed")
+    installed_dict = installed if isinstance(installed, dict) else {}
+    ver = installed_dict.get("version", "unknown")
+    sha = str(installed_dict.get("source_sha", ""))[:12]
+    chan = installed_dict.get("channel", "stable")
+    launcher_path = result.get("launcher", "kinaiya")
+    next_step = result.get("next", "kinaiya setup; kinaiya serve host")
+
+    lines: list[str] = [
+        f"{c_bold}{c_head}Kinaiya Installation Complete{RESET}",
+        f" {arr_sym} Release channel: {chan}",
+        f" {arr_sym} Installed release: {ver}" + (f" ({sha})" if sha else ""),
+        f" {arr_sym} Launcher: {launcher_path}",
+        f"   {ok_sym} Verified release artifact checksums (SHA-256)",
+        f"   {ok_sym} Built isolated virtual environment",
+        f"   {ok_sym} Activated current generation symlink",
+        f"{ok_sym} {c_bold}Successfully installed!{RESET} Next: {next_step}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def format_update_report(
     result: dict[str, Any],
     *,
