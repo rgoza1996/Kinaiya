@@ -490,11 +490,20 @@ def dispatch(args):
             "ready": "not_checked",
         }
     if args.command == "setup":
+        from dataclasses import replace
+
         section = getattr(args, "section", None)
         if section is not None:
             from services.distribution.wizard_navigation import validate_setup_section
 
             section = validate_setup_section(section)
+        target_layout = layout
+        if getattr(args, "setup_workspace", None) is not None:
+            target_layout = replace(
+                target_layout, workspace=Path(args.setup_workspace).expanduser()
+            )
+        if getattr(args, "setup_data_dir", None) is not None:
+            target_layout = replace(target_layout, data=Path(args.setup_data_dir).expanduser())
         if not args.yes:
             from services.distribution.wizard import run_wizard
 
@@ -505,15 +514,19 @@ def dispatch(args):
             )
             check_connection = bool(getattr(args, "check_connection", False))
             if section is not None:
-                return run_wizard(layout, section=section, check_connection=check_connection)
+                return run_wizard(target_layout, section=section, check_connection=check_connection)
             if check_connection:
                 res = (
-                    run_wizard(layout, mode=mode, check_connection=True)
+                    run_wizard(target_layout, mode=mode, check_connection=True)
                     if mode is not None
-                    else run_wizard(layout, check_connection=True)
+                    else run_wizard(target_layout, check_connection=True)
                 )
             else:
-                res = run_wizard(layout, mode=mode) if mode is not None else run_wizard(layout)
+                res = (
+                    run_wizard(target_layout, mode=mode)
+                    if mode is not None
+                    else run_wizard(target_layout)
+                )
 
             if not getattr(args, "no_start", False) and sys.stdin.isatty():
                 from services.distribution.terminal import open_terminal
@@ -527,20 +540,11 @@ def dispatch(args):
                 if should_start:
                     from services.distribution.start_supervisor import start_local
 
-                    return start_local(layout)
+                    return start_local(target_layout)
             return res
         if section is not None:
-            from dataclasses import replace
-
             from services.distribution.installation import reconfigure_section
 
-            target_layout = layout
-            if getattr(args, "setup_workspace", None) is not None:
-                target_layout = replace(
-                    target_layout, workspace=Path(args.setup_workspace).expanduser()
-                )
-            if getattr(args, "setup_data_dir", None) is not None:
-                target_layout = replace(target_layout, data=Path(args.setup_data_dir).expanduser())
             return reconfigure_section(
                 target_layout,
                 section,
@@ -606,7 +610,7 @@ def dispatch(args):
             if decisions_adapter is not None:
                 decisions_profile["adapter"] = decisions_adapter
         raw = setup(
-            layout,
+            target_layout,
             endpoint=args.endpoint,
             model=args.model,
             adapter=getattr(args, "adapter", None),
@@ -619,11 +623,11 @@ def dispatch(args):
         return sanitize_completion_receipt(
             {
                 **(raw if isinstance(raw, dict) else {}),
-                "install": str(layout.install),
-                "launcher": str(layout.bin / "kinaiya"),
-                "config": str(layout.config),
-                "data": str(layout.data),
-                "workspace": str(layout.workspace),
+                "install": str(target_layout.install),
+                "launcher": str(target_layout.bin / "kinaiya"),
+                "config": str(target_layout.config),
+                "data": str(target_layout.data),
+                "workspace": str(target_layout.workspace),
                 "adapter": getattr(args, "adapter", None),
                 "endpoint": args.endpoint,
                 "model": args.model,
