@@ -14,10 +14,13 @@ from pathlib import Path
 
 import httpx
 
-from packages.contracts.models import TaskRequest, new_id
-from services.common.auth import Auth, load_or_create_tokens
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from packages.contracts.models import TaskRequest, new_id  # noqa: E402
+from services.common.auth import Auth, load_or_create_tokens  # noqa: E402
+
 PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
 
 
@@ -1330,8 +1333,9 @@ def main(argv=None):
     if args.command is None:
         from services.distribution.cli import chosen_layout
 
-        layout = chosen_layout(args)
-        if not layout.config.exists():
+        layout = chosen_layout()
+        config_path = args.config if getattr(args, "config", None) is not None else layout.config
+        if not config_path.exists():
             sys.stderr.write("No configuration found — starting setup.\n")
             args.command = "setup"
             args.section = None

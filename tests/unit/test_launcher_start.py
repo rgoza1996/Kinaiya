@@ -8,6 +8,8 @@ import os
 import signal
 import socket
 import stat
+import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -569,9 +571,9 @@ def test_start_sigint_ctrl_c_terminates_only_owned_children_and_removes_state_fi
 def test_bare_kinaiya_routes_to_setup_when_unconfigured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
-    """Issue #499: bare kinaiya routes to setup when config.json is missing."""
+    """Issue #499 / #534: bare kinaiya routes to setup when config.json is missing."""
     layout = Layout.for_home(tmp_path)
-    monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
     setup_called = False
 
     def fake_dispatch(args):
@@ -593,9 +595,9 @@ def test_bare_kinaiya_routes_to_setup_when_unconfigured(
 def test_bare_kinaiya_routes_to_start_when_configured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Issue #499: bare kinaiya routes to start when config.json exists."""
+    """Issue #499 / #534: bare kinaiya routes to start when config.json exists."""
     layout, ports = _prepare_fixture_layout(tmp_path, converse=False)
-    monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
     start_called = False
 
     def fake_dispatch(args):
@@ -610,6 +612,41 @@ def test_bare_kinaiya_routes_to_start_when_configured(
     launcher.main([])
 
     assert start_called is True
+
+
+def test_bare_kinaiya_with_real_chosen_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Issue #534: bare kinaiya calls real chosen_layout() without raising TypeError on Namespace."""
+    monkeypatch.delenv("KINAIYA_INSTALL_ROOT", raising=False)
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: tmp_path))
+    dispatched_command = None
+
+    def fake_dispatch(args):
+        nonlocal dispatched_command
+        dispatched_command = args.command
+        return {"status": "ok"}
+
+    monkeypatch.setattr(cli, "dispatch", fake_dispatch)
+    monkeypatch.setattr(cli, "print_command_result", lambda args, res: None)
+
+    launcher.main([])
+    assert dispatched_command == "setup"
+    assert "No configuration found — starting setup." in capsys.readouterr().err
+
+
+def test_direct_launcher_script_execution_bootstraps_sys_path() -> None:
+    """Issue #533: executing services/launcher.py directly without PYTHONPATH resolves packages."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    proc = subprocess.run(
+        [sys.executable, str(Path(launcher.__file__).resolve()), "--help"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "Kinaiya independent runtimes and Agent CLI" in proc.stdout
 
 
 def test_kinaiya_help_subcommand(capsys: pytest.CaptureFixture) -> None:
@@ -627,7 +664,7 @@ def test_setup_no_start_flag_bypasses_start(
 ) -> None:
     """Issue #506: --no-start saves configuration without prompting or starting services."""
     layout = Layout.for_home(tmp_path)
-    monkeypatch.setattr(cli, "chosen_layout", lambda *args, **kwargs: layout)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
 
     from services.distribution import wizard
 
