@@ -1233,58 +1233,65 @@ async def direct_agent(args):
     config = load_config(args.config or args.data_dir / "config.json")
     tokens = load_or_create_tokens(args.data_dir)
     headers = {"Authorization": f"Bearer {tokens['owner']}"}
-    async with httpx.AsyncClient(headers=headers, timeout=30) as http:
-        response = await http.post(
-            config["session_url"] + "/v1/sessions", json={"channel": "agent"}
-        )
-        response.raise_for_status()
-        session = response.json()
-        from packages.commands import parse
-
-        if parse(args.objective) is not None:
-            response = await http.post(
-                config["agent_url"] + "/v1/commands/execute",
-                json={
-                    "schema_version": "1.0",
-                    **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
-                    "input": args.objective,
-                    "content_scope": getattr(args, "content_scope", "local_only"),
-                    "idempotency_key": new_id(),
-                },
-            )
+    session_url = config["session_url"]
+    agent_url = config["agent_url"]
+    target_url = session_url
+    try:
+        async with httpx.AsyncClient(headers=headers, timeout=30) as http:
+            response = await http.post(session_url + "/v1/sessions", json={"channel": "agent"})
             response.raise_for_status()
-            result = response.json()
-            print(json.dumps(result, indent=2))
-            return 0 if result["status"] == "ok" else 1
-        objective = args.objective[1:] if args.objective.startswith("\\/") else args.objective
-        request = TaskRequest(
-            session_id=session["session_id"],
-            thread_id=session["thread_id"],
-            epoch=session["epoch"],
-            objective=objective,
-            content_scope=getattr(args, "content_scope", "local_only"),
-            idempotency_key=new_id(),
-        )
-        response = await http.post(
-            config["agent_url"] + "/v1/agent/tasks", json=request.model_dump()
-        )
-        response.raise_for_status()
-        task = response.json()
-        print(json.dumps({"accepted_task_id": task["task_id"]}), flush=True)
-        while task["state"] not in {
-            "succeeded",
-            "failed",
-            "cancelled",
-            "blocked",
-            "awaiting_approval",
-            "paused",
-        }:
-            await asyncio.sleep(0.1)
-            response = await http.get(config["agent_url"] + "/v1/agent/tasks/" + task["task_id"])
+            session = response.json()
+            from packages.commands import parse
+
+            target_url = agent_url
+            if parse(args.objective) is not None:
+                response = await http.post(
+                    agent_url + "/v1/commands/execute",
+                    json={
+                        "schema_version": "1.0",
+                        **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
+                        "input": args.objective,
+                        "content_scope": getattr(args, "content_scope", "local_only"),
+                        "idempotency_key": new_id(),
+                    },
+                )
+                response.raise_for_status()
+                result = response.json()
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] == "ok" else 1
+            objective = args.objective[1:] if args.objective.startswith("\\/") else args.objective
+            request = TaskRequest(
+                session_id=session["session_id"],
+                thread_id=session["thread_id"],
+                epoch=session["epoch"],
+                objective=objective,
+                content_scope=getattr(args, "content_scope", "local_only"),
+                idempotency_key=new_id(),
+            )
+            response = await http.post(agent_url + "/v1/agent/tasks", json=request.model_dump())
             response.raise_for_status()
             task = response.json()
-        print(json.dumps(task, indent=2))
-        return 0 if task["state"] == "succeeded" else 1
+            print(json.dumps({"accepted_task_id": task["task_id"]}), flush=True)
+            while task["state"] not in {
+                "succeeded",
+                "failed",
+                "cancelled",
+                "blocked",
+                "awaiting_approval",
+                "paused",
+            }:
+                await asyncio.sleep(0.1)
+                response = await http.get(agent_url + "/v1/agent/tasks/" + task["task_id"])
+                response.raise_for_status()
+                task = response.json()
+            print(json.dumps(task, indent=2))
+            return 0 if task["state"] == "succeeded" else 1
+    except httpx.ConnectError:
+        sys.stderr.write(
+            f"kinaiya: Cannot reach local services at {target_url}. "
+            "Are Kinaiya services running? Start them with 'kinaiya start' or 'kinaiya serve host'.\n"
+        )
+        return 1
 
 
 def build_parser():
