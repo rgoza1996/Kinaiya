@@ -757,3 +757,83 @@ async def test_later_lower_proposal_refuses_without_changing_frozen_native_allow
         assert error.value.response.status_code == 409
         state = await state_of(client, source)
         assert (state.max_attempts, state.charged_attempts) == (2, 1)
+
+
+@pytest.mark.parametrize("lost_completion_ack", [False, True])
+async def test_failed_original_close_stays_owned_after_uncertainty_publication_and_lookup(
+    tmp_path, lost_completion_ack
+):
+    from packages.providers.decision_admission import _unsettled
+    from packages.providers.text import ProviderCleanupError
+
+    async with session_http_env(tmp_path) as (store, session, app, make_client):
+        source = append_user_source(store, session, idem="failed-close-original-owner")
+        asgi, entered, replacement_entries = httpx.ASGITransport(app=app), [], []
+
+        class BrokenClose(httpx.AsyncByteStream):
+            def __init__(self):
+                self.closes = 0
+
+            async def __aiter__(self):
+                yield response().content
+
+            async def aclose(self):
+                self.closes += 1
+                raise RuntimeError("synthetic unconfirmed physical close")
+
+        stream = BrokenClose()
+
+        def original_transport(request):
+            entered.append(request.content)
+            return httpx.Response(200, stream=stream)
+
+        def replacement_transport(request):
+            replacement_entries.append(request.content)
+            return response()
+
+        async def lose_ack(request):
+            result = await asgi.handle_async_request(request)
+            if lost_completion_ack and request.url.path == "/v1/decisions/attempts/finish":
+                await result.aclose()
+                return httpx.Response(503, json={"detail": "synthetic lost uncertainty ACK"})
+            return result
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(original_transport)
+        )
+        replacement_provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(replacement_transport)
+        )
+        client = make_client(transport=httpx.MockTransport(lose_ack))
+        task = asyncio.create_task(
+            DecisionsWorker(client, DummyAgent(), ModelClassifier(provider)).process(source)
+        )
+        try:
+            with pytest.raises(
+                CaptureNativeUnavailable if lost_completion_ack else ProviderCleanupError
+            ):
+                await task
+            retained = next(
+                owner for owner in _unsettled if owner.source.source_event_id == source.event_id
+            )
+            assert retained.cleanup_unconfirmed
+            assert retained.owner is task and task.done()
+            assert retained.provider is provider and retained.client is provider.http
+            state = await state_of(make_client(), source)
+            assert (state.state, state.charged_attempts) == ("uncertain", 1)
+            assert retained.completion == state.last_attempt.completion
+            replacement = DecisionsWorker(
+                make_client(), DummyAgent(), ModelClassifier(replacement_provider)
+            )
+            await replacement.process(source)
+            # This includes observe_completion's exact-publication reconciliation.
+            assert retained in _unsettled
+            assert retained.owner is task and retained.client is provider.http
+            assert (await state_of(make_client(), source)).charged_attempts == 1
+            assert stream.closes == 1 and len(entered) == 1
+            assert not replacement_entries
+            assert not store.read(kinds=["routing.decided"])
+            assert len(store.read(kinds=["routing.classification_refused"])) == 1
+        finally:
+            await provider.close()
+            await replacement_provider.close()

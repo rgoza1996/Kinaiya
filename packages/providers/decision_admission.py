@@ -18,18 +18,15 @@ from packages.providers.decision_capture import CaptureNativeUnavailable
 _unsettled = set()
 
 
-def _uncertain(error, provider):
-    cancelled = isinstance(error, asyncio.CancelledError)
+def _cleanup_unconfirmed(error, provider):
     seen = set()
     while error is not None and id(error) not in seen:
         seen.add(id(error))
         if type(error).__name__ == "ProviderCleanupError":
             return True
         error = error.__cause__ or error.__context__
-    return (
-        cancelled
-        or getattr(provider, "_cleanup", None) is not None
-        or bool(getattr(provider, "_count_cleanup_failed", False))
+    return getattr(provider, "_cleanup", None) is not None or bool(
+        getattr(provider, "_count_cleanup_failed", False)
     )
 
 
@@ -45,6 +42,7 @@ class NativeDecisionAttempt:
         self._binding = None
         self.settled = False
         self.entered = False
+        self.cleanup_unconfirmed = False
 
     def _transport_binding(self, provider):
         client = getattr(provider, "http", None)
@@ -131,7 +129,13 @@ class NativeDecisionAttempt:
         if asyncio.current_task() is not self.owner:
             raise CaptureNativeUnavailable("Decisions completion lost its original task")
         cancelled = self.owner.cancelling() > 0
-        if cancelled or _uncertain(error, self.provider) or status == "cancelled":
+        self.cleanup_unconfirmed = _cleanup_unconfirmed(error, self.provider)
+        if (
+            cancelled
+            or isinstance(error, asyncio.CancelledError)
+            or self.cleanup_unconfirmed
+            or status == "cancelled"
+        ):
             status = "uncertain"
         elif status == "completed" and capture.validated_output is None:
             status = "uncertain"
@@ -156,7 +160,10 @@ class NativeDecisionAttempt:
         except Exception as exc:
             raise CaptureNativeUnavailable("Decisions original completion is uncertain") from exc
         self.settled = True
-        _unsettled.discard(self)
+        # Publication acknowledgement is not proof that the original physical
+        # exchange closed. Keep that exact owner until cleanup is established.
+        if not self.cleanup_unconfirmed:
+            _unsettled.discard(self)
         if cancelled:
             raise asyncio.CancelledError
         if status == "uncertain" and error is None:
@@ -171,6 +178,7 @@ def observe_completion(state):
             and owner.request == state.last_attempt.admission
             and owner.completion is not None
             and owner.completion == state.last_attempt.completion
+            and not owner.cleanup_unconfirmed
         ):
             owner.settled = True
             _unsettled.discard(owner)

@@ -80,7 +80,9 @@ The stored provider request digest is over its exact canonical JSON body. The
 transport binding hashes original provider/client identity, endpoint, headers
 and selected transport identities; credentials/headers are not stored in the
 ledger. Its private owner retains the actual original provider, client, task,
-body and completion publication when acknowledgement is uncertain. The shared
+body and completion publication when acknowledgement is uncertain or physical
+cleanup is unconfirmed. A committed uncertainty receipt does not establish
+physical retirement and cannot release that original owner during lookup. The shared
 HTTP transport boundary validates the frozen actual request after awaited hooks
 and consumes the original provider opportunity once. A replaced body, stream,
 client, transport or task cannot enter the provider using that reservation.
