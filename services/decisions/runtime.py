@@ -866,10 +866,10 @@ class DecisionsWorker:
                                 return await self._append_refusal(
                                     source, exc.reason_code, type(exc).__name__
                                 )
-                        except CaptureNativeUnavailable:
-                            return await self._native_unavailable(source)
                         except DecisionsModelUnavailable:
                             raise
+                        except CaptureNativeUnavailable:
+                            return await self._native_unavailable(source)
                         except InvalidClassificationError as exc:
                             return await self._append_refusal(
                                 source, exc.reason_code, type(exc).__name__

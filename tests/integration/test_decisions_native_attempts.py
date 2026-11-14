@@ -966,3 +966,60 @@ async def test_refusal_reconciles_winning_queue_before_advancing_cursor(tmp_path
                 if http:
                     for journal in journals:
                         await journal.close()
+
+
+@pytest.mark.parametrize("http", [False, True])
+async def test_temporary_model_capacity_unavailability_preserves_backlog(tmp_path, http):
+    from services.decisions.model_settings import (
+        LEASE_LIMIT,
+        DecisionsModelSettings,
+        DecisionsModelUnavailable,
+    )
+
+    async with session_http_env(tmp_path) as (store, session, app, _make_client):
+        source = append_user_source(store, session, idem="model-capacity-backlog")
+        entered = []
+
+        def complete(request):
+            entered.append(request.content)
+            return response()
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(complete)
+        )
+        settings = DecisionsModelSettings(provider, None)
+        leases = [settings._capture() for _ in range(LEASE_LIMIT)]
+        agent = DummyAgent()
+        async with loopback(app) as root:
+            journal = (
+                JournalClient(root, TOKENS["decisions"])
+                if http
+                else LocalJournal(store, "decisions")
+            )
+            try:
+                worker = DecisionsWorker(
+                    journal, agent, ModelClassifier(provider), model_settings=settings
+                )
+                for _ in range(3):
+                    with pytest.raises(DecisionsModelUnavailable):
+                        await worker.tick()
+                state = await state_of(journal, source)
+                assert state.state == "known_absent" and state.charged_attempts == 0
+                assert not entered and not agent.submitted
+                assert not store.read(kinds=["routing.classification_refused"])
+                assert store.cursor("decisions", worker.consumer) < source.sequence
+                for lease in leases:
+                    await lease.close()
+                await worker.tick()
+                assert len(entered) == len(agent.submitted) == 1
+                receipts = store.read(kinds=["routing.dispatch"])
+                assert len(receipts) == 1 and receipts[0].payload["state"] == "accepted"
+                assert store.cursor("decisions", worker.consumer) >= source.sequence
+                assert (await state_of(journal, source)).charged_attempts == 1
+            finally:
+                for lease in leases:
+                    await lease.close()
+                await settings.close()
+                await provider.close()
+                if http:
+                    await journal.close()

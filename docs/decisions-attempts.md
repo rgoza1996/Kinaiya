@@ -116,7 +116,9 @@ Two consecutive unavailable native lookups/admission/completion publications
 produce a durable `call_history_unavailable` refusal. Source-specific preparation
 HTTP/storage failures receive at most three ordered processing attempts. A
 successful operation clears that source's failure counter. These bounds count
-metadata failures, not provider attempts. The winning outcome and any required
+metadata failures, not provider attempts. Model selection or lease-capacity
+unavailability preserves the original backlog; it neither increments that native
+history failure counter nor consumes a charged reservation. The winning outcome and any required
 dispatch receipt must commit before cursor advancement; if the journal cannot
 commit or acknowledge anything, progress
 cannot be claimed. With journal publication available, unrelated later sources
