@@ -20,9 +20,12 @@ import pytest
 from starlette.requests import Request
 from test_session_media_owner import _headers, _stack
 
+from core.policy import PolicyDenied, ToolPolicy
 from packages.contracts import media as m
+from packages.contracts.models import AppendRequest, TaskRequest
 from packages.providers.llama_media import NativeLlamaMediaProvider
-from packages.providers.text import ProviderCleanupError
+from packages.providers.text import CompatibleTextProvider, ProviderCleanupError
+from services.agent.runtime import AgentRuntime
 from services.converse.model_settings import ConverseModelSettings
 from services.converse.runtime import ConverseRuntime
 from services.decisions.model_settings import DecisionsModelSettings
@@ -371,3 +374,97 @@ async def test_unconfirmed_original_close_retains_native_source_and_capacity(tmp
         )
         assert response.status_code in (200, 503)
         assert case.env.spool.reserved_bytes == len(_wav())
+
+
+@pytest.mark.parametrize("mode", _MODES)
+async def test_native_evidence_cannot_admit_commands_at_the_actual_agent_boundary(tmp_path, mode):
+    async with _case(tmp_path, mode) as case:
+        workspace = tmp_path / "agent-workspace"
+        workspace.mkdir()
+
+        def controlled_agent_response(request):
+            return httpx.Response(
+                200,
+                json={
+                    "model": "synthetic-agent",
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": json.dumps(
+                                    {
+                                        "tool": "finish",
+                                        "arguments": {
+                                            "summary": "Controlled fixture observed; no external work.",
+                                            "objective_revision": 1,
+                                        },
+                                    }
+                                ),
+                            },
+                        }
+                    ],
+                },
+            )
+
+        provider = CompatibleTextProvider(
+            "http://127.0.0.1:8891/v1",
+            "synthetic-agent",
+            transport=httpx.MockTransport(controlled_agent_response),
+        )
+        agent = AgentRuntime(
+            LocalJournal(case.env.store, "agent"), provider, workspace, ToolPolicy(workspace)
+        )
+        if mode == "decisions_systemone":
+            case.caller.agent = agent
+        try:
+            owner = case.env.store.append(
+                AppendRequest(
+                    **case.env.session,
+                    kind="conversation.user",
+                    payload={
+                        "text": "Observe this public synthetic fixture.",
+                        "final": True,
+                        "revision": 1,
+                    },
+                    idempotency_key="native-agent-positive-owner",
+                ),
+                "owner",
+            )
+            accepted = await agent.submit(
+                TaskRequest(
+                    **case.env.session,
+                    objective=owner.payload["text"],
+                    source_event_ids=[owner.event_id],
+                    source_revision=1,
+                    content_scope="local_only",
+                    idempotency_key="native-agent-positive",
+                ),
+                actor="owner",
+            )
+            assert accepted.task_id in agent._tasks
+            assert agent._tasks[accepted.task_id].submit_confirmed
+            commands = case.env.store.read(kinds=["agent.command"])
+            assert len(commands) == 2  # Original media anchor and real Agent positive control.
+            published = await asyncio.wait_for(case.start(), _WAIT)
+            await _reconciled(case.native)
+            assert case.env.store.read(kinds=["agent.command"]) == commands
+            assert set(agent._tasks) == {accepted.task_id}
+            # A classifier/caller cannot turn its new media observation into
+            # authenticated owner text by sending it to the real ingress.
+            with pytest.raises((PolicyDenied, ValueError)):
+                await agent.submit(
+                    TaskRequest(
+                        **case.env.session,
+                        objective="Untrusted imported command",
+                        source_event_ids=[published.event_id],
+                        source_revision=1,
+                        content_scope="local_only",
+                        idempotency_key="native-agent-forbidden",
+                    ),
+                    actor="decisions",
+                )
+            assert case.env.store.read(kinds=["agent.command"]) == commands
+        finally:
+            await agent.close()
+            await provider.close()
