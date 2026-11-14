@@ -126,6 +126,10 @@ the original values. Each host processes one job at a time. Dell's initial
 120-minute native wrapper expired while pytest was still advancing (#578).
 Native runs stop at the first failing test and print a short trace immediately;
 a failing or canceled run is never counted as a completed suite.
+Manual `suite=full` dispatches can select `python=3.12` and
+`architecture=arm64` (or `x64`) to requalify one complete pair. Defaults remain
+all three versions on both native hosts; main pushes and PR checks retain their
+complete existing matrices. This selects jobs, never a smaller test subset.
 
 The service binds only its own `home/tmp` into its private namespace as
 `/tmp/ci`, with `TMPDIR=/tmp/ci`. Native pytest uses a short per-job base there.

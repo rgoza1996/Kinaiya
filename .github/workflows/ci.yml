@@ -10,6 +10,16 @@ on:
         type: choice
         options: [smoke, media, compat, full, android]
         default: smoke
+      python:
+        description: Python version for manual full qualification
+        type: choice
+        options: [all, '3.11', '3.12', '3.14']
+        default: all
+      architecture:
+        description: Native architecture for manual full qualification
+        type: choice
+        options: [both, arm64, x64]
+        default: both
 permissions:
   contents: read
 jobs:
@@ -107,8 +117,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.11', '3.12', '3.14']
-        runner: ${{ fromJSON(github.event_name == 'pull_request' && '["hosted"]' || '["arm64","x64"]') }}
+        python: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.python != 'all' && format('["{0}"]', inputs.python) || '["3.11","3.12","3.14"]') }}
+        runner: ${{ fromJSON(github.event_name == 'pull_request' && '["hosted"]' || github.event_name == 'workflow_dispatch' && inputs.architecture != 'both' && format('["{0}"]', inputs.architecture) || '["arm64","x64"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
