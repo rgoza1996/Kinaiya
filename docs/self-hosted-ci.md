@@ -29,7 +29,7 @@ permissions and existing data are unchanged.
 
 `ci.yml` keeps every `pull_request` job on GitHub-hosted machines. Trusted main
 pushes use native ARM64/x64 Python matrices and Dell for Flutter/Android. Manual
-`suite=smoke`, `media`, `android` and `full` dispatches qualify these paths. iOS
+`suite=smoke`, `media`, `flutter`, `android` and `full` dispatches qualify these paths. iOS
 stays on macOS. The existing mobile emulator/installer/release workflows remain
 hosted: they require distinct privileges, OS matrices or publishing credentials
 and were not migrated to these persistent hosts.
@@ -131,7 +131,11 @@ Manual `suite=full` dispatches can select `python=3.12` and
 all three versions on both native hosts; main pushes and PR checks retain their
 complete existing matrices. This selects jobs, never a smaller test subset.
 Selecting a Python/architecture pair skips the mobile/web build jobs; use the
-default full dispatch for every build or `suite=android` for Android alone.
+default full dispatch for every build, `suite=flutter` for Flutter/Dart/Session
+and web qualification, or `suite=android` for Android alone. The Agent mode
+scope/recovery fixture uses the ordinary test transport budget and explicitly
+verifies an actual send (#579); independent late-acquisition refusal tests and
+all application deadlines remain unchanged.
 
 The service binds only its own `home/tmp` into its private namespace as
 `/tmp/ci`, with `TMPDIR=/tmp/ci`. Native pytest uses a short per-job base there.

@@ -74,15 +74,17 @@ void main() {
         displayDeadline: const Duration(milliseconds: 1),
       );
       final held = Completer<http.StreamedResponse>();
-      final api = controlApi(
-        () => ModelTestClient((_) => held.future),
-        timeoutMs: 20,
-      );
+      // This scope/recovery control needs an actual sent request. A 20 ms
+      // acquisition budget could expire before send on a loaded runner (#579).
+      // The transport suite separately verifies refusal of late acquisition.
+      final client = ModelTestClient((_) => held.future);
+      final api = controlApi(() => client);
       final scope = writes.open(api, controlState())!;
       scope.selection = AgentMode.off;
       final operation = writes.begin(scope, api, scopedModeRequest(scope))!;
       scope.selection = AgentMode.autonomous;
       await writes.retry(operation, api, scope.snapshot);
+      expect(client.sends, 1);
       expect(operation.uncertain, isTrue);
       expect(operation.mutationOwners, 1);
       await api.close();
