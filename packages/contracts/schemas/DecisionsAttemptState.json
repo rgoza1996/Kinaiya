@@ -1,0 +1,515 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "DecisionsAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "admission": {
+          "$ref": "#/$defs/DecisionsAttemptAdmit"
+        },
+        "admission_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Admission Sha256",
+          "type": "string"
+        },
+        "attempt": {
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionsAttemptFinish"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "admission",
+        "admission_sha256",
+        "attempt",
+        "completion"
+      ],
+      "title": "DecisionsAttempt",
+      "type": "object"
+    },
+    "DecisionsAttemptAdmit": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/DecisionsSource"
+        },
+        "attempt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "expected_attempts": {
+          "maximum": 16,
+          "minimum": 0,
+          "title": "Expected Attempts",
+          "type": "integer"
+        },
+        "provider": {
+          "$ref": "#/$defs/DecisionsAttemptProvider"
+        },
+        "model_pin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionsModelPin"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "request_format": {
+          "enum": [
+            "laya_systemone",
+            "native_d1_systemone",
+            "chat_completions",
+            "responses"
+          ],
+          "title": "Request Format",
+          "type": "string"
+        },
+        "request_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "transport_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Transport Sha256",
+          "type": "string"
+        },
+        "disclosure_sources": {
+          "items": {
+            "$ref": "#/$defs/DecisionsSource"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Disclosure Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "attempt_id",
+        "owner_id",
+        "expected_attempts",
+        "provider",
+        "model_pin",
+        "request_format",
+        "request_sha256",
+        "transport_sha256",
+        "disclosure_sources"
+      ],
+      "title": "DecisionsAttemptAdmit",
+      "type": "object"
+    },
+    "DecisionsAttemptFinish": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/DecisionsSource"
+        },
+        "attempt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "admission_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Admission Sha256",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "refused",
+            "error",
+            "uncertain"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "raw_response": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Response"
+        },
+        "validated_output": {
+          "default": null,
+          "title": "Validated Output"
+        },
+        "error_type": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,120}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Type"
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,120}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason Code"
+        }
+      },
+      "required": [
+        "source",
+        "attempt_id",
+        "owner_id",
+        "admission_sha256",
+        "status"
+      ],
+      "title": "DecisionsAttemptFinish",
+      "type": "object"
+    },
+    "DecisionsAttemptProvider": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "local"
+      ],
+      "title": "DecisionsAttemptProvider",
+      "type": "object"
+    },
+    "DecisionsModelPin": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "const": "decisions",
+          "default": "decisions",
+          "title": "Role",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "instance_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "selection": {
+          "$ref": "#/$defs/DecisionsModelSelection"
+        },
+        "catalog_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740990,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Catalog Revision"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "protocol": {
+          "enum": [
+            "laya_systemone",
+            "native_d1_systemone",
+            "host_configured"
+          ],
+          "title": "Protocol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "instance_id",
+        "settings_revision",
+        "selection",
+        "catalog_revision",
+        "provider",
+        "model",
+        "local",
+        "protocol"
+      ],
+      "title": "DecisionsModelPin",
+      "type": "object"
+    },
+    "DecisionsModelSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "catalog"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogModelBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "catalog_binding"
+      ],
+      "title": "DecisionsModelSelection",
+      "type": "object"
+    },
+    "DecisionsSource": {
+      "additionalProperties": false,
+      "properties": {
+        "source_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "source_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Sequence",
+          "type": "integer"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_event_id",
+        "source_sequence",
+        "source_revision",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "DecisionsSource",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "#/$defs/DecisionsSource"
+    },
+    "state": {
+      "enum": [
+        "known_absent",
+        "admitted",
+        "completed",
+        "refused",
+        "retryable_error",
+        "exhausted",
+        "uncertain",
+        "legacy_uncertain"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "max_attempts": {
+      "maximum": 16,
+      "minimum": 1,
+      "title": "Max Attempts",
+      "type": "integer"
+    },
+    "charged_attempts": {
+      "maximum": 16,
+      "minimum": 0,
+      "title": "Charged Attempts",
+      "type": "integer"
+    },
+    "last_attempt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DecisionsAttempt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "source",
+    "state",
+    "max_attempts",
+    "charged_attempts",
+    "last_attempt"
+  ],
+  "title": "DecisionsAttemptState",
+  "type": "object"
+}

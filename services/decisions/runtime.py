@@ -4,9 +4,13 @@ import asyncio
 import json
 import math
 import re
+import sqlite3
 from contextlib import nullcontext
 from types import SimpleNamespace
 
+import httpx
+
+from packages.contracts.decisions_attempts import DecisionsAttemptLookup, DecisionsSource
 from packages.contracts.models import (
     AppendRequest,
     Decision,
@@ -14,8 +18,10 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
+from packages.providers.decision_admission import NativeDecisionAttempt, observe_completion
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
+    DecisionCapture,
     _capture,
     capture_sources,
     decision_attempt,
@@ -26,7 +32,7 @@ from packages.providers.disclosure import (
     scope_allowed,
     source_scope,
 )
-from packages.providers.text import ProviderError, ProviderRefusal
+from packages.providers.text import ProviderError, ProviderRefusal, owned_http_stream_cleanup
 from services.decisions.model_settings import DecisionsModelUnavailable
 from services.decisions.window_routing import (
     _project_tasks_with_sources,
@@ -304,19 +310,21 @@ def _recover_validated_output(call: dict, source) -> dict:
 class PersistedCallState:
     """Durable call-history recovery state for a finalized Decisions source."""
 
-    __slots__ = ("state", "prior_attempts", "output", "refusal")
+    __slots__ = ("state", "prior_attempts", "output", "refusal", "limit")
 
     def __init__(
         self,
         state: str,
-        prior_attempts: int,
+        prior_attempts: int | None,
         output: dict | None = None,
         refusal: tuple[str, str] | None = None,
+        limit: int = MAX_ATTEMPTS,
     ) -> None:
         self.state = state
         self.prior_attempts = prior_attempts
         self.output = output
         self.refusal = refusal
+        self.limit = limit
 
     def __iter__(self):
         yield self.prior_attempts
@@ -372,6 +380,7 @@ class DecisionsWorker:
         self._pending_decisions = {}
         self._transport_attempts = {}
         self._lookup_failures = {}
+        self._preparation_failures = {}
 
     def _active_provider_info(self):
         if self.model_settings is not None:
@@ -494,137 +503,125 @@ class DecisionsWorker:
             if self.model_settings is not None
             else nullcontext()
         ):
-            return await self._process(source)
+            try:
+                result = await self._process(source)
+            except (httpx.HTTPError, OSError, sqlite3.Error):
+                # Repeated source-specific preparation/read failures must not
+                # hold the ordered consumer forever. They are never charges.
+                failures = self._preparation_failures.get(source.event_id, 0) + 1
+                self._preparation_failures[source.event_id] = failures
+                if failures < 3:
+                    raise
+                await self._append_refusal(
+                    source, "call_history_unavailable", "CaptureNativeUnavailable"
+                )
+                return None
+            self._preparation_failures.pop(source.event_id, None)
+            return result
 
     async def _persisted_call_state(self, source, *, scoped_source=None) -> PersistedCallState:
-        calls = None
-        lookup_supported = False
-        lookup_failed = False
-        if hasattr(self.journal, "decisions_calls"):
-            lookup_supported = True
-            try:
-                try:
-                    calls = await self.journal.decisions_calls(
-                        session_id=source.session_id,
-                        thread_id=source.thread_id,
-                        epoch=source.epoch,
-                        source_event_id=source.event_id,
-                    )
-                except TypeError:
-                    calls = await self.journal.decisions_calls(
-                        session_id=source.session_id,
-                        source_event_id=source.event_id,
-                    )
-                if not isinstance(calls, list):
-                    lookup_failed = True
-                    calls = None
-            except Exception:
-                lookup_failed = True
-                calls = None
-        elif getattr(getattr(self.journal, "store", None), "decisions", None) is not None:
-            decisions_store = self.journal.store.decisions
-            if hasattr(decisions_store, "calls"):
-                lookup_supported = True
-                try:
-                    calls = decisions_store.calls(
-                        source.event_id,
-                        session_id=source.session_id,
-                        thread_id=source.thread_id,
-                        epoch=source.epoch,
-                    )
-                    if not isinstance(calls, list):
-                        lookup_failed = True
-                        calls = None
-                except Exception:
-                    lookup_failed = True
-                    calls = None
-            elif hasattr(decisions_store, "detail"):
-                lookup_supported = True
-                try:
-                    detail = decisions_store.detail(source.event_id)
-                    raw_calls = detail.get("calls") if isinstance(detail, dict) else None
-                    if not isinstance(raw_calls, list):
-                        lookup_failed = True
-                        calls = None
-                    else:
-                        calls = list(reversed(raw_calls))
-                except Exception:
-                    lookup_failed = True
-                    calls = None
-        if not lookup_supported or lookup_failed or calls is None:
-            return PersistedCallState("unavailable", self.max_attempts, None, None)
-        if not calls:
-            return PersistedCallState("known_absent", 0, None, None)
-        if any(not isinstance(c, dict) for c in calls):
-            return PersistedCallState("unavailable", self.max_attempts, None, None)
-        ordered_calls = sorted(
-            calls,
-            key=lambda c: c["call_sequence"] if type(c.get("call_sequence")) is int else 0,
-        )
-        scoped = scoped_source if scoped_source is not None else await self._scoped_source(source)
-        info = self._active_provider_info()
-        prior_attempts = 0
-        last_error_type = "ProviderError"
-        has_pending_uncertain = False
-        for call in ordered_calls:
-            status = call.get("status")
-            error_type = call.get("error_type")
-            call_attempt = call.get("attempt")
-            if not (status in {"error", "failed"} and error_type == "CaptureNativeUnavailable"):
-                prior_attempts += 1
-                if type(call_attempt) is int and 1 <= call_attempt <= self.max_attempts:
-                    prior_attempts = max(prior_attempts, call_attempt)
-                elif call_attempt is not None:
-                    prior_attempts = max(prior_attempts, self.max_attempts)
-            if status in {"completed", "succeeded"}:
-                binding_refusal = self._call_binding_refusal(call, source, scoped, info)
-                if binding_refusal is not None:
-                    return PersistedCallState("refused", prior_attempts, None, binding_refusal)
-                try:
-                    validated = _recover_validated_output(call, source)
-                except InvalidClassificationError as exc:
-                    return PersistedCallState(
-                        "refused",
-                        prior_attempts,
-                        None,
-                        (exc.reason_code, "InvalidClassificationError"),
-                    )
-                return PersistedCallState("completed", prior_attempts, validated, None)
-            if status == "refused":
-                err_type = error_type or "ProviderRefusal"
-                if err_type == "InvalidClassificationError":
-                    raw = call.get("raw_response")
-                    reason = "invalid_classification"
-                    if isinstance(raw, str):
-                        content = _extract_raw_classification_text(raw, call.get("request_format"))
-                        if isinstance(content, str):
-                            try:
-                                data = parse_finalized_classification(content)
-                                validate_classification_dict(data, source=source)
-                            except InvalidClassificationError as exc:
-                                reason = exc.reason_code
-                    return PersistedCallState("refused", prior_attempts, None, (reason, err_type))
-                return PersistedCallState(
-                    "refused", prior_attempts, None, ("provider_refused", err_type)
-                )
-            if status == "started":
-                has_pending_uncertain = True
-                last_error_type = error_type or "UncertainCallAttempt"
-            elif status in {"error", "failed", "cancelled"}:
-                if error_type != "CaptureNativeUnavailable" and error_type:
-                    last_error_type = error_type
-            else:
-                has_pending_uncertain = True
-                prior_attempts = max(prior_attempts, self.max_attempts)
-        if prior_attempts >= self.max_attempts:
-            return PersistedCallState(
-                "refused", prior_attempts, None, ("provider_failed", last_error_type)
+        try:
+            state = await self.journal.decisions_attempt_lookup(
+                DecisionsAttemptLookup(source=DecisionsSource.of(source))
             )
-        if has_pending_uncertain:
-            return PersistedCallState("pending_uncertain", prior_attempts, None, None)
-        if prior_attempts > 0:
-            return PersistedCallState("retryable_error", prior_attempts, None, None)
-        return PersistedCallState("known_absent", 0, None, None)
+            observe_completion(state)
+        except Exception:
+            return PersistedCallState("unavailable", None)
+        count, limit = state.charged_attempts, state.max_attempts
+        if state.state == "legacy_uncertain":
+            return PersistedCallState(
+                "legacy_uncertain",
+                count,
+                refusal=("legacy_call_history_uncertain", "UncertainCallAttempt"),
+                limit=limit,
+            )
+        if state.state in {"admitted", "uncertain"}:
+            return PersistedCallState(
+                "pending_uncertain",
+                count,
+                refusal=("call_outcome_uncertain", "UncertainCallAttempt"),
+                limit=limit,
+            )
+        if state.state == "known_absent":
+            return PersistedCallState("known_absent", 0, limit=limit)
+        last = state.last_attempt
+        if last is None or last.completion is None:
+            return PersistedCallState("unavailable", count, limit=limit)
+        completion = last.completion
+        if state.state == "completed":
+            admission = last.admission
+            call = {
+                **admission.source.model_dump(),
+                "provider": admission.provider.provider,
+                "model": admission.provider.model,
+                "model_pin": admission.model_pin.model_dump(mode="json")
+                if admission.model_pin
+                else None,
+                "request_format": admission.request_format,
+                "raw_response": completion.raw_response,
+                "validated_output": completion.validated_output,
+            }
+            scoped = (
+                scoped_source if scoped_source is not None else await self._scoped_source(source)
+            )
+            refusal = self._call_binding_refusal(call, source, scoped, self._active_provider_info())
+            if refusal:
+                return PersistedCallState("refused", count, refusal=refusal, limit=limit)
+            # Recovery retains the complete original disclosure set, including
+            # context and task-source floors changed since provider entry.
+            try:
+                capture = DecisionCapture(self.journal, scoped, None, count)
+                capture.disclosure_sources = []
+                for binding in admission.disclosure_sources:
+                    entry = await self.journal.entry(binding.source_event_id)
+                    if DecisionsSource.of(entry) != binding:
+                        entry = await self.journal.resolve(binding.source_event_id)
+                    if DecisionsSource.of(entry) != binding:
+                        raise ProviderRefusal("Recovered Decisions disclosure binding changed")
+                    capture.disclosure_sources.append(entry)
+                async with asyncio.timeout(0.5):
+                    await capture.check_current(SimpleNamespace(info=admission.provider))
+            except ProviderRefusal:
+                return PersistedCallState(
+                    "refused", count, refusal=("provider_refused", "ProviderRefusal"), limit=limit
+                )
+            except Exception:
+                return PersistedCallState("unavailable", count, limit=limit)
+            try:
+                output = _recover_validated_output(call, source)
+            except InvalidClassificationError as exc:
+                return PersistedCallState(
+                    "refused", count, refusal=(exc.reason_code, type(exc).__name__), limit=limit
+                )
+            return PersistedCallState("completed", count, output=output, limit=limit)
+        if state.state == "refused":
+            return PersistedCallState(
+                "refused",
+                count,
+                refusal=(
+                    completion.reason_code or "provider_refused",
+                    completion.error_type or "ProviderRefusal",
+                ),
+                limit=limit,
+            )
+        if state.state == "exhausted":
+            return PersistedCallState(
+                "refused",
+                count,
+                refusal=("provider_failed", completion.error_type or "ProviderError"),
+                limit=limit,
+            )
+        return PersistedCallState("retryable_error", count, limit=limit)
+
+    async def _native_unavailable(self, source):
+        failures = self._lookup_failures.get(source.event_id, 0) + 1
+        self._lookup_failures[source.event_id] = failures
+        if failures >= 2:
+            await self._append_refusal(
+                source, "call_history_unavailable", "CaptureNativeUnavailable"
+            )
+            return
+        raise CaptureNativeUnavailable("Decisions native attempt history is unavailable")
 
     async def _append_refusal(self, source, reason: str, error_type: str) -> None:
         current = await self.journal.session(source.session_id)
@@ -676,18 +673,21 @@ class DecisionsWorker:
         model_pin=None,
         current=None,
     ):
-        async with decision_attempt(
-            self.journal,
-            source,
-            provider,
-            attempt=attempt,
-            model_pin=model_pin,
-            current=current,
-        ) as capture:
-            result = await classifier.classify(source, context, tasks)
-            result = validate_classification_dict(result, source=source)
-            capture.validated_output = validated_classification(source, result)
-            return result
+        admission = NativeDecisionAttempt(self.journal, source, expected_attempts=attempt - 1)
+        with owned_http_stream_cleanup():
+            async with decision_attempt(
+                self.journal,
+                source,
+                provider,
+                attempt=attempt,
+                model_pin=model_pin,
+                current=current,
+                admission=admission,
+            ) as capture:
+                result = await classifier.classify(source, context, tasks)
+                result = validate_classification_dict(result, source=source)
+                capture.validated_output = validated_classification(source, result)
+                return result
 
     async def _classify(self, source, context, tasks, *, attempt=1):
         if self.model_settings is None:
@@ -794,17 +794,8 @@ class DecisionsWorker:
                         source, scoped_source=scoped_source
                     )
                     if persisted.state == "unavailable":
-                        failures = self._lookup_failures.get(source.event_id, 0) + 1
-                        self._lookup_failures[source.event_id] = failures
-                        if failures >= max(2, self.max_attempts):
-                            await self._append_refusal(
-                                source,
-                                "call_history_unavailable",
-                                "CaptureNativeUnavailable",
-                            )
-                            return None
-                        raise CaptureNativeUnavailable("Decisions call history is unavailable")
-                    self._lookup_failures.pop(source.event_id, None)
+                        await self._native_unavailable(source)
+                        return None
                     if persisted.refusal is not None:
                         reason, error_type = persisted.refusal
                         await self._append_refusal(source, reason, error_type)
@@ -816,11 +807,8 @@ class DecisionsWorker:
                             await self._append_refusal(source, exc.reason_code, type(exc).__name__)
                             return None
                     else:
-                        prior_attempts = max(
-                            self._transport_attempts.get(source.event_id, 0),
-                            persisted.prior_attempts,
-                        )
-                        if prior_attempts >= self.max_attempts:
+                        prior_attempts = persisted.prior_attempts
+                        if prior_attempts >= persisted.limit:
                             await self._append_refusal(source, "provider_failed", "ProviderError")
                             return None
                         scoped_context = [await self._scoped_source(entry) for entry in context]
@@ -839,7 +827,10 @@ class DecisionsWorker:
                                     source, exc.reason_code, type(exc).__name__
                                 )
                                 return None
-                        except (CaptureNativeUnavailable, DecisionsModelUnavailable):
+                        except CaptureNativeUnavailable:
+                            await self._native_unavailable(source)
+                            return None
+                        except DecisionsModelUnavailable:
                             raise
                         except InvalidClassificationError as exc:
                             await self._append_refusal(source, exc.reason_code, type(exc).__name__)
@@ -850,9 +841,8 @@ class DecisionsWorker:
                             )
                             return None
                         except Exception as exc:
-                            self._transport_attempts[source.event_id] = attempt
                             is_budget_error = _is_budget_error(exc)
-                            if is_budget_error or attempt >= self.max_attempts:
+                            if is_budget_error or attempt >= persisted.limit:
                                 await self._append_refusal(
                                     source,
                                     "token_budget_exceeded"
@@ -862,7 +852,7 @@ class DecisionsWorker:
                                 )
                                 return None
                             raise
-                        self._transport_attempts.pop(source.event_id, None)
+                        self._lookup_failures.pop(source.event_id, None)
                 if source.payload.get("outcome_event_id"):
                     result = {"route": "ignore", "reason_code": "outcome_feedback_loop_prevented"}
                 target = next((t for t in tasks if t.task_id == result.get("target_task_id")), None)
@@ -887,7 +877,7 @@ class DecisionsWorker:
                     idempotency_key=f"route:{source.event_id}:r{source.payload.get('revision', 1)}",
                 )
                 self._pending_decisions[source.event_id] = decision
-            await self.journal.append(
+            published = await self.journal.append(
                 AppendRequest(
                     session_id=source.session_id,
                     thread_id=source.thread_id,
@@ -900,6 +890,9 @@ class DecisionsWorker:
                 )
             )
             self._pending_decisions.pop(source.event_id, None)
+            if published.kind == "routing.classification_refused":
+                return None
+            decision = Decision.model_validate(published.payload)
         if not self.enabled or decision.route == "ignore":
             return decision
         if await self._dispatch_recorded(source, decision):

@@ -4,6 +4,11 @@ from fastapi import Depends, HTTPException, Request
 
 from packages.contracts.context import context_json
 from packages.contracts.decisions import MAX_CAPTURE_BYTES, DecisionsCallFinish, DecisionsCallStart
+from packages.contracts.decisions_attempts import (
+    DecisionsAttemptAdmit,
+    DecisionsAttemptFinish,
+    DecisionsAttemptLookup,
+)
 
 
 def install_decisions(app, store, auth):
@@ -43,6 +48,34 @@ def install_decisions(app, store, auth):
             if name in result and not 1 <= len(result[name]) <= 128:
                 raise HTTPException(422, "Invalid inspection identifier")
         return result
+
+    def attempt_result(operation, value):
+        from services.session.decisions_attempts import DecisionsAttemptConflict
+
+        try:
+            return operation(value).model_dump(mode="json")
+        except KeyError as exc:
+            raise HTTPException(404, "Decisions source not found") from exc
+        except (DecisionsAttemptConflict, ValueError) as exc:
+            raise HTTPException(409, "Decisions attempt binding conflict") from exc
+
+    @app.post("/v1/decisions/attempts/lookup", dependencies=[Depends(auth.require("decisions"))])
+    async def attempt_lookup(request: Request):
+        return attempt_result(
+            store.decisions_attempts.lookup, await body(request, DecisionsAttemptLookup)
+        )
+
+    @app.post("/v1/decisions/attempts/admit", dependencies=[Depends(auth.require("decisions"))])
+    async def attempt_admit(request: Request):
+        return attempt_result(
+            store.decisions_attempts.admit, await body(request, DecisionsAttemptAdmit)
+        )
+
+    @app.post("/v1/decisions/attempts/finish", dependencies=[Depends(auth.require("decisions"))])
+    async def attempt_finish(request: Request):
+        return attempt_result(
+            store.decisions_attempts.finish, await body(request, DecisionsAttemptFinish)
+        )
 
     @app.get(
         "/v1/decisions/calls",
