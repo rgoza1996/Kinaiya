@@ -76,7 +76,7 @@ jobs:
     # PRs always use disposable hosted machines. The host-owned admission policy
     # independently rejects PR events if a PR edits this YAML to request a host.
     runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-22.04' || fromJSON(matrix.runner == 'arm64' && '["self-hosted","Linux","ARM64","kinaiya-ci"]' || '["self-hosted","Linux","X64","kinaiya-ci"]') }}
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.runner == 'hosted' && 60 || 120 }}
     strategy:
       fail-fast: false
       matrix:
