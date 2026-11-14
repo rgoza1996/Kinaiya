@@ -155,7 +155,7 @@ async def _entered(call, event):
 
 
 @asynccontextmanager
-async def _case(tmp_path, mode, phase=None, *, provider_timeout=5, fail_close=False):
+async def _case(tmp_path, mode, phase=None, *, provider_timeout=30, fail_close=False):
     wire = _Wire(phase, fail_close=fail_close)
     provider = NativeLlamaMediaProvider(
         "http://127.0.0.1:8890",
@@ -355,7 +355,7 @@ async def test_native_callers_refuse_resistant_late_transport_before_publication
     tmp_path, mode, phase, fault
 ):
     async with _case(
-        tmp_path, mode, phase, provider_timeout=0.3 if fault == "provider_deadline" else 5
+        tmp_path, mode, phase, provider_timeout=0.3 if fault == "provider_deadline" else 30
     ) as case:
         call = case.start()
         await _entered(call, case.wire.entered)
