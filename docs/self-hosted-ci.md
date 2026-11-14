@@ -228,6 +228,21 @@ not change it. Updating the host policy is an administrator action, separate
 from checking out code. A new actor or workflow fails closed until explicitly
 reviewed and installed.
 
+After runner updates, also check that the dedicated home and runner directories
+are mode `0700` and credential files remain `0600`. Archive directory metadata
+can reset the runner directory's mode (#583). If needed, the administrator can
+restore only that directory as its existing owner, without restarting jobs:
+
+```sh
+# Oracle
+sudo -u kinaiya-ci chmod 0700 /srv/kinaiya-ci/runner
+# Dell
+sudo -u kinaiya-ci chmod 0700 /srv/storage/kinaiya-ci/runner
+```
+
+Inspect ownership/modes only; never print credential file contents. Do not
+change the existing shared storage parent's permissions.
+
 ## Qualification record and remaining limits
 
 The PR and #569 contain exact commit/run evidence, including initial failed
