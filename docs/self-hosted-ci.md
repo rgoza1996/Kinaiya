@@ -119,6 +119,10 @@ Those Ubuntu 24.04 builds are also explicitly qualified on Dell's newer Ubuntu.
 Dell's missing unzip is supplied by a checksum-verified distro package extracted
 only into the CI account. Gradle uses a private 3 GiB heap, bounded metaspace,
 two workers and no persistent daemon to fit the service budget.
+The broad Python suite already takes roughly 28–44 minutes on hosted machines
+at the inspected baseline. Its job wrapper allows 60 minutes hosted and 120 on
+the older native hosts; application/test deadlines and resource limits remain
+the original values. Each host processes one job at a time.
 
 ## Operation, logging and updates
 
