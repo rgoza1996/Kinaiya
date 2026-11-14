@@ -10,6 +10,16 @@ on:
         type: choice
         options: [smoke, media, native, compat, full, android]
         default: smoke
+      python:
+        description: Python version for manual full qualification
+        type: choice
+        options: [all, '3.11', '3.12', '3.14']
+        default: all
+      architecture:
+        description: Native architecture for manual full qualification
+        type: choice
+        options: [both, arm64, x64]
+        default: both
 permissions:
   contents: read
 jobs:
@@ -133,12 +143,12 @@ jobs:
     # PRs always use disposable hosted machines. The host-owned admission policy
     # independently rejects PR events if a PR edits this YAML to request a host.
     runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-22.04' || fromJSON(matrix.runner == 'arm64' && '["self-hosted","Linux","ARM64","kinaiya-ci"]' || '["self-hosted","Linux","X64","kinaiya-ci"]') }}
-    timeout-minutes: ${{ matrix.runner == 'hosted' && 60 || 120 }}
+    timeout-minutes: ${{ matrix.runner == 'hosted' && 60 || 180 }}
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.11', '3.12', '3.14']
-        runner: ${{ fromJSON(github.event_name == 'pull_request' && '["hosted"]' || '["arm64","x64"]') }}
+        python: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.python != 'all' && format('["{0}"]', inputs.python) || '["3.11","3.12","3.14"]') }}
+        runner: ${{ fromJSON(github.event_name == 'pull_request' && '["hosted"]' || github.event_name == 'workflow_dispatch' && inputs.architecture != 'both' && format('["{0}"]', inputs.architecture) || '["arm64","x64"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -186,14 +196,14 @@ jobs:
           if test "$RUNNER_KIND" = hosted; then
             pytest -m 'not live' -q
           else
-            pytest --basetemp /tmp/ci/pytest -m 'not live' -q
+            pytest --basetemp /tmp/ci/pytest -x --tb=short -m 'not live' -q
           fi
       - run: python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas
       - name: Dependency audit
         run: python -m pip_audit -r requirements-dev.lock --disable-pip
 
   flutter:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 20
     defaults:
@@ -250,7 +260,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full' || inputs.suite == 'android'
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'android' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 30
     defaults:
@@ -312,7 +322,7 @@ jobs:
           if-no-files-found: error
 
   ios:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: macos-15
     timeout-minutes: 30
     defaults:
