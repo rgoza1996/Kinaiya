@@ -541,10 +541,9 @@ class DecisionsWorker:
                 self._preparation_failures[source.event_id] = failures
                 if failures < 3:
                     raise
-                await self._append_refusal(
+                return await self._append_refusal(
                     source, "call_history_unavailable", "CaptureNativeUnavailable"
                 )
-                return None
             self._preparation_failures.pop(source.event_id, None)
             return result
 
@@ -651,13 +650,12 @@ class DecisionsWorker:
         failures = self._lookup_failures.get(source.event_id, 0) + 1
         self._lookup_failures[source.event_id] = failures
         if failures >= 2:
-            await self._append_refusal(
+            return await self._append_refusal(
                 source, "call_history_unavailable", "CaptureNativeUnavailable"
             )
-            return
         raise CaptureNativeUnavailable("Decisions native attempt history is unavailable")
 
-    async def _append_refusal(self, source, reason: str, error_type: str) -> None:
+    async def _append_refusal(self, source, reason: str, error_type: str) -> Decision | None:
         current = await self.journal.session(source.session_id)
         if (current.thread_id, current.epoch) != (source.thread_id, source.epoch):
             self._pending_refusals.pop(source.event_id, None)
@@ -675,7 +673,7 @@ class DecisionsWorker:
             and source.payload.get("target_event_id")
             else source.event_id
         )
-        await self.journal.append(
+        published = await self.journal.append(
             AppendRequest(
                 session_id=source.session_id,
                 thread_id=source.thread_id,
@@ -694,6 +692,12 @@ class DecisionsWorker:
         self._pending_refusals.pop(source.event_id, None)
         self._transport_attempts.pop(source.event_id, None)
         self._lookup_failures.pop(source.event_id, None)
+
+        if published.kind == "routing.decided":
+            # The original may have committed its decision before this refusal.
+            # Reconcile that exact winner before allowing cursor advancement.
+            return await self._dispatch_decision(source, Decision.model_validate(published.payload))
+        return None
 
     async def _run_classifier(
         self,
@@ -792,8 +796,7 @@ class DecisionsWorker:
         else:
             if source.event_id in self._pending_refusals:
                 reason, error_type = self._pending_refusals[source.event_id]
-                await self._append_refusal(source, reason, error_type)
-                return None
+                return await self._append_refusal(source, reason, error_type)
             if source.event_id in self._pending_decisions:
                 decision = self._pending_decisions[source.event_id]
             else:
@@ -830,24 +833,24 @@ class DecisionsWorker:
                         source, scoped_source=scoped_source
                     )
                     if persisted.state == "unavailable":
-                        await self._native_unavailable(source)
-                        return None
+                        return await self._native_unavailable(source)
                     if persisted.refusal is not None:
                         reason, error_type = persisted.refusal
-                        await self._append_refusal(source, reason, error_type)
-                        return None
+                        return await self._append_refusal(source, reason, error_type)
                     if persisted.output is not None:
                         try:
                             result = validate_classification_dict(persisted.output, source=source)
                         except InvalidClassificationError as exc:
-                            await self._append_refusal(source, exc.reason_code, type(exc).__name__)
-                            return None
+                            return await self._append_refusal(
+                                source, exc.reason_code, type(exc).__name__
+                            )
                     else:
                         prior_attempts = persisted.prior_attempts
                         limit = min(persisted.limit, self.max_attempts or persisted.limit)
                         if prior_attempts >= limit:
-                            await self._append_refusal(source, "provider_failed", "ProviderError")
-                            return None
+                            return await self._append_refusal(
+                                source, "provider_failed", "ProviderError"
+                            )
                         scoped_context = [await self._scoped_source(entry) for entry in context]
                         attempt = prior_attempts + 1
                         try:
@@ -860,34 +863,31 @@ class DecisionsWorker:
                             try:
                                 result = validate_classification_dict(result, source=source)
                             except InvalidClassificationError as exc:
-                                await self._append_refusal(
+                                return await self._append_refusal(
                                     source, exc.reason_code, type(exc).__name__
                                 )
-                                return None
                         except CaptureNativeUnavailable:
-                            await self._native_unavailable(source)
-                            return None
+                            return await self._native_unavailable(source)
                         except DecisionsModelUnavailable:
                             raise
                         except InvalidClassificationError as exc:
-                            await self._append_refusal(source, exc.reason_code, type(exc).__name__)
-                            return None
+                            return await self._append_refusal(
+                                source, exc.reason_code, type(exc).__name__
+                            )
                         except ProviderRefusal as exc:
-                            await self._append_refusal(
+                            return await self._append_refusal(
                                 source, classification_refusal_reason(exc), type(exc).__name__
                             )
-                            return None
                         except Exception as exc:
                             is_budget_error = _is_budget_error(exc)
                             if is_budget_error or attempt >= limit:
-                                await self._append_refusal(
+                                return await self._append_refusal(
                                     source,
                                     "token_budget_exceeded"
                                     if is_budget_error
                                     else "provider_failed",
                                     type(exc).__name__,
                                 )
-                                return None
                             raise
                         self._lookup_failures.pop(source.event_id, None)
                 if source.payload.get("outcome_event_id"):
@@ -930,6 +930,9 @@ class DecisionsWorker:
             if published.kind == "routing.classification_refused":
                 return None
             decision = Decision.model_validate(published.payload)
+        return await self._dispatch_decision(source, decision)
+
+    async def _dispatch_decision(self, source, decision):
         if not self.enabled or decision.route == "ignore":
             return decision
         if await self._dispatch_recorded(source, decision):

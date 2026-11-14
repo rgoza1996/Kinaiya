@@ -43,6 +43,7 @@ class NativeDecisionAttempt:
         self.settled = False
         self.entered = False
         self.cleanup_unconfirmed = False
+        self.model_current = None
 
     def _transport_binding(self, provider):
         client = getattr(provider, "http", None)
@@ -62,6 +63,7 @@ class NativeDecisionAttempt:
             or client is not self.client
             or self.receipt is None
             or self.entered
+            or (self.model_current is not None and not self.model_current())
             or self._transport_binding(self.provider) != self._binding
             or hashlib.sha256(wire).hexdigest() != self.request.request_sha256
         ):
@@ -80,6 +82,7 @@ class NativeDecisionAttempt:
             copy.deepcopy(body),
         )
         self._binding = self._transport_binding(provider)
+        self.model_current = capture.model_current
         try:
             request = DecisionsAttemptAdmit(
                 source=self.source,
@@ -112,7 +115,7 @@ class NativeDecisionAttempt:
             # Session atomically rechecked every native source at admission.
             # Do not charge failed preparatory reads after that linearization
             # point; the remaining model lease fence is synchronous.
-            if capture.model_current is not None and not capture.model_current():
+            if self.model_current is not None and not self.model_current():
                 raise CaptureNativeUnavailable("Decisions original model ownership changed")
         except asyncio.CancelledError:
             raise

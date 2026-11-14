@@ -837,3 +837,132 @@ async def test_failed_original_close_stays_owned_after_uncertainty_publication_a
         finally:
             await provider.close()
             await replacement_provider.close()
+
+
+@pytest.mark.parametrize("http", [False, True])
+async def test_model_owner_closed_during_request_hook_cannot_enter_provider(tmp_path, http):
+    from services.decisions.model_settings import DecisionsModelSettings
+
+    async with session_http_env(tmp_path) as (store, session, app, _make_client):
+        source = append_user_source(store, session, idem="model-owner-closed-in-hook")
+        entered, lease_states = [], []
+
+        def complete(request):
+            entered.append(request.content)
+            return response()
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(complete)
+        )
+        settings = DecisionsModelSettings(provider, None)
+        agent = DummyAgent()
+
+        async def close_model_owner(request):
+            lease = next(iter(settings.leases))
+            lease_states.append(lease.current())
+            await settings.close()
+            lease_states.append(lease.current())
+
+        provider.http.event_hooks["request"].append(close_model_owner)
+        async with loopback(app) as root:
+            journal = (
+                JournalClient(root, TOKENS["decisions"])
+                if http
+                else LocalJournal(store, "decisions")
+            )
+            try:
+                worker = DecisionsWorker(
+                    journal, agent, ModelClassifier(provider), model_settings=settings
+                )
+                with pytest.raises(CaptureNativeUnavailable):
+                    await worker.process(source)
+                assert lease_states == [True, False]
+                assert not entered and not agent.submitted
+                state = await state_of(journal, source)
+                assert state.charged_attempts == 1
+                assert state.last_attempt.admission.model_pin is not None
+                assert not store.read(kinds=["routing.decided"])
+            finally:
+                await settings.close()
+                await provider.close()
+                if http:
+                    await journal.close()
+
+
+@pytest.mark.parametrize("http", [False, True])
+async def test_refusal_reconciles_winning_queue_before_advancing_cursor(tmp_path, http):
+    async with session_http_env(tmp_path) as (store, session, app, _make_client):
+        source = append_user_source(store, session, idem="winning-queue-lost-ack")
+        entered = []
+        reached, release_provider = asyncio.Event(), asyncio.Event()
+        refusing, release_refusal = asyncio.Event(), asyncio.Event()
+
+        async def held(request):
+            entered.append(request.content)
+            reached.set()
+            await release_provider.wait()
+            return response()
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(held)
+        )
+        agent = DummyAgent()
+        async with loopback(app) as root:
+            journals = [
+                JournalClient(root, TOKENS["decisions"])
+                if http
+                else LocalJournal(store, "decisions")
+                for _ in range(3)
+            ]
+            original_append, replacement_append = journals[0].append, journals[1].append
+
+            async def lose_decision_ack(request):
+                result = await original_append(request)
+                if request.kind == "routing.decided":
+                    raise OSError("synthetic crash after committing queue before dispatch")
+                return result
+
+            async def hold_refusal(request):
+                if request.kind == "routing.classification_refused":
+                    refusing.set()
+                    await release_refusal.wait()
+                return await replacement_append(request)
+
+            journals[0].append = lose_decision_ack
+            journals[1].append = hold_refusal
+            original = asyncio.create_task(
+                DecisionsWorker(journals[0], agent, ModelClassifier(provider)).process(source)
+            )
+            replacement = None
+            try:
+                await asyncio.wait_for(reached.wait(), 2)
+                replacement = asyncio.create_task(
+                    DecisionsWorker(journals[1], agent, ModelClassifier(provider)).tick()
+                )
+                await asyncio.wait_for(refusing.wait(), 2)
+                release_provider.set()
+                with pytest.raises(OSError):
+                    await original
+                assert len(store.read(kinds=["routing.decided"])) == 1
+                assert not agent.submitted
+                release_refusal.set()
+                await asyncio.wait_for(replacement, 2)
+                await DecisionsWorker(journals[2], agent, ModelClassifier(provider)).tick()
+                assert len(entered) == 1 and len(agent.submitted) == 1
+                assert not store.read(kinds=["routing.classification_refused"])
+                receipts = store.read(kinds=["routing.dispatch"])
+                assert len(receipts) == 1
+                assert receipts[0].payload["state"] == "accepted"
+                assert store.cursor("decisions", "decisions-v1") >= source.sequence
+                assert (await state_of(journals[2], source)).charged_attempts == 1
+            finally:
+                release_provider.set()
+                release_refusal.set()
+                await asyncio.gather(
+                    *(task for task in (original, replacement) if task is not None),
+                    return_exceptions=True,
+                )
+                await provider.close()
+                if http:
+                    for journal in journals:
+                        await journal.close()

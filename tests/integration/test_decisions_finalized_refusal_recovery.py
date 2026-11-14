@@ -67,7 +67,6 @@ class DummyAgent:
             state=TaskState.QUEUED,
             idempotency_key=request.idempotency_key,
             source_event_ids=request.source_event_ids,
-            source_revision=request.source_revision,
         )
 
     async def steer(self, task_id, request, actor="decisions"):
@@ -82,7 +81,6 @@ class DummyAgent:
             state=TaskState.RUNNING,
             idempotency_key=request.idempotency_key,
             source_event_ids=request.source_event_ids,
-            source_revision=1,
         )
 
     async def interrupt(self, task_id, request, actor="decisions"):
@@ -97,7 +95,6 @@ class DummyAgent:
             state=TaskState.CANCELLED,
             idempotency_key=request.idempotency_key,
             source_event_ids=request.source_event_ids,
-            source_revision=request.source_revision,
         )
 
 

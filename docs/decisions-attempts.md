@@ -84,7 +84,8 @@ body and completion publication when acknowledgement is uncertain or physical
 cleanup is unconfirmed. A committed uncertainty receipt does not establish
 physical retirement and cannot release that original owner during lookup. The shared
 HTTP transport boundary validates the frozen actual request after awaited hooks
-and consumes the original provider opportunity once. A replaced body, stream,
+and rechecks the original synchronous model-current callback before consuming
+the provider opportunity once. A replaced body, stream,
 client, transport or task cannot enter the provider using that reservation.
 Native admission is the disclosure linearization point: later revocation cannot
 recall an admitted in-flight request. Model lease/transport fences remain checked
@@ -105,15 +106,19 @@ checks continue to apply after recovery.
 Session serializes finalized result/refusal publication per source. The first
 native outcome wins; append returns that exact stored event. This stops a late
 original result from dispatching after a replacement published uncertainty. The
-late native completion and its charge are still retained. Existing executor
+late native completion and its charge are still retained.
+When a refusal append instead returns an original winning decision, that exact
+decision goes through the same guarded dispatch/receipt reconciliation before
+the consumer can acknowledge the source. Existing executor
 idempotency and durable dispatch receipts prevent replayed task effects.
 
 Two consecutive unavailable native lookups/admission/completion publications
 produce a durable `call_history_unavailable` refusal. Source-specific preparation
 HTTP/storage failures receive at most three ordered processing attempts. A
 successful operation clears that source's failure counter. These bounds count
-metadata failures, not provider attempts. A refusal must commit before cursor
-advancement; if the journal cannot commit or acknowledge anything, progress
+metadata failures, not provider attempts. The winning outcome and any required
+dispatch receipt must commit before cursor advancement; if the journal cannot
+commit or acknowledge anything, progress
 cannot be claimed. With journal publication available, unrelated later sources
 proceed in the same batch. Restart may restart a metadata failure counter but
 never the native charged allowance or an unresolved provider opportunity.
