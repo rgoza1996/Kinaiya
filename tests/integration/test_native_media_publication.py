@@ -314,7 +314,7 @@ async def test_real_publication_guard_rechecks_after_waiting_for_its_original_sl
 ):
     async with _case(tmp_path, mode) as case:
         async with case.native._publication_lock:
-            call = case.start(timeout=1.0 if fault == "deadline" else 30.0)
+            call = case.start(timeout=5.0 if fault == "deadline" else 30.0)
             await _entered(call, case.wire.close_done)
             # The real caller has returned from HTTP and is queued at its
             # actual native publication lock, not a synthetic settle callback.

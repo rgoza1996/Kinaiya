@@ -620,6 +620,8 @@ class NativeBufferedMediaOwner:
             ConverseModelSettings if type(lease) is ConverseModelLease else DecisionsModelSettings
         ):
             refuse("denied")
+        if any(a.unknown and a.lease.owner is lease.owner for a in self._attempts.values()):
+            refuse()
         if system_prompt is not None and (
             type(system_prompt) is not str or not 1 <= len(system_prompt.encode("utf-8")) <= 16384
         ):
@@ -772,7 +774,10 @@ class NativeBufferedMediaOwner:
                 original.unknown = True
                 self._fence(original)
                 original.gate.set()
-            else:
+            elif type(lease) in (ConverseModelLease, DecisionsModelLease) and type(lease.owner) in (
+                ConverseModelSettings,
+                DecisionsModelSettings,
+            ):
                 await lease.close()
             raise
         if not fresh and lease is not a.lease:
@@ -787,6 +792,9 @@ class NativeBufferedMediaOwner:
             if observer.cancelling() > baseline:
                 self._fence(a)
                 raise asyncio.CancelledError
+            if a.loop.time() >= a.deadline and a.event is None:
+                self._fence(a)
+                raise TimeoutError("Native media deadline expired")
             return a.worker.result()
         except asyncio.CancelledError:
             self._fence(a)
@@ -794,6 +802,8 @@ class NativeBufferedMediaOwner:
 
     @staticmethod
     def _fence(a):
+        if a.fenced.is_set():
+            return
         a.fenced.set()
         if a.worker is not None and not a.worker.done():
             a.worker.cancel()
