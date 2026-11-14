@@ -126,11 +126,12 @@ class RequestBoundAsyncClient(httpx.AsyncClient):
         from packages.providers.decision_capture import _capture
 
         capture = _capture.get()
-        native = capture.admission if capture is not None else None
+        native = getattr(capture, "admission", None)
         if native is None or native.client is not self:
             return await super().send(request, **kwargs)
         native.check_transport(self, request.content)
-        request.stream = _FrozenBody(request.content)
+        if not isinstance(request.stream, _FrozenBody):
+            request.stream = _FrozenBody(request.content)
         bound = _Boundary(
             self,
             asyncio.current_task(),

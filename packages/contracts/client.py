@@ -599,8 +599,9 @@ class JournalClient:
                 f"/v1/decisions/attempts/{operation}",
                 json=request.model_dump(mode="json"),
                 maximum=MAX_ATTEMPT_BYTES,
+                raw=True,
             )
-        result = result_type.model_validate(payload)
+        result = result_type.model_validate(context_json(payload, maximum=MAX_ATTEMPT_BYTES))
         if operation == "lookup":
             if result.source != request.source:
                 raise ValueError("Decisions recovery source mismatch")

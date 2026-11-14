@@ -542,3 +542,122 @@ async def test_provider_cancellation_retains_actual_close_before_original_comple
                 original.cancel()
             await asyncio.gather(original, return_exceptions=True)
             await provider.close()
+
+
+async def test_source_specific_preparation_read_failure_is_uncharged_and_bounded(tmp_path):
+    async with session_http_env(tmp_path) as (store, session, app, make_client):
+        blocked = append_user_source(store, session, idem="preparation-blocked")
+        other_session = store.create_session(SessionRequest(channel="converse"))
+        unrelated = append_user_source(store, other_session, idem="preparation-unrelated")
+        asgi, entered = httpx.ASGITransport(app=app), []
+
+        async def read_failure(request):
+            if (
+                request.url.path == f"/v1/transcript/entries/{blocked.event_id}"
+                and request.url.params.get("resolve") == "true"
+            ):
+                return httpx.Response(503, json={"detail": "synthetic source read failure"})
+            return await asgi.handle_async_request(request)
+
+        def complete(request):
+            entered.append(request.content)
+            return response()
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(complete)
+        )
+        try:
+            worker = DecisionsWorker(
+                make_client(transport=httpx.MockTransport(read_failure)),
+                DummyAgent(),
+                ModelClassifier(provider),
+            )
+            for _ in range(2):
+                with pytest.raises(httpx.HTTPStatusError):
+                    await worker.tick()
+            assert not entered
+            await worker.tick()
+            assert len(entered) == 1
+            assert store.read(kinds=["routing.decided"])[0].causes == [unrelated.event_id]
+            assert (await state_of(make_client(), blocked)).charged_attempts == 0
+        finally:
+            await provider.close()
+
+
+@pytest.mark.parametrize("invalid", [True, 0, 17, "2", 1.5])
+def test_invalid_native_retry_configuration_does_not_open_a_store(tmp_path, invalid):
+    path = tmp_path / "invalid.sqlite"
+    with pytest.raises(ValueError):
+        Store(path, decisions_max_attempts=invalid)
+    assert not path.exists()
+
+
+async def test_late_uncommitted_admission_cannot_reclaim_a_replacement_opportunity(tmp_path):
+    async with session_http_env(tmp_path) as (store, session, app, make_client):
+        source = append_user_source(store, session, idem="late-before-commit")
+        asgi, release, entered = httpx.ASGITransport(app=app), asyncio.Event(), []
+
+        async def late_admission(request):
+            if request.url.path == "/v1/decisions/attempts/admit":
+                await release.wait()
+            return await asgi.handle_async_request(request)
+
+        def complete(request):
+            entered.append(request.content)
+            return response()
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(complete)
+        )
+        original = make_client(transport=httpx.MockTransport(late_admission))
+        try:
+            with pytest.raises(CaptureNativeUnavailable):
+                await DecisionsWorker(original, DummyAgent(), ModelClassifier(provider)).process(
+                    source
+                )
+            exchange = next(iter(original._submit_exchanges))
+            assert not exchange.task.done()
+            assert (await state_of(make_client(), source)).state == "known_absent"
+            await DecisionsWorker(make_client(), DummyAgent(), ModelClassifier(provider)).process(
+                source
+            )
+            assert len(entered) == 1
+            release.set()
+            with pytest.raises(httpx.HTTPStatusError) as error:
+                await asyncio.wait_for(asyncio.shield(exchange.task), 2)
+            assert error.value.response.status_code == 409
+            assert len(entered) == 1
+            assert (await state_of(make_client(), source)).charged_attempts == 1
+        finally:
+            release.set()
+            await provider.close()
+
+
+async def test_suppressed_provider_cancellation_cannot_turn_into_a_usable_result(tmp_path):
+    async with session_http_env(tmp_path) as (store, session, _app, make_client):
+        source = append_user_source(store, session, idem="suppressed-cancel")
+        reached = asyncio.Event()
+
+        async def suppress(request):
+            reached.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                return response()
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(suppress)
+        )
+        agent = DummyAgent()
+        original = asyncio.create_task(
+            DecisionsWorker(make_client(), agent, ModelClassifier(provider)).process(source)
+        )
+        try:
+            await asyncio.wait_for(reached.wait(), 2)
+            original.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await original
+            assert not agent.submitted
+            assert (await state_of(make_client(), source)).state == "uncertain"
+        finally:
+            await provider.close()

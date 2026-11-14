@@ -1,5 +1,10 @@
 # Decisions owner inspection API (contract 1)
 
+Finalized provider entry and restart recovery use the separate
+[native charged-attempt contract](decisions-attempts.md). These inspection
+records remain observational and can be unavailable without resetting that
+contract's per-source allowance.
+
 The Session service owns these endpoints. They are read-only and require the
 owner bearer plus the existing browser-origin check. No inspection operation
 invokes a classifier, executes work, or reconstructs missing historical data.

@@ -228,7 +228,7 @@ async def capture_request(provider, body, request_format):
             raise CaptureNativeUnavailable(
                 "Decisions currentness check exceeded its bound"
             ) from exc
-        if capture.admission is not None:
+        if getattr(capture, "admission", None) is not None:
             await capture.admission.admit(capture, provider, body, request_format)
 
 

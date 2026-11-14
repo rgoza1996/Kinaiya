@@ -19,17 +19,17 @@ _unsettled = set()
 
 
 def _uncertain(error, provider):
+    cancelled = isinstance(error, asyncio.CancelledError)
     seen = set()
     while error is not None and id(error) not in seen:
         seen.add(id(error))
-        if (
-            isinstance(error, asyncio.CancelledError)
-            or type(error).__name__ == "ProviderCleanupError"
-        ):
+        if type(error).__name__ == "ProviderCleanupError":
             return True
         error = error.__cause__ or error.__context__
-    return getattr(provider, "_cleanup", None) is not None or bool(
-        getattr(provider, "_count_cleanup_failed", False)
+    return (
+        cancelled
+        or getattr(provider, "_cleanup", None) is not None
+        or bool(getattr(provider, "_count_cleanup_failed", False))
     )
 
 
@@ -126,7 +126,10 @@ class NativeDecisionAttempt:
             return  # No ACK cannot establish absence of a native charge.
         if self.completion is not None:
             raise CaptureNativeUnavailable("Decisions completion opportunity is consumed")
-        if _uncertain(error, self.provider) or status == "cancelled":
+        if asyncio.current_task() is not self.owner:
+            raise CaptureNativeUnavailable("Decisions completion lost its original task")
+        cancelled = self.owner.cancelling() > 0
+        if cancelled or _uncertain(error, self.provider) or status == "cancelled":
             status = "uncertain"
         elif status == "completed" and capture.validated_output is None:
             status = "uncertain"
@@ -152,6 +155,10 @@ class NativeDecisionAttempt:
             raise CaptureNativeUnavailable("Decisions original completion is uncertain") from exc
         self.settled = True
         _unsettled.discard(self)
+        if cancelled:
+            raise asyncio.CancelledError
+        if status == "uncertain" and error is None:
+            raise CaptureNativeUnavailable("Decisions original result is uncertain")
 
 
 def observe_completion(state):
