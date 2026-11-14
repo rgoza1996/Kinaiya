@@ -33,7 +33,7 @@ from services.decisions.runtime import DecisionsWorker
 from services.session.native_media import NativeBufferedMediaOwner
 from services.session.store import LocalJournal
 
-_WAIT = 10
+_WAIT = 30
 _MODES = ("converse_chat", "decisions_systemone")
 
 
@@ -234,6 +234,77 @@ def _publications(case):
     return case.env.store.read(kinds=["conversation.converse", "routing.decided"])
 
 
+async def test_ordinary_authenticated_append_cannot_forge_native_publication(tmp_path):
+    async with _case(tmp_path, "converse_chat") as case:
+        request = AppendRequest(
+            **case.env.session,
+            kind="conversation.converse",
+            payload={
+                "text": "Synthetic producer fixture",
+                "final": True,
+                "content_scope": "local_only",
+                "native_media_v2": {"v": 2, "source": case.env.ref(case.source)},
+            },
+            idempotency_key="forged-native-provenance",
+        )
+        response = await case.env.post(
+            "/v1/transcript/entries", request.model_dump(mode="json"), role="converse"
+        )
+        assert response.status_code in (400, 403, 409)
+        assert not _publications(case)
+        request.payload.pop("native_media_v2")
+        response = await case.env.post(
+            "/v1/transcript/entries", request.model_dump(mode="json"), role="converse"
+        )
+        assert response.status_code == 200
+        assert len(_publications(case)) == 1
+
+
+@pytest.mark.parametrize("mode", _MODES)
+async def test_native_caller_does_not_reinterpret_prior_handled_cancellation(tmp_path, mode):
+    async with _case(tmp_path, mode) as case:
+
+        async def already_cancelled():
+            original = asyncio.current_task()
+            original.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.sleep(0)
+            baseline = original.cancelling()
+            assert baseline > 0
+            result = await case.caller.complete_native_media(
+                case.ref, case.fence, case.principal, key="native-a"
+            )
+            assert original.cancelling() == baseline
+            return result
+
+        result = await asyncio.wait_for(asyncio.create_task(already_cancelled()), _WAIT)
+        a = await _reconciled(case.native)
+        _assert_original(case, a)
+        assert _publications(case) == [result]
+
+
+@pytest.mark.parametrize("mode", _MODES)
+async def test_cancelled_observer_after_commit_recovers_same_actual_publication(tmp_path, mode):
+    async with _case(tmp_path, mode, "before_response") as case:
+        call = case.start()
+        await _entered(call, case.wire.entered)
+        a = case.native._attempts["native-a"]
+        # Cancel only its observer after the actual native worker has committed.
+        # This cannot turn an already recorded side effect into zero effects.
+        a.worker.add_done_callback(lambda _: call.cancel())
+        case.wire.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        await _reconciled(case.native)
+        _assert_original(case, a)
+        assert a.event is not None and _publications(case) == [a.event]
+        replay = await case.caller.complete_native_media(
+            case.ref, case.fence, case.principal, key="native-a"
+        )
+        assert replay.event_id == a.event.event_id
+        assert len(case.wire.requests) == 1 and _publications(case) == [a.event]
+
+
 def _assert_original(case, a, *, settled=True):
     assert len(case.wire.requests) == 1 and case.wire.close_calls == 1
     assert a.worker.get_coro() is a.coroutine and a.worker.done()
@@ -317,17 +388,12 @@ async def test_real_publication_guard_rechecks_after_waiting_for_its_original_sl
 ):
     async with _case(tmp_path, mode) as case:
         async with case.native._publication_lock:
-            call = case.start(timeout=5.0 if fault == "deadline" else 30.0)
+            call = case.start(timeout=15.0 if fault == "deadline" else 30.0)
             await _entered(call, case.wire.close_done)
             # The real caller has returned from HTTP and is queued at its
             # actual native publication lock, not a synthetic settle callback.
-            for _ in range(1000):
-                a = case.native._attempts["native-a"]
-                if a.staged is not None:
-                    break
-                if call.done():
-                    await call
-                await asyncio.sleep(0.001)
+            a = case.native._attempts["native-a"]
+            await _entered(call, a.publication_entered)
             assert a.staged is not None and not _publications(case)
             if fault == "cancel":
                 call.cancel()

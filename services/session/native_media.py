@@ -128,6 +128,7 @@ class _Attempt:
     transport_closed: bool = False
     wire_retired: bool = False
     publication_finished: bool = False
+    publication_entered: asyncio.Event = field(default_factory=asyncio.Event)
     publication_unknown: bool = False
     event: object = None
     outcome: str = "not_started"
@@ -1092,6 +1093,7 @@ class NativeBufferedMediaOwner:
             causes=[a.owner_event.event_id],
             idempotency_key=f"native-media-v2:{a.operation_id}",
         )
+        a.publication_entered.set()  # Lifecycle observation, never commit authority.
         async with self._publication_lock:
             # All native awaits precede the commit guard. Holding the original
             # source fence lock makes stop/reset/disconnect linearize before

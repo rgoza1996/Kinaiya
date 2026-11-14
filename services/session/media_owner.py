@@ -4130,7 +4130,7 @@ class MediaSessionOwner:
                     return False
             elif (
                 self._sql(
-                    "SELECT 1 FROM sqlite_schema WHERE name='native_media_v2_attempts'"
+                    "SELECT 1 FROM sqlite_schema WHERE type='table' AND substr(name,1,16)='native_media_v2_' LIMIT 1"
                 ).fetchone()
                 is not None
             ):
@@ -4614,7 +4614,7 @@ class MediaSessionOwner:
         self._authority()
         if (
             self._sql(
-                "SELECT 1 FROM sqlite_schema WHERE name='native_media_v2_attempts'"
+                "SELECT 1 FROM sqlite_schema WHERE type='table' AND substr(name,1,16)='native_media_v2_' LIMIT 1"
             ).fetchone()
             is not None
         ):

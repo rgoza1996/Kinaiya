@@ -458,7 +458,7 @@ class Store:
         try:
             present = self.db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' "
-                "AND substr(name,1,6)='media_' LIMIT 1"
+                "AND (substr(name,1,6)='media_' OR substr(name,1,16)='native_media_v2_') LIMIT 1"
             ).fetchone()
         except sqlite3.Error:
             raise JournalError("Native media metadata is unavailable") from None
@@ -1006,6 +1006,8 @@ class Store:
         return event
 
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if isinstance(request.payload, dict) and "native_media_v2" in request.payload:
+            raise JournalError("Native media publications require the original publication owner")
         if request.kind == "agent.standing-command":
             raise JournalError("Standing tasks require native admission")
         if (

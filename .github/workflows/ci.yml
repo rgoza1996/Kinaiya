@@ -64,12 +64,14 @@ jobs:
       - run: python -m pip install --require-hashes -r requirements-dev.lock
       - name: Qualify issue 379 and runner admission
         run: >-
-          python -m pytest -q
+          python -m pytest --basetemp /tmp/ci/pytest-media -q
           tests/unit/test_runner_job_policy.py
           tests/unit/test_llama_media.py
           tests/unit/test_llama_media_final_fence.py
           tests/unit/test_decisions_media_classifier.py
           tests/unit/test_media_exchange_v2_contracts.py
+          tests/unit/test_media_pcm_rounding.py
+          tests/integration/test_media_decoder_multitrack.py
           tests/integration/test_native_media_publication.py
           tests/integration/test_session_media_missing_runtime.py
 
@@ -92,9 +94,12 @@ jobs:
       - run: >-
           python -m pytest -x --tb=short -q
           tests/unit/test_media_exchange_v2_contracts.py
+          tests/unit/test_media_pcm_rounding.py
+          tests/integration/test_media_decoder_multitrack.py
           tests/integration/test_native_media_publication.py
           tests/integration/test_session_media_owner.py
           tests/integration/test_session_media_lifecycle_guards.py
+          tests/integration/test_session_media_missing_runtime.py
 
   native-compatibility:
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'compat'

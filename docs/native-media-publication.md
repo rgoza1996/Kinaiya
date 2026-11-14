@@ -2,8 +2,10 @@
 
 Implementation contract for #379, with prerequisite composition under #204 and
 #449. This revision adds an experimental native caller/worker and Session
-publication owner. Linux integration qualification is pending; the launcher
-does not install it, and general media start/resume remains unavailable.
+publication owner. The first controlled Linux composition passed 113 cases at
+`4182bb4`; final integrated-tree and architecture qualification is recorded in
+the PR. The launcher does not install it, and general media start/resume remains
+unavailable.
 
 ## Existing boundary and required behavior
 
@@ -24,10 +26,25 @@ most one second through the original native spool reader. Converse chat and
 direct SystemOne Decisions retain their own request/result projections. The
 lane requires actual source/channel/anchor/authentication and protected native
 model leases; it exposes no request flag or new public route. It does not
-qualify physical
-capture, realtime/duplex speech, model quality, cloud liability reconciliation
+qualify physical capture, realtime/duplex speech, model quality, cloud liability reconciliation
 or the complete news-video demonstration. Those #204 acceptance gates remain
 separate. Unsupported composition remains explicitly unavailable.
+
+`ConverseRuntime.complete_native_media` uses a separate protected host-media
+capture method; ordinary text capture still requires a streaming provider.
+`DecisionsWorker.complete_native_media` uses its independent selected model
+lease and typed media classifier. Both call the original Session extension on
+its owning event loop. This is a native in-process composition seam, not a
+cross-service RPC or an owner/client request option. Catalog media selection,
+native capability/readiness qualification, managed physical model ownership and
+deployment composition remain #204/#449 prerequisites before production use.
+
+The V2 pin envelope contains the full canonical bytes of the unchanged legacy
+Converse/Decisions model pin. It does not widen the media integer-only graph or
+the legacy cleanup union. Reconstructed refs/DTOs cannot replace retained
+native task, model lease, source or bridge identity. Ordinary journal append
+rejects the reserved `native_media_v2` marker; only the original guarded
+publisher writes it in the Session transaction.
 
 ## Component authority
 
@@ -106,3 +123,50 @@ Preserve existing immutable schemas and legacy behavior. Keep exact source,
 commands, original failures and negative controls separate from later passing
 results; run the relevant checks on both self-hosted architectures through the
 guarded CI from #570. Actual device/model qualifications are not inferred.
+
+## Bounded history and recovery
+
+The optional owner reserves 64 MiB of lifetime metadata, accepts at most 64
+original attempts and two unsettled attempts, and stores at most 32 bounded
+immutable records/512 KiB of record bytes per attempt. It retains the original
+worker before releasing its start gate, its original source reader, model
+lease and one publication promise. Before-return exchange observations cannot
+claim that the still-running original task or its publication has joined.
+Post-task observations preserve that earlier unknown snapshot and record the
+actual original join and reader close separately.
+
+`native_media_v2_attempts` and `native_media_v2_records` are a private versioned
+extension, separate from the unchanged legacy media DDL. Transactions audit
+canonical requests, original owners, exact refs/digests, component proof sets
+and publication identities. Unknown local close/commit/model-operation state
+retains the source and operation capacity. Source stop/delete/shutdown fences
+new consumption before waiting for those original owners; epoch reset does
+not make their old publication current.
+
+Restart marks unfinished originals unknown and refuses rearming. Missing or
+partial native metadata also blocks reset/deletion when the original runtime
+is absent. There is no automated native crash-reconciliation or refund API in
+this increment. Preserve the private DB, journal, spool and original process
+evidence for operator review; deleting an unknown row, opening a replacement
+reader, or resubmitting under a new key is not recovery. General production
+enablement remains gated on those broader lifecycle prerequisites.
+
+## Exact PCM16 identity conversion on both architectures
+
+#575 was reproduced on ARM by the unchanged actual-child multitrack test; its
+independent postmux scalar oracle passed on x64. For float32 input with unchanged
+rate and mono/stereo layout, the child now explicitly multiplies by 32768,
+rounds to nearest with ties to even, and saturates to [-32768, 32767]. Nonfinite
+input is refused. Planar/interleaved channel order, original sample counts and
+PTS remain unchanged. The existing exact-byte test is retained without a
+tolerance. This rule applies only to identity float32-to-PCM16 conversion;
+selected rate/layout transformations and other formats still use pinned PyAV.
+
+Upstream has separate architecture conversion paths in
+[AArch64 conversion](https://github.com/FFmpeg/FFmpeg/blob/master/libswresample/aarch64/audio_convert_neon.S)
+and [scalar conversion](https://github.com/FFmpeg/FFmpeg/blob/master/libswresample/audioconvert.c).
+Different rounding is the source-based explanation under test, not an
+instruction trace of the pinned wheel. The explicit rule matches the project's
+existing independent oracle and is checked through the actual decoder process
+on both hosts. Changed decoder code needs a freshly pinned implementation
+closure before deployment; no live runtime/profile was changed by this PR.
