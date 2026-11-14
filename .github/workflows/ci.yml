@@ -8,7 +8,7 @@ on:
       suite:
         description: Trusted runner qualification (host admission policy also applies)
         type: choice
-        options: [smoke, media, native, compat, full, android]
+        options: [smoke, media, native, compat, full, flutter, android]
         default: smoke
       python:
         description: Python version for manual full qualification
@@ -203,7 +203,7 @@ jobs:
         run: python -m pip_audit -r requirements-dev.lock --disable-pip
 
   flutter:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'flutter' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 20
     defaults:
