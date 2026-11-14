@@ -61,6 +61,10 @@ def _readline(tty, label: str) -> str:
     tty.flush()
     try:
         answer = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        raise ProfileFormCancelled("Cancelled; no profile was saved.") from None
     except (StopIteration, AssertionError):
         answer = ""
     if not answer:

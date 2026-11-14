@@ -20,7 +20,15 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from services.settings.credentials import CredentialVault, valid_key
 
@@ -37,6 +45,7 @@ _OPERATIONS = {
 Identifier = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")]
 Generation = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
 Effort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+MetaEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 
 
 def _text(value, limit):
@@ -113,10 +122,25 @@ class MetaProfile(TextProfile):
     credential: CredentialBinding
     max_tokens: int = Field(default=2048, ge=16, le=65536)
     context_tokens: int | None = Field(default=None, ge=64, le=MAX_REVISION)
-    reasoning_effort: Effort = "xhigh"
+    reasoning_effort: MetaEffort = "xhigh"
+    timeout_s: int = Field(default=600, ge=1, le=1800)
+
+    @model_serializer(mode="wrap")
+    def preserve_historical_timeout_shape(self, handler):
+        result = handler(self)
+        # Existing immutable generations never stored this additive field.
+        # Preserve their exact canonical bytes/digest; an explicit new timeout
+        # remains part of its new generation's configuration identity.
+        if "timeout_s" not in self.model_fields_set:
+            result.pop("timeout_s", None)
+        return result
 
     @model_validator(mode="after")
     def bounds(self):
+        from packages.providers.meta_policy import meta_reasoning_options
+
+        if self.reasoning_effort not in meta_reasoning_options(self.model):
+            raise ValueError("Meta reasoning effort is unavailable for this exact model")
         if not self.allow_cloud:
             raise ValueError("Meta requires explicit cloud authorization")
         self.base_url = _origin(self.base_url, cloud=True)

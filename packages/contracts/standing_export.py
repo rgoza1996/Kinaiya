@@ -36,6 +36,14 @@ def _complete(value, kind):
         if type(value) is not kind:
             raise ValueError(_ERROR)
         value = dict(value.__dict__)
+    if (
+        kind is AgentExportProviderInfo
+        and type(value) is dict
+        and set(value.keys()) == {"schema_version", "provider", "model", "local", "streaming"}
+    ):
+        # One exact raw-dictionary legacy shape: omitted null ceiling.
+        value = dict(value)
+        value["disclosure_policy"] = None
     if type(value) is not dict or value.keys() != kind.model_fields.keys():
         raise ValueError(_ERROR)
     return dict(value)

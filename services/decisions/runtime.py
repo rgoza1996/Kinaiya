@@ -18,6 +18,10 @@ from packages.contracts.models import (
     SteerRequest,
     TaskRequest,
 )
+from packages.providers.classification_errors import (
+    classification_refusal_reason,
+    retained_refusal_reason,
+)
 from packages.providers.decision_admission import NativeDecisionAttempt, observe_completion
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
@@ -368,11 +372,13 @@ class DecisionsWorker:
         enabled=True,
         model_settings=None,
         max_attempts=MAX_ATTEMPTS,
+        native_media_owner=None,
     ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
         self.window_turns, self.enabled = window_turns, enabled
         self.consumer = "decisions-v1"
         self.model_settings = model_settings
+        self.native_media_owner = native_media_owner
         self.max_attempts = max(1, int(max_attempts))
         self.last_error = None
         self.running = False
@@ -381,6 +387,22 @@ class DecisionsWorker:
         self._transport_attempts = {}
         self._lookup_failures = {}
         self._preparation_failures = {}
+
+    async def complete_native_media(self, source, fence, principal, *, key, timeout=30.0):
+        """Imported native evidence can publish routing, never admit commands."""
+        from services.session.media_clients import refuse
+        from services.session.native_media import NativeBufferedMediaOwner
+
+        if (
+            type(self.native_media_owner) is not NativeBufferedMediaOwner
+            or self.model_settings is None
+            or not self.enabled
+        ):
+            refuse()
+        lease = self.model_settings._capture()
+        return await self.native_media_owner.run(
+            source, fence, principal, lease, key=key, timeout=timeout, caller=self
+        )
 
     def _active_provider_info(self):
         if self.model_settings is not None:
@@ -599,7 +621,12 @@ class DecisionsWorker:
                 "refused",
                 count,
                 refusal=(
-                    completion.reason_code or "provider_refused",
+                    completion.reason_code
+                    or retained_refusal_reason(
+                        completion.error_type,
+                        provider=last.admission.provider.provider,
+                        request_format=last.admission.request_format,
+                    ),
                     completion.error_type or "ProviderRefusal",
                 ),
                 limit=limit,
@@ -837,7 +864,7 @@ class DecisionsWorker:
                             return None
                         except ProviderRefusal as exc:
                             await self._append_refusal(
-                                source, "provider_refused", type(exc).__name__
+                                source, classification_refusal_reason(exc), type(exc).__name__
                             )
                             return None
                         except Exception as exc:
@@ -1008,6 +1035,13 @@ class OutcomeWorker:
         return len(entries)
 
     async def run(self):
+        from packages.contracts.agent_outcome import OutcomeEvidenceUnavailable
+
         while True:
-            if not await self.tick():
-                await asyncio.sleep(0.1)
+            try:
+                if not await self.tick():
+                    await asyncio.sleep(0.1)
+            except OutcomeEvidenceUnavailable:
+                # Cursor stays before the unavailable outcome. Retry only its
+                # authenticated evidence reads; no announcement was attempted.
+                await asyncio.sleep(1)

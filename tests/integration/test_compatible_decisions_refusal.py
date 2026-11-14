@@ -109,7 +109,7 @@ async def test_completion_refusal_is_one_call_and_durable_across_restart(tmp_pat
         statuses = store.read(kinds=["routing.window_status"])
         assert [entry.payload["phase"] for entry in statuses] == ["classifying", "error"]
         assert statuses[-1].causes == [source.event_id]
-        assert statuses[-1].payload["reason"] == "provider_unavailable"
+        assert statuses[-1].payload["reason"] == "provider_refused"
         assert not store.pending_windows()
         error_id = statuses[-1].event_id
         await worker.close()

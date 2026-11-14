@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../artifacts/models.dart';
@@ -424,9 +425,21 @@ class _IntelligentConverseStageState extends State<IntelligentConverseStage> {
                     widget.state.artifactActionPending ||
                     _currentArtifact == null,
                 child: IntelligentArtifactRenderer(
-                  key: ValueKey(artifact.artifactId),
+                  key: ValueKey(
+                    '${owner.connectionGeneration}:${artifact.artifactId}',
+                  ),
                   artifact: artifact,
-                  enabled: widget.richEnabled,
+                  enabled: widget.richEnabled && _currentArtifact != null,
+                  loadMedia: (mediaArtifact, assetId, variant) async {
+                    if (!current()) throw StateError('Video owner changed');
+                    final value = await owner.loadArtifactMedia(
+                      mediaArtifact,
+                      assetId,
+                      variant,
+                    );
+                    if (!current()) throw StateError('Video owner changed');
+                    return value;
+                  },
                   onAction: (component, value) {
                     if (!current()) return Future<void>.value();
                     return owner.interactWithArtifact(component, value);

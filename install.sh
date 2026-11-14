@@ -1449,7 +1449,14 @@ def run(argv=None, *, invoking_dir=None):
                     setup_cmd.append("--allow-cloud")
                 if args.converse:
                     setup_cmd.append("--converse")
-            result = subprocess.run(setup_cmd, check=False)
+            if not sys.stdin.isatty():
+                try:
+                    with open("/dev/tty", "rb", buffering=0) as tty_in:
+                        result = subprocess.run(setup_cmd, stdin=tty_in, check=False)
+                except OSError:
+                    result = subprocess.run(setup_cmd, check=False)
+            else:
+                result = subprocess.run(setup_cmd, check=False)
             if result.returncode != 0:
                 reporter.fail_stage("setup_handoff", "Code installed; setup incomplete. Run kinaiya setup explicitly")
                 raise BootstrapError("Code installed; setup incomplete. Run kinaiya setup explicitly")

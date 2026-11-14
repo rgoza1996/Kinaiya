@@ -81,6 +81,33 @@ validated; ignored Agent routing clears its binding. Task IDs and objective
 revisions come only from the native captured task options. Low confidence
 produces a refusal, never a synthetic Ignore or an unauthorized task.
 
+Issue [#475](https://github.com/rgoza1996/Kinaiya/issues/475) distinguishes this
+valid below-floor result from transport failure. Only after complete structural,
+model, usage and probability validation does the unchanged confidence comparison
+raise the native `LowConfidenceRefusal` type. The window status reason is the
+closed label `provider_low_confidence`; other deterministic refusals use
+`provider_refused` (existing budget/output-limit labels are preserved), while genuine endpoint/provider errors retain
+`provider_unavailable` and their existing bounded transport-attempt policy.
+The owner-selected floor is unchanged (0.8 in the rehearsal); it is not lowered
+or tuned to a retained failed utterance.
+
+Existing authenticated private Decisions inspection records the native error
+type with `status: refused`. No raw source, choices, scores, parser text or new
+response field is copied into the status diagnostic. Finalized refusal receipts
+retain the same closed reason from exact native-d1 protocol/provider capture, including reconciliation of the typed terminal
+capture after a refusal-append outage. Historical generic `ProviderRefusal`
+records are not retrospectively reclassified from private output. A refused
+utterance is not replayed or turned into Ignore, a Converse answer or Agent work.
+Root and independent source reviews cleared this diagnostic change. Existing
+pinned Ruff 0.17.3 check/format and diff checks passed. On an isolated `933fba1`
+baseline plus this change, the new low-confidence integration and native-d1
+provider unit modules passed 109 tests in 2.01 seconds; six existing native
+catalog/selection, window and finalized refusal/recovery modules passed 127 in
+33.13 seconds. These are 236 distinct cases across eight modules, all on their
+first run, with identical before/after hashes for 764 Python inputs. No actual
+model request, failed-utterance replay, threshold change or runtime activation
+was performed; an Agent-only cutover does not activate this Decisions diagnostic.
+
 HTTP capacity failures remain failures. The adapter does not retry with a
 shortened state, another model, a smaller context or a cloud fallback. The
 audited LFM3 d1 implementation rejects context/batch overflow; an arbitrary

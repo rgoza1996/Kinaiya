@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/agent_model_client.dart';
@@ -7,6 +8,7 @@ import 'package:kinaiya_flutter/api/agent_model_settings.dart';
 import 'package:kinaiya_flutter/api/agent_runtime_client.dart';
 import 'package:kinaiya_flutter/api/agent_runtime_settings.dart';
 import 'package:kinaiya_flutter/api/client.dart';
+
 import 'agent_model_settings_test.dart' as model;
 import 'agent_model_transport_test.dart'
     show ModelTestClient, modelResponse, modelApi, sentBody;
@@ -239,14 +241,30 @@ void main() {
       final settlements = <Future<void>>[],
           results = <Future<void>>[],
           closes = <Future<void> Function()>[];
+      final clients = <ModelTestClient>[];
+      addTearDown(() async {
+        for (var i = 0; i < held.length; i++) {
+          if (!held[i].isCompleted) {
+            held[i].complete(
+              modelResponse(
+                i.isEven
+                    ? runtimeLookupJson(runtimeChangeJson())
+                    : model.lookupJson(model.changeJson()),
+              ),
+            );
+          }
+        }
+        await Future.wait(settlements).timeout(const Duration(seconds: 1));
+        await Future.wait(closes.map((close) => close()));
+      });
       for (var i = 0; i < 32; i++) {
         final response = Completer<http.StreamedResponse>();
         held.add(response);
+        final client = ModelTestClient((_) => response.future);
+        clients.add(client);
         if (i.isEven) {
-          final api = runtimeApi(
-            () => ModelTestClient((_) => response.future),
-            timeoutMs: 20,
-          );
+          // #581: count actual owners, not requests refused before dispatch.
+          final api = runtimeApi(() => client, timeoutMs: 1000);
           final attempt = api.lookup(
             AgentRuntimeChange.fromJson(runtimeChangeJson()),
           );
@@ -256,10 +274,7 @@ void main() {
           );
           closes.add(api.close);
         } else {
-          final api = modelApi(
-            () => ModelTestClient((_) => response.future),
-            timeoutMs: 20,
-          );
+          final api = modelApi(() => client, timeoutMs: 1000);
           final attempt = api.lookup(
             AgentModelChange.fromJson(model.changeJson()),
           );
@@ -271,6 +286,7 @@ void main() {
         }
       }
       await Future.wait(results);
+      expect(clients.every((client) => client.sends == 1), isTrue);
       await Future.wait(closes.map((close) => close()));
       var opens = 0, settledCount = 0;
       for (final future in settlements) {

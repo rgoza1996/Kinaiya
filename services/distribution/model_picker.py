@@ -101,6 +101,55 @@ def resolve_models_url(base_url: str, models_path: str = "/models") -> str:
     )
 
 
+def check_local_v1_hint(url: str) -> str | None:
+    """If url is a local server endpoint without /v1, return url with /v1 appended (#503)."""
+    try:
+        raw = url.strip()
+        if not raw or any(ord(c) <= 32 for c in raw):
+            return None
+        parsed = urllib.parse.urlsplit(raw)
+    except Exception:
+        return None
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+    path = (parsed.path or "").rstrip("/")
+    if path.endswith("/v1") or "/v1/" in path:
+        return None
+    host = parsed.hostname.lower()
+    port = parsed.port
+    is_local = host in {"localhost", "127.0.0.1", "::1"}
+    common_local_ports = {11434, 8080, 5000, 1234, 8000, 8081}
+    if is_local or port in common_local_ports:
+        new_path = (path + "/v1") if path else "/v1"
+        return urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, new_path, parsed.query, parsed.fragment)
+        )
+    return None
+
+
+def get_starter_provider_presets() -> list[ProviderProfileChoice]:
+    """Default starter provider profiles available on a fresh install (#503)."""
+    return [
+        ProviderProfileChoice(
+            profile_id="p01",
+            name="LM Studio (Local)",
+            base_url="http://127.0.0.1:1234",
+            adapter_kind="lmstudio",
+            allow_cloud=False,
+            models_path="/v1/models",
+        ),
+        ProviderProfileChoice(
+            profile_id="p02",
+            name="Meta / Muse Cloud",
+            base_url="https://api.muse.kinaiya.io/v1",
+            adapter_kind="meta",
+            allow_cloud=True,
+            credential_env="KINAIYA_META_API_KEY",
+            models_path="/models",
+        ),
+    ]
+
+
 @dataclass(frozen=True)
 class RoleAdapterEligibility:
     role: str
@@ -192,6 +241,7 @@ class SelectedModel:
     credential_env: str | None = None
     allow_cloud: bool = False
     selection_source: str = "discovered"
+    reasoning_effort: str = "none"
 
     @property
     def identity(self) -> tuple[str, str]:
@@ -258,6 +308,7 @@ def load_stored_profiles(
     env_path: Path | None = None,
     config_path: Path | None = None,
     profiles: list[dict[str, Any] | ProviderProfileChoice] | None = None,
+    include_starter_presets: bool = False,
 ) -> list[ProviderProfileChoice]:
     """Load existing provider profiles without inventing a competing registry."""
     result: list[ProviderProfileChoice] = []
@@ -389,6 +440,12 @@ def load_stored_profiles(
                     )
                 )
 
+    if include_starter_presets and not result:
+        for preset in get_starter_provider_presets():
+            if preset.profile_id not in seen_ids:
+                seen_ids.add(preset.profile_id)
+                result.append(preset)
+
     return result
 
 
@@ -451,12 +508,21 @@ def select_profile_interactively(
     tty.write(format_profile_choices(profiles, role=role, width=width))
     tty.write(_truncate_line(f"Select profile [1-{len(profiles)}] (or :cancel):", width) + "\n")
     tty.flush()
-    raw = tty.readline()
+    try:
+        raw = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        raise InstallError("Setup cancelled; no configuration written") from None
     if not raw:
         raise InstallError("Setup cancelled: terminal input closed")
     choice = raw.strip()
     if choice.lower() in (":cancel", "q", "quit"):
         raise InstallError("Setup cancelled: profile selection aborted")
+    if choice.lower() in {":back", "<", "back", "previous", "prev"}:
+        from services.distribution.curses_menu import MenuGoBack
+
+        raise MenuGoBack("User requested step rewind")
 
     selected: ProviderProfileChoice | None = None
     if choice == "" and len(profiles) == 1:
@@ -748,12 +814,21 @@ def _prompt_manual_model_id(
 ) -> SelectedModel:
     tty.write(_wrap_block(f"Enter exact model ID for {profile_id} ({role}):", width) + "\n")
     tty.flush()
-    line = tty.readline()
+    try:
+        line = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        raise InstallError("Setup cancelled; no configuration written") from None
     if not line:
         raise InstallError("Setup cancelled: terminal input closed")
     cleaned = line.strip()
     if cleaned.lower() in (":cancel", "q", "quit"):
         raise InstallError("Setup cancelled: manual model entry aborted")
+    if cleaned.lower() in {":back", "<", "back", "previous", "prev"}:
+        from services.distribution.curses_menu import MenuGoBack
+
+        raise MenuGoBack("User requested step rewind")
     valid_model = _validate_manual_model_id(cleaned)
     return SelectedModel(
         profile_id=profile_id,
@@ -871,7 +946,12 @@ def select_model_interactively(
             + "\n"
         )
         tty.flush()
-        line = tty.readline()
+        try:
+            line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         ans = line.strip()
@@ -899,6 +979,10 @@ def select_model_interactively(
             )
         if ans.lower() in (":cancel", "q", "quit"):
             raise InstallError("Setup cancelled: model selection aborted")
+        if ans.lower() in {":back", "<", "back", "previous", "prev"}:
+            from services.distribution.curses_menu import MenuGoBack
+
+            raise MenuGoBack("User requested step rewind")
         valid_direct = _validate_manual_model_id(ans)
         return SelectedModel(
             profile_id=pid,
@@ -941,7 +1025,12 @@ def select_model_interactively(
         tty.write(_truncate_line(prompt_msg, width) + "\n")
         tty.flush()
 
-        line = tty.readline()
+        try:
+            line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         cmd = line.strip()
@@ -949,6 +1038,10 @@ def select_model_interactively(
 
         if lower in (":cancel", "q", "quit"):
             raise InstallError("Setup cancelled: model selection aborted")
+        if lower in {":back", "<", "back", "previous", "prev"}:
+            from services.distribution.curses_menu import MenuGoBack
+
+            raise MenuGoBack("User requested step rewind")
         if lower in ("m", ":manual"):
             return _prompt_manual_model_id(
                 tty,
@@ -1060,7 +1153,11 @@ def save_role_model_selection(
         data = {"providers": {}, "distribution": {"converse": False}}
 
     providers = data.setdefault("providers", {})
+    existing_role = (
+        dict(providers[selection.role]) if isinstance(providers.get(selection.role), dict) else {}
+    )
     role_entry: dict[str, Any] = {
+        **existing_role,
         "kind": selection.adapter_kind,
         "base_url": selection.endpoint,
         "model": selection.model_id,
@@ -1071,6 +1168,10 @@ def save_role_model_selection(
     }
     if selection.credential_env:
         role_entry["api_key_env"] = selection.credential_env
+    if hasattr(config_or_layout, "data"):
+        role_entry["providers_env_dir"] = str(config_or_layout.data)
+    if hasattr(selection, "reasoning_effort") and selection.reasoning_effort:
+        role_entry["reasoning_effort"] = selection.reasoning_effort
     if selection.adapter_kind == "lmstudio":
         role_entry.setdefault("max_tokens", 128)
         role_entry.setdefault("reasoning_effort", "none")

@@ -1,0 +1,349 @@
+{
+  "$defs": {
+    "MediaLocalBodyCloseV2": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "body_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "proof": {
+          "enum": [
+            "wire_buffer_retired",
+            "none"
+          ],
+          "title": "Proof",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "body_owner",
+        "state",
+        "proof",
+        "request_sha256",
+        "binding_sha256"
+      ],
+      "title": "MediaLocalBodyCloseV2",
+      "type": "object"
+    },
+    "MediaLocalCloseObservationV2": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "component": {
+          "enum": [
+            "local_task",
+            "transport",
+            "reader",
+            "publication"
+          ],
+          "title": "Component",
+          "type": "string"
+        },
+        "exchange_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "proof": {
+          "enum": [
+            "task_join",
+            "sole_transport_close",
+            "reader_join",
+            "publication_settlement",
+            "none"
+          ],
+          "title": "Proof",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "exchange_owner",
+        "component",
+        "owner_id",
+        "state",
+        "proof",
+        "request_sha256",
+        "binding_sha256"
+      ],
+      "title": "MediaLocalCloseObservationV2",
+      "type": "object"
+    },
+    "MediaLocalExchangeCleanupV2": {
+      "additionalProperties": false,
+      "properties": {
+        "all_readers_settled": {
+          "title": "All Readers Settled",
+          "type": "boolean"
+        },
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "body_observation": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "body_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "body_settled": {
+          "title": "Body Settled",
+          "type": "boolean"
+        },
+        "child_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Child Instance",
+          "type": "string"
+        },
+        "exchange_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "kind": {
+          "const": "local_exchange_v2",
+          "title": "Kind",
+          "type": "string"
+        },
+        "liability": {
+          "$ref": "#/$defs/MediaLocalNoRemoteV2"
+        },
+        "local_task_joined": {
+          "title": "Local Task Joined",
+          "type": "boolean"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/MediaNativeRef"
+          },
+          "maxItems": 63,
+          "title": "Observations",
+          "type": "array"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "original_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "cancelled",
+                "failed",
+                "not_started"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "publications_settled": {
+          "title": "Publications Settled",
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "transport_sole_closed": {
+          "title": "Transport Sole Closed",
+          "type": "boolean"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "kind",
+        "operation_id",
+        "child_instance",
+        "binding_sha256",
+        "original_owner",
+        "exchange_owner",
+        "body_owner",
+        "body_observation",
+        "state",
+        "outcome",
+        "local_task_joined",
+        "transport_sole_closed",
+        "body_settled",
+        "all_readers_settled",
+        "publications_settled",
+        "observations",
+        "liability"
+      ],
+      "title": "MediaLocalExchangeCleanupV2",
+      "type": "object"
+    },
+    "MediaLocalNoRemoteV2": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "local_no_remote",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "MediaLocalNoRemoteV2",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body_close": {
+      "$ref": "#/$defs/MediaLocalBodyCloseV2"
+    },
+    "body_observation": {
+      "$ref": "#/$defs/MediaNativeRef"
+    },
+    "cleanup": {
+      "$ref": "#/$defs/MediaLocalExchangeCleanupV2"
+    },
+    "component_observations": {
+      "items": {
+        "$ref": "#/$defs/MediaLocalCloseObservationV2"
+      },
+      "maxItems": 63,
+      "title": "Component Observations",
+      "type": "array"
+    },
+    "observation_refs": {
+      "items": {
+        "$ref": "#/$defs/MediaNativeRef"
+      },
+      "maxItems": 63,
+      "title": "Observation Refs",
+      "type": "array"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "body_close",
+    "body_observation",
+    "component_observations",
+    "observation_refs",
+    "cleanup"
+  ],
+  "title": "MediaLocalExchangeBundleV2",
+  "type": "object"
+}

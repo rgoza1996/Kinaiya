@@ -293,3 +293,381 @@ def test_unsupported_section_and_no_tty_fail_closed(
     with pytest.raises(InstallError, match="No controlling terminal; use setup --yes"):
         cli.dispatch(model_args)
     assert not layout.config.exists()
+
+
+class InterruptingTerminal(FakeTerminal):
+    """Fake terminal where an answer entry may be an exception instance or class."""
+
+    def readline(self) -> str:
+        try:
+            item = next(self._answers)
+        except StopIteration:
+            return ""
+        if isinstance(item, BaseException):
+            raise item
+        if isinstance(item, type) and issubclass(item, BaseException):
+            raise item()
+        return str(item) + "\n"
+
+
+def test_keyboard_interrupt_cancels_cleanly_across_wizard_prompts_and_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    layout = Layout.for_home(tmp_path)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
+
+    # 1. Ctrl-C at raw prompt (e.g. Agent provider endpoint)
+    tty_raw = InterruptingTerminal(["", "", KeyboardInterrupt()])
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_raw)
+    assert not layout.config.exists()
+
+    # 2. Ctrl-C at y/n prompt (e.g. cloud disclosure)
+    tty_yn = InterruptingTerminal(
+        ["", "", "http://127.0.0.1:1234", "qwen2.5-coder", KeyboardInterrupt()]
+    )
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_yn)
+    assert not layout.config.exists()
+
+    # 3. Ctrl-C at final confirmation prompt
+    tty_confirm = InterruptingTerminal(
+        ["", "", "http://127.0.0.1:1234", "qwen2.5-coder", "no", "", "no", KeyboardInterrupt()]
+    )
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_confirm)
+    assert not layout.config.exists()
+
+    # 4. Ctrl-C in quick setup flow (ask and ask_yn)
+    tty_quick_ask = InterruptingTerminal(["http://127.0.0.1:1234", KeyboardInterrupt()])
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_quick_ask, mode="quick")
+    assert not layout.config.exists()
+
+    tty_quick_yn = InterruptingTerminal(
+        ["http://127.0.0.1:1234", "qwen2.5-coder", KeyboardInterrupt()]
+    )
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        wizard.run_wizard(layout, tty=tty_quick_yn, mode="quick")
+    assert not layout.config.exists()
+
+    # 5. Ctrl-C in masked API key prompt (readline and getpass_fn)
+    from services.distribution.credentials import prompt_masked_api_key
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        prompt_masked_api_key(InterruptingTerminal([KeyboardInterrupt()]))
+
+    def raising_getpass(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        prompt_masked_api_key(FakeTerminal([]), getpass_fn=raising_getpass)
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        prompt_masked_api_key(InterruptingTerminal([":env", KeyboardInterrupt()]))
+
+    # 6. Ctrl-C in interactive model picker and profile picker
+    from services.distribution.model_picker import (
+        ProviderProfileChoice,
+        select_model_interactively,
+        select_profile_interactively,
+    )
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        select_model_interactively(
+            InterruptingTerminal([KeyboardInterrupt()]),
+            ["qwen2.5-coder-7b", "qwen2.5-coder-14b"],
+        )
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        select_profile_interactively(
+            InterruptingTerminal([KeyboardInterrupt()]),
+            [
+                ProviderProfileChoice(
+                    profile_id="p01",
+                    name="Local",
+                    base_url="http://127.0.0.1:1234/v1",
+                    adapter_kind="lmstudio",
+                )
+            ],
+        )
+
+    # 7. Ctrl-C in connection check: raises before save, skips cleanly after save
+    from services.distribution.connection_probe import run_interactive_connection_check
+
+    with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
+        run_interactive_connection_check(
+            InterruptingTerminal([KeyboardInterrupt()]),
+            endpoint="http://127.0.0.1:1234/v1",
+            model="qwen2.5-coder",
+            config_saved=False,
+        )
+
+    probe_after_save = run_interactive_connection_check(
+        InterruptingTerminal([KeyboardInterrupt()]),
+        endpoint="http://127.0.0.1:1234/v1",
+        model="qwen2.5-coder",
+        config_saved=True,
+    )
+    assert probe_after_save.overall_readiness == "unverified_saved"
+
+    # 8. End-to-end launcher.main(["setup"]) exits with code 1 and clean message, no traceback
+    @contextmanager
+    def ctrl_c_tty():
+        yield InterruptingTerminal([KeyboardInterrupt()])
+
+    monkeypatch.setattr(wizard, "open_terminal", ctrl_c_tty)
+    with pytest.raises(SystemExit) as exc_info:
+        launcher.main(["setup"])
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.err == "kinaiya: Setup cancelled; no configuration written\n"
+    assert "Traceback" not in captured.err
+    assert "KeyboardInterrupt" not in captured.err
+    assert not layout.config.exists()
+
+    # 9. Ctrl-C at optional post-save custom API profile prompt preserves written config
+    tty_post_save = InterruptingTerminal(
+        [
+            "",
+            "",
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder",
+            "no",
+            "",
+            "no",
+            "yes",
+            KeyboardInterrupt(),
+        ]
+    )
+    res = wizard.run_wizard(layout, tty=tty_post_save)
+    assert res["ready"] is False
+    assert layout.config.exists()
+    assert (
+        "Cancelled; no profile was saved. Setup configuration is unchanged." in tty_post_save.output
+    )
+
+
+def test_structured_workspace_selection_default_and_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #504: structured workspace selection supports default [1] and cwd [2]."""
+    layout = Layout.for_home(tmp_path)
+    cwd_dir = tmp_path / "my_project"
+    cwd_dir.mkdir()
+    monkeypatch.setenv("KINAIYA_INVOKING_PWD", str(cwd_dir))
+
+    # Test [2] selects cwd_dir
+    tty = FakeTerminal(
+        [
+            "2",  # workspace -> CWD
+            "1",  # data -> Default
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder",
+            "no",
+            "",
+            "no",
+            "yes",  # confirm
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    assert cwd_dir.exists()
+    assert "Authorized Workspace Selection:" in tty.output
+    assert "Private Data Directory Selection:" in tty.output
+
+
+def test_structured_workspace_selection_custom_path_and_protected_refusal(
+    tmp_path: Path,
+) -> None:
+    """Issue #504: custom workspace path validation and protected system root refusals."""
+    from services.distribution.wizard_navigation import (
+        validate_data_path,
+        validate_workspace_path,
+    )
+
+    layout = Layout.for_home(tmp_path)
+    custom_ws = tmp_path / "custom_workspace"
+    custom_ws.mkdir()
+
+    # Valid custom path via option 3
+    tty = FakeTerminal(
+        [
+            "3",  # workspace -> Custom
+            str(custom_ws),  # path
+            "",  # data -> Default
+            "http://127.0.0.1:1234",
+            "qwen2.5-coder",
+            "no",
+            "",
+            "no",
+            "yes",
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    assert custom_ws.exists()
+
+    # Protected root refusals
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_workspace_path("/")
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_workspace_path("/bin")
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_workspace_path("/usr/local")
+    with pytest.raises(InstallError, match="Refusing protected system root"):
+        validate_data_path("/etc")
+
+    # Empty and control characters
+    with pytest.raises(InstallError, match="cannot be empty"):
+        validate_workspace_path("")
+    with pytest.raises(InstallError, match="control characters"):
+        validate_workspace_path("/tmp/bad\x01path")
+
+
+def test_service_topology_reuse_shortcut_with_independent_decisions_model(
+    tmp_path: Path,
+) -> None:
+    """Issues #505, #513, #517: 1-step Converse role reuse with independent Decisions model."""
+    layout = Layout.for_home(tmp_path)
+    tty = FakeTerminal(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint
+            "qwen2.5-coder-32b",  # model
+            "no",  # allow_cloud
+            "",  # credential_env
+            "1",  # topology: option 1 (reuse Agent LLM)
+            "meta-llama/llama-3.2-3b-instruct",  # independent Decisions router model (#517)
+            "yes",  # confirm write
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    # Agent
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-32b"
+    assert cfg["providers"]["agent"]["base_url"] == "http://127.0.0.1:1234"
+    # Converse reuses Agent LLM
+    assert cfg["providers"]["converse"]["model"] == "qwen2.5-coder-32b"
+    assert cfg["providers"]["converse"]["base_url"] == "http://127.0.0.1:1234"
+    # Decisions has independent router model (#517)
+    assert cfg["providers"]["decisions"]["model"] == "meta-llama/llama-3.2-3b-instruct"
+    assert cfg["distribution"]["converse"] is True
+    assert "Service Topology Selection:" in tty.output
+
+
+def test_service_topology_agent_only(tmp_path: Path) -> None:
+    """Issue #513: Agent-only mode disables Converse and Decisions."""
+    layout = Layout.for_home(tmp_path)
+    tty = FakeTerminal(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint
+            "qwen2.5-coder-32b",  # model
+            "no",  # allow_cloud
+            "",  # credential_env
+            "3",  # topology: option 3 (Agent only)
+            "yes",  # confirm write
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-32b"
+    assert cfg["distribution"]["converse"] is False
+
+
+def test_service_topology_converse_only(tmp_path: Path) -> None:
+    """Issue #513: Converse-only mode enables Converse & Decisions without Agent."""
+    layout = Layout.for_home(tmp_path)
+    tty = FakeTerminal(
+        [
+            "",  # workspace
+            "",  # data
+            "http://127.0.0.1:1234",  # endpoint (initial fallback)
+            "qwen2.5-coder-32b",  # model (initial fallback)
+            "no",  # allow_cloud
+            "",  # credential_env
+            "4",  # topology: option 4 (Converse only)
+            "compatible",  # converse_adapter
+            "http://127.0.0.1:1234",  # converse_endpoint
+            "converse-dialogue-model",  # converse_model
+            "no",  # converse_allow_cloud
+            "",  # converse_credential_env
+            "compatible",  # decisions_adapter
+            "http://127.0.0.1:1234",  # decisions_endpoint
+            "meta-llama/llama-3.2-3b-instruct",  # decisions_model
+            "no",  # decisions_allow_cloud
+            "",  # decisions_credential_env
+            "yes",  # confirm write
+        ]
+    )
+    result = wizard.run_wizard(layout, tty=tty)
+    assert result["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert "agent" not in cfg["providers"]
+    assert cfg["providers"]["converse"]["model"] == "converse-dialogue-model"
+    assert cfg["providers"]["decisions"]["model"] == "meta-llama/llama-3.2-3b-instruct"
+    assert cfg["distribution"]["converse"] is True
+    assert cfg["distribution"]["agent"] is False
+
+
+def test_universal_previous_back_across_custom_url_api_key_and_manual_model_substeps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #545: 'back' and 'previous' rewind across manual model, API key, disclosure, custom URL, data, and workspace."""
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda directory: directory.mkdir(parents=True, exist_ok=True),
+    )
+    layout = Layout.for_home(tmp_path)
+
+    def empty_opener(req, timeout=5.0):
+        raise OSError("connection refused")
+
+    tty = FakeTerminal(
+        [
+            "3",  # workspace -> Custom directory path...
+            "previous",  # at Enter custom workspace path -> back to workspace menu
+            "1",  # workspace -> Default workspace
+            "2",  # data -> Custom directory path...
+            "back",  # at Enter custom private data path -> back to data menu
+            "1",  # data -> Default private data directory
+            "3",  # provider -> Custom OpenAI-compatible endpoint
+            "back",  # at Custom endpoint Base URL -> back to provider menu
+            "3",  # provider -> Custom OpenAI-compatible endpoint again
+            "https://openrouter.ai/api/v1",  # Custom Base URL
+            "y",  # Cloud disclosure consent
+            "",  # Skip API key -> GET /models fails -> lands on Enter exact model ID
+            "back",  # at Enter exact model ID -> rewinds to Masked API key prompt!
+            "previous",  # at Masked API key prompt -> rewinds to Cloud disclosure prompt!
+            "back",  # at Cloud disclosure prompt -> rewinds to Custom endpoint Base URL!
+            "http://127.0.0.1:1234/v1",  # Change Custom Base URL to local loopback
+            "",  # Skip local API key -> lands on Enter exact model ID
+            "qwen2.5-coder-7b",  # Enter manual model ID
+            "1",  # Topology -> Both Agent & Converse (reuse)
+            "back",  # at Decisions router model prompt -> rewinds to Topology selection!
+            "3",  # Topology -> Agent only
+            "yes",  # Confirm write
+        ]
+    )
+    res = wizard.run_wizard(
+        layout,
+        tty=tty,
+        discover_models=True,
+        opener=empty_opener,
+    )
+    assert res["ready"] is False
+    cfg = json.loads(layout.config.read_text(encoding="utf-8"))
+    assert cfg["providers"]["agent"]["base_url"] == "http://127.0.0.1:1234/v1"
+    assert cfg["providers"]["agent"]["model"] == "qwen2.5-coder-7b"
+    assert cfg["distribution"]["converse"] is False

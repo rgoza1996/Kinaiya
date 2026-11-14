@@ -1,0 +1,257 @@
+{
+  "$defs": {
+    "MediaLocalExchangeCleanupV2": {
+      "additionalProperties": false,
+      "properties": {
+        "all_readers_settled": {
+          "title": "All Readers Settled",
+          "type": "boolean"
+        },
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "body_observation": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "body_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "body_settled": {
+          "title": "Body Settled",
+          "type": "boolean"
+        },
+        "child_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Child Instance",
+          "type": "string"
+        },
+        "exchange_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "kind": {
+          "const": "local_exchange_v2",
+          "title": "Kind",
+          "type": "string"
+        },
+        "liability": {
+          "$ref": "#/$defs/MediaLocalNoRemoteV2"
+        },
+        "local_task_joined": {
+          "title": "Local Task Joined",
+          "type": "boolean"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/MediaNativeRef"
+          },
+          "maxItems": 63,
+          "title": "Observations",
+          "type": "array"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "original_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "completed",
+                "cancelled",
+                "failed",
+                "not_started"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "publications_settled": {
+          "title": "Publications Settled",
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "settled",
+            "unknown"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "transport_sole_closed": {
+          "title": "Transport Sole Closed",
+          "type": "boolean"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "kind",
+        "operation_id",
+        "child_instance",
+        "binding_sha256",
+        "original_owner",
+        "exchange_owner",
+        "body_owner",
+        "body_observation",
+        "state",
+        "outcome",
+        "local_task_joined",
+        "transport_sole_closed",
+        "body_settled",
+        "all_readers_settled",
+        "publications_settled",
+        "observations",
+        "liability"
+      ],
+      "title": "MediaLocalExchangeCleanupV2",
+      "type": "object"
+    },
+    "MediaLocalNoRemoteV2": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "local_no_remote",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "MediaLocalNoRemoteV2",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_MediaLocalExchangeCleanupV2_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaLocalExchangeCleanupV2"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaLocalExchangeCleanupV2]",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaLocalExchangeCleanupV2_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaLocalExchangeCleanupV2]",
+  "type": "object"
+}

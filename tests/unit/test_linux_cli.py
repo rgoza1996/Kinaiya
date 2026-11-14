@@ -302,3 +302,58 @@ def test_cli_confirmation_preserves_only_existing_eof_consent(
     else:
         with pytest.raises(cli.InstallError, match="Cancelled"):
             cli.confirm(False, "plan preview", pre_consented=pre_consented)
+
+
+def test_setup_respects_workspace_and_data_dir_flags_in_noninteractive_and_wizard_modes(
+    tmp_path, monkeypatch
+):
+    """Issue #535: --workspace and --data-dir CLI flags apply to full setup and interactive wizard."""
+    from services import launcher
+    from services.distribution import wizard
+
+    cli = cli_module()
+    module = distribution()
+    layout = module.Layout.for_home(tmp_path)
+    monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
+
+    custom_ws = tmp_path / "custom-workspace"
+    custom_data = tmp_path / "custom-data"
+
+    # 1. Interactive wizard receives custom target_layout
+    seen_wizard_layouts = []
+    monkeypatch.setattr(
+        wizard,
+        "run_wizard",
+        lambda chosen, **kwargs: seen_wizard_layouts.append(chosen) or {"status": "wizard_ok"},
+    )
+    parser = launcher.build_parser()
+    wizard_args = parser.parse_args(
+        ["setup", "--no-start", "--workspace", str(custom_ws), "--data-dir", str(custom_data)]
+    )
+    res_wizard = cli.dispatch(wizard_args)
+    assert res_wizard == {"status": "wizard_ok"}
+    assert len(seen_wizard_layouts) == 1
+    assert seen_wizard_layouts[0].workspace == custom_ws
+    assert seen_wizard_layouts[0].data == custom_data
+
+    # 2. Full non-interactive setup writes tokens to custom_data and creates custom_ws
+    non_inter_args = parser.parse_args(
+        [
+            "setup",
+            "--yes",
+            "--endpoint",
+            "http://127.0.0.1:1234/v1",
+            "--model",
+            "test-model",
+            "--workspace",
+            str(custom_ws),
+            "--data-dir",
+            str(custom_data),
+        ]
+    )
+    res_non_inter = cli.dispatch(non_inter_args)
+    assert res_non_inter["workspace"] == str(custom_ws)
+    assert res_non_inter["data"] == str(custom_data)
+    assert custom_ws.is_dir()
+    assert (custom_data / "service-tokens.json").is_file()
+    assert not (layout.data / "service-tokens.json").exists()

@@ -1,0 +1,332 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-11-02",
+  "requirements": [
+    "issue239",
+    "issue228",
+    "AGENTS truthful original-owner evidence"
+  ],
+  "status": "Test-only diagnostic mechanism qualified locally; both underlying CI failures remain unresolved.",
+  "base_head": "bd9c612d436120cbf9cfdc7a09a2c16ed7a6a5f9",
+  "qualified_head": "85f48fd65f4c5deac68b349cff105d27615b64c9",
+  "python_local": "3.12.3",
+  "ci_python": "3.12.15",
+  "changed_test_sha256": {
+    "tests/integration/test_standing_resources_handoff.py": "a0b42f61da133ebaa69b023f53ac18839ed65e52c9e92afe403c3c8ab74ecb50",
+    "tests/integration/test_standing_handoff_timeout_observation.py": "75c97274522c9b1f07fc7549298dca2f36f1118403e94c80e3827f220bfd50dd"
+  },
+  "all_production_sources_unchanged_from_base": true,
+  "frozen_contract_sha256": "f2ce1fc525f5d380445ef885a358fbbb9cbc749c33512c1cece8d163a402c163",
+  "test_source_seals": {
+    "independent_test_commit": "39466a04fb886c07cb511ee3ae2fe4cbe580f325",
+    "source_commit": "a3ae95401e1cdfa3c69626464f4dc24cc8ce5823",
+    "test_seal_sha256": "7114f9e5925b81590cca1563befde43bce1222a427044269cfe9de0e050a6657",
+    "source_static_seal_sha256": "d2777bd8a5e77897e4efd253fdb6e69a9f362ca584b0fb856543e699bb8fe1e0",
+    "independent_source_review_sha256": "5e7fe2ebd42334e2638b0bace3fd84a7ea15924cde97c1e53f29e88955e80ef3"
+  },
+  "behavior": [
+    "Only after the old four-second timeout, attach bounded actual original-task/scope/HTTP/close/worker/lock observations and re-raise the same exception.",
+    "Retain the exact capture reference while the real context response is held. All80 old assertions, wait_for(task,4), cancellation and teardown remain unchanged.",
+    "No production code, predeadline observer/timer/profile/watchdog/new Task/wait/join, SQL/proc/status scan, retry or deadline relaxation.",
+    "Ten fixed outer diagnostic keys; collections32, await chains24, code names64, full JSON32768 with explicit truncation/unavailable behavior. No frame locals, payload, prompt, credential or private capability."
+  ],
+  "ci_failures": [
+    {
+      "run": 41407866231,
+      "job": 125153904677,
+      "advertised_head": "bd9c612d436120cbf9cfdc7a09a2c16ed7a6a5f9",
+      "actual_merge": "c346ffcaada53c4e3619ef22b954a3eea6fb7bf7",
+      "actual_tree": "ba435428830f9d4ce8740eaf61363be7015ec17b",
+      "base_main": "074e176036e838fb349850a9719ee3d76fc4da88",
+      "result": "10411passed1failed6skipped2deselected1warning2342.58s",
+      "failed_gate": "Original four-second handoff completion after context release.",
+      "log_sha256": "310e36d1eb60667cdc1133a6bc19028f42f3bd0894a25b97f934a02ae5bcc9b5",
+      "tree_provenance": "Actual merge fetched/verified. Ten approved-main installer/README/distribution paths differ from advertised head, including three Linux unit modules; every standing/resources/worker and failing fixture file is byte-identical. Local qualification does not reproduce the complete CI merge/order/environment."
+    },
+    {
+      "run": 41408365082,
+      "job": 125155463327,
+      "advertised_head": "a19a1e3ffda46bb280d6b3df9dfce4baeca7573f",
+      "actual_merge": "fb4bf7b18ab7debd486adb708e07f3a347b423fd",
+      "actual_tree": "9df442dc63e3715c4a49b50e43f22e9974e83e53",
+      "tree_matches_advertised_head": true,
+      "result": "10786passed9failed6skipped2deselected1warning2481.99s",
+      "failed_gate": "Nine original eight-second physical-finalization completion checks; this observer does not change or diagnose that producer.",
+      "log_sha256": "40205145b90c0631db862eb82c0cc5d9d81c60621f122040cc8c56095859369a"
+    }
+  ],
+  "runs": [
+    {
+      "name": "unchanged_original_local_pass",
+      "receipt_local": ".dev-run/239-ci430-original-case-baseline-v1-8tdd1f3h/receipt.json",
+      "receipt_sha256": "5e747fe4cc088f5724421f44a4d932401bc35cd5e6e6b98c6ef31004268cfeb2",
+      "source_head": "bd9c612d436120cbf9cfdc7a09a2c16ed7a6a5f9",
+      "tracked_inputs": 1480,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_resources_handoff.py::test_new_action_original_is_frozen_before_context_await_and_same_key_conflicts",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/239-ci430-original-case-baseline-v1-8tdd1f3h/junit.xml"
+      ],
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "4.627",
+          "timestamp": "2026-11-02T00:35:42.634511-08:00"
+        }
+      ],
+      "elapsed_wall_s": 5.003612698004872
+    },
+    {
+      "name": "observer_absence",
+      "receipt_local": ".dev-run/239-ci430-observer-capability-cold-v1-i1k5zj82/receipt.json",
+      "receipt_sha256": "bbf6ca2014d93063ed22efad8ab9c7ddc169f5c47d2885a624a3023a0f614f31",
+      "source_head": "d531f2cf4cf138774dc3694e20c207d00cb2b76e",
+      "tracked_inputs": 1481,
+      "pins_preserved": true,
+      "exit_code": 1,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_handoff_timeout_observation.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/239-ci430-observer-capability-cold-v1-i1k5zj82/junit.xml"
+      ],
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "1",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "1",
+          "time": "1.145",
+          "timestamp": "2026-11-02T00:36:31.353377-08:00"
+        }
+      ],
+      "elapsed_wall_s": 1.4974490719978348
+    },
+    {
+      "name": "observer_and_original_hot",
+      "receipt_local": ".dev-run/239-ci430-observer-hot-v1-9zu7h2i_/receipt.json",
+      "receipt_sha256": "80104e88cea304674756fcf6e0757e444af2d090bfa5febc2a8da96754dfcd93",
+      "source_head": "85f48fd65f4c5deac68b349cff105d27615b64c9",
+      "tracked_inputs": 1481,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_handoff_timeout_observation.py",
+        "tests/integration/test_standing_resources_handoff.py::test_new_action_original_is_frozen_before_context_await_and_same_key_conflicts",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/239-ci430-observer-hot-v1-9zu7h2i_/junit.xml"
+      ],
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "2",
+          "time": "8.346",
+          "timestamp": "2026-11-02T00:42:00.770729-08:00"
+        }
+      ],
+      "elapsed_wall_s": 8.725525281995942
+    },
+    {
+      "name": "wrong_path_no_collection",
+      "receipt_local": ".dev-run/239-ci430-observer-affected-hot-v1-9bhsjek7/receipt.json",
+      "receipt_sha256": "8a70c061e78d9e8cc7e519c565e81d9cd4eb244e840383640d11b7e54b60c824",
+      "source_head": "85f48fd65f4c5deac68b349cff105d27615b64c9",
+      "tracked_inputs": 1481,
+      "pins_preserved": true,
+      "exit_code": 4,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_handoff_timeout_observation.py",
+        "tests/integration/test_standing_resources_handoff.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_bootstrap_observations.py",
+        "tests/integration/test_worker_bootstrap_command_observations.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/239-ci430-observer-affected-hot-v1-9bhsjek7/junit.xml"
+      ],
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "0",
+          "time": "0.002",
+          "timestamp": "2026-11-02T00:43:35.825457-08:00"
+        }
+      ],
+      "elapsed_wall_s": 0.262317628999881
+    },
+    {
+      "name": "affected147",
+      "receipt_local": ".dev-run/239-ci430-observer-affected-hot-v2-p5i0rfrw/receipt.json",
+      "receipt_sha256": "0b555a2ca4920472f5c602ee316238ff5545190c29fc77454e0a416eee456905",
+      "source_head": "85f48fd65f4c5deac68b349cff105d27615b64c9",
+      "tracked_inputs": 1481,
+      "pins_preserved": true,
+      "exit_code": 0,
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "-p",
+        "no:cacheprovider",
+        "-o",
+        "asyncio_default_fixture_loop_scope=function",
+        "-o",
+        "junit_family=xunit1",
+        "tests/integration/test_standing_handoff_timeout_observation.py",
+        "tests/integration/test_standing_resources_handoff.py",
+        "tests/integration/test_resource_handoff.py",
+        "tests/integration/test_resource_bootstrap_observations.py",
+        "tests/unit/test_worker_bootstrap_command_observations.py",
+        "--junitxml=/home/roggoz/.codex/worktrees/native-tool-capabilities/Kinaiya/.dev-run/239-ci430-observer-affected-hot-v2-p5i0rfrw/junit.xml"
+      ],
+      "junit": [
+        {
+          "errors": "0",
+          "failures": "0",
+          "hostname": "roggoz",
+          "name": "pytest",
+          "skipped": "0",
+          "tests": "147",
+          "time": "94.141",
+          "timestamp": "2026-11-02T00:43:55.071206-08:00"
+        }
+      ],
+      "elapsed_wall_s": 94.71591665800224
+    }
+  ],
+  "static": {
+    "receipt_local": ".dev-run/239-ci430-observer-static-v1-udc0z3ww/receipt.json",
+    "receipt_sha256": "5db7f02951e40069e1285429f85bfaccb3f3f707ba91656eb1eff4d14af96799",
+    "changed_pins": [],
+    "commands": [
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "output": "All checks passed!\n"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "output": "763 files already formatted\n"
+      },
+      {
+        "command": [
+          "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+          "-B",
+          "scripts/export_contracts.py"
+        ],
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--exit-code",
+          "--",
+          "packages/contracts/schemas"
+        ],
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "output": ""
+      }
+    ],
+    "head": "85f48fd65f4c5deac68b349cff105d27615b64c9",
+    "head_after": "85f48fd65f4c5deac68b349cff105d27615b64c9",
+    "pins_preserved": true,
+    "tracked_inputs": 1481
+  },
+  "limits": [
+    "The1cold failure is absent helper capability before creating live fixture owners, not a cleanup failure.",
+    "The first broad invocation had a wrong bootstrap-test directory, collected zero tests and exited4; corrected path actually ran147. It is not counted as a test pass or erased.",
+    "The controlled observer case uses actual held HTTP/task/worker owners and compares synchronous state before/after observation, then requires original positive action and healthy teardown. It does not force/reproduce the historical4s timeout or qualify the exception-annotation branch as observed in failing CI.",
+    "A post-timeout snapshot is a bounded observation after facade cancellation, not the exact pre-timeout state, proof of success/retirement or a causal explanation.",
+    "Local repeated/overlapping counts are not unique coverage. Python3.11/platform passes and local passes do not erase either Python3.12 CI failure.",
+    "No inference/model accuracy, paid/provider/device/GPU/install/live-config/service/preview action occurred.",
+    "Raw logs/JUnit/receipts remain ignored local artifacts identified by SHA. Exact published-head CI and parent integration remain separate gates; no parent issue is closed."
+  ]
+}

@@ -432,23 +432,34 @@ async def test_meta_ui_spec_is_not_a_wire_argument_for_other_tools(env):
 
 
 @pytest.mark.parametrize(
-    "prior_publication,encoded,reason",
+    "prior_publication,encoded,reason,unproven",
     [
-        (False, '{"PRIVATE_MODEL_MARKER":', "json_syntax"),
-        (False, '{"PRIVATE_MODEL_MARKER":1,"PRIVATE_MODEL_MARKER":2}', "duplicate_key"),
-        (True, '{"PRIVATE_MODEL_MARKER":"\\ud800"}', "invalid_unicode"),
+        (False, '{"PRIVATE_MODEL_MARKER":', "json_syntax", True),
+        (True, '{"PRIVATE_MODEL_MARKER":', "json_syntax", True),
+        (False, '{"PRIVATE_MODEL_MARKER":1,"PRIVATE_MODEL_MARKER":2}', "duplicate_key", False),
+        (True, '{"PRIVATE_MODEL_MARKER":"\\ud800"}', "invalid_unicode", False),
     ],
 )
 async def test_decode_diagnostic_is_native_failed_evidence_without_payload_or_retry(
-    env, prior_publication, encoded, reason
+    env, prior_publication, encoded, reason, unproven
 ):
     if prior_publication:
         env.replies.append(
             lambda body: response(wire_action(body, "publish_ui", ui_spec_json=json.dumps(spec())))
         )
-    env.replies.append(lambda body: response(wire_action(body, "publish_ui", ui_spec_json=encoded)))
+    if unproven:
+
+        def fail(_):
+            raise ActionDecodeError("ui_arguments", reason)
+
+        env.replies.append(fail)
+    else:
+        env.replies.append(
+            lambda body: response(wire_action(body, "publish_ui", ui_spec_json=encoded))
+        )
     # A queued finish proposal is an execution trap: decoding failure remains
-    # terminal even if earlier native publication produced a usable artifact.
+    # terminal without the exact settled request proof, even if earlier native
+    # publication produced a usable artifact. Other decoder reasons stay terminal.
     env.replies.append(
         lambda body: response(
             wire_action(body, "finish", summary="Must not be requested", objective_revision=1)

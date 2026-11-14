@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from core.policy import ApprovalError, PolicyDenied
@@ -42,19 +43,37 @@ class ModelScopedMCP:
     """Constrain model-facing MCP data by owner scope and actual provider."""
 
     def __init__(self, host, provider_info):
+        from packages.providers.disclosure import public_only_provider
+
         self.host = host
-        self.local = provider_info.local
-        # The current Meta adapter always enables Contributor mode, including
-        # aliases whose configured name does not contain "contributor".
-        self.contributor = (
-            provider_info.provider == "meta" or "contributor" in provider_info.model.lower()
-        )
+        try:
+            local = (
+                provider_info.get("local")
+                if isinstance(provider_info, Mapping)
+                else provider_info.local
+            )
+            if type(local) is not bool:
+                raise ValueError("Invalid provider disclosure metadata")
+            self.local = local
+            self._public_only = bool(public_only_provider(provider_info))
+            self._invalid = False
+        except Exception:
+            self.local = False
+            self._public_only = True
+            self._invalid = True
+        # Legacy name now holds the public-only ceiling (Meta/Contributor or
+        # explicit public_synthetic_only). The current Meta adapter always
+        # enables Contributor mode, including aliases whose configured name
+        # does not contain "contributor".
+        self.contributor = self._public_only
 
     def _allowed(self, entry):
+        if getattr(self, "_invalid", False):
+            return False
         if self.local:
             return True
         scope = entry.get("content_scope", "local_only")
-        if self.contributor:
+        if self._public_only:
             return scope == "public_synthetic" and not entry.get("credentialed", True)
         return scope in {"public_synthetic", "private_cloud_authorized"}
 

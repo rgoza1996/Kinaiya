@@ -42,8 +42,12 @@
     playing: false,
     events: [],
     micGeneration: 0,
+    micAcquire: null,
+    micStop: null,
     generation: 0, // bumped by stopAudio/dispose; invalidates pending queuePcm.
     output: { revision: 0, listing: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
+    input: { revision: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
+    nativePcm: { enabled: false, ctx: null, source: null, node: null, sink: null, closing: null, failed: false, recording: false, heard: false, overflow: false, chunks: [], samples: 0, pre: [], preSamples: 0 },
     waiters: [], // pending awaitPlayback resolvers.
     armed: false,
     clip: { recording: false, startMs: 0 },
@@ -369,6 +373,7 @@
   function stopTracks() {
     state.micGeneration++;
     pumpStop();
+    stopNativePcm().catch(function () {});
     if (state.stream) {
       try {
         var tracks = state.stream.getTracks();
@@ -384,6 +389,282 @@
       }
       state.stream = null;
     }
+  }
+
+  function inputEnvironment() {
+    var nav = typeof navigator !== 'undefined' ? navigator : window && window.navigator;
+    return nav && nav.mediaDevices && typeof nav.mediaDevices.enumerateDevices === 'function'
+      ? nav.mediaDevices : null;
+  }
+
+  function inputBusy() {
+    return !!(state.micAcquire || state.micStop || state.nativePcm.closing || state.stream || state.armed || state.recorder);
+  }
+
+  var inputIdentifiersUnavailable = {};
+
+  function inputRows(raw) {
+    if (!Array.isArray(raw) || raw.length > 128) throw new Error('Input unavailable');
+    var rows = [], ids = new Set(), identifiersUnavailable = false;
+    raw.forEach(function (device) {
+      if (!device || device.kind !== 'audioinput') return;
+      if (typeof device.deviceId !== 'string' || device.deviceId.length > 4096 ||
+          typeof device.label !== 'string' || device.label.length > 4096) {
+        throw new Error('Input unavailable');
+      }
+      if (!device.deviceId.length) { identifiersUnavailable = true; return; }
+      if (ids.has(device.deviceId)) throw new Error('Input unavailable');
+      ids.add(device.deviceId);
+      rows.push({ id: device.deviceId, label: device.label || 'Audio input' });
+    });
+    // Anonymous rows cannot be selected, but do not invalidate exposed IDs.
+    // A private sentinel distinguishes an entirely hidden inventory from errors.
+    if (identifiersUnavailable && !rows.length) throw inputIdentifiersUnavailable;
+    return rows;
+  }
+
+  function inputLost() {
+    state.input.revision++;
+    state.input.failed = true;
+    if (state.armed || state.micAcquire) {
+      api.stopArmed().catch(function () {});
+      pushEvent({ type: 'native-input-unavailable', epoch: state.vad.epoch });
+    }
+  }
+
+  function watchInput(media) {
+    if (state.input.watching || typeof media.addEventListener !== 'function') return;
+    state.input.watching = true;
+    media.addEventListener('devicechange', function () {
+      if (state.input.selected !== null) inputLost();
+    });
+  }
+
+  function listInputs() {
+    var input = state.input, media = inputEnvironment();
+    if (input.pending) {
+      if (input.pending.kind === 'listing') return input.pending.promise;
+      return Promise.resolve(JSON.stringify({ supported: !!media, pending: true,
+        explicit: input.selected !== null, failed: input.failed, devices: [], status: 'unavailable' }));
+    }
+    var op = { promise: null, kind: 'listing' }, revision = input.revision, reason = null;
+    function unavailable(error) {
+      if (input.selected !== null) inputLost();
+      if (error === inputIdentifiersUnavailable) reason = 'identifiers-unavailable';
+      return false;
+    }
+    input.pending = op;
+    op.promise = Promise.resolve().then(function () {
+      if (!media) throw new Error('Input unavailable');
+      watchInput(media);
+      return media.enumerateDevices();
+    }).then(function (raw) {
+      if (revision !== input.revision) throw new Error('Input unavailable');
+      input.devices = inputRows(raw);
+      if (input.selected !== null && !input.devices.some(function (d) { return d.id === input.selected; })) inputLost();
+      return !input.failed;
+    }, unavailable)
+      .catch(unavailable)
+      .then(function (ready) {
+        if (input.pending === op) input.pending = null;
+        var result = { supported: !!media, pending: false, explicit: input.selected !== null,
+          failed: input.failed, status: ready ? 'ready' : 'unavailable',
+          devices: ready ? input.devices.map(function (d) { return { id: d.id, label: d.label, selected: d.id === input.selected }; }) : [] };
+        if (reason !== null) result.reason = reason;
+        return JSON.stringify(result);
+      });
+    return op.promise;
+  }
+
+  function changeInput(id, useDefault) {
+    var input = state.input, media = inputEnvironment();
+    if (input.pending || inputBusy()) return Promise.resolve(outputResult('busy'));
+    if (!media) return Promise.resolve(outputResult('unavailable'));
+    if (!useDefault && (typeof id !== 'string' || !id.length || id.length > 4096)) return Promise.resolve(outputResult('invalid'));
+    if (useDefault) {
+      input.revision++; input.selected = null; input.failed = false;
+      return Promise.resolve(outputResult('default'));
+    }
+    var op = { promise: null, kind: 'selection' }, revision = input.revision;
+    input.pending = op;
+    op.promise = Promise.resolve().then(function () { return media.enumerateDevices(); }).then(function (raw) {
+      var rows = inputRows(raw);
+      if (revision !== input.revision || inputBusy()) return 'busy';
+      if (!rows.some(function (d) { return d.id === id; })) return 'invalid';
+      input.devices = rows; input.selected = id; input.failed = false; input.revision++;
+      watchInput(media);
+      return 'selected';
+    }).catch(function () { return 'unavailable'; }).then(function (status) {
+      if (input.pending === op) input.pending = null;
+      return outputResult(status);
+    });
+    return op.promise;
+  }
+
+  function micConstraints(selected) {
+    var audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    if (state.nativePcm.enabled) audio.channelCount = 1;
+    if (selected !== null) audio.deviceId = { exact: selected };
+    return { audio: audio };
+  }
+
+  function stopStream(stream) {
+    try { stream.getTracks().forEach(function (track) { track.stop(); }); } catch (e) {}
+  }
+
+  function acquireMic(start) {
+    var nav = typeof navigator !== 'undefined' ? navigator : window && window.navigator;
+    if (state.micAcquire || state.micStop || state.input.pending) return Promise.resolve('busy');
+    if (!nav || !nav.mediaDevices || typeof nav.mediaDevices.getUserMedia !== 'function' ||
+        (state.input.selected !== null && state.input.failed)) return Promise.resolve('unavailable');
+    var owner = ++state.micGeneration, selected = state.input.selected, revision = state.input.revision;
+    var op = { promise: null }, original;
+    try { original = nav.mediaDevices.getUserMedia(micConstraints(selected)); }
+    catch (e) { return Promise.resolve('unavailable'); }
+    state.micAcquire = op;
+    op.promise = Promise.resolve(original).then(async function (stream) {
+      if (owner !== state.micGeneration || revision !== state.input.revision) { stopStream(stream); return 'unavailable'; }
+      if (selected !== null) {
+        var tracks = typeof stream.getAudioTracks === 'function' ? stream.getAudioTracks() : [];
+        var settings = tracks.length === 1 && typeof tracks[0].getSettings === 'function' ? tracks[0].getSettings() : null;
+        if (!settings || settings.deviceId !== selected) { state.input.failed = true; stopStream(stream); return 'unavailable'; }
+      }
+      state.stream = stream;
+      try {
+        var result = await start(owner);
+        if (owner !== state.micGeneration) { stopStream(stream); return 'unavailable'; }
+        return result;
+      } catch (e) {
+        if (state.stream === stream) stopTracks(); else stopStream(stream);
+        state.armed = false;
+        return 'unavailable';
+      }
+    }, function () { return 'unavailable'; }).then(function (status) {
+      if (state.micAcquire === op) state.micAcquire = null;
+      return status;
+    });
+    return op.promise;
+  }
+
+  function resetNativeClip() {
+    var n = state.nativePcm;
+    n.recording = false; n.heard = false; n.overflow = false; n.chunks = []; n.samples = 0;
+  }
+
+  function stopNativePcm() {
+    var n = state.nativePcm;
+    if (n.closing) return n.closing;
+    [n.node, n.source, n.sink].forEach(function (node) { if (node) { try { node.disconnect(); } catch (e) {} } });
+    if (n.node && n.node.port) n.node.port.onmessage = null;
+    if (n.node) n.node.onaudioprocess = null;
+    n.node = n.source = n.sink = null;
+    resetNativeClip(); n.pre = []; n.preSamples = 0;
+    var ctx = n.ctx; n.ctx = null;
+    if (!ctx) return Promise.resolve();
+    var original;
+    try { original = typeof ctx.close === 'function' ? ctx.close() : Promise.resolve(); }
+    catch (e) { original = Promise.reject(e); }
+    n.closing = Promise.resolve(original).then(function () { n.closing = null; }, function () {
+      n.failed = true; throw new Error('Native capture cleanup unavailable');
+    });
+    return n.closing;
+  }
+
+  function nativeSamples(samples) {
+    var n = state.nativePcm;
+    if (!state.armed || !n.enabled || n.failed || n.overflow || !samples || !samples.length) return;
+    if (!Number.isInteger(samples.length) || samples.length > 16384) {
+      n.failed = true; resetNativeClip();
+      pushEvent({ type: 'native-capture-unavailable', epoch: state.vad.epoch });
+      return;
+    }
+    var copy = new Float32Array(samples.length); copy.set(samples);
+    for (var i = 0; i < copy.length; i++) {
+      if (!Number.isFinite(copy[i])) {
+        n.failed = true; resetNativeClip();
+        pushEvent({ type: 'native-capture-unavailable', epoch: state.vad.epoch });
+        return;
+      }
+    }
+    if (!n.recording || !n.heard) {
+      n.pre.push(copy); n.preSamples += copy.length;
+      while (n.preSamples > 40000 && n.pre.length) {
+        var excess = n.preSamples - 40000, head = n.pre[0];
+        if (head.length <= excess) { n.pre.shift(); n.preSamples -= head.length; }
+        else { n.pre[0] = head.slice(excess); n.preSamples -= excess; }
+      }
+      return;
+    }
+    if (n.samples + copy.length > 480000) {
+      n.overflow = true; n.recording = false; n.chunks = []; n.samples = 0;
+      pushEvent({ type: 'native-clip-overflow', epoch: state.vad.epoch });
+      return;
+    }
+    n.chunks.push(copy); n.samples += copy.length;
+  }
+
+  function nativeSpeechStart() {
+    var n = state.nativePcm;
+    if (!n.enabled || !n.recording || n.heard || n.overflow || n.failed) return;
+    n.heard = true; n.chunks = n.pre.slice(); n.samples = n.preSamples;
+    n.pre = []; n.preSamples = 0;
+  }
+
+  async function startNativePcm(owner) {
+    var n = state.nativePcm, AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC || n.failed || n.closing) throw new Error('Native capture unavailable');
+    var ctx = new AC({ sampleRate: 16000 }); n.ctx = ctx;
+    if (ctx.sampleRate !== 16000) throw new Error('Native capture rate unavailable');
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (owner !== state.micGeneration || ctx !== n.ctx || ctx.state !== 'running') throw new Error('Native capture stopped');
+    n.source = ctx.createMediaStreamSource(state.stream);
+    n.sink = ctx.createGain(); n.sink.gain.value = 0;
+    var Worklet = typeof AudioWorkletNode !== 'undefined' ? AudioWorkletNode : window.AudioWorkletNode;
+    if (ctx.audioWorklet && Worklet) {
+      try {
+        await ctx.audioWorklet.addModule('window_capture_worklet.js');
+        if (owner !== state.micGeneration || ctx !== n.ctx) throw new Error('Native capture stopped');
+        n.node = new Worklet(ctx, 'kinaiya-window-pcm', {
+          numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1,
+          channelCountMode: 'explicit', channelInterpretation: 'speakers',
+        });
+        n.node.port.onmessage = function (e) { if (owner === state.micGeneration && ctx === n.ctx) nativeSamples(e.data); };
+      } catch (e) { if (owner !== state.micGeneration || ctx !== n.ctx) throw e; }
+    }
+    if (!n.node && typeof ctx.createScriptProcessor === 'function') {
+      n.node = ctx.createScriptProcessor(2048, 1, 1);
+      n.node.onaudioprocess = function (e) {
+        if (owner === state.micGeneration && ctx === n.ctx) nativeSamples(e.inputBuffer.getChannelData(0));
+      };
+    }
+    if (!n.node) throw new Error('Native capture unavailable');
+    n.source.connect(n.node); n.node.connect(n.sink); n.sink.connect(ctx.destination);
+  }
+
+  function finishNativeClip() {
+    var n = state.nativePcm;
+    if (n.overflow || n.failed) {
+      var refusal = n.overflow ? 'overflow' : 'unavailable';
+      resetNativeClip();
+      return JSON.stringify({ mime: 'audio/wav', base64: '', native_error: refusal });
+    }
+    if (!n.recording || !n.heard || !n.samples || n.samples > 480000) {
+      resetNativeClip(); return JSON.stringify({ mime: 'audio/wav', base64: '' });
+    }
+    var buffer = new ArrayBuffer(44 + n.samples * 2), view = new DataView(buffer);
+    function str(pos, value) { for (var i = 0; i < value.length; i++) view.setUint8(pos + i, value.charCodeAt(i)); }
+    str(0, 'RIFF'); view.setUint32(4, 36 + n.samples * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true); str(36, 'data'); view.setUint32(40, n.samples * 2, true);
+    var offset = 44;
+    n.chunks.forEach(function (chunk) { for (var i = 0; i < chunk.length; i++) {
+      var value = clamp(chunk[i], -1, 1); view.setInt16(offset, value < 0 ? value * 32768 : value * 32767, true); offset += 2;
+    } });
+    var bytes = new Uint8Array(buffer), binary = '';
+    for (var p = 0; p < bytes.length; p += 8192) binary += String.fromCharCode.apply(null, bytes.subarray(p, p + 8192));
+    resetNativeClip();
+    return JSON.stringify({ mime: 'audio/wav', base64: btoa(binary), bytes: bytes.length });
   }
 
   function finalizeChunks() {
@@ -564,11 +845,12 @@
   function pumpStart() {
     pumpStop();
     try {
-      if (!state.ctx || !state.stream) return;
-      if (typeof state.ctx.createAnalyser !== 'function') return;
+      var captureContext = state.nativePcm.enabled ? state.nativePcm.ctx : state.ctx;
+      if (!captureContext || !state.stream) return;
+      if (typeof captureContext.createAnalyser !== 'function') return;
       if (typeof window === 'undefined') return;
-      var src = state.ctx.createMediaStreamSource(state.stream);
-      state.analyser = state.ctx.createAnalyser();
+      var src = captureContext.createMediaStreamSource(state.stream);
+      state.analyser = captureContext.createAnalyser();
       state.analyser.fftSize = 1024;
       src.connect(state.analyser);
       state.vadTimer = setInterval(function () {
@@ -697,6 +979,17 @@
   }
 
   var api = {
+    inputDevices: listInputs,
+    selectInput: function (id) { return changeInput(id, false); },
+    defaultInput: function () { return changeInput(null, true); },
+    nativePcmConfigure: function (enabled) {
+      var n = state.nativePcm;
+      if (typeof enabled !== 'boolean') return 'unavailable';
+      if (inputBusy() || n.closing) return 'busy';
+      if (enabled && (n.failed || typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext))) return 'unavailable';
+      n.enabled = enabled;
+      return enabled ? 'native-pcm' : 'legacy';
+    },
     outputDevices: listOutputs,
     selectOutput: function (id) { return changeOutput('select', id); },
     chooseOutput: function () { return changeOutput('choose'); },
@@ -739,25 +1032,12 @@
     },
 
     startMic: function () {
-      var nav =
-        typeof navigator !== 'undefined' ? navigator : window && window.navigator;
-      if (!nav || !nav.mediaDevices || !nav.mediaDevices.getUserMedia) {
-        return Promise.resolve('unavailable');
-      }
       api.stopAudio();
-      var micOwner = ++state.micGeneration;
-      return nav.mediaDevices
-        .getUserMedia({ audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true} })
-        .then(function (stream) {
-          if (micOwner !== state.micGeneration) {stream.getTracks().forEach(function(t){t.stop();}); return 'unavailable';}
-          state.stream = stream;
+      return acquireMic(function () {
           startRecorderOnStream();
           pushEvent({ type: 'recording', active: true });
           return 'recording';
-        })
-        .catch(function () {
-          return 'unavailable';
-        });
+      });
     },
 
     stopMic: function () {
@@ -968,6 +1248,10 @@
     },
 
     dispose: function () {
+      state.input.revision++;
+      state.input.devices = [];
+      state.input.selected = null;
+      state.input.failed = false;
       state.output.revision++;
       state.output.listing++;
       state.output.devices = [];
@@ -1092,6 +1376,7 @@
           if (!vad.voiceSince) vad.voiceSince = now;
           if (now - vad.voiceSince >= vad.minSpeechMs) {
             vad.speaking = true;
+            nativeSpeechStart();
             return JSON.stringify({type: 'speech-start', epoch: vad.epoch});
           }
         }
@@ -1106,6 +1391,7 @@
         }
       }
       if (
+        !state.nativePcm.enabled &&
         !vad.capFired &&
         vad.clipStart &&
         now - vad.clipStart >= CLIP_CAP_MS
@@ -1117,26 +1403,16 @@
     },
 
     startArmed: function () {
-      var nav =
-        typeof navigator !== 'undefined' ? navigator : window && window.navigator;
-      if (!nav || !nav.mediaDevices || !nav.mediaDevices.getUserMedia) {
-        return Promise.resolve('unavailable');
-      }
       api.stopAudio();
-      var micOwner = ++state.micGeneration;
-      var needStream = !state.stream;
-      var p = needStream
-        ? nav.mediaDevices.getUserMedia({ audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true} })
-        : Promise.resolve(state.stream);
-      return p.then(
-        async function (stream) {
-          if (micOwner !== state.micGeneration) {stream.getTracks().forEach(function(t){t.stop();}); return 'unavailable';}
-          try { await ensureContext(24000); } catch(e) {stream.getTracks().forEach(function(t){t.stop();}); return 'unavailable';}
-          if (micOwner !== state.micGeneration) {stream.getTracks().forEach(function(t){t.stop();}); return 'unavailable';}
-          state.stream = stream;
+      if (state.armed) return Promise.resolve('armed');
+      return acquireMic(async function (micOwner) {
+          await ensureContext(24000);
+          if (micOwner !== state.micGeneration) throw new Error('Microphone stopped');
           state.armed = true;
           resetVadActivity(state.vad);
           queueNoiseCalibration(state.vad);
+          if (state.nativePcm.enabled) await startNativePcm(micOwner);
+          if (micOwner !== state.micGeneration) throw new Error('Microphone stopped');
           pumpStart();
           if(state.windows.enabled && !(await startWindowCapture())){
             state.armed=false;pumpStop();stopTracks();return 'unavailable';
@@ -1144,14 +1420,12 @@
           if(micOwner!==state.micGeneration){stopWindowCapture();stopTracks();return 'unavailable';}
           pushEvent({ type: 'armed', active: true, epoch: state.vad.epoch });
           return 'armed';
-        },
-        function () {
-          return 'unavailable';
-        },
-      );
+      });
     },
 
     stopArmed: function () {
+      if (state.micStop) return state.micStop.promise;
+      var acquisition = state.micAcquire && state.micAcquire.promise;
       stopWindowCapture();
       try {
         if (state.recorder && state.recorder.state !== 'inactive') {
@@ -1171,10 +1445,27 @@
       pumpStop();
       stopTracks();
       pushEvent({ type: 'armed', active: false });
-      return Promise.resolve('idle');
+      var op = { promise: null };
+      state.micStop = op;
+      op.promise = Promise.all([
+        acquisition ? Promise.resolve(acquisition).then(function () {}) : Promise.resolve(),
+        state.nativePcm.closing || Promise.resolve(),
+      ]).then(function () {
+        if (state.micStop === op) state.micStop = null;
+        return 'idle';
+      });
+      return op.promise;
     },
 
     beginClip: function () {
+      if (state.nativePcm.enabled) {
+        var n = state.nativePcm;
+        if (!state.armed || !state.stream || n.failed || n.closing) return Promise.resolve('not-armed');
+        if (n.recording) return Promise.resolve('busy');
+        resetNativeClip(); n.recording = true;
+        resetVadActivity(state.vad);
+        return Promise.resolve('clip-recording');
+      }
       if(state.windows.enabled)return Promise.resolve('window-capture');
       if (!state.armed || !state.stream) {
         return Promise.resolve('not-armed');
@@ -1195,6 +1486,7 @@
     captureEpoch: function () { return String(state.vad.epoch); },
 
     windowConfigure: function(enabled){
+      if (enabled === true && state.nativePcm.enabled) return 'unavailable';
       state.windows.enabled=enabled===true;
       if(!state.windows.enabled)stopWindowCapture();
       return state.windows.enabled?'windows':'legacy';
@@ -1204,6 +1496,7 @@
     nextWindowUtterance: function(){resetWindow();state.vad.epoch++;return String(state.vad.epoch);},
 
     finishClip: function () {
+      if (state.nativePcm.enabled) return Promise.resolve(finishNativeClip());
       var rec = state.recorder;
       // Keep the armed stream alive: only the per-clip recorder stops here.
       // Inactive/missing recorder resolves promptly with whatever exists.

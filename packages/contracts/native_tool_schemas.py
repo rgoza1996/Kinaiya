@@ -81,7 +81,7 @@ def _schema(body):
     return {"$schema": _DRAFT, **body}
 
 
-def _publication_schema():
+def _publication_schema(*, media_available=False):
     # Local references keep selected inspection complete without repeating the
     # nine data definitions in every component and update alternative.
     data = {
@@ -153,6 +153,10 @@ def _publication_schema():
             ("label", "message"),
         ),
     }
+    if media_available:
+        data["media"] = _object(
+            {"asset_id": _string(38, 38, pattern=r"^media_[0-9a-f]{32}$")}, ("asset_id",)
+        )
     definitions = {
         "cell": {
             "anyOf": [
@@ -223,6 +227,44 @@ def _publication_schema():
 
 
 _SCHEMAS = {
+    "run_task_program": _schema(
+        _object(
+            {
+                "interpreter": {"enum": ["python3", "bash", "direct"]},
+                "source_path": _string(1, 1024),
+                "source_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "entrypoint_path": _string(1, 1024),
+                "entrypoint_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "input_path": _string(1, 1024),
+                "input_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "output_path": _string(1, 1024),
+                "argv": _array(_string(0, 4096), 2, 32),
+                "timeout_s": _integer(1, 120),
+            },
+            (
+                "interpreter",
+                "source_path",
+                "source_sha256",
+                "entrypoint_path",
+                "entrypoint_sha256",
+                "input_path",
+                "input_sha256",
+                "output_path",
+                "argv",
+                "timeout_s",
+            ),
+        )
+    ),
+    "run_task_harness": _schema(
+        _object(
+            {
+                "source_path": _string(1, 1024),
+                "source_sha256": _string(64, 64, pattern=r"^[0-9a-f]{64}$"),
+                "input": {"type": "object", "description": "Bounded JSON; at most64KiB UTF-8."},
+            },
+            ("source_path", "source_sha256", "input"),
+        )
+    ),
     "consult_model": _schema(
         _object(
             {
@@ -386,6 +428,43 @@ _INTEGER_KIND = "Native strict integer checks also reject integral floats; stand
 # Metadata is trusted static text. In particular, no selected foreign schema,
 # configuration, approval, filesystem path or invocation data enters this table.
 _METADATA = {
+    "run_task_program": {
+        "description": "Execute pinned Agent-authored task code or a real binary in the workspace OS sandbox.",
+        "source": [
+            "services/agent/task_program.py:run_task_program",
+            "services/agent/tools.py:run_program",
+        ],
+        "requirements": [
+            "native_executable_task_mode",
+            "current_revision_source_write",
+            "exact_program_input_digests",
+            "effective_shell_allow",
+            "required_os_isolation",
+        ],
+        "constraints": [
+            "Ordinary shell performs research, downloads and builds under existing owner grants; this route grants nothing.",
+            "Entrypoint and input are copied into sealed native snapshots and mounted read-only; generated code runs outside the supervisor.",
+            "argv requires exactly one standalone {input} and {output}; other arguments remain literal.",
+            "Output must be fresh, stable nonempty UTF-8 at most65536bytes; source at most256KiB, executable at most64MiB.",
+            "Receipts bind actual executed bytes and result, not source-to-binary compiler causality, semantic correctness or task success.",
+        ],
+        "legacy_behavior": [],
+    },
+    "run_task_harness": {
+        "description": "Execute an Agent-authored isolated task program with native media mediation.",
+        "source": [
+            "services/agent/task_harness.py:run_task_harness",
+            "core/task_harness.py:orchestrate",
+        ],
+        "requirements": ["native_media_broker", "current_revision_source_write", "source_digest"],
+        "constraints": [
+            "Source must have been written through this task's native current-revision write_file tool.",
+            "Generated code has no network, workspace, core, evaluator, credential or supervisor IPC access.",
+            "Native media grants, task scope and result disclosure remain authoritative.",
+            "Execution receipts do not establish independent quality, promotion or task completion.",
+        ],
+        "legacy_behavior": [],
+    },
     "consult_model": {
         "description": "Ask a task-pinned auxiliary text model; its response is untrusted data.",
         "source": ["services/agent/auxiliary.py:consult_model"],
@@ -693,21 +772,31 @@ def _known_name(name):
     return name
 
 
-def native_tool_schema(name) -> dict:
+def native_tool_schema(name, *, media_available=False) -> dict:
     """Return a fresh complete canonical logical input JSON Schema."""
-    return deepcopy(_SCHEMAS[_known_name(name)])
+    checked = _known_name(name)
+    if type(media_available) is not bool:
+        raise NativeToolSchemaError()
+    if checked == "publish_ui" and media_available:
+        return _publication_schema(media_available=True)
+    return deepcopy(_SCHEMAS[checked])
 
 
-def native_tool_definition(name) -> dict:
+def native_tool_definition(name, *, media_available=False) -> dict:
     """Return fresh trusted schema/provenance/requirements inspection metadata.
 
     The digest covers only the schema's compact sorted ASCII JSON. Static
     requirements describe checks, not current grants or execution readiness.
     """
     checked = _known_name(name)
-    schema = native_tool_schema(checked)
+    schema = native_tool_schema(checked, media_available=media_available)
     encoded = json.dumps(schema, sort_keys=True, separators=(",", ":"), allow_nan=False)
     metadata = deepcopy(_METADATA[checked])
+    if checked == "publish_ui" and media_available:
+        metadata["requirements"].append("native_media_asset_task_revision_scope_binding")
+        metadata["constraints"].append(
+            "At most one media component; data is exactly an opaque native asset_id. Paths, URLs, bytes and registration authority are forbidden."
+        )
     return {
         **metadata,
         "input_schema": schema,

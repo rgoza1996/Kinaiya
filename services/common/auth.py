@@ -399,6 +399,12 @@ class ServiceTokenStore:
                 owner_login_path.unlink(missing_ok=True)
                 owner_login_invalidated = True
 
+            device_tokens_path = self.directory / "device-refresh-tokens.json"
+            if os.path.lexists(device_tokens_path):
+                device_tokens_path.unlink(missing_ok=True)
+
+            trigger_rotation_revocation()
+
             return {
                 "status": "rotated",
                 "owner_epoch": new_epoch,
@@ -565,6 +571,29 @@ class Auth:
 
 
 Authenticator = Auth
+
+
+_ROTATION_REVOKERS: list[Callable[[], None]] = []
+
+
+def register_rotation_revoker(fn: Callable[[], None]) -> None:
+    """Register a callback to be invoked immediately when owner credentials are rotated."""
+    _ROTATION_REVOKERS.append(fn)
+
+
+def unregister_rotation_revoker(fn: Callable[[], None]) -> None:
+    """Unregister a rotation revocation callback."""
+    if fn in _ROTATION_REVOKERS:
+        _ROTATION_REVOKERS.remove(fn)
+
+
+def trigger_rotation_revocation() -> None:
+    """Invoke all registered stream / connection revocation callbacks."""
+    for revoker in list(_ROTATION_REVOKERS):
+        try:
+            revoker()
+        except Exception:
+            pass
 
 
 def load_or_create_tokens(directory: Path) -> TokenStoreDict:

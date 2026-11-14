@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 
 const _maxInteger = 9007199254740991;

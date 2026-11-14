@@ -23,7 +23,7 @@ References: [FAA AC 20-115D](https://www.faa.gov/documentLibrary/media/Advisory_
 3. Make the smallest coherent change. Follow established architecture, naming, formatting, and dependency choices. Prefer explicit state transitions, bounded inputs/resources, deterministic behavior, simple failure handling, and comments that explain rationale or invariants. Avoid unrelated refactors and boilerplate.
 4. Update the appropriate tests and documentation with the behavior. Test normal cases, boundaries, malformed/untrusted input, authorization failures, concurrency or recovery paths affected by the change, and regressions. Use fixtures that do not contain real user data. Do not weaken checks merely to make a test pass.
 5. Run the narrowest relevant checks, then broader project checks when warranted. Inspect the final diff and generated artifacts. Report checks exactly: distinguish passed, failed, skipped, and not run; include the command and reason for any skipped check. Never invent a test, review, coverage result, or tool output.
-6. Track discovered defects and unresolved risks in the project's issue/problem-report process. Do not conceal a failure by changing expected results without justification.
+6. Document any newly encountered defects, regressions, or blocking issues in the repository's GitHub Issues tracker before attempting a fix, and link the resulting change and verification evidence to that issue. Track unresolved risks in the project's issue/problem-report process, and do not conceal a failure by changing expected results without justification.
 
 ## Requirements and design
 

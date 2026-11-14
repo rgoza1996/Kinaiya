@@ -582,7 +582,12 @@ def _read_masked_line(
     if getpass_fn is not None:
         tty.write(prompt_text)
         tty.flush()
-        raw = getpass_fn("")
+        try:
+            raw = getpass_fn("")
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         tty.write("\n")
         tty.flush()
         return raw
@@ -605,6 +610,8 @@ def _read_masked_line(
         try:
             termios.tcsetattr(fileno, termios.TCSADRAIN, new_attrs)
             line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            raise InstallError("Setup cancelled; no configuration written") from None
         finally:
             termios.tcsetattr(fileno, termios.TCSADRAIN, old_attrs)
             tty.write("\n")
@@ -615,7 +622,12 @@ def _read_masked_line(
 
     tty.write(prompt_text)
     tty.flush()
-    line = tty.readline()
+    try:
+        line = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        raise InstallError("Setup cancelled; no configuration written") from None
     if not line:
         raise InstallError("Setup cancelled: terminal input closed")
     return line.rstrip("\r\n")
@@ -687,7 +699,7 @@ def prompt_masked_api_key(
     lowered = cleaned.lower()
     if lowered in {":cancel", ":q", "cancel", "quit"}:
         raise InstallError("Setup cancelled; no configuration written")
-    if lowered in {":back", "<", "back"}:
+    if lowered in {":back", "<", "back", "previous", "prev"}:
         return MaskedKeyAction(
             action="back",
             profile_id=pid,
@@ -715,10 +727,24 @@ def prompt_masked_api_key(
     if lowered == ":env":
         tty.write("Credential environment variable NAME only: ")
         tty.flush()
-        env_line = tty.readline()
+        try:
+            env_line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not env_line:
             raise InstallError("Setup cancelled: terminal input closed")
         env_candidate = env_line.strip()
+        if env_candidate.lower() in {":back", "<", "back", "previous", "prev"}:
+            return MaskedKeyAction(
+                action="back",
+                profile_id=pid,
+                endpoint=endpoint,
+                credential_env=None,
+                api_key=None,
+                masked_display="[back]",
+            )
     elif lowered.startswith(":env "):
         env_candidate = cleaned[5:].strip()
     elif cleaned.upper().startswith("ENV:"):

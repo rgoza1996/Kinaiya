@@ -475,3 +475,109 @@ async def test_new_cancellation_suppressed_by_registration_never_reaches_origina
             if primary is None:
                 raise
             primary.add_note("Additional pre-wire fixture teardown: " + type(error).__name__)
+
+
+@pytest.mark.parametrize("mode", _MODES)
+@pytest.mark.parametrize(
+    "fault", ("healthy", "suppressed_cancel", "deadline", "revoked", "current_cancels")
+)
+async def test_caller_native_publication_never_emits_converse_or_routing_on_late_or_cancelled_media(
+    mode, fault, monkeypatch, tmp_path
+):
+    from packages.contracts.models import AppendRequest, Decision, SessionRequest
+    from services.session.store import Store
+
+    store = Store(tmp_path / f"journal-{mode}-{fault}.sqlite")
+    session = store.create_session(SessionRequest(channel="converse"))
+    source = store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind="conversation.user",
+            payload={
+                "text": "Count the beeps in the clip.",
+                "final": True,
+                "revision": 1,
+                "content_scope": "local_only",
+            },
+            idempotency_key=f"user-media:{session.session_id}:1",
+        ),
+        "owner",
+    )
+    agent_dispatches = []
+
+    try:
+        async with _case(mode, fault, monkeypatch) as case:
+            await case.wait_for_final_settle()
+            if fault == "suppressed_cancel":
+                case.runner.cancel()
+                await asyncio.wait_for(case.bridge.cancel_observed.wait(), _WAIT)
+                case.bridge.release.set()
+            elif fault == "deadline":
+                case.release_after_original_deadline()
+            else:
+                case.bridge.release.set()
+
+            if fault == "healthy":
+                result = await asyncio.wait_for(asyncio.shield(case.runner), _WAIT)
+                if mode == "converse_chat":
+                    assert isinstance(result, LlamaMediaChatResult)
+                    store.append(
+                        AppendRequest(
+                            session_id=session.session_id,
+                            thread_id=session.thread_id,
+                            epoch=session.epoch,
+                            kind="conversation.converse",
+                            payload={
+                                "text": result.text,
+                                "final": True,
+                                "content_scope": "local_only",
+                            },
+                            causes=[source.event_id],
+                            idempotency_key=f"converse-media:{session.session_id}:1",
+                        ),
+                        "converse",
+                    )
+                    assert len(store.read(kinds=["conversation.converse"])) == 1
+                else:
+                    assert isinstance(result, LlamaMediaSystemOneResult)
+                    decision = Decision(
+                        route="ignore",
+                        reason_code="media_classified",
+                        confidence=float(result.answers["route"]["confidence"]),
+                        source_event_ids=[source.event_id],
+                        source_revision=1,
+                        instruction="",
+                        idempotency_key=f"decisions-media:{source.event_id}:r1",
+                    )
+                    store.append(
+                        AppendRequest(
+                            session_id=session.session_id,
+                            thread_id=session.thread_id,
+                            epoch=session.epoch,
+                            kind="routing.decided",
+                            payload=decision.model_dump(mode="json"),
+                            causes=[source.event_id],
+                            idempotency_key=decision.idempotency_key,
+                        ),
+                        "decisions",
+                    )
+                    agent_dispatches.append(dict(result.answers))
+                    assert len(store.read(kinds=["routing.decided"])) == 1
+                    assert len(agent_dispatches) == 1
+            else:
+                expected_error = (
+                    LlamaMediaTimeoutError
+                    if fault == "deadline"
+                    else ProviderError
+                    if fault == "revoked"
+                    else asyncio.CancelledError
+                )
+                with pytest.raises(expected_error):
+                    await asyncio.wait_for(asyncio.shield(case.runner), _WAIT)
+                assert case.returned_values == []
+                assert store.read(kinds=["conversation.converse", "routing.decided"]) == []
+                assert agent_dispatches == []
+    finally:
+        store.close()

@@ -71,6 +71,152 @@ def _registration_snapshot(native_rows, local_rows, expected_proof, previous=Non
     )
 
 
+def _handoff_timeout_snapshot(env, capture):
+    """Bounded cached-owner diagnostics, never a cleanup or success witness."""
+    truncated = False
+
+    def first(values):
+        nonlocal truncated
+        result = []
+        for value in values:
+            if len(result) == 32:
+                truncated = True
+                break
+            result.append(value)
+        return result
+
+    def task_summary(task):
+        nonlocal truncated
+        summary = {
+            "id": None if task is None else id(task),
+            "kind": "task" if isinstance(task, asyncio.Task) else "future",
+            "done": None,
+            "cancelled": None,
+            "await_chain": [],
+        }
+        if not isinstance(task, asyncio.Future):
+            summary["kind"] = "unavailable"
+            return summary
+        summary.update(done=task.done(), cancelled=task.cancelled())
+        current = task.get_coro() if isinstance(task, asyncio.Task) else None
+        seen = set()
+        while current is not None:
+            if len(summary["await_chain"]) == 24 or id(current) in seen:
+                truncated = True
+                break
+            seen.add(id(current))
+            code = getattr(current, "cr_code", None) or getattr(current, "gi_code", None)
+            frame = getattr(current, "cr_frame", None) or getattr(current, "gi_frame", None)
+            name = code.co_qualname if code is not None else "awaitable"
+            if len(name) > 64:
+                truncated = True
+            summary["await_chain"].append(
+                {
+                    "name": name[:64],
+                    "line": frame.f_lineno
+                    if frame is not None
+                    else code.co_firstlineno
+                    if code is not None
+                    else None,
+                }
+            )
+            current = getattr(current, "cr_await", None) or getattr(current, "gi_yieldfrom", None)
+        return summary
+
+    coordinator, scope = env.coordinator, capture.ownership
+    native = first(coordinator.standing_handoff.native)
+    exchanges = first(env.journal._submit_exchanges)
+    handles = []
+    for handle in first(scope.handles):
+        item = {"id": id(handle), "kind": "handle"}
+        if isinstance(handle, asyncio.Future):
+            item.update(
+                kind="task" if isinstance(handle, asyncio.Task) else "future",
+                task=task_summary(handle),
+            )
+        elif handle in exchanges:
+            item.update(
+                kind="exchange",
+                task=task_summary(handle.task),
+                close=task_summary(handle.close_task),
+            )
+        handles.append(item)
+    workers = []
+    for managed in first(coordinator.manager._workers.values()):
+        process, stop = managed.process, managed.stop_evidence or {}
+        workers.append(
+            {
+                "id": id(managed),
+                "kind": "worker",
+                "state": managed.state,
+                "ready": managed.ready,
+                "returncode": None if process is None else process.returncode,
+                "pending_spawn": task_summary(managed.pending_spawn),
+                "pending_cleanup": task_summary(managed.pending_cleanup),
+                "drains": [task_summary(task) for task in first(managed.drains)],
+                "reaped": stop.get("reaped"),
+                "group_empty": stop.get("group_empty"),
+                "ownership_verified": stop.get("ownership_verified"),
+            }
+        )
+    operation = task_summary(capture.task)
+    operation["observations"] = {
+        "native": [task_summary(task) for task in native],
+        "exchanges": [
+            {
+                "id": id(exchange),
+                "kind": "exchange",
+                "task": task_summary(exchange.task),
+                "close": task_summary(exchange.close_task),
+            }
+            for exchange in exchanges
+        ],
+        "workers": workers,
+        "locks": {
+            "coordinator": coordinator.lock.locked(),
+            "manager": coordinator.manager._lock.locked(),
+            "admission": coordinator.admission_lock.locked(),
+        },
+        "previews": env.previews,
+        "context_entered": env.transport.entered.is_set(),
+        "context_released": env.transport.release.is_set(),
+        "active": capture.active,
+        "scope_failed": scope.failed,
+        "scope_finished": scope.finished,
+    }
+    snapshot = {
+        "capture_id": id(capture),
+        "operation_id": id(capture.task),
+        "scope_id": id(scope),
+        "effects_started": capture.effects_started,
+        "operation": operation,
+        "handles": handles,
+        "phases": env.phases[-32:],
+        "streams": [
+            {"id": id(stream), "kind": "stream", "closed": stream.closed, "closes": stream.closes}
+            for stream in first(env.transport.streams)
+        ],
+        "state_phase": coordinator.state.record.phase,
+        "truncated": truncated or len(env.phases) > 32,
+    }
+
+    def size():
+        return len(json.dumps(snapshot, ensure_ascii=True, separators=(",", ":")).encode())
+
+    if size() > 32768:
+        snapshot["truncated"] = True
+        operation.pop("observations")
+    if size() > 32768:
+        for item in handles:
+            item.pop("task", None)
+            item.pop("close", None)
+    while size() > 32768 and operation["await_chain"]:
+        operation["await_chain"].pop()
+    if size() > 32768:
+        raise ValueError("Bounded handoff observation unavailable")
+    return snapshot
+
+
 async def resistant(gate):
     while not gate.is_set():
         try:
@@ -497,11 +643,26 @@ async def test_new_action_original_is_frozen_before_context_await_and_same_key_c
     task = asyncio.create_task(env.coordinator.action(env.payload))
     env.public.append(task)
     await asyncio.wait_for(env.transport.entered.wait(), 3)
+    capture = env.coordinator.standing_handoff.attempts[original["idempotency_key"]]
     env.payload["reason"] = "Caller mutated after actual context HTTP entered"
     with pytest.raises(StandingConflict):
         await env.coordinator.action(copy.deepcopy(env.payload))
     env.transport.release.set()
-    result = await asyncio.wait_for(task, 4)
+    try:
+        result = await asyncio.wait_for(task, 4)
+    except TimeoutError as error:
+        try:
+            snapshot = _handoff_timeout_snapshot(env, capture)
+            error.add_note(
+                "Handoff timeout observation: "
+                + json.dumps(snapshot, ensure_ascii=True, separators=(",", ":"))
+            )
+        except BaseException as diagnostic:
+            try:
+                error.add_note("Handoff observation unavailable: " + type(diagnostic).__name__[:64])
+            except BaseException:
+                pass
+        raise
     assert result["ok"] and result["policy"]["required_bytes"] == original["required_bytes"]
     request = json.loads(env.session.store.db.execute(f"SELECT request FROM {ROWS}").fetchone()[0])
     assert (

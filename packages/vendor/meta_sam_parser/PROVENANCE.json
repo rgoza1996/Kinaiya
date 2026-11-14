@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/meta-models/meta-sam",
+  "commit": "9348a8a791d3e5b6417232227e32e10464cdf49f",
+  "upstream_path": "python/src/meta_sam_parser",
+  "unchanged_files": {
+    "LICENSE.txt": "4dea99bfaa016e21bc860d73f344236bd1e5c4977d1a9a8fd32f822b500ae1be",
+    "__init__.py": "53e106f6334284aba7a22bd59421fbb425d61d37dcb2c5281d7775323799b3a3",
+    "_errors.py": "7dca9fc121679897aa257a29446a2deaf37530b6810298c0592fb912a4674a53",
+    "_mask_codec.py": "00cf56257e57511a5636c2b41b398ddb3ee92087761a2075ad59c94a143d570f",
+    "_mask_conversion.py": "7d6e75b14d4cbdc725203c03227c154137491110b7efc3a77cdbb4dde854e621",
+    "_object_prompt.py": "9596fcf5d91811e29962d93aa7b91c8d476d227935c2e08b1eecf869c34d4454",
+    "_segmentation.py": "afee9678ffa1c50e077f13f2f84b4162fd45ea71c8e25b23509d13fb465f52ae",
+    "_stream.py": "41836971940ad6a5753d28b8b909c87b4fe27de45017de0248ea02433cdc786d",
+    "_types.py": "6e0a87d2786450d8259162fd9e14bd95a494b57d7b016992f32dea3530e72ffb",
+    "py.typed": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "THIRD_PARTY_NOTICES.md": "119cb44600de2a1f2ce93bd9fc0adaa5382870b3bde2c09103531acd94608547"
+  }
+}

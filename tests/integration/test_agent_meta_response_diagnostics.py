@@ -268,7 +268,13 @@ async def test_changed_authority_cannot_retain_stale_response_diagnostic(env, mu
     env.replies.append(changed)
     task = await env.submit()
     final = await env.runtime.wait(task.task_id, timeout=5)
-    assert final.state == TaskState.FAILED
+    if mutation == "session_reset":
+        assert final.state == TaskState.PAUSED and "unconfirmed" in final.error
+        rec = env.runtime._get(task.task_id)
+        assert rec.completion_pending and rec.completion_snapshot.state == TaskState.FAILED
+        assert rec.completion_snapshot.error
+    else:
+        assert final.state == TaskState.FAILED
     assert len(env.calls) == 1
     assert all("provider_response_diagnostic" not in entry.payload for entry in outcomes(env))
 

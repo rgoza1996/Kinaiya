@@ -9,6 +9,7 @@ from itertools import islice
 
 from anyio import CancelScope
 
+from packages.contracts.agent_outcome import OutcomeEvidenceUnavailable, read_outcome_task
 from packages.contracts.memory import MemoryBinding
 from packages.contracts.memory_context import MemoryContextPin
 from packages.contracts.models import (
@@ -197,8 +198,10 @@ class ConverseRuntime:
         intent=None,
         resources_managed=False,
         memory_adapters=None,
+        native_media_owner=None,
     ):
         self.journal, self.provider = journal, provider
+        self.native_media_owner = native_media_owner
         self.name, self.context_turns = name, context_turns
         self.context_budgeted = context_budgeted
         self.context_observations = ContextObservations("converse")
@@ -956,6 +959,28 @@ class ConverseRuntime:
                 0, turn.wait_remaining - (asyncio.get_running_loop().time() - started)
             )
 
+    async def complete_native_media(self, source, fence, principal, *, key, timeout=30.0):
+        """Protected native composition only; ordinary routes never call this."""
+        from services.session.media_clients import refuse
+        from services.session.native_media import NativeBufferedMediaOwner
+
+        if (
+            type(self.native_media_owner) is not NativeBufferedMediaOwner
+            or self.model_settings is None
+        ):
+            refuse()
+        lease = self.model_settings.capture_native_media()
+        return await self.native_media_owner.run(
+            source,
+            fence,
+            principal,
+            lease,
+            key=key,
+            timeout=timeout,
+            system_prompt=self.personality,
+            caller=self,
+        )
+
     async def close(self):
         self._stt_stopping = True
         self._cancel_speech()
@@ -1693,6 +1718,19 @@ class ConverseRuntime:
 
     async def outcome_notice(self, outcome):
         task = outcome.payload.get("task", outcome.payload)
+        if (
+            outcome.kind == "agent.outcome"
+            and outcome.origin == "agent-supervisor"
+            and "evidence_ref" in outcome.payload
+        ):
+            # Restoration performs authenticated reads only. Failure propagates
+            # without acknowledging the outcome or announcing empty proof.
+            try:
+                task = (await read_outcome_task(self.journal, outcome)).model_dump(mode="json")
+            except TimeoutError:
+                # Only this read-only boundary may be retried. A later timeout
+                # during announcement publication must not be reclassified.
+                raise OutcomeEvidenceUnavailable from None
         if (
             outcome.kind != "agent.outcome"
             or outcome.origin != "agent-supervisor"

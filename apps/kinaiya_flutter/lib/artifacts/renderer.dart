@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 
 import '../ui/design_tokens.dart';
 import 'models.dart';
+import 'media.dart';
 
 typedef ArtifactAction =
     FutureOr<void> Function(String componentId, Object? value);
@@ -22,6 +23,7 @@ class IntelligentArtifactRenderer extends StatefulWidget {
     this.onAction,
     this.onAsk,
     this.onEditingChanged,
+    this.loadMedia,
   }) : raw = null;
 
   /// Older clients can retain a bounded title/summary even for an unknown
@@ -33,6 +35,7 @@ class IntelligentArtifactRenderer extends StatefulWidget {
     this.onAction,
     this.onAsk,
     this.onEditingChanged,
+    this.loadMedia,
   }) : artifact = null;
 
   final IntelligentArtifact? artifact;
@@ -41,6 +44,7 @@ class IntelligentArtifactRenderer extends StatefulWidget {
   final ArtifactAction? onAction;
   final ValueChanged<String>? onAsk;
   final ValueChanged<bool>? onEditingChanged;
+  final ArtifactMediaLoader? loadMedia;
 
   @override
   State<IntelligentArtifactRenderer> createState() =>
@@ -207,6 +211,12 @@ class _IntelligentArtifactRendererState
       child = _ReadableText(_plain(component, current: current));
     } else {
       switch (component.type) {
+        case 'media':
+          child = ArtifactMediaPlayer(
+            artifact: artifact,
+            assetId: data['asset_id']! as String,
+            load: widget.loadMedia,
+          );
         case 'text':
           child = _ReadableText(data['text']! as String);
         case 'status':
@@ -344,6 +354,8 @@ String _sourceText(Map<String, Object?> data) {
 String _plain(IntelligentArtifactComponent c, {Object? current}) {
   final d = c.data;
   switch (c.type) {
+    case 'media':
+      return 'Native video and SAM hand highlights. Open the web player to inspect this scoped result.';
     case 'text':
       return d['text']! as String;
     case 'status':

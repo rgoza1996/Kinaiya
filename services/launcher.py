@@ -14,10 +14,13 @@ from pathlib import Path
 
 import httpx
 
-from packages.contracts.models import TaskRequest, new_id
-from services.common.auth import Auth, load_or_create_tokens
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from packages.contracts.models import TaskRequest, new_id  # noqa: E402
+from services.common.auth import Auth, load_or_create_tokens  # noqa: E402
+
 PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
 
 
@@ -182,17 +185,57 @@ def converse_native_audio(config, runtime, data_dir, workspace):
     )
 
 
-def provider(config, role, *, resource_state=None, service_token=None, workspace=None):
+def _resolve_api_key_env(config, key_ref: str | None, *, data_dir: str | Path | None = None) -> str:
+    """Resolve an API key from os.environ or the user-private 0600 providers.env store (#544)."""
+    if not key_ref:
+        return ""
+    env_val = os.environ.get(key_ref, "")
+    if env_val:
+        return env_val
+    candidate_dirs: list[Path] = []
+    if data_dir is not None and str(data_dir).strip():
+        candidate_dirs.append(Path(data_dir).expanduser())
+    dist = config.get("distribution") if isinstance(config, dict) else None
+    data_dir_raw = dist.get("data_dir") if isinstance(dist, dict) else None
+    if isinstance(data_dir_raw, str) and data_dir_raw.strip():
+        candidate_dirs.append(Path(data_dir_raw).expanduser())
+    for cand_dir in candidate_dirs:
+        try:
+            from services.distribution.credentials import LocalCredentialsStore
+
+            for filename in ("providers.env", "custom_providers.env"):
+                env_path = cand_dir / filename
+                if env_path.is_file() and not env_path.is_symlink():
+                    stored = LocalCredentialsStore(env_path).load_env_map().get(key_ref, "")
+                    if stored:
+                        return stored
+        except Exception:
+            pass
+    return ""
+
+
+def provider(
+    config,
+    role,
+    *,
+    resource_state=None,
+    service_token=None,
+    workspace=None,
+    data_dir=None,
+):
     from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
 
     profile = dict(config["providers"][role])
+    providers_env_dir = profile.pop("providers_env_dir", None) or data_dir
+    for _meta_key in ("profile_id", "qualified_model_id", "selection_source"):
+        profile.pop(_meta_key, None)
     kind = profile.pop("kind")
     if kind == "meta":
         if role == "agent":
             profile.setdefault("structured_actions", True)
         key_ref = profile.pop("api_key_env", None)
         if key_ref and not profile.get("api_key"):
-            profile["api_key"] = os.environ.get(key_ref, "")
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
         result = MetaResponsesProvider(**profile)
     elif kind == "measured_chat":
         if role != "converse":
@@ -203,13 +246,15 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             raise ValueError("Measured chat is local only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
-            profile["api_key"] = os.environ.get(key_ref, "")
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
         result = MeasuredChatProvider(**profile)
     elif kind == "lmstudio":
         if role not in {"converse", "agent", "auxiliary"}:
             raise SystemExit("Native LM Studio supports Converse, Agent and auxiliary text only")
         from packages.providers.lmstudio import LMStudioProvider
 
+        profile.pop("api_key_env", None)
+        profile.pop("api_key", None)
         # The adapter owns exact native counting, prediction and cleanup. Each
         # model factory call constructs a fresh instance; auxiliary requests
         # must not share the primary Agent's active operation/cleanup state.
@@ -224,7 +269,7 @@ def provider(config, role, *, resource_state=None, service_token=None, workspace
             raise SystemExit("OpenRouter decisions is a typed Decisions provider only")
         key_ref = profile.pop("api_key_env", None)
         if key_ref:
-            profile["api_key"] = os.environ.get(key_ref, "")
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
         if kind == "native_d1":
             from packages.providers.native_d1 import NativeD1RoutingProvider
 
@@ -462,8 +507,12 @@ def managed_guard_roots():
 
 def host_service_names(config):
     """Managed default has no Converse, Decisions, resources, voice or model work."""
-    names = ["session", "agent"]
-    if config.get("distribution", {}).get("converse") is True:
+    dist = config.get("distribution") if isinstance(config.get("distribution"), dict) else {}
+    agent_enabled = dist.get("agent", True) is not False
+    names = ["session"]
+    if agent_enabled:
+        names.append("agent")
+    if dist.get("converse") is True:
         names += ["converse", "decisions"]
     if config.get("resources", {}).get("enabled") is True:
         names.append("resources")
@@ -745,12 +794,22 @@ def serve(args):
         from services.settings.provider_factory import UnavailableHostProvider
 
         try:
-            host_provider = provider(config, "agent", resource_state=resource_state)
+            host_provider = provider(
+                config,
+                "agent",
+                resource_state=resource_state,
+                data_dir=args.data_dir.resolve(),
+            )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             # This is an unavailable host profile, never a fallback. Keep the
             # owner catalog/Options control plane available so a valid saved
             # catalog selection can serve new work without the host credential.
             host_provider = UnavailableHostProvider()
+        from services.agent.task_media_launcher import task_media_owner
+
+        media_owner = task_media_owner(
+            config, data_dir=args.data_dir.resolve(), workspace=workspace
+        )
         runtime = AgentRuntime(
             journal,
             host_provider,
@@ -761,7 +820,10 @@ def serve(args):
             mcp_controller=mcp_controller,
             skill_service=skill_service,
             plugin_service=plugin_service,
-            artifact_store=ArtifactStore(artifact_path),
+            artifact_store=ArtifactStore(
+                artifact_path,
+                **({"media_assets": media_owner.media_assets} if media_owner is not None else {}),
+            ),
         )
         runtime.workspace_settings = workspace_settings
         workspace_settings.bind(
@@ -801,7 +863,10 @@ def serve(args):
         profiles = {
             name: (
                 lambda profile=profile: provider(
-                    {"providers": {"agent": profile}}, "agent", resource_state=resource_state
+                    {"providers": {"agent": profile}},
+                    "agent",
+                    resource_state=resource_state,
+                    data_dir=args.data_dir.resolve(),
                 )
             )
             for name, profile in config.get("agent_profiles", {}).items()
@@ -835,6 +900,7 @@ def serve(args):
                     {"providers": {role: selected}},
                     role,
                     resource_state=None if auxiliary else resource_state,
+                    data_dir=args.data_dir.resolve(),
                 )
                 if auxiliary and resource_state is not None:
                     from services.resources.providers import ResourceBoundProvider
@@ -881,6 +947,8 @@ def serve(args):
         commands = Registry(
             runtime, owner_journal, path=args.data_dir / "commands.sqlite", profiles=profiles
         )
+        if media_owner is not None:
+            media_owner.bind(runtime)
 
         @asynccontextmanager
         async def agent_lifespan(app):
@@ -895,6 +963,8 @@ def serve(args):
                     await asyncio.sleep(0.1)
             yield
             await runtime.close()
+            if media_owner is not None:
+                await media_owner.close()
             await runtime.authorizations.close_journal(journal)
             await owner_journal.close()
             commands.close()
@@ -946,6 +1016,7 @@ def serve(args):
                 resource_state=resource_state,
                 service_token=tokens["converse"],
                 workspace=args.workspace.resolve(),
+                data_dir=args.data_dir.resolve(),
             )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Converse")
@@ -1112,7 +1183,12 @@ def serve(args):
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             catalog = None
         try:
-            host_provider = provider(config, "decisions", resource_state=resource_state)
+            host_provider = provider(
+                config,
+                "decisions",
+                resource_state=resource_state,
+                data_dir=args.data_dir.resolve(),
+            )
         except (OSError, ValueError, ProviderError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Decisions")
         try:
@@ -1217,58 +1293,65 @@ async def direct_agent(args):
     config = load_config(args.config or args.data_dir / "config.json")
     tokens = load_or_create_tokens(args.data_dir)
     headers = {"Authorization": f"Bearer {tokens['owner']}"}
-    async with httpx.AsyncClient(headers=headers, timeout=30) as http:
-        response = await http.post(
-            config["session_url"] + "/v1/sessions", json={"channel": "agent"}
-        )
-        response.raise_for_status()
-        session = response.json()
-        from packages.commands import parse
-
-        if parse(args.objective) is not None:
-            response = await http.post(
-                config["agent_url"] + "/v1/commands/execute",
-                json={
-                    "schema_version": "1.0",
-                    **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
-                    "input": args.objective,
-                    "content_scope": getattr(args, "content_scope", "local_only"),
-                    "idempotency_key": new_id(),
-                },
-            )
+    session_url = config["session_url"]
+    agent_url = config["agent_url"]
+    target_url = session_url
+    try:
+        async with httpx.AsyncClient(headers=headers, timeout=30) as http:
+            response = await http.post(session_url + "/v1/sessions", json={"channel": "agent"})
             response.raise_for_status()
-            result = response.json()
-            print(json.dumps(result, indent=2))
-            return 0 if result["status"] == "ok" else 1
-        objective = args.objective[1:] if args.objective.startswith("\\/") else args.objective
-        request = TaskRequest(
-            session_id=session["session_id"],
-            thread_id=session["thread_id"],
-            epoch=session["epoch"],
-            objective=objective,
-            content_scope=getattr(args, "content_scope", "local_only"),
-            idempotency_key=new_id(),
-        )
-        response = await http.post(
-            config["agent_url"] + "/v1/agent/tasks", json=request.model_dump()
-        )
-        response.raise_for_status()
-        task = response.json()
-        print(json.dumps({"accepted_task_id": task["task_id"]}), flush=True)
-        while task["state"] not in {
-            "succeeded",
-            "failed",
-            "cancelled",
-            "blocked",
-            "awaiting_approval",
-            "paused",
-        }:
-            await asyncio.sleep(0.1)
-            response = await http.get(config["agent_url"] + "/v1/agent/tasks/" + task["task_id"])
+            session = response.json()
+            from packages.commands import parse
+
+            target_url = agent_url
+            if parse(args.objective) is not None:
+                response = await http.post(
+                    agent_url + "/v1/commands/execute",
+                    json={
+                        "schema_version": "1.0",
+                        **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
+                        "input": args.objective,
+                        "content_scope": getattr(args, "content_scope", "local_only"),
+                        "idempotency_key": new_id(),
+                    },
+                )
+                response.raise_for_status()
+                result = response.json()
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] == "ok" else 1
+            objective = args.objective[1:] if args.objective.startswith("\\/") else args.objective
+            request = TaskRequest(
+                session_id=session["session_id"],
+                thread_id=session["thread_id"],
+                epoch=session["epoch"],
+                objective=objective,
+                content_scope=getattr(args, "content_scope", "local_only"),
+                idempotency_key=new_id(),
+            )
+            response = await http.post(agent_url + "/v1/agent/tasks", json=request.model_dump())
             response.raise_for_status()
             task = response.json()
-        print(json.dumps(task, indent=2))
-        return 0 if task["state"] == "succeeded" else 1
+            print(json.dumps({"accepted_task_id": task["task_id"]}), flush=True)
+            while task["state"] not in {
+                "succeeded",
+                "failed",
+                "cancelled",
+                "blocked",
+                "awaiting_approval",
+                "paused",
+            }:
+                await asyncio.sleep(0.1)
+                response = await http.get(agent_url + "/v1/agent/tasks/" + task["task_id"])
+                response.raise_for_status()
+                task = response.json()
+            print(json.dumps(task, indent=2))
+            return 0 if task["state"] == "succeeded" else 1
+    except httpx.ConnectError:
+        sys.stderr.write(
+            f"kinaiya: Cannot reach local services at {target_url}. "
+            "Are Kinaiya services running? Start them with 'kinaiya start' or 'kinaiya serve host'.\n"
+        )
+        return 1
 
 
 def build_parser():
@@ -1282,7 +1365,8 @@ def build_parser():
         default="local_only",
         help="Disclosure grant for this Agent input; defaults to local-only",
     )
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(dest="command", required=False)
+    commands.add_parser("help", help="Show this help message and exit")
     commands.add_parser("init")
     login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
     login.add_argument("--output", type=Path)
@@ -1310,6 +1394,36 @@ def build_parser():
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command == "help":
+        parser.print_help()
+        parser.exit(0)
+    if args.command is None:
+        from services.distribution.cli import chosen_layout
+
+        layout = chosen_layout()
+        config_path = args.config if getattr(args, "config", None) is not None else layout.config
+        if not config_path.exists():
+            sys.stderr.write("No configuration found — starting setup.\n")
+            args.command = "setup"
+            args.section = None
+            args.mode = None
+            args.yes = False
+            args.check_connection = False
+            args.no_start = False
+            args.auto_start = True
+            args.quick = False
+            args.advanced = False
+            args.endpoint = None
+            args.model = None
+            args.credential_env = None
+            args.allow_cloud = False
+            args.converse = False
+        else:
+            args.command = "start"
+            args.no_browser = False
+            args.json = False
+            args.web_port = 8780
+            args.timeout = 15.0
     if args.command in {
         "auth",
         "install",
@@ -1334,6 +1448,10 @@ def main(argv=None):
             print_command_result(args, dispatch(args))
         except (InstallError, ReleaseError) as exc:
             parser.exit(1, f"kinaiya: {exc}\n")
+        except KeyboardInterrupt:
+            if args.command == "setup":
+                parser.exit(1, "kinaiya: Setup cancelled; no configuration written\n")
+            parser.exit(1, "kinaiya: operation cancelled\n")
         except (OSError, ValueError):
             parser.exit(
                 1,

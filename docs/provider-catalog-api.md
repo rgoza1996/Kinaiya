@@ -60,6 +60,26 @@ and explicit cloud permission. LM Studio is loopback-only. Response reserve
 must fit any declared context. Laya uses its classification fields rather than
 conversational reasoning controls.
 
+Meta text profiles accept an integer `timeout_s` from 1 through 1800 seconds;
+the default for a newly constructed adapter is 600 seconds. It bounds the
+whole complete-generation exchange and HTTP read inactivity. Streaming retains
+its read-inactivity limit and existing cross-task close protocol. Connect/pool waits remain
+at most 10 seconds and writes at most 60 seconds, each capped by the declared
+timeout. Host JSON uses the adapter field `timeout` with the same bounds.
+Token counting retains its separate 10 second deadline. Older catalog
+generations that omitted this field retain their exact stored configuration
+shape and digest. An explicitly declared timeout belongs to a new immutable
+generation; it does not alter an existing adapter or task.
+
+A complete-generation transport failure reports a fixed, non-secret read/connect/write/
+pool/total timeout or transport-error label. It states that provider completion
+is unknown and performs no automatic retry or fallback. A deadline or canceled
+caller still retains ownership until the original HTTP stream close actually
+settles; close uncertainty retains the existing cleanup error and control
+precedence. A provider or billing proxy may finish a request after the local
+deadline, so reconcile its original receipt before deciding whether to submit
+another generation.
+
 The [native d1 declaration](adr/0106-native-d1-decisions.md) is Decisions-only,
 loopback-only and text-only in this increment. It requires a server-root URL with
 an explicit port and an owner-entered minimum confidence. It has no output,

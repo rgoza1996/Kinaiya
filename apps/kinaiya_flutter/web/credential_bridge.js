@@ -9,9 +9,25 @@ window.kinaiyaChooseCredential = () => new Promise(resolve => {
       if (!file || file.size > 4096) return resolve('');
       const text = (await file.text()).trim();
       let token = text;
-      if (text.startsWith('{')) token = JSON.parse(text).owner;
+      if (text.startsWith('{')) {
+        const parsed = JSON.parse(text);
+        token = parsed.owner || parsed.code || parsed.auth_code || text;
+      }
       resolve(typeof token === 'string' && /^[A-Za-z0-9_.-]{20,256}$/.test(token) ? token : '');
     } catch (_) { resolve(''); }
   }, {once: true});
   input.click();
 });
+
+window.kinaiyaExportCredential = (filename, content) => {
+  if (!content || typeof content !== 'string') return;
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'owner-login.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};

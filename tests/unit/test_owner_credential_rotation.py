@@ -134,6 +134,10 @@ def test_rotate_owner_Disconnects_active_websocket_and_rejects_old_token(tmp_pat
             with pytest.raises(WebSocketDisconnect) as exc_info:
                 ws.receive_json()
             assert exc_info.value.code == 1008
+            try:
+                ws.close()
+            except Exception:
+                pass
 
         # Reconnecting with old owner token fails closed immediately (1008).
         with client.websocket_connect("/v1/events") as ws_old:
@@ -141,6 +145,10 @@ def test_rotate_owner_Disconnects_active_websocket_and_rejects_old_token(tmp_pat
             with pytest.raises(WebSocketDisconnect) as exc_info:
                 ws_old.receive_json()
             assert exc_info.value.code == 1008
+            try:
+                ws_old.close()
+            except Exception:
+                pass
 
         # Connecting with new owner token succeeds and receives events.
         new_owner = load_or_create_tokens(tmp_path)["owner"]
@@ -161,6 +169,10 @@ def test_rotate_owner_Disconnects_active_websocket_and_rejects_old_token(tmp_pat
             ws_new.send_json({"token": new_owner, "after": 0, "session_id": session["session_id"]})
             event = ws_new.receive_json()
             assert event["payload"]["text"] == "after rotation"
+            try:
+                ws_new.close()
+            except Exception:
+                pass
 
 
 def test_owner_login_invalidated_on_rotation_and_exports_new_credential(tmp_path: Path, capsys):

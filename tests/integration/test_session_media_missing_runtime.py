@@ -26,7 +26,16 @@ def _append(store, session, key):
 
 
 @pytest.mark.parametrize("operation", ["reset", "delete"])
-@pytest.mark.parametrize("table", ["media_operations", "media_reservations", "media_dependencies"])
+@pytest.mark.parametrize(
+    "table",
+    [
+        "media_operations",
+        "media_reservations",
+        "media_dependencies",
+        "native_media_v2_attempts",
+        "native_media_v2_records",
+    ],
+)
 @pytest.mark.parametrize("retained", [False, True], ids=["empty-partial-schema", "unknown-owner"])
 def test_partial_media_namespace_requires_original_owner(tmp_path, operation, table, retained):
     store = Store(tmp_path / "journal.sqlite")

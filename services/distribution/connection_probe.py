@@ -752,7 +752,15 @@ def run_interactive_connection_check(
         "[no = skip (unverified_saved) / metadata = GET /models only / inference = include 1-token probe] [no]: "
     )
     tty.flush()
-    line = tty.readline()
+    try:
+        line = tty.readline()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        tty.flush()
+        if config_saved:
+            line = "no\n"
+        else:
+            raise InstallError("Setup cancelled; no configuration written") from None
     if not line:
         raise InstallError("Setup cancelled: terminal input closed")
     choice = line.strip().lower() or "no"
@@ -781,7 +789,28 @@ def run_interactive_connection_check(
             "on metered cloud providers. Confirm minimal inference probe? yes/no [no]: "
         )
         tty.flush()
-        confirm_line = tty.readline()
+        try:
+            confirm_line = tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            tty.write("\n")
+            tty.flush()
+            if config_saved:
+                res = probe_provider_connection(
+                    endpoint=endpoint,
+                    model=model,
+                    role=role,
+                    adapter_kind=effective_kind,
+                    allow_cloud=allow_cloud,
+                    credential_env=credential_env,
+                    api_key=api_key,
+                    config_saved=config_saved,
+                    skip_probe=True,
+                    opener=opener,
+                )
+                tty.write(format_probe_summary(res))
+                tty.flush()
+                return res
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not confirm_line:
             raise InstallError("Setup cancelled: terminal input closed")
         run_inference = confirm_line.strip().lower() == "yes"

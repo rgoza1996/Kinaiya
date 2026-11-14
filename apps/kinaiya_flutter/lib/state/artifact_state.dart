@@ -68,6 +68,35 @@ class _ArtifactData {
 /// Artifact data stays bound to the authenticated Converse owner. Reading or
 /// selecting a result never starts inference, approves work, or starts audio.
 extension IntelligentUiState on AppState {
+  Future<ArtifactMedia> loadArtifactMedia(
+    IntelligentArtifact artifact,
+    String assetId,
+    String variant,
+  ) async {
+    final api = client, session = converseSession;
+    final generation = connectionGeneration;
+    if (api == null ||
+        session == null ||
+        artifact.sessionId != session.sessionId ||
+        artifact.threadId != session.threadId ||
+        artifact.epoch != session.epoch) {
+      throw const ArtifactFailure('Video owner changed.');
+    }
+    final value = await api.artifacts.media(
+      session,
+      artifact,
+      assetId,
+      variant,
+    );
+    if (!ownsConnection(generation, api) ||
+        converseSession?.sessionId != session.sessionId ||
+        converseSession?.threadId != session.threadId ||
+        converseSession?.epoch != session.epoch) {
+      throw const ArtifactFailure('Video owner changed.');
+    }
+    return value;
+  }
+
   List<IntelligentArtifact> get converseArtifacts => List.unmodifiable(
     _artifacts.items.values.toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),

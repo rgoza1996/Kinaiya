@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -14,15 +16,31 @@ from services.distribution.credentials import (
     MaskedKeyAction,
     apply_masked_key_action,
     default_providers_env_path,
+    profile_credential_env,
     prompt_masked_api_key,
 )
-from services.distribution.installation import InstallError, Layout, read_json
+from services.distribution.curses_menu import (
+    MenuCancelled,
+    MenuGoBack,
+    MenuItem,
+    curses_radiolist,
+    is_curses_available,
+)
+from services.distribution.installation import (
+    PROTECTED_INSTALL_ROOTS,
+    PROTECTED_INSTALL_TREES,
+    InstallError,
+    Layout,
+    read_json,
+)
 from services.distribution.model_picker import (
     ProviderProfileChoice,
     SelectedModel,
+    check_local_v1_hint,
     check_role_adapter_eligibility,
     discover_profile_models,
     format_profile_choices,
+    is_loopback_endpoint,
     load_stored_profiles,
     save_role_model_selection,
     select_model_interactively,
@@ -36,9 +54,10 @@ from services.distribution.terminal_ui import (
 )
 
 VALID_SETUP_SECTIONS: tuple[str, ...] = ("workspace", "model", "converse")
-BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back"})
-CONFIRM_BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back", "b"})
+BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back", "previous", "prev"})
+CONFIRM_BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back", "b", "previous", "prev"})
 CANCEL_COMMANDS: frozenset[str] = frozenset({":cancel", ":q", "cancel", "quit"})
+_PROFILE_ID_RE = re.compile(r"^p([0-9]{2,6})$")
 
 
 def _is_local_endpoint(endpoint: str) -> bool:
@@ -68,9 +87,49 @@ def is_cancel_command(raw: str) -> bool:
 
 def is_back_command(raw: str, *, at_confirm: bool = False) -> bool:
     token = raw.strip().lower()
-    if at_confirm and token.startswith(("back ", ":back ")):
+    if at_confirm and token.startswith(("back ", ":back ", "previous ", "prev ")):
         return True
     return token in (CONFIRM_BACK_COMMANDS if at_confirm else BACK_COMMANDS)
+
+
+def validate_workspace_path(candidate: Path | str) -> Path:
+    """Validate and normalize an authorized workspace root directory (#504).
+
+    Ensures the path is non-empty, contains no control characters, expands '~',
+    and refuses protected system roots.
+    """
+    raw = str(candidate).strip()
+    if not raw:
+        raise InstallError("Workspace path cannot be empty")
+    if any(ord(c) < 32 for c in raw):
+        raise InstallError("Workspace path must not contain control characters")
+    expanded = Path(os.path.expanduser(raw))
+    normalized = Path(os.path.abspath(expanded))
+    posix_str = normalized.as_posix()
+    if posix_str in PROTECTED_INSTALL_ROOTS or any(
+        posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
+    ):
+        raise InstallError(f"Refusing protected system root as workspace directory: {normalized}")
+    return normalized
+
+
+def validate_data_path(candidate: Path | str) -> Path:
+    """Validate and normalize a private data root directory (#504)."""
+    raw = str(candidate).strip()
+    if not raw:
+        raise InstallError("Private data directory path cannot be empty")
+    if any(ord(c) < 32 for c in raw):
+        raise InstallError("Private data directory path must not contain control characters")
+    expanded = Path(os.path.expanduser(raw))
+    normalized = Path(os.path.abspath(expanded))
+    posix_str = normalized.as_posix()
+    if posix_str in PROTECTED_INSTALL_ROOTS or any(
+        posix_str == tree or posix_str.startswith(tree + "/") for tree in PROTECTED_INSTALL_TREES
+    ):
+        raise InstallError(
+            f"Refusing protected system root as private data directory: {normalized}"
+        )
+    return normalized
 
 
 def parse_endpoint_input(endpoint_input: str) -> tuple[str | None, str]:
@@ -307,7 +366,12 @@ class WizardNavigator:
             prompt_str += f"{c_lbl}: {RESET}"
             self.tty.write(prompt_str)
         self.tty.flush()
-        line = self.tty.readline()
+        try:
+            line = self.tty.readline()
+        except (KeyboardInterrupt, EOFError):
+            self.tty.write("\n")
+            self.tty.flush()
+            raise InstallError("Setup cancelled; no configuration written") from None
         if not line:
             raise InstallError("Setup cancelled: terminal input closed")
         return line.strip()
@@ -318,7 +382,12 @@ class WizardNavigator:
         while True:
             self.tty.write(f"{label} (y/n) [{default_hint}]: ")
             self.tty.flush()
-            line = self.tty.readline()
+            try:
+                line = self.tty.readline()
+            except (KeyboardInterrupt, EOFError):
+                self.tty.write("\n")
+                self.tty.flush()
+                raise InstallError("Setup cancelled; no configuration written") from None
             if not line:
                 raise InstallError("Setup cancelled: terminal input closed")
             cleaned = line.strip()
@@ -336,10 +405,309 @@ class WizardNavigator:
             self.tty.write("Please enter y or n.\n")
             self.tty.flush()
 
+    def _prompt_workspace_choice(self, default_val: str) -> str:
+        cwd = os.environ.get("KINAIYA_INVOKING_PWD") or os.getcwd()
+        default_ws = default_val or str(self.layout.workspace)
+
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    label=f"Default workspace ({default_ws})",
+                    value=default_ws,
+                    recommended=True,
+                ),
+                MenuItem(
+                    label=f"Current working directory ({cwd})",
+                    value=cwd,
+                ),
+                MenuItem(
+                    label="Custom directory path...",
+                    value=":custom",
+                ),
+            ]
+            while True:
+                try:
+                    selected_idx = curses_radiolist(
+                        "Select Authorized Workspace",
+                        items,
+                        default_index=0,
+                        subtitle="Kinaiya tools and shell execution are strictly confined to this root.",
+                        allow_back=False,
+                        tty=self.tty,
+                    )
+                    chosen_val = items[selected_idx].effective_value
+                    if chosen_val == ":custom":
+                        raw_custom = self._raw_prompt("Enter custom workspace path", default_ws)
+                        if is_cancel_command(raw_custom):
+                            raise InstallError("Setup cancelled; no configuration written")
+                        if is_back_command(raw_custom, at_confirm=False):
+                            continue
+                        return str(validate_workspace_path(raw_custom or default_ws))
+                    return str(validate_workspace_path(chosen_val))
+                except MenuCancelled:
+                    raise InstallError("Setup cancelled; no configuration written") from None
+                except MenuGoBack:
+                    return ":back"
+
+        # Line mode fallback
+        c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+        c_em = PALETTE.emerald.fg_sequence(self.color_mode)
+        pointer = (
+            self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode))
+            if self.color_mode != ColorMode.NONE
+            else ">"
+        )
+        while True:
+            self.tty.write(f"\n{pointer} {c_lbl}Authorized Workspace Selection:{RESET}\n")
+            self.tty.write(f"  [1] Default workspace ({default_ws}) {c_em}(recommended){RESET}\n")
+            self.tty.write(f"  [2] Current working directory ({cwd})\n")
+            self.tty.write("  [3] Custom directory path...\n")
+            raw = self._raw_prompt("Authorized workspace [1-3] or enter path", default=default_ws)
+            cleaned = raw.strip()
+            if not cleaned or cleaned == "1" or cleaned == default_ws:
+                return str(validate_workspace_path(default_ws))
+            if cleaned == "2":
+                return str(validate_workspace_path(cwd))
+            if cleaned == "3":
+                custom_path = self._raw_prompt("Enter custom workspace path", default=default_ws)
+                if is_cancel_command(custom_path):
+                    raise InstallError("Setup cancelled; no configuration written")
+                if is_back_command(custom_path, at_confirm=False):
+                    continue
+                return str(validate_workspace_path(custom_path or default_ws))
+            if (
+                is_cancel_command(cleaned)
+                or is_back_command(cleaned, at_confirm=False)
+                or cleaned.lower() in {":quick", "quick"}
+            ):
+                return cleaned
+            return str(validate_workspace_path(cleaned))
+
+    def _prompt_data_choice(self, default_val: str) -> str:
+        default_data = default_val or str(self.layout.data)
+
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    label=f"Default private data directory ({default_data})",
+                    value=default_data,
+                    recommended=True,
+                ),
+                MenuItem(
+                    label="Custom data directory path...",
+                    value=":custom",
+                ),
+            ]
+            while True:
+                try:
+                    selected_idx = curses_radiolist(
+                        "Select Private Data Directory",
+                        items,
+                        default_index=0,
+                        subtitle="Internal storage for journals, auth tokens, and session state.",
+                        allow_back=True,
+                        tty=self.tty,
+                    )
+                    chosen_val = items[selected_idx].effective_value
+                    if chosen_val == ":custom":
+                        raw_custom = self._raw_prompt(
+                            "Enter custom private data path", default_data
+                        )
+                        if is_cancel_command(raw_custom):
+                            raise InstallError("Setup cancelled; no configuration written")
+                        if is_back_command(raw_custom, at_confirm=False):
+                            continue
+                        return str(validate_data_path(raw_custom or default_data))
+                    return str(validate_data_path(chosen_val))
+                except MenuCancelled:
+                    raise InstallError("Setup cancelled; no configuration written") from None
+                except MenuGoBack:
+                    return ":back"
+
+        # Line mode fallback
+        c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+        c_em = PALETTE.emerald.fg_sequence(self.color_mode)
+        pointer = (
+            self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode))
+            if self.color_mode != ColorMode.NONE
+            else ">"
+        )
+        while True:
+            self.tty.write(f"\n{pointer} {c_lbl}Private Data Directory Selection:{RESET}\n")
+            self.tty.write(
+                f"  [1] Default private data directory ({default_data}) {c_em}(recommended){RESET}\n"
+            )
+            self.tty.write("  [2] Custom directory path...\n")
+            raw = self._raw_prompt(
+                "Private data directory [1-2] or enter path", default=default_data
+            )
+            cleaned = raw.strip()
+            if not cleaned or cleaned == "1" or cleaned == default_data:
+                return str(validate_data_path(default_data))
+            if cleaned == "2":
+                custom_path = self._raw_prompt(
+                    "Enter custom private data path", default=default_data
+                )
+                if is_cancel_command(custom_path):
+                    raise InstallError("Setup cancelled; no configuration written")
+                if is_back_command(custom_path, at_confirm=False):
+                    continue
+                return str(validate_data_path(custom_path or default_data))
+            if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
+                return cleaned
+            return str(validate_data_path(cleaned))
+
+    def _prompt_custom_endpoint(
+        self, default_val: str, profile_id: str = "p03"
+    ) -> ProviderProfileChoice:
+        """Prompt for custom OpenAI-compatible endpoint with /v1 check (#503, #544, #545)."""
+        while True:
+            raw_url = self._raw_prompt(
+                "Custom endpoint Base URL", default=default_val or "http://localhost:11434/v1"
+            )
+            if is_cancel_command(raw_url):
+                raise InstallError("Setup cancelled; no configuration written")
+            if is_back_command(raw_url, at_confirm=False):
+                raise MenuGoBack("User requested step rewind")
+            if not raw_url:
+                raw_url = default_val or "http://localhost:11434/v1"
+            hint = check_local_v1_hint(raw_url)
+            if hint is not None:
+                self.tty.write(f"Hint: Local servers usually require /v1 suffix (e.g. {hint}).\n")
+                fix = self._raw_yn_prompt(f"Add /v1 suffix to {raw_url}?", default="yes")
+                if is_back_command(fix, at_confirm=False):
+                    continue
+                if fix.strip().lower() in {"y", "yes"}:
+                    raw_url = hint
+            break
+        is_local = is_loopback_endpoint(raw_url)
+        adapter = "meta" if not is_local else "lmstudio"
+        allow_cloud = not is_local
+        pid = profile_id if _PROFILE_ID_RE.match(profile_id) else "p03"
+        return ProviderProfileChoice(
+            profile_id=pid,
+            name="Custom OpenAI-compatible",
+            base_url=raw_url,
+            adapter_kind=adapter,
+            allow_cloud=allow_cloud,
+            credential_env=None,
+            models_path="/v1/models" if raw_url.rstrip("/").endswith("/v1") else "/models",
+        )
+
+    def _prompt_service_topology(self, default_val: str) -> str:
+        """Prompt for 3-way service topology selection (#513, #505, #517)."""
+        default_bool = default_val.strip().lower() in {"yes", "y", "both", "1"}
+        default_hint = "both" if default_bool else "no"
+
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    label="Both Agent & Converse (Reuse Agent LLM)",
+                    value="reuse",
+                    description="Autonomous Agent + Converse dialogue (reuses Agent LLM) + independent Decisions router",
+                    recommended=True,
+                ),
+                MenuItem(
+                    label="Both Agent & Converse (Configure independently)",
+                    value="yes",
+                    description="Custom models for Agent, Converse dialogue, and Decisions router",
+                ),
+                MenuItem(
+                    label="Agent only",
+                    value="no",
+                    description="Run autonomous coding Agent only; Converse and Decisions disabled",
+                ),
+                MenuItem(
+                    label="Converse only",
+                    value="converse_only",
+                    description="Run conversational voice/dialogue character with Decisions timing without Agent",
+                ),
+            ]
+            try:
+                selected_idx = curses_radiolist(
+                    "Service Topology Selection",
+                    items,
+                    default_index=0,
+                    subtitle="Kinaiya supports Both Agent & Converse (default), Agent-only, and Converse-only.",
+                    allow_back=True,
+                    tty=self.tty,
+                )
+                return items[selected_idx].effective_value
+            except MenuCancelled:
+                raise InstallError("Setup cancelled; no configuration written") from None
+            except MenuGoBack:
+                return ":back"
+
+        # Line-mode fallback
+        c_lbl = PALETTE.moonlight.fg_sequence(self.color_mode)
+        c_em = PALETTE.emerald.fg_sequence(self.color_mode)
+        pointer = (
+            self._paint("›", PALETTE.indigo.fg_sequence(self.color_mode))
+            if self.color_mode != ColorMode.NONE
+            else ">"
+        )
+        self.tty.write(f"\n{pointer} {c_lbl}Service Topology Selection:{RESET}\n")
+        self.tty.write(
+            f"  [1] Both Agent & Converse (reuse Agent LLM) {c_em}(recommended){RESET}\n"
+        )
+        self.tty.write("  [2] Both Agent & Converse (configure independently)\n")
+        self.tty.write("  [3] Agent only\n")
+        self.tty.write("  [4] Converse only\n")
+        while True:
+            raw = self._raw_prompt(
+                "Enable optional Converse text services? (y/n/reuse/1-4)",
+                default=default_hint,
+            )
+            cleaned = raw.strip().lower()
+            if not cleaned:
+                return "yes" if default_bool else "no"
+            if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
+                return cleaned
+            if cleaned in {"1", "reuse", "r"}:
+                return "reuse"
+            if cleaned in {"2", "yes", "y", "both"}:
+                return "yes"
+            if cleaned in {"3", "no", "n", "agent", "agent_only"}:
+                return "no"
+            if cleaned in {"4", "converse", "converse_only"}:
+                return "converse_only"
+            self.tty.write("Please enter y or n.\n")
+
+    def _apply_role_reuse_shortcut(self, default_val: str) -> None:
+        """Apply fast-path role reuse for Converse while requiring independent Decisions model (#505, #517)."""
+        self._record_answer("converse", "yes")
+        endpoint_raw = self.answers.get("endpoint", self.defaults["endpoint"])
+        adapter, endpoint = parse_endpoint_input(endpoint_raw)
+        model = self.answers.get("model", self.defaults["model"])
+        allow_cloud = self.answers.get("allow_cloud", self.defaults["allow_cloud"])
+        cred_env = self.answers.get("credential_env", self.defaults["credential_env"])
+
+        conv_adapter = "lmstudio" if adapter == "lmstudio" else "compatible"
+        self._record_answer("converse_adapter", conv_adapter)
+        self._record_answer("converse_endpoint", endpoint)
+        self._record_answer("converse_model", model)
+        self._record_answer("converse_allow_cloud", allow_cloud)
+        self._record_answer("converse_credential_env", cred_env)
+
+        # Decisions router model must be set independently (#517)
+        self._record_answer("decisions_adapter", "compatible")
+        self._record_answer("decisions_endpoint", endpoint)
+        self._record_answer("decisions_allow_cloud", allow_cloud)
+        self._record_answer("decisions_credential_env", cred_env)
+        dec_model = self._raw_prompt(
+            "Decisions router model name (independent model required, e.g. meta-llama/llama-3.2-3b-instruct)",
+            default="meta-llama/llama-3.2-3b-instruct",
+        )
+        if is_cancel_command(dec_model):
+            raise InstallError("Setup cancelled; no configuration written")
+        if is_back_command(dec_model, at_confirm=False):
+            raise MenuGoBack("User requested step rewind")
+        self._record_answer("decisions_model", dec_model or "meta-llama/llama-3.2-3b-instruct")
+
     def _active_steps(self) -> list[_PromptStep]:
         steps: list[_PromptStep] = []
         converse_val = self.answers.get("converse", self.defaults.get("converse", "no"))
-        converse_enabled = converse_val.strip().lower() == "yes"
+        converse_enabled = converse_val.strip().lower() in {"yes", "converse_only"}
         for step in _ALL_STEPS:
             if self.section is not None and step.section != self.section:
                 continue
@@ -382,7 +750,7 @@ class WizardNavigator:
     def _record_answer(self, key: str, value: str) -> None:
         previous = self.answers.get(key)
         self.answers[key] = value
-        if key == "converse" and value.strip().lower() != "yes":
+        if key == "converse" and value.strip().lower() not in {"yes", "converse_only"}:
             # Discard any stale Converse/Decisions answers when Converse is disabled.
             for dep in _CONVERSE_DEPENDENT_KEYS:
                 self.answers.pop(dep, None)
@@ -397,6 +765,36 @@ class WizardNavigator:
         elif key == "converse_model" and previous is not None and previous != value:
             self.answers.pop("decisions_model", None)
 
+    def _prompt_reasoning_effort(self, *, adapter_kind: str, default: str = "none") -> str:
+        """Prompt for reasoning effort level ('none', 'low', 'medium', 'high') (#502)."""
+        if adapter_kind == "lmstudio":
+            return "none"
+        if is_curses_available(self.tty):
+            items = [
+                MenuItem(
+                    "none",
+                    "none",
+                    "Standard inference without extra reasoning tokens",
+                    recommended=True,
+                ),
+                MenuItem("low", "low", "Light reasoning for quick multi-step tasks"),
+                MenuItem("medium", "medium", "Balanced reasoning effort"),
+                MenuItem("high", "high", "Deep deliberative reasoning for complex tasks"),
+            ]
+            try:
+                selected_idx = curses_radiolist(
+                    "Reasoning Effort Selection",
+                    items,
+                    default_index=0,
+                    subtitle="Select reasoning effort level for model inference.",
+                    allow_back=True,
+                    tty=self.tty,
+                )
+                return items[selected_idx].effective_value
+            except MenuCancelled:
+                raise InstallError("Setup cancelled; no configuration written") from None
+        return default
+
     def _apply_chosen_profile(
         self,
         chosen_prof: ProviderProfileChoice,
@@ -408,57 +806,179 @@ class WizardNavigator:
             raise InstallError(elig.reason)
         adapter = chosen_prof.adapter_kind
         endpoint = chosen_prof.base_url
+        is_remote = not is_loopback_endpoint(endpoint) or chosen_prof.allow_cloud
         allow_cloud = chosen_prof.allow_cloud
-        credential_env = chosen_prof.credential_env
-        if self.discover_models:
-            from services.distribution.terminal_animation import BrandedActivityIndicator
+        initial_credential_env = chosen_prof.credential_env
+        initial_api_key = chosen_prof.api_key
+        credential_env = initial_credential_env
+        active_api_key = initial_api_key
 
-            with BrandedActivityIndicator(
-                self.tty,
-                f"Discovering models for {chosen_prof.profile_id}",
-                width=term_width,
-            ) as indicator:
-                indicator.tick("GET /models")
-                disc = discover_profile_models(
+        workspace_val = self.answers.get("workspace", self.defaults["workspace"])
+        data_val = self.answers.get("data", self.defaults["data"])
+        chosen_tmp = self.replace_fn(
+            self.layout,
+            workspace=Path(workspace_val).expanduser(),
+            data=Path(data_val).expanduser(),
+        )
+        env_path = default_providers_env_path(chosen_tmp)
+
+        should_discover = bool(
+            self.discover_models
+            or is_curses_available(self.tty)
+            or (is_remote and self.profiles is None and not chosen_prof.discovered_models)
+        )
+        can_prompt_disclosure = bool(is_remote and should_discover)
+        can_prompt_local_key = bool(
+            not is_remote
+            and should_discover
+            and not initial_api_key
+            and (is_curses_available(self.tty) or self.profiles is None)
+        )
+
+        substep = (
+            "disclosure"
+            if can_prompt_disclosure
+            else ("api_key" if can_prompt_local_key else "model")
+        )
+        sel: SelectedModel | None = None
+        effort = "none"
+
+        while substep != "done":
+            if substep == "disclosure":
+                raw_cloud = self._raw_yn_prompt(
+                    "Allow disclosure of authorized content to this cloud provider?",
+                    default="yes" if allow_cloud else "no",
+                )
+                if is_back_command(raw_cloud, at_confirm=False):
+                    raise MenuGoBack("User requested step rewind")
+                allow_cloud = raw_cloud.strip().lower() in {"yes", "y", "true", "1"}
+                if allow_cloud and not initial_api_key:
+                    substep = "api_key"
+                else:
+                    credential_env = initial_credential_env
+                    active_api_key = initial_api_key
+                    substep = "model"
+                continue
+
+            if substep == "api_key":
+                existing_present = (
+                    LocalCredentialsStore(env_path).has_api_key(chosen_prof.profile_id)
+                    if env_path.exists() and not env_path.is_symlink()
+                    else False
+                )
+                key_action = prompt_masked_api_key(
+                    self.tty,
+                    profile_id=chosen_prof.profile_id,
+                    endpoint=endpoint,
+                    existing_present=existing_present,
+                    getpass_fn=self.getpass_fn,
+                    allow_bare_env_name=True,
+                )
+                if key_action.action == "back":
+                    if can_prompt_disclosure:
+                        substep = "disclosure"
+                        continue
+                    raise MenuGoBack("User requested step rewind")
+                self.key_action = key_action
+                credential_env = key_action.credential_env
+                if key_action.action == "set":
+                    active_api_key = key_action.api_key or ""
+                elif key_action.action == "keep":
+                    active_api_key = (
+                        LocalCredentialsStore(env_path).get_api_key(chosen_prof.profile_id) or ""
+                        if env_path.exists() and not env_path.is_symlink()
+                        else ""
+                    )
+                elif key_action.action == "env_ref" and credential_env:
+                    active_api_key = os.environ.get(credential_env, "")
+                else:
+                    active_api_key = ""
+                substep = "model"
+                continue
+
+            if substep == "model":
+                prof_for_discovery = replace(
                     chosen_prof,
-                    allow_cloud_disclosed=allow_cloud,
-                    opener=self.opener,
+                    allow_cloud=allow_cloud,
+                    credential_env=credential_env,
+                    api_key=active_api_key,
                 )
-                indicator.finish(
-                    status=(
-                        "pass"
-                        if (disc.status == "ok" and not disc.manual_fallback_required)
-                        else "fail"
-                    ),
-                    message=(
-                        f"{len(disc.models)} models"
-                        if (disc.status == "ok" and not disc.manual_fallback_required)
-                        else "fallback to manual entry"
-                    ),
-                )
-            sel = select_model_interactively(
-                self.tty,
-                disc,
-                profile_id=chosen_prof.profile_id,
-                role="agent",
-                adapter_kind=adapter,
-                endpoint=endpoint,
-                credential_env=credential_env,
-                allow_cloud=allow_cloud,
-                width=term_width,
-            )
-        else:
-            sel = select_model_interactively(
-                self.tty,
-                chosen_prof.discovered_models,
-                profile_id=chosen_prof.profile_id,
-                role="agent",
-                adapter_kind=adapter,
-                endpoint=endpoint,
-                credential_env=credential_env,
-                allow_cloud=allow_cloud,
-                width=term_width,
-            )
+                try:
+                    if should_discover:
+                        from services.distribution.terminal_animation import (
+                            BrandedActivityIndicator,
+                        )
+
+                        with BrandedActivityIndicator(
+                            self.tty,
+                            f"Discovering models for {prof_for_discovery.profile_id}",
+                            width=term_width,
+                        ) as indicator:
+                            indicator.tick("GET /models")
+                            disc = discover_profile_models(
+                                prof_for_discovery,
+                                allow_cloud_disclosed=allow_cloud,
+                                opener=self.opener,
+                            )
+                            indicator.finish(
+                                status=(
+                                    "pass"
+                                    if (disc.status == "ok" and not disc.manual_fallback_required)
+                                    else "fail"
+                                ),
+                                message=(
+                                    f"{len(disc.models)} models"
+                                    if (disc.status == "ok" and not disc.manual_fallback_required)
+                                    else "fallback to manual entry"
+                                ),
+                            )
+                        sel = select_model_interactively(
+                            self.tty,
+                            disc,
+                            profile_id=prof_for_discovery.profile_id,
+                            role="agent",
+                            adapter_kind=adapter,
+                            endpoint=endpoint,
+                            credential_env=credential_env,
+                            allow_cloud=allow_cloud,
+                            width=term_width,
+                        )
+                    else:
+                        sel = select_model_interactively(
+                            self.tty,
+                            prof_for_discovery.discovered_models,
+                            profile_id=prof_for_discovery.profile_id,
+                            role="agent",
+                            adapter_kind=adapter,
+                            endpoint=endpoint,
+                            credential_env=credential_env,
+                            allow_cloud=allow_cloud,
+                            width=term_width,
+                        )
+                except MenuGoBack:
+                    if (
+                        can_prompt_disclosure and allow_cloud and not initial_api_key
+                    ) or can_prompt_local_key:
+                        substep = "api_key"
+                        continue
+                    if can_prompt_disclosure:
+                        substep = "disclosure"
+                        continue
+                    raise
+                substep = "effort"
+                continue
+
+            if substep == "effort":
+                try:
+                    effort = self._prompt_reasoning_effort(adapter_kind=adapter, default="none")
+                except MenuGoBack:
+                    substep = "model"
+                    continue
+                substep = "done"
+
+        assert sel is not None
+        sel = replace(sel, reasoning_effort=effort)
+
         ep_recorded = f"{adapter}={endpoint}" if adapter not in {"lmstudio", "meta"} else endpoint
         self._record_answer("endpoint", ep_recorded)
         self._record_answer("model", sel.model_id)
@@ -512,7 +1032,6 @@ class WizardNavigator:
                 default = self._default_for(step.key)
                 if step.key in {
                     "allow_cloud",
-                    "converse",
                     "converse_allow_cloud",
                     "decisions_allow_cloud",
                 }:
@@ -523,6 +1042,31 @@ class WizardNavigator:
                         else:
                             self.tty.write("Already at the first step.\n")
                         steps = self._active_steps()
+                        continue
+                    self._record_answer(step.key, raw)
+                    steps = self._active_steps()
+                    index += 1
+                    continue
+
+                if step.key == "converse":
+                    raw = self._prompt_service_topology(default)
+                    if is_cancel_command(raw):
+                        raise InstallError("Setup cancelled; no configuration written")
+                    if is_back_command(raw, at_confirm=False):
+                        if index > 0:
+                            index -= 1
+                        else:
+                            self.tty.write("Already at the first step.\n")
+                        steps = self._active_steps()
+                        continue
+                    if raw == "reuse":
+                        try:
+                            self._apply_role_reuse_shortcut(default)
+                        except MenuGoBack:
+                            steps = self._active_steps()
+                            continue
+                        steps = self._active_steps()
+                        index += len(_CONVERSE_DEPENDENT_KEYS) + 1
                         continue
                     self._record_answer(step.key, raw)
                     steps = self._active_steps()
@@ -580,19 +1124,106 @@ class WizardNavigator:
                     if self.profiles is not None:
                         stored = load_stored_profiles(profiles=self.profiles)
                         if stored:
-                            chosen_prof = select_profile_interactively(
-                                self.tty, stored, role="agent", width=term_width
-                            )
-                            self._apply_chosen_profile(chosen_prof, term_width=term_width)
+                            try:
+                                chosen_prof = select_profile_interactively(
+                                    self.tty, stored, role="agent", width=term_width
+                                )
+                            except MenuGoBack:
+                                if index > 0:
+                                    index -= 1
+                                else:
+                                    self.tty.write("Already at the first step.\n")
+                                steps = self._active_steps()
+                                continue
+                            try:
+                                self._apply_chosen_profile(chosen_prof, term_width=term_width)
+                            except MenuGoBack:
+                                steps = self._active_steps()
+                                continue
                             steps = self._active_steps()
                             index += 4
                             continue
                     else:
-                        persisted = load_stored_profiles(env_path=env_path)
-                        if persisted:
+                        persisted = load_stored_profiles(
+                            env_path=env_path,
+                            include_starter_presets=(self.profiles is None),
+                        )
+                        if is_curses_available(self.tty):
+                            menu_items = []
+                            for p in persisted:
+                                elig = p.eligibility_for("agent")
+                                status_tag = "● Local" if not p.allow_cloud else "● Cloud"
+                                menu_items.append(
+                                    MenuItem(
+                                        label=f"{p.name} ({status_tag})",
+                                        value=p,
+                                        description=f"{p.base_url} [{p.adapter_kind}]",
+                                        recommended=(not p.allow_cloud),
+                                        disabled=(not elig.eligible),
+                                    )
+                                )
+                            menu_items.append(
+                                MenuItem(
+                                    label="Custom OpenAI-compatible endpoint (manual URL)...",
+                                    value=":custom",
+                                    description="Ollama, vLLM, llama.cpp, or remote API",
+                                )
+                            )
+                            try:
+                                selected_idx = curses_radiolist(
+                                    "Select Provider",
+                                    menu_items,
+                                    default_index=0,
+                                    subtitle="Choose a local or cloud LLM provider for the Agent.",
+                                    allow_back=True,
+                                    tty=self.tty,
+                                )
+                            except MenuCancelled:
+                                raise InstallError(
+                                    "Setup cancelled; no configuration written"
+                                ) from None
+                            except MenuGoBack:
+                                if index > 0:
+                                    index -= 1
+                                else:
+                                    self.tty.write("Already at the first step.\n")
+                                steps = self._active_steps()
+                                continue
+
+                            chosen_item = menu_items[selected_idx].effective_value
+                            if chosen_item == ":custom":
+                                completed_custom = False
+                                while True:
+                                    try:
+                                        custom_prof = self._prompt_custom_endpoint(
+                                            default, profile_id=f"p{len(persisted) + 1:02d}"
+                                        )
+                                    except MenuGoBack:
+                                        break
+                                    try:
+                                        self._apply_chosen_profile(
+                                            custom_prof, term_width=term_width
+                                        )
+                                        completed_custom = True
+                                        break
+                                    except MenuGoBack:
+                                        continue
+                                if not completed_custom:
+                                    steps = self._active_steps()
+                                    continue
+                            else:
+                                try:
+                                    self._apply_chosen_profile(chosen_item, term_width=term_width)
+                                except MenuGoBack:
+                                    steps = self._active_steps()
+                                    continue
+                            steps = self._active_steps()
+                            index += 4
+                            continue
+                        elif persisted:
                             self.tty.write(
                                 format_profile_choices(persisted, role="agent", width=term_width)
-                                + "\n"
+                                + f"  {len(persisted) + 1}. Custom OpenAI-compatible endpoint (manual URL)...\n"
                             )
                             raw_ep = self._raw_prompt(step.label, default)
                             if is_cancel_command(raw_ep):
@@ -604,8 +1235,31 @@ class WizardNavigator:
                                     self.tty.write("Already at the first step.\n")
                                 steps = self._active_steps()
                                 continue
-                            picked_prof: ProviderProfileChoice | None = None
                             token_ep = raw_ep.strip().lower()
+                            if token_ep in {str(len(persisted) + 1), ":custom", "custom"}:
+                                completed_custom = False
+                                while True:
+                                    try:
+                                        custom_prof = self._prompt_custom_endpoint(
+                                            default, profile_id=f"p{len(persisted) + 1:02d}"
+                                        )
+                                    except MenuGoBack:
+                                        break
+                                    try:
+                                        self._apply_chosen_profile(
+                                            custom_prof, term_width=term_width
+                                        )
+                                        completed_custom = True
+                                        break
+                                    except MenuGoBack:
+                                        continue
+                                if not completed_custom:
+                                    steps = self._active_steps()
+                                    continue
+                                steps = self._active_steps()
+                                index += 4
+                                continue
+                            picked_prof: ProviderProfileChoice | None = None
                             if token_ep.isdigit():
                                 p_idx = int(token_ep)
                                 if 1 <= p_idx <= len(persisted):
@@ -616,7 +1270,11 @@ class WizardNavigator:
                                         picked_prof = prof_cand
                                         break
                             if picked_prof is not None:
-                                self._apply_chosen_profile(picked_prof, term_width=term_width)
+                                try:
+                                    self._apply_chosen_profile(picked_prof, term_width=term_width)
+                                except MenuGoBack:
+                                    steps = self._active_steps()
+                                    continue
                                 steps = self._active_steps()
                                 index += 4
                                 continue
@@ -626,7 +1284,12 @@ class WizardNavigator:
                             index += 1
                             continue
 
-                raw = self._raw_prompt(step.label, default)
+                if step.key == "workspace":
+                    raw = self._prompt_workspace_choice(default)
+                elif step.key == "data":
+                    raw = self._prompt_data_choice(default)
+                else:
+                    raw = self._raw_prompt(step.label, default)
                 if is_cancel_command(raw):
                     raise InstallError("Setup cancelled; no configuration written")
                 if is_back_command(raw, at_confirm=False):
@@ -680,7 +1343,12 @@ class WizardNavigator:
             while True:
                 self.tty.write("Write configuration and private service tokens? (y/n) [n]: ")
                 self.tty.flush()
-                confirm_line = self.tty.readline()
+                try:
+                    confirm_line = self.tty.readline()
+                except (KeyboardInterrupt, EOFError):
+                    self.tty.write("\n")
+                    self.tty.flush()
+                    raise InstallError("Setup cancelled; no configuration written") from None
                 if not confirm_line:
                     raise InstallError("Setup cancelled: terminal input closed")
                 confirm_raw = confirm_line.strip()
@@ -729,7 +1397,10 @@ class WizardNavigator:
         credential_env = (
             self.answers.get("credential_env", self.defaults["credential_env"]).strip() or None
         )
-        converse = self.answers.get("converse", self.defaults["converse"]).strip().lower() == "yes"
+        converse_raw = self.answers.get("converse", self.defaults["converse"]).strip().lower()
+        is_converse_only = converse_raw == "converse_only"
+        converse = converse_raw in {"yes", "converse_only"}
+        agent_enabled = not is_converse_only
         converse_profile: dict[str, Any] | None = None
         decisions_profile: dict[str, Any] | None = None
         if converse:
@@ -798,26 +1469,39 @@ class WizardNavigator:
                 allow_cloud=allow_cloud,
                 credential_env=credential_env,
                 converse=converse,
+                agent=agent_enabled,
                 converse_profile=converse_profile,
                 decisions_profile=decisions_profile,
             )
 
         effective_agent_adapter = adapter or ("meta" if allow_cloud else "lmstudio")
-        agent_credential_env = (
-            None
-            if (
-                effective_agent_adapter == "lmstudio"
-                and self.key_action is not None
-                and self.key_action.action in {"set", "keep"}
+        if (
+            effective_agent_adapter == "lmstudio"
+            and self.key_action is not None
+            and self.key_action.action in {"set", "keep"}
+        ):
+            agent_credential_env = None
+        elif (
+            effective_agent_adapter == "meta"
+            and not credential_env
+            and self.key_action is not None
+            and self.key_action.action in {"skip", "remove"}
+        ):
+            target_pid = (
+                self.selected_agent_model.profile_id
+                if self.selected_agent_model is not None
+                else self.profile_id
             )
-            else credential_env
-        )
+            agent_credential_env = profile_credential_env(target_pid)
+        else:
+            agent_credential_env = credential_env
         setup_kwargs: dict[str, Any] = {
             "endpoint": endpoint,
             "model": model,
             "allow_cloud": allow_cloud,
             "credential_env": agent_credential_env,
             "converse": converse,
+            "agent": agent_enabled,
         }
         if adapter is not None:
             setup_kwargs["adapter"] = adapter
@@ -826,6 +1510,11 @@ class WizardNavigator:
         if decisions_profile is not None:
             setup_kwargs["decisions_profile"] = decisions_profile
         if chosen.config.exists():
+            backup_path = chosen.config.with_name(f"{chosen.config.name}.pre-setup.bak")
+            try:
+                shutil.copy2(chosen.config, backup_path)
+            except Exception:
+                pass
             setup_kwargs["allow_existing"] = True
         result = self.setup_fn(chosen, **setup_kwargs)
         env_path = default_providers_env_path(chosen)
@@ -841,7 +1530,7 @@ class WizardNavigator:
                 selected_model=model,
             )
         if self.selected_agent_model is not None and chosen.config.exists():
-            save_role_model_selection(chosen.config, self.selected_agent_model)
+            save_role_model_selection(chosen, self.selected_agent_model)
         probe_dict: dict[str, Any] = {}
         if self.check_connection:
             from services.distribution.connection_probe import run_interactive_connection_check

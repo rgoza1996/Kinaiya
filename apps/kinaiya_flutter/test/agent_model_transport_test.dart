@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/agent_model_client.dart';
 import 'package:kinaiya_flutter/api/agent_model_settings.dart';
 import 'package:kinaiya_flutter/api/client.dart';
+
 import 'agent_model_settings_test.dart';
 
 class ModelTestClient extends http.BaseClient {
@@ -286,14 +288,25 @@ void main() {
       final held = <Completer<http.StreamedResponse>>[];
       final attempts = <AgentModelAttempt<AgentModelLookup>>[];
       final waits = <Future<void>>[];
+      final clients = <ModelTestClient>[];
       final change = AgentModelChange.fromJson(changeJson());
+      addTearDown(() async {
+        for (final response in held) {
+          if (!response.isCompleted) {
+            response.complete(modelResponse(lookupJson(change.body)));
+          }
+        }
+        await Future.wait(
+          attempts.map((attempt) => attempt.settled),
+        ).timeout(const Duration(seconds: 1));
+      });
       for (var i = 0; i < 32; i++) {
         final response = Completer<http.StreamedResponse>();
         held.add(response);
-        final api = modelApi(
-          () => ModelTestClient((_) => response.future),
-          timeoutMs: 20,
-        );
+        final client = ModelTestClient((_) => response.future);
+        clients.add(client);
+        // #581 needs 32 actual sends, rather than expiry during acquisition.
+        final api = modelApi(() => client, timeoutMs: 1000);
         final attempt = api.lookup(change);
         attempts.add(attempt);
         waits.add(
@@ -301,6 +314,8 @@ void main() {
         );
       }
       await Future.wait(waits);
+      expect(attempts.every((attempt) => attempt.dispatched), isTrue);
+      expect(clients.every((client) => client.sends == 1), isTrue);
       var opened = 0;
       final replacement = modelApi(() {
         opened++;

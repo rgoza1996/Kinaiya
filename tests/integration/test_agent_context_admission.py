@@ -222,7 +222,14 @@ async def test_authority_change_during_token_count_blocks_generation(env, mutati
         return 123
 
     task = await env.start([read("unused")], count=count)
-    assert task.state == TaskState.FAILED
+    if mutation == "session_reset":
+        assert task.state == TaskState.PAUSED and "unconfirmed" in task.error
+        rec = env.agent._get(task.task_id)
+        assert rec.completion_pending and rec.completion_snapshot.state == TaskState.FAILED
+        assert rec.completion_snapshot.error
+        assert await env.agent.journal.read(task_id=task.task_id, kinds=["agent.outcome"]) == []
+    else:
+        assert task.state == TaskState.FAILED
     assert len(env.counts) == 1
     assert env.calls == []
     assert task.evidence == []

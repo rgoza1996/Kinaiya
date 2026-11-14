@@ -63,6 +63,42 @@ def _fail(code="unsupported"):
     raise DecoderError(code)
 
 
+def _float_pcm16(planes, samples, channels, planar):
+    """Canonical float32 identity conversion, independent of SIMD rounding.
+
+    Codec/construction scratch remains under the original child RLIMIT_AS.
+    This neither resamples nor changes layout, timestamps or sample counts.
+    """
+    if (
+        type(samples) is not int
+        or samples < 1
+        or type(channels) is not int
+        or channels not in (1, 2)
+        or type(planar) is not bool
+        or type(planes) is not list
+        or len(planes) != (channels if planar else 1)
+    ):
+        _fail()
+    size = samples * channels * 2
+    if size > m.MAX_MEDIA_BODY_BYTES:
+        _fail("bound")
+    views = [memoryview(plane).cast("B") for plane in planes]
+    required = samples * 4 * (1 if planar else channels)
+    if any(len(view) < required for view in views):
+        _fail()
+    output = bytearray(size)
+    for sample in range(samples):
+        for channel in range(channels):
+            plane = views[channel] if planar else views[0]
+            index = sample if planar else sample * channels + channel
+            value = struct.unpack_from("<f", plane, index * 4)[0]
+            if not math.isfinite(value):
+                _fail()
+            quantized = max(-32768, min(32767, round(value * 32768)))
+            struct.pack_into("<h", output, (sample * channels + channel) * 2, quantized)
+    return output
+
+
 def _fraction(value):
     if value is None:
         _fail()
@@ -866,8 +902,30 @@ class Decoder:
         track.anchors.append((start, end, frame.pts))
         if len(track.anchors) > self.profile.limits.wire.consumer_packets:
             _fail("bound")
+        fmt = selection.format
+        layout = "mono" if fmt.channels == 1 else "stereo"
+        if (
+            fmt.codec == "pcm_s16le"
+            and frame.sample_rate == fmt.rate
+            and frame.layout.name == layout
+            and frame.format.name in ("flt", "fltp")
+        ):
+            # The existing independent postmux oracle specifies ties-to-even.
+            # SIMD float->S16 rounding differs on ARM; canonicalize only an
+            # identity format conversion before the unchanged resampler path.
+            raw = _float_pcm16(
+                list(frame.planes), frame.samples, fmt.channels, frame.format.name == "fltp"
+            )
+            converted = self.av.AudioFrame(format="s16", layout=layout, samples=frame.samples)
+            converted.sample_rate, converted.pts, converted.time_base = (
+                frame.sample_rate,
+                frame.pts,
+                frame.time_base,
+            )
+            plane = converted.planes[0]
+            plane.update(raw + bytes(plane.buffer_size - len(raw)))
+            frame = converted
         if track.resampler is None:
-            fmt = selection.format
             track.resampler = self.av.AudioResampler(
                 format="s16" if fmt.codec == "pcm_s16le" else "s32",
                 layout="mono" if fmt.channels == 1 else "stereo",

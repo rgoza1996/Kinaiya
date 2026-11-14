@@ -352,7 +352,13 @@ def run_wizard(
         check_connection=check_connection,
         opener=opener,
     )
-    result = coordinator.run()
+    try:
+        result = coordinator.run()
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\n")
+        if hasattr(tty, "flush"):
+            tty.flush()
+        raise InstallError("Setup cancelled; no configuration written") from None
     if coordinator.used_quick or normalized_section is not None:
         return result
     return _offer_custom_api_profile(
@@ -376,6 +382,9 @@ def _offer_custom_api_profile(layout, tty, result, store_factory, read_secret):
         profile_id = profile_form.choose_or_add_profile(
             store, tty, read_secret=read_secret or profile_form.masked_input
         )
+    except (KeyboardInterrupt, EOFError):
+        tty.write("\nCancelled; no profile was saved. Setup configuration is unchanged.\n")
+        return result
     except profile_form.ProfileFormCancelled as exc:
         tty.write(f"{exc} Setup configuration is unchanged.\n")
         return result

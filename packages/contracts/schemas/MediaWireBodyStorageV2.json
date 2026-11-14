@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "wire_buffer",
+      "title": "Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "title": "MediaWireBodyStorageV2",
+  "type": "object"
+}

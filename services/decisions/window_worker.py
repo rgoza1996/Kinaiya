@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import httpx
 
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
+from packages.providers.classification_errors import classification_refusal_reason
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
     DecisionCapture,
@@ -497,6 +498,8 @@ class WindowDecisionsWorker:
                     reason = "provider_budget_refused"
                 elif "token budget" in str(exc):
                     reason = "provider_output_limit"
+                elif isinstance(exc, ProviderRefusal):
+                    reason = classification_refusal_reason(exc)
                 else:
                     reason = "provider_unavailable"
             self.last_error = reason

@@ -1,5 +1,6 @@
 {
   "additionalProperties": false,
+  "description": "Remote disclosure ceiling; grants no consent, execution or tool permission.",
   "properties": {
     "schema_version": {
       "const": "1.0",
@@ -23,6 +24,22 @@
       "default": false,
       "title": "Streaming",
       "type": "boolean"
+    },
+    "disclosure_policy": {
+      "anyOf": [
+        {
+          "enum": [
+            "public_synthetic_only",
+            "owner_authorized"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Disclosure Policy"
     }
   },
   "required": [

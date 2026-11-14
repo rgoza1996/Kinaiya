@@ -15,12 +15,28 @@ const String defaultSessionUrl = 'http://127.0.0.1:8760';
 const String defaultAgentUrl = 'http://127.0.0.1:8761';
 const String defaultConverseUrl = 'http://127.0.0.1:8762';
 const String localSignInPath = '/__kinaiya/local-signin';
+const String localRecoveryChallengePath = '/__kinaiya/recovery/challenge';
+const String localRecoverAccessPath = '/__kinaiya/recover-access';
+const String localRotateOwnerPath = '/__kinaiya/rotate-owner';
+const String hostCredentialStorageStatusPath = '/__kinaiya/storage-status';
 const String localSignInHeader = 'X-Kinaiya-Local-Handoff';
 
 const List<String> permittedWebOrigins = <String>[
   'http://localhost:8780',
   'http://127.0.0.1:8780',
 ];
+
+/// Structured actionable failure from the local host broker.
+class LocalSignInException implements Exception {
+  const LocalSignInException(this.message, {this.code, this.statusCode});
+
+  final String message;
+  final String? code;
+  final int? statusCode;
+
+  @override
+  String toString() => message;
+}
 
 /// Callback for exchanging a same-origin loopback handoff for an in-memory
 /// owner session. Never persists tokens to browser storage or disk.
@@ -36,6 +52,8 @@ class LocalSignInResult {
     this.converseUrl = defaultConverseUrl,
     this.decisionsUrl,
     this.converseEnabled = false,
+    this.ownerEpoch,
+    this.newOwnerToken,
   });
 
   factory LocalSignInResult.fromJson(Map<String, Object?> json) {
@@ -62,6 +80,8 @@ class LocalSignInResult {
         'Local sign-in response contains invalid service URLs.',
       );
     }
+    final rawEpoch = json['owner_epoch'] ?? json['ownerEpoch'];
+    final rawNewOwner = json['new_owner_token'] ?? json['newOwnerToken'];
     return LocalSignInResult(
       ownerToken: rawToken.trim(),
       sessionUrl: rawSession,
@@ -72,6 +92,10 @@ class LocalSignInResult {
           : null,
       converseEnabled:
           (json['converse_enabled'] ?? json['converseEnabled']) == true,
+      ownerEpoch: rawEpoch is int ? rawEpoch : null,
+      newOwnerToken: rawNewOwner is String && rawNewOwner.trim().isNotEmpty
+          ? rawNewOwner.trim()
+          : null,
     );
   }
 
@@ -81,6 +105,8 @@ class LocalSignInResult {
   final String converseUrl;
   final String? decisionsUrl;
   final bool converseEnabled;
+  final int? ownerEpoch;
+  final String? newOwnerToken;
 
   /// Builds a loopback-validated [ConnectionProfile] while preserving the
   /// caller's [backendProfile] disclosure setting.
@@ -111,7 +137,7 @@ Future<LocalSignInResult> exchangeLocalSignIn({
   final target =
       endpoint ?? Uri.parse('${permittedWebOrigins.last}$localSignInPath');
   if (!ConnectionProfile._isLoopback(target.host)) {
-    throw const FormatException(
+    throw const LocalSignInException(
       'Local sign-in exchange is restricted to loopback origins.',
     );
   }
@@ -128,8 +154,19 @@ Future<LocalSignInResult> exchangeLocalSignIn({
         )
         .timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) {
-      throw FormatException(
-        'Local sign-in exchange failed (${response.statusCode}).',
+      String? detail;
+      String? code;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          detail = decoded['detail']?.toString();
+          code = decoded['code']?.toString();
+        }
+      } catch (_) {}
+      throw LocalSignInException(
+        detail ?? 'Local sign-in exchange failed (${response.statusCode}).',
+        code: code,
+        statusCode: response.statusCode,
       );
     }
     final decoded = jsonDecode(response.body);
@@ -137,6 +174,220 @@ Future<LocalSignInResult> exchangeLocalSignIn({
       throw const FormatException('Local sign-in response must be a JSON map.');
     }
     return LocalSignInResult.fromJson(decoded.cast<String, Object?>());
+  } finally {
+    if (ownsClient) {
+      client.close();
+    }
+  }
+}
+
+/// Requests a single-use local recovery authorization challenge written to host storage.
+Future<Map<String, Object?>> requestRecoveryChallenge({
+  http.Client? httpClient,
+  Uri? endpoint,
+}) async {
+  final target =
+      endpoint ??
+      Uri.parse('${permittedWebOrigins.last}$localRecoveryChallengePath');
+  if (!ConnectionProfile._isLoopback(target.host)) {
+    throw const LocalSignInException(
+      'Recovery challenge is restricted to loopback origins.',
+    );
+  }
+  final client = httpClient ?? http.Client();
+  final ownsClient = httpClient == null;
+  try {
+    final response = await client
+        .post(
+          target,
+          headers: const <String, String>{
+            localSignInHeader: '1',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) {
+      String? detail;
+      String? code;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          detail = decoded['detail']?.toString();
+          code = decoded['code']?.toString();
+        }
+      } catch (_) {}
+      throw LocalSignInException(
+        detail ??
+            'Failed to request recovery challenge (${response.statusCode}).',
+        code: code,
+        statusCode: response.statusCode,
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException(
+        'Recovery challenge response must be a JSON map.',
+      );
+    }
+    return decoded.cast<String, Object?>();
+  } finally {
+    if (ownsClient) {
+      client.close();
+    }
+  }
+}
+
+/// Recovers local owner access using a verified local authorization proof.
+Future<LocalSignInResult> recoverLocalAccess({
+  required String authorizationProof,
+  http.Client? httpClient,
+  Uri? endpoint,
+}) async {
+  final target =
+      endpoint ??
+      Uri.parse('${permittedWebOrigins.last}$localRecoverAccessPath');
+  if (!ConnectionProfile._isLoopback(target.host)) {
+    throw const LocalSignInException(
+      'Access recovery is restricted to loopback origins.',
+    );
+  }
+  final client = httpClient ?? http.Client();
+  final ownsClient = httpClient == null;
+  try {
+    final response = await client
+        .post(
+          target,
+          headers: const <String, String>{
+            localSignInHeader: '1',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(<String, Object?>{
+            'authorization_proof': authorizationProof,
+          }),
+        )
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) {
+      String? detail;
+      String? code;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          detail = decoded['detail']?.toString();
+          code = decoded['code']?.toString();
+        }
+      } catch (_) {}
+      throw LocalSignInException(
+        detail ?? 'Local access recovery failed (${response.statusCode}).',
+        code: code,
+        statusCode: response.statusCode,
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException(
+        'Access recovery response must be a JSON map.',
+      );
+    }
+    return LocalSignInResult.fromJson(decoded.cast<String, Object?>());
+  } finally {
+    if (ownsClient) {
+      client.close();
+    }
+  }
+}
+
+/// Atomically rotates the owner credential and returns new session/owner authority.
+Future<LocalSignInResult> rotateOwnerCredential({
+  required String authorizationProof,
+  bool returnExportedToken = true,
+  http.Client? httpClient,
+  Uri? endpoint,
+}) async {
+  final target =
+      endpoint ?? Uri.parse('${permittedWebOrigins.last}$localRotateOwnerPath');
+  if (!ConnectionProfile._isLoopback(target.host)) {
+    throw const LocalSignInException(
+      'Credential rotation is restricted to loopback origins.',
+    );
+  }
+  final client = httpClient ?? http.Client();
+  final ownsClient = httpClient == null;
+  try {
+    final response = await client
+        .post(
+          target,
+          headers: const <String, String>{
+            localSignInHeader: '1',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(<String, Object?>{
+            'authorization_proof': authorizationProof,
+            'confirm': true,
+            'return_exported_token': returnExportedToken,
+          }),
+        )
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) {
+      String? detail;
+      String? code;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          detail = decoded['detail']?.toString();
+          code = decoded['code']?.toString();
+        }
+      } catch (_) {}
+      throw LocalSignInException(
+        detail ?? 'Credential rotation failed (${response.statusCode}).',
+        code: code,
+        statusCode: response.statusCode,
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException(
+        'Credential rotation response must be a JSON map.',
+      );
+    }
+    return LocalSignInResult.fromJson(decoded.cast<String, Object?>());
+  } finally {
+    if (ownsClient) {
+      client.close();
+    }
+  }
+}
+
+/// Checks private credential storage health on the local host.
+Future<Map<String, Object?>> checkStorageStatus({
+  http.Client? httpClient,
+  Uri? endpoint,
+}) async {
+  final target =
+      endpoint ??
+      Uri.parse('${permittedWebOrigins.last}$hostCredentialStorageStatusPath');
+  if (!ConnectionProfile._isLoopback(target.host)) {
+    throw const LocalSignInException(
+      'Storage status check is restricted to loopback origins.',
+    );
+  }
+  final client = httpClient ?? http.Client();
+  final ownsClient = httpClient == null;
+  try {
+    final response = await client
+        .get(
+          target,
+          headers: const <String, String>{'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 5));
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      throw const FormatException(
+        'Storage status response must be a JSON map.',
+      );
+    }
+    return decoded.cast<String, Object?>();
   } finally {
     if (ownsClient) {
       client.close();

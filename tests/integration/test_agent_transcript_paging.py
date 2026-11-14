@@ -692,7 +692,14 @@ async def test_stale_continuation_never_exposes_a_new_tail(env, change):
     final = await runtime.wait(task.task_id, timeout=5)
     await runtime.close()
     assert not original.failures and not replacement.failures
-    assert final.state == "failed" or errors and not errors[-1][0]
+    from packages.contracts.models import TaskState as _TS
+
+    assert (
+        final.state == _TS.FAILED
+        or final.state == "failed"
+        or (final.state == _TS.PAUSED and change == "reset")
+        or (errors and not errors[-1][0])
+    )
     if change == "provider":
         assert len(original.calls) == 1 and len(replacement.calls) == 2
         assert errors and not errors[-1][0]

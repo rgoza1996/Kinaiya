@@ -19,12 +19,12 @@ export PATH="$HOME/.local/bin:$PATH"
 # 2. Configure (the bootstrap normally launches this wizard for you):
 kinaiya setup
 
-# 3. Start the loopback host (Session + Agent; Converse/Decisions only if enabled):
-kinaiya serve host
+# 3. Start the loopback host and matching web UI in one command:
+kinaiya start         # launches loopback services, matching web UI (127.0.0.1:8780), and opens browser with automatic sign-in
 
-# 4. In a second terminal: export the owner sign-in file, then serve the web UI.
-kinaiya owner-login   # writes data/owner-login.txt with mode 0600; token is not printed
-kinaiya web           # http://127.0.0.1:8780
+# Or independently in separate terminals:
+kinaiya serve host    # Session + Agent (Converse/Decisions only if enabled)
+kinaiya web           # http://127.0.0.1:8780 with automatic local launch handoff
 ```
 
 - **Location.** The default layout is described in [Locations and PATH](#locations-and-path).
@@ -41,11 +41,22 @@ kinaiya web           # http://127.0.0.1:8780
   `provider_connection: not_checked`; it does not contact the provider. Your first
   real request is the first live inference. *Planned:* an explicit bounded
   connection check (#391) and `kinaiya doctor` (#392).
-- **Owner credentials.** Internal service tokens in `data/service-tokens.json`
-  (mode 0600) are managed by Kinaiya; do not edit or share them. `owner-login`
-  exports only the owner credential for the local web UI. *Planned:* automatic
-  one-time local sign-in (#393, #396), owner-credential rotation (#394), and a
-  single `kinaiya start` command (#395).
+- **Owner credentials and GUI access.** Internal service tokens in `data/service-tokens.json`
+  (mode 0600) are managed by Kinaiya; do not edit or share them.
+  - **Automatic local sign-in:** Launching via `kinaiya start` or `kinaiya web`
+    automatically exchanges a single-use loopback launch handoff for a scoped owner
+    session (`kny_sess_...`) in memory, without requiring manual token entry or terminal
+    commands (#393, #396, #492).
+  - **Access recovery:** When automatic sign-in cannot complete (e.g. handoff expired or
+    interrupted), the GUI provides **Recover access** to restore the session using a local
+    authorization proof (such as your private credential file `service-tokens.json` or a
+    local challenge file) without rotating the underlying credential (#492).
+  - **Credential rotation:** For potentially compromised credentials, the GUI and CLI
+    (`kinaiya auth rotate-owner`) support atomic owner credential replacement,
+    invalidating prior credentials, active owner sessions, and outstanding handoffs (#394, #492).
+  - **Import / export:** The GUI supports loading an exported owner file (`owner-login.txt`)
+    or `service-tokens.json`, and exporting an in-memory owner credential to a private file
+    via browser download. CLI export remains available via `kinaiya owner-login` (#395).
 
 ## Candidate baseline and prerequisites
 
@@ -273,16 +284,23 @@ has not been established by this change; owner artwork review remains a gate.
 ## Owner web client
 
 ```sh
+kinaiya start        # launches host services and matching web UI with automatic local sign-in
 kinaiya web          # matching release's prebuilt assets, 127.0.0.1:8780 only
 kinaiya owner-login  # exports owner sign-in to a new mode-0600 local file
+kinaiya auth rotate-owner  # replaces owner credential, invalidating prior sessions and handoffs
 ```
 
-The server exposes only the embedded compiled web root, never source, directory
-listings, credentials or logs containing request URLs. Enter the configured
-loopback Session/Agent host endpoints in the owner UI and sign in using the
-private owner credential file. Do not give this credential to companions or
-mobile clients. General companion pairing/remote deployment is not implemented
-by this installer; do not expose the loopback servers on a public interface.
+The web server exposes only the embedded compiled web root, never source, directory
+listings, credentials, or logs containing request URLs. On first launch, same-origin
+loopback requests automatically exchange a single-use handoff for a scoped owner session
+in memory. If the handoff window expires or access is interrupted, the GUI provides
+**Recover access** to restore the session using a local authorization proof (such as
+selecting `service-tokens.json` or generating a local challenge). For potentially compromised
+credentials, **Replace owner credential** in the GUI or `kinaiya auth rotate-owner` in the CLI
+atomically rotates the credential, increments the epoch, and invalidates all existing sessions.
+Do not give owner credentials to companions or mobile clients. General companion pairing
+and remote deployment require separate explicit authorization; do not expose loopback servers
+on a public interface.
 
 If the matching release lacks prebuilt web files, `kinaiya web` refuses without
 downloading Flutter. Explicit developer alternative: install a reviewed Flutter
@@ -347,7 +365,9 @@ None of them requires editing JSON or `.env` files by hand.
 | **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |
 | **Missing web assets** (`kinaiya web` refuses) | The matching release has no prebuilt UI. Install a release that includes it (`kinaiya update --plan`, then `kinaiya update --yes`), or follow the developer path in [Owner web client](#owner-web-client) in a separate checkout. Kinaiya never downloads Flutter for you. |
 | **Interrupted install or update** | Stop managed services, then run `kinaiya recover --yes`. It reconciles the pending transaction without deleting the active generation or data. If a release is broken, `kinaiya rollback --generation <id> --yes` restores retained code/runtime only. |
-| **Lost owner sign-in file** | Run `kinaiya owner-login --output <new-path>`. It creates a new 0600 file and refuses to overwrite an existing one; internal service tokens are unchanged. Delete stale exports you no longer need. |
+| **Lost access / expired handoff** | In the GUI, click **Recover access** and provide local authorization (e.g. select `service-tokens.json` from your data directory or generate a local challenge) to restore an authenticated session without rotating credentials. Or via CLI: `kinaiya owner-login --output <new-path>` to export a new 0600 file. |
+| **Potentially compromised credential** | In the GUI, click **Replace owner credential** on the host card, review the effects, and confirm. Or via CLI: `kinaiya auth rotate-owner`. Both invalidate previous credentials, existing owner sessions, and outstanding handoffs. |
+| **Corrupt or missing credential storage** | Setup and recovery refuse to silently reinitialize missing or corrupt private storage. Preserve existing files for recovery and check filesystem permissions (`chmod 0700` on data directory, `chmod 0600` on `service-tokens.json`), or run `kinaiya setup` / restore a backup. |
 
 Rerunning `install.sh` or `kinaiya setup` on an existing installation preserves
 existing configuration and refuses silent reinitialization.

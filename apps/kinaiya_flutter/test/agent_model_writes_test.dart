@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/agent_model_client.dart';
 import 'package:kinaiya_flutter/api/agent_model_settings.dart';
 import 'package:kinaiya_flutter/state/agent_model_writes.dart';
+
 import 'agent_model_settings_test.dart';
 import 'agent_model_transport_test.dart'
     show ModelTestClient, modelApi, modelResponse, sentBody;
@@ -145,7 +147,7 @@ void main() {
         });
         clients.add(client);
         return client;
-      }, timeoutMs: 20);
+      }, timeoutMs: 1000); // Healthy same-backend lookups must dispatch (#581).
       final writes = AgentModelWrites(
         displayDeadline: const Duration(milliseconds: 5),
       );
@@ -154,7 +156,23 @@ void main() {
         authority(),
         AgentModelChange.fromJson(changeJson()),
       )!;
+      addTearDown(() async {
+        if (!first.isCompleted) {
+          first.complete(modelResponse(receiptJson(op.request.body)));
+        }
+        final deadline = Stopwatch()..start();
+        while ((op.mutationOwners != 0 || op.lookupOwners != 0) &&
+            deadline.elapsed < const Duration(seconds: 1)) {
+          await Future<void>.delayed(const Duration(milliseconds: 1));
+        }
+        expect(op.mutationOwners, 0);
+        expect(op.lookupOwners, 0);
+        await api.close();
+        writes.dispose();
+      });
       await writes.retry(op, api, authority());
+      expect(sends, 1);
+      expect(op.mutationOwners, 1);
       expect(op.uncertain, isTrue);
       await writes.retry(op, api, authority());
       expect(op.uncertain, isTrue);
@@ -172,8 +190,6 @@ void main() {
       first.complete(modelResponse(receiptJson(op.request.body)));
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(clients.every((client) => client.closes == 1), isTrue);
-      await api.close();
-      writes.dispose();
     },
   );
 

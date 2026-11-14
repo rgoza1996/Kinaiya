@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'agent_operating_mode_panel.dart';
 
 import '../api/client.dart';

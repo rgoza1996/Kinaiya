@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/agent_control.dart';
 import 'package:kinaiya_flutter/api/agent_control_client.dart';
 import 'package:kinaiya_flutter/state/agent_mode_writes.dart';
+
 import 'agent_control_test.dart';
 import 'agent_control_transport_test.dart' show controlApi;
 import 'agent_model_transport_test.dart'
@@ -72,15 +74,17 @@ void main() {
         displayDeadline: const Duration(milliseconds: 1),
       );
       final held = Completer<http.StreamedResponse>();
-      final api = controlApi(
-        () => ModelTestClient((_) => held.future),
-        timeoutMs: 20,
-      );
+      // This scope/recovery control needs an actual sent request. A 20 ms
+      // acquisition budget could expire before send on a loaded runner (#579).
+      // The transport suite separately verifies refusal of late acquisition.
+      final client = ModelTestClient((_) => held.future);
+      final api = controlApi(() => client);
       final scope = writes.open(api, controlState())!;
       scope.selection = AgentMode.off;
       final operation = writes.begin(scope, api, scopedModeRequest(scope))!;
       scope.selection = AgentMode.autonomous;
       await writes.retry(operation, api, scope.snapshot);
+      expect(client.sends, 1);
       expect(operation.uncertain, isTrue);
       expect(operation.mutationOwners, 1);
       await api.close();
@@ -291,12 +295,25 @@ void main() {
                 ? held.future
                 : modelResponse({}, status: status);
           }),
-          timeoutMs: 15,
+          // This state/fence control includes healthy lookups (#581).
+          timeoutMs: 1000,
         );
         final scope = writes.open(api, controlState())!;
         scope.selection = AgentMode.off;
         final operation = writes.begin(scope, api, scopedModeRequest(scope))!;
+        addTearDown(() async {
+          if (!held.isCompleted) {
+            held.complete(
+              modelResponse(modeReceiptJson(operation.request.body)),
+            );
+          }
+          await modeOwners(operation, 0, 0);
+          await api.close();
+          writes.dispose();
+        });
         await writes.retry(operation, api, scope.snapshot);
+        expect(mutations, 1);
+        expect(operation.mutationOwners, 1);
         await writes.retry(operation, api, scope.snapshot);
         await writes.lookup(
           operation,
@@ -320,8 +337,6 @@ void main() {
         held.complete(modelResponse(modeReceiptJson(operation.request.body)));
         await modeOwners(operation, 0, 0);
         expect(scope.notice, contains('permanently fenced'));
-        await api.close();
-        writes.dispose();
       }
     },
   );

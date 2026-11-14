@@ -59,6 +59,14 @@ owned descriptors to Bubblewrap FD mounts, retaining them until real spawn
 settles. A late child remains owned until actual exit. Root inspection and
 request preparation do not run a worker, probe a provider or qualify isolation.
 
+Pinned mount destinations use the same string representation in native binding
+preparation and Bubblewrap argument construction. In particular, the managed
+root is recognized as `/workspace` and mounted from its retained descriptor;
+an absent root binding still refuses instead of reopening a host pathname.
+The managed shell regressions exercise real workspace ownership, execution
+settings and scoped permissions together. Public HTTPS qualification is an
+explicit opt-in and makes no provider or task-understanding claim.
+
 ## Captured provenance and compatibility
 
 New native tasks and tool records carry a pathless `WorkspacePin`: the stable
