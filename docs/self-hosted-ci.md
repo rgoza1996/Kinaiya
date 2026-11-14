@@ -134,6 +134,13 @@ script changes and restarts only the dedicated CI unit. The service umask stays
 The Python/Dart live Session integration runs with the x64 Flutter job and its
 actual SDK; Python-only jobs report that SDK-dependent case skipped.
 
+Whistle's pinned syscall fence currently supports Linux x86_64 only. Its real
+physical-finalization fixture uses the same existing architecture availability
+gate as the original managed-Whistle tier; Dell still executes those assertions.
+ARM core/provider/storage tests run normally. The actual ARM multitrack PCM
+byte-parity failure remains tracked in #575; it is neither skipped nor assigned
+a numerical tolerance to conceal a failed qualification.
+
 ## Operation, logging and updates
 
 Use the existing Tailscale identities, `ubuntu@oracle-vps` and `dell@server`,
