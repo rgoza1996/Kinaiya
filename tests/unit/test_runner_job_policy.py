@@ -50,7 +50,8 @@ def test_trusted_main_or_exact_reviewed_dispatch_is_admitted(event_name, ref):
 
 
 @pytest.mark.parametrize(
-    "event_name", ["pull_request", "pull_request_target", "workflow_run", "issue_comment", "schedule"]
+    "event_name",
+    ["pull_request", "pull_request_target", "workflow_run", "issue_comment", "schedule"],
 )
 def test_pr_and_indirect_events_are_refused_even_with_main_sha_and_owner_actor(event_name):
     context, event = _case(event_name)

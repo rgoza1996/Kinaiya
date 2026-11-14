@@ -21,7 +21,7 @@ test "$(df --output=avail -B1 "$(dirname "$ci_root")" | tail -1)" -gt 8000000000
 useradd --system --user-group --home-dir "$ci_root/home" --shell /usr/sbin/nologin kinaiya-ci
 install -d -m 0755 -o root -g root "$ci_root"
 install -d -m 0700 -o kinaiya-ci -g kinaiya-ci "$ci_root/home" "$ci_root/runner"
-install -d -m 0700 -o kinaiya-ci -g kinaiya-ci "$ci_root/home/tmp" "$ci_root/home/.local/bin"
+install -d -m 0700 -o kinaiya-ci -g kinaiya-ci "$ci_root/home/tmp" "$ci_root/home/.local" "$ci_root/home/.local/bin"
 install -d -m 0755 -o root -g root /etc/kinaiya-ci
 install -m 0644 -o root -g root "$source_dir/runner_job_policy.py" /etc/kinaiya-ci/runner_job_policy.py
 cat > /etc/kinaiya-ci/policy.json <<'JSON'
@@ -87,16 +87,17 @@ IOWeight=20
 OOMPolicy=stop
 NoNewPrivileges=yes
 CapabilityBoundingSet=
-RestrictSUIDSGID=yes
+# NoNewPrivileges already prevents set-ID escalation. RestrictSUIDSGID blocks
+# openat2, which breaks Ubuntu 26.04's tar action-archive extraction.
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
+# Do not mask /proc subtrees: that prevents nested unprivileged bubblewrap from
+# mounting its own proc filesystem. The account has no kernel-write privilege.
 ProtectControlGroups=yes
-ProtectHostname=yes
+# ProtectHostname also masks /proc/sys/kernel/{hostname,domainname}, which
+# prevents a nested unprivileged proc mount. No host hostname privilege exists.
 LockPersonality=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 TemporaryFileSystem=/srv:ro

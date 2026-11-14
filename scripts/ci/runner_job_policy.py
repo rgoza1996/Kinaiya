@@ -74,7 +74,9 @@ def main():
         accepted = authorize(os.environ, event, policy)
     except (OSError, ValueError, KeyError, TypeError):
         accepted = False
-    print("Host policy: trusted job admitted" if accepted else "Host policy: job refused", flush=True)
+    print(
+        "Host policy: trusted job admitted" if accepted else "Host policy: job refused", flush=True
+    )
     if not accepted:
         # Stop the worker itself, so neither pre/post actions nor always() steps
         # can run after refusal. Limit the signal to our original runner parent.
