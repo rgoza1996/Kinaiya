@@ -34,9 +34,10 @@ def _uncertain(error, provider):
 
 
 class NativeDecisionAttempt:
-    def __init__(self, journal, source, *, expected_attempts):
+    def __init__(self, journal, source, *, expected_attempts, max_attempts=None):
         self.journal, self.source = journal, DecisionsSource.of(source)
         self.expected_attempts = expected_attempts
+        self.max_attempts = max_attempts
         self.owner, self.owner_id = asyncio.current_task(), uuid4().hex
         self.attempt_id = uuid4().hex
         self.request = self.receipt = self.completion = None
@@ -87,6 +88,7 @@ class NativeDecisionAttempt:
                 attempt_id=self.attempt_id,
                 owner_id=self.owner_id,
                 expected_attempts=self.expected_attempts,
+                max_attempts=self.max_attempts,
                 provider=provider.info.model_dump(mode="json"),
                 model_pin=capture.model_pin,
                 request_format=request_format,

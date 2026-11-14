@@ -61,6 +61,20 @@
           "title": "Expected Attempts",
           "type": "integer"
         },
+        "max_attempts": {
+          "anyOf": [
+            {
+              "maximum": 16,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Attempts"
+        },
         "provider": {
           "$ref": "#/$defs/DecisionsAttemptProvider"
         },

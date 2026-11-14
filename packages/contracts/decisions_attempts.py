@@ -60,6 +60,7 @@ class DecisionsAttemptAdmit(DecisionsAttemptLookup):
     attempt_id: str = Field(min_length=32, max_length=32, pattern=r"^[a-f0-9]{32}$")
     owner_id: str = Field(min_length=32, max_length=32, pattern=r"^[a-f0-9]{32}$")
     expected_attempts: int = Field(ge=0, le=MAX_ATTEMPTS)
+    max_attempts: int | None = Field(default=None, ge=1, le=MAX_ATTEMPTS)
     provider: DecisionsAttemptProvider
     model_pin: DecisionsModelPin | None
     request_format: Literal[

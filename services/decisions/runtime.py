@@ -10,6 +10,9 @@ from types import SimpleNamespace
 
 import httpx
 
+from packages.contracts.decisions_attempts import (
+    MAX_ATTEMPTS as MAX_NATIVE_ATTEMPTS,
+)
 from packages.contracts.decisions_attempts import DecisionsAttemptLookup, DecisionsSource
 from packages.contracts.models import (
     AppendRequest,
@@ -371,7 +374,7 @@ class DecisionsWorker:
         window_turns=12,
         enabled=True,
         model_settings=None,
-        max_attempts=MAX_ATTEMPTS,
+        max_attempts=None,
         native_media_owner=None,
     ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
@@ -379,7 +382,11 @@ class DecisionsWorker:
         self.consumer = "decisions-v1"
         self.model_settings = model_settings
         self.native_media_owner = native_media_owner
-        self.max_attempts = max(1, int(max_attempts))
+        if max_attempts is not None and (
+            type(max_attempts) is not int or not 1 <= max_attempts <= MAX_NATIVE_ATTEMPTS
+        ):
+            raise ValueError("Worker max_attempts must be an integer from 1 to 16 or None")
+        self.max_attempts = max_attempts
         self.last_error = None
         self.running = False
         self._pending_refusals = {}
@@ -700,7 +707,9 @@ class DecisionsWorker:
         model_pin=None,
         current=None,
     ):
-        admission = NativeDecisionAttempt(self.journal, source, expected_attempts=attempt - 1)
+        admission = NativeDecisionAttempt(
+            self.journal, source, expected_attempts=attempt - 1, max_attempts=self.max_attempts
+        )
         with owned_http_stream_cleanup():
             async with decision_attempt(
                 self.journal,
@@ -835,7 +844,8 @@ class DecisionsWorker:
                             return None
                     else:
                         prior_attempts = persisted.prior_attempts
-                        if prior_attempts >= persisted.limit:
+                        limit = min(persisted.limit, self.max_attempts or persisted.limit)
+                        if prior_attempts >= limit:
                             await self._append_refusal(source, "provider_failed", "ProviderError")
                             return None
                         scoped_context = [await self._scoped_source(entry) for entry in context]
@@ -869,7 +879,7 @@ class DecisionsWorker:
                             return None
                         except Exception as exc:
                             is_budget_error = _is_budget_error(exc)
-                            if is_budget_error or attempt >= persisted.limit:
+                            if is_budget_error or attempt >= limit:
                                 await self._append_refusal(
                                     source,
                                     "token_budget_exceeded"

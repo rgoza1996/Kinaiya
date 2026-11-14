@@ -661,3 +661,99 @@ async def test_suppressed_provider_cancellation_cannot_turn_into_a_usable_result
             assert (await state_of(make_client(), source)).state == "uncertain"
         finally:
             await provider.close()
+
+
+@pytest.mark.parametrize("http", [False, True])
+async def test_explicit_worker_limit_is_frozen_before_lost_refusal_publication(tmp_path, http):
+    async with session_http_env(tmp_path) as (store, session, _app, make_client):
+        source = append_user_source(store, session, idem="explicit-worker-cap")
+        entered = []
+
+        def fail(request):
+            entered.append(request.content)
+            return httpx.Response(503, text="synthetic failure")
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(fail)
+        )
+        original = make_client() if http else LocalJournal(store, "decisions")
+        original_append = original.append
+
+        async def lose_refusal(request):
+            if request.kind == "routing.classification_refused":
+                raise OSError("synthetic crash before terminal publication")
+            return await original_append(request)
+
+        original.append = lose_refusal
+        try:
+            worker = DecisionsWorker(
+                original, DummyAgent(), ModelClassifier(provider), max_attempts=1
+            )
+            with pytest.raises(OSError):
+                await worker.process(source)
+            recovered = make_client() if http else LocalJournal(store, "decisions")
+            before = await state_of(recovered, source)
+            assert (before.max_attempts, before.charged_attempts, before.state) == (
+                1,
+                1,
+                "exhausted",
+            )
+            assert before.last_attempt.admission.max_attempts == 1
+            # Neither the default nor a larger explicit worker limit can reset it.
+            for limit in (None, 16):
+                replacement = DecisionsWorker(
+                    recovered, DummyAgent(), ModelClassifier(provider), max_attempts=limit
+                )
+                await replacement.process(source)
+            assert len(entered) == 1
+            assert len(store.read(kinds=["routing.classification_refused"])) == 1
+        finally:
+            await provider.close()
+
+
+async def test_worker_proposal_cannot_enlarge_native_policy(tmp_path):
+    async with session_http_env(tmp_path) as (store, session, _app, make_client):
+        source = append_user_source(store, session, idem="larger-worker-proposal")
+        entered = []
+
+        def fail(request):
+            entered.append(request.content)
+            return httpx.Response(503, text="synthetic failure")
+
+        provider = CompatibleTextProvider(
+            "http://localhost/v1", "m", transport=httpx.MockTransport(fail)
+        )
+        try:
+            with pytest.raises(ProviderError):
+                await DecisionsWorker(
+                    make_client(), DummyAgent(), ModelClassifier(provider), max_attempts=16
+                ).process(source)
+            await DecisionsWorker(
+                make_client(), DummyAgent(), ModelClassifier(provider), max_attempts=16
+            ).process(source)
+            state = await state_of(make_client(), source)
+            assert (state.max_attempts, state.charged_attempts, state.state) == (2, 2, "exhausted")
+            assert len(entered) == 2
+        finally:
+            await provider.close()
+
+
+async def test_later_lower_proposal_refuses_without_changing_frozen_native_allowance(tmp_path):
+    async with session_http_env(tmp_path) as (store, session, _app, make_client):
+        source = append_user_source(store, session, idem="later-lower-proposal")
+        client = make_client()
+        first = await admit_native(client, source)
+        await finish_native(client, first, status="error")
+        lower = first.admission.model_copy(
+            update={
+                "expected_attempts": 1,
+                "max_attempts": 1,
+                "attempt_id": uuid4().hex,
+                "owner_id": uuid4().hex,
+            }
+        )
+        with pytest.raises(httpx.HTTPStatusError) as error:
+            await client.decisions_attempt_admit(lower)
+        assert error.value.response.status_code == 409
+        state = await state_of(client, source)
+        assert (state.max_attempts, state.charged_attempts) == (2, 1)

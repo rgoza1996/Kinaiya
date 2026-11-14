@@ -160,13 +160,20 @@ class DecisionsAttemptStore:
                 raise DecisionsAttemptConflict("Decisions attempt cannot be admitted")
             if state.charged_attempts >= state.max_attempts:
                 raise DecisionsAttemptConflict("Decisions attempts exhausted")
+            if request.max_attempts is not None and state.charged_attempts >= request.max_attempts:
+                raise DecisionsAttemptConflict(
+                    "Decisions caller's lower attempt bound is exhausted"
+                )
+            limit = state.max_attempts
+            if state.state == "known_absent" and request.max_attempts is not None:
+                limit = min(limit, request.max_attempts)
             count = state.charged_attempts + 1
             result = DecisionsAttempt(
                 admission=request, admission_sha256=fingerprint, attempt=count, completion=None
             )
             db.execute(
                 "INSERT INTO decisions_attempt_sources VALUES(?,?,?) ON CONFLICT(source_event_id) DO UPDATE SET charged_attempts=excluded.charged_attempts",
-                (source.event_id, state.max_attempts, count),
+                (source.event_id, limit, count),
             )
             db.execute(
                 "INSERT INTO decisions_attempts VALUES(?,?,?,?,NULL,?)",

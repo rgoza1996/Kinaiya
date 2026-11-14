@@ -11,7 +11,11 @@ Live-window classification retains its separate existing contract.
 `decisions_max_attempts` is trusted Session startup configuration, an integer
 from 1 to 16, default **2**, including the first attempt. This preserves the
 existing default retry allowance. Session freezes the configured value at the
-first native reservation for each exact finalized source event. Every accepted
+first native reservation for each exact finalized source event. An explicit
+legacy `DecisionsWorker(max_attempts=N)` limit can only lower this first
+reservation's allowance; Session freezes the minimum of that proposal and its
+startup policy. Default workers use the native setting. A later worker limit
+can stop that worker earlier but cannot change the frozen native policy. Every accepted
 reservation remains charged, including lost acknowledgements, cancellations,
 timeouts and unknown provider outcomes. New UUIDs, different selected models,
 worker replacement and Session restart cannot enlarge that source's allowance.
@@ -57,7 +61,8 @@ The original response acquisition/read/sole close remain enrolled after timeout.
   absence; the worker represents the unknown attempt count as null.
 - `/v1/decisions/attempts/admit`: `DecisionsAttemptAdmit` -> `DecisionsAttempt`.
   Immutable identity contains the original task owner/attempt IDs, expected
-  aggregate count, provider/model/pin/protocol, request-body and transport-binding
+  aggregate count, optional lowering-only `max_attempts` proposal,
+  provider/model/pin/protocol, request-body and transport-binding
   SHA-256, and all prompt disclosure sources. A SQLite `BEGIN IMMEDIATE`
   transaction rechecks native provenance, current source revision, session/epoch
   and the complete sticky disclosure floors, then exclusively reserves the next
