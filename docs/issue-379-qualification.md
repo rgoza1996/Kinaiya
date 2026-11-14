@@ -80,9 +80,7 @@ passing smoke, protocol double or earlier source cut is not a final native
 qualification. Preserve failures and report passed/skipped/failed separately.
 
 Manual media qualification defaults to Python 3.12 and can explicitly select
-another supported version. The complete and focused Python jobs emit a thread
-stack after a test has run for 60 seconds; this diagnostic neither stops the
-test nor changes an application deadline.
+another supported version.
 
 Issue #585 captured a real CPython 3.11 GIL/SQLite-mutex deadlock in the source
 fence test's trace-observer teardown. Installing or removing that observer now
