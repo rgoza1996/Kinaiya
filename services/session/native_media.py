@@ -805,7 +805,11 @@ class NativeBufferedMediaOwner:
         if a.fenced.is_set():
             return
         a.fenced.set()
-        if a.worker is not None and not a.worker.done():
+        if (
+            a.worker is not None
+            and not a.worker.done()
+            and a.worker.cancelling() <= a.cancel_baseline
+        ):
             a.worker.cancel()
 
     async def _read_packet(self, a):
@@ -1038,9 +1042,19 @@ class NativeBufferedMediaOwner:
             a.publication_finished = True
             a.staged = a.prepared = None
             if a.reader is not None:
-                try:
-                    await self.session_owner.run_native(a.reader.close)
+
+                def close_original():
+                    a.reader.close()
+                    # Retain the actual successful original close before a
+                    # cancelled thread waiter can discard its acknowledgment.
                     a.reader_closed = True
+
+                try:
+                    await self.session_owner.run_native(close_original)
+                except asyncio.CancelledError:
+                    if not a.reader_closed:
+                        a.unknown = True
+                    raise
                 except BaseException:
                     a.unknown = True
                     raise
