@@ -3,12 +3,38 @@
 import base64
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
 from packages.contracts import media as m
 from packages.contracts.converse_models import RoleModelPin
 from packages.contracts.decisions_models import DecisionsModelPin, DecisionsModelSelection
+
+
+def test_exact_additive_exchange_schema_bytes_are_pinned_separately_from_legacy():
+    root = Path(__file__).resolve().parents[2] / "packages" / "contracts" / "schemas"
+    names = (
+        "CanonicalModelPinV2",
+        "WireBodyStorageV2",
+        "LocalBodyOwnerV2",
+        "LocalExchangeOwnerV2",
+        "LocalBodyCloseV2",
+        "LocalCloseObservationV2",
+        "LocalNoRemoteV2",
+        "LocalExchangeCleanupV2",
+        "LocalExchangeRegistrationV2",
+        "LocalExchangeBundleV2",
+    )
+    paths = sorted(
+        root / f"Media{prefix}{name}.json" for prefix in ("", "Receipt", "Found") for name in names
+    )
+    raw = b"".join(path.name.encode() + b"\0" + path.read_bytes() + b"\0" for path in paths)
+    assert len(paths) == 30
+    assert (
+        hashlib.sha256(raw).hexdigest()
+        == "f4e0ab96b801ddfee4c53553ec1699ebb2a3a959e0060e7815d298c33b5315dd"
+    )
 
 
 def _pin(role):

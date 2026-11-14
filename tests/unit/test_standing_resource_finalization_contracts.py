@@ -502,7 +502,28 @@ def schema_pin():
         )
     }
     additive |= {"MediaRange", "MediaReceiptMediaRange", "MediaFoundMediaRange"}
-    paths = sorted(path for path in root.glob("*.json") if path.stem not in additive)
+    # #379 adds exactly ten V2 exchange records and their two wrappers. Their
+    # separate byte pin must not change the original184 count/hash below.
+    additive |= {
+        f"Media{prefix}{name}"
+        for prefix in ("", "Receipt", "Found")
+        for name in (
+            "CanonicalModelPinV2",
+            "WireBodyStorageV2",
+            "LocalBodyOwnerV2",
+            "LocalExchangeOwnerV2",
+            "LocalBodyCloseV2",
+            "LocalCloseObservationV2",
+            "LocalNoRemoteV2",
+            "LocalExchangeCleanupV2",
+            "LocalExchangeRegistrationV2",
+            "LocalExchangeBundleV2",
+        )
+    }
+    paths = sorted(
+        (path for path in root.glob("*.json") if path.stem not in additive),
+        key=lambda path: path.name,
+    )
     body = bytearray()
     for path in paths:
         raw = path.read_bytes()
