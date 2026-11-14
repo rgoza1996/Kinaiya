@@ -11,8 +11,10 @@ not evidence that model weights were loaded or a transcription was performed.
 
 import asyncio
 import copy
+import ctypes.util
 import hashlib
 import json
+import platform
 import socket
 import sqlite3
 import sys
@@ -877,6 +879,15 @@ async def unwind_setup(setup):
 
 @pytest.fixture
 async def physical(factory, tmp_path, monkeypatch, record_property):
+    # DRIVER uses the real Whistle network fence, whose supported native tier
+    # is Linux x86_64. Match test_managed_whistle's existing availability gate;
+    # importing the same driver does not make that component available on ARM.
+    if (
+        sys.platform != "linux"
+        or platform.machine() != "x86_64"
+        or not ctypes.util.find_library("seccomp")
+    ):
+        pytest.skip("Optional Linux x86_64/seccomp process tier unavailable")
     opened = []
     setups = []
     native_recorders = {}

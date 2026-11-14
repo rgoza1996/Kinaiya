@@ -3,28 +3,171 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Trusted runner qualification (host admission policy also applies)
+        type: choice
+        options: [smoke, media, compat, workspace, full, flutter, android]
+        default: smoke
+      python:
+        description: Python version for manual full qualification
+        type: choice
+        options: [all, '3.11', '3.12', '3.14']
+        default: all
+      architecture:
+        description: Native architecture for manual full qualification
+        type: choice
+        options: [both, arm64, x64]
+        default: both
 permissions:
   contents: read
 jobs:
-  python:
-    runs-on: ubuntu-22.04
+  runner-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'smoke'
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.11', '3.12', '3.14']
+        arch: [ARM64, X64]
+    runs-on: [self-hosted, Linux, '${{ matrix.arch }}', kinaiya-ci]
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify native architecture and account isolation
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          test "$(id -un)" = kinaiya-ci
+          test "$(id -u)" -ne 0
+          test "$(id -Gn)" = kinaiya-ci
+          test ! -w /etc
+          test ! -w /etc/kinaiya-ci/job-started.sh
+          test ! -r /run/docker.sock
+          test ! -r /home/ubuntu
+          test ! -r /home/dell
+          case "$EXPECTED_ARCH:$(uname -m)" in ARM64:aarch64|X64:x86_64) ;; *) exit 1 ;; esac
+          if test "$EXPECTED_ARCH" = X64; then
+            lsattr -d "$(dirname "$HOME")" | awk '{print $1}' | grep -q i
+          fi
+          bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev true
+          uv --version
+          printf 'runner=%s arch=%s user=%s\n' "$RUNNER_NAME" "$(uname -m)" "$(id -un)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  media-regression:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'media'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ARM64, X64]
+    runs-on: [self-hosted, Linux, '${{ matrix.arch }}', kinaiya-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Create isolated Python environment
+        run: |
+          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/media-venv"
+          echo "$RUNNER_TEMP/media-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Qualify issue 379 and runner admission
+        run: >-
+          python -m pytest -q
+          tests/unit/test_runner_job_policy.py
+          tests/unit/test_llama_media.py
+          tests/unit/test_llama_media_final_fence.py
+          tests/unit/test_decisions_media_classifier.py
+          tests/integration/test_session_media_missing_runtime.py
+
+  native-compatibility:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'compat'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ARM64, X64]
+    runs-on: [self-hosted, Linux, '${{ matrix.arch }}', kinaiya-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Create isolated Python environment
+        run: |
+          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/compat-venv"
+          echo "$RUNNER_TEMP/compat-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Qualify native socket, permissions, timing and PCM assumptions
+        run: >-
+          python -m pytest --basetemp /tmp/ci/pytest-compat -q
+          tests/integration/test_agent_standing_claim_retirement.py::test_real_acquisition_and_lost_final_ack_reconcile_without_second_restore
+          tests/integration/test_standing_physical_finalization.py
+          tests/integration/test_converse_window_recovery.py::test_stop_tick_budget_rotates_past_a_hanging_session
+          tests/integration/test_media_decoder_multitrack.py
+          tests/unit/test_owner_local_signin.py::test_storage_status_diagnosis_reports_missing_corrupt_and_ready_without_reinitialization
+          tests/unit/test_qwen3_native.py::test_main_seals_before_zero_file_limit_and_imports
+
+  workspace-regression:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'workspace'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ARM64, X64]
+    runs-on: [self-hosted, Linux, '${{ matrix.arch }}', kinaiya-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Create isolated Python 3.14 environment
+        run: |
+          bash scripts/ci/python-env.sh 3.14 "$RUNNER_TEMP/workspace-venv"
+          echo "$RUNNER_TEMP/workspace-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Observe actual managed workspace shell results
+        run: >-
+          python -m pytest --basetemp /tmp/ci/pytest-workspace -x --tb=short -q
+          tests/integration/test_managed_workspace_shell.py::test_actual_runtime_settings_permissions_and_pinned_workspace_execute_pwd
+          tests/integration/test_managed_workspace_shell.py::test_actual_managed_workspace_mount_preserves_write_boundary
+
+  python:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
+    # PRs always use disposable hosted machines. The host-owned admission policy
+    # independently rejects PR events if a PR edits this YAML to request a host.
+    runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-22.04' || fromJSON(matrix.runner == 'arm64' && '["self-hosted","Linux","ARM64","kinaiya-ci"]' || '["self-hosted","Linux","X64","kinaiya-ci"]') }}
+    timeout-minutes: ${{ matrix.runner == 'hosted' && 60 || 180 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.python != 'all' && format('["{0}"]', inputs.python) || '["3.11","3.12","3.14"]') }}
+        runner: ${{ fromJSON(github.event_name == 'pull_request' && '["hosted"]' || github.event_name == 'workflow_dispatch' && inputs.architecture != 'both' && format('["{0}"]', inputs.architecture) || '["arm64","x64"]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: matrix.runner == 'hosted'
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: requirements-dev.lock
-      - run: python -m pip install -r requirements-dev.lock
+      - name: Create isolated native Python environment
+        if: matrix.runner != 'hosted'
+        env:
+          PYTHON_VERSION: ${{ matrix.python }}
+        run: |
+          bash scripts/ci/python-env.sh "$PYTHON_VERSION" "$RUNNER_TEMP/python-venv"
+          echo "$RUNNER_TEMP/python-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
       - run: python -m pip install --no-deps -e .
-      - name: Verify Linux sandbox prerequisites
+      - name: Install hosted Linux sandbox prerequisites
+        if: matrix.runner == 'hosted'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y bubblewrap libseccomp2
+      - name: Verify Linux sandbox prerequisites
+        run: |
           python - <<'PY'
           import ctypes, subprocess
           from pathlib import Path
@@ -39,19 +182,30 @@ jobs:
           PY
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest -m 'not live' -q
+      - name: Run the complete non-live Python suite
+        env:
+          RUNNER_KIND: ${{ matrix.runner }}
+        run: |
+          if test "$RUNNER_KIND" = hosted; then
+            pytest -m 'not live' -q
+          else
+            pytest --basetemp /tmp/ci/pytest -x --tb=short -m 'not live' -q
+          fi
       - run: python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas
       - name: Dependency audit
         run: python -m pip_audit -r requirements-dev.lock --disable-pip
 
   flutter:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'flutter' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/kinaiya_flutter
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Install pinned official Flutter SDK
         working-directory: .
         run: |
@@ -62,27 +216,45 @@ jobs:
           git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/flutter/bin/flutter" --version
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: github.event_name == 'pull_request'
+        with:
+          python-version: '3.12'
+      - name: Create isolated native Python environment
+        if: github.event_name != 'pull_request'
+        working-directory: .
+        run: |
+          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/flutter-python-venv"
+          echo "$RUNNER_TEMP/flutter-python-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+        working-directory: .
       - run: flutter pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze
       - run: flutter test
+      - name: Qualify actual Dart transports against the live Session fixture
+        working-directory: .
+        run: >-
+          python -m pytest -q
+          tests/integration/test_companion_control.py::test_owner_and_companion_dart_transports_against_live_session_asgi
       - run: node --test web/audio_bridge.test.js
       - run: flutter build web --release --no-web-resources-cdn
       - name: Build foreground companion
         run: flutter build web --release --no-web-resources-cdn -t lib/companion_main.dart --output build/companion-web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-flutter-web
           path: apps/kinaiya_flutter/build/web
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-companion-web
           path: apps/kinaiya_flutter/build/companion-web
           if-no-files-found: error
 
   android:
-    runs-on: ubuntu-24.04
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'android' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 30
     defaults:
       run:
@@ -90,14 +262,18 @@ jobs:
     env:
       FLUTTER_SUPPRESS_ANALYTICS: 'true'
     steps:
-      - uses: actions/checkout@v4
-      - name: Select hosted JDK and verify Android prerequisites
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Select JDK 17 and verify x64 Android prerequisites
         working-directory: .
         run: |
-          test -x "$JAVA_HOME_17_X64/bin/java"
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-          "$JAVA_HOME_17_X64/bin/java" -version
+          test "$(uname -m)" = x86_64
+          jdk="${JAVA_HOME_17_X64:-${JAVA_HOME:-}}"
+          test -x "$jdk/bin/java"
+          echo "JAVA_HOME=$jdk" >> "$GITHUB_ENV"
+          echo "$jdk/bin" >> "$GITHUB_PATH"
+          "$jdk/bin/java" -version
           test -d "$ANDROID_HOME/platforms/android-36"
           test -s "$ANDROID_HOME/licenses/android-sdk-license"
           if test ! -d "$ANDROID_HOME/ndk/28.2.13676358"; then
@@ -127,18 +303,19 @@ jobs:
         run: |
           flutter build apk --debug --no-pub -t lib/companion_main.dart
           cp build/app/outputs/flutter-apk/app-debug.apk "$RUNNER_TEMP/native-artifacts/kinaiya-companion-debug.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-owner-android-debug
           path: ${{ runner.temp }}/native-artifacts/kinaiya-owner-debug.apk
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-companion-android-debug
           path: ${{ runner.temp }}/native-artifacts/kinaiya-companion-debug.apk
           if-no-files-found: error
 
   ios:
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: macos-15
     timeout-minutes: 30
     defaults:
@@ -148,7 +325,9 @@ jobs:
       FLUTTER_SUPPRESS_ANALYTICS: 'true'
       FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Select hosted Xcode and record simulator SDK
         run: |
           test -d /Applications/Xcode_26.3.app/Contents/Developer
@@ -175,12 +354,12 @@ jobs:
         run: |
           flutter build ios --simulator --debug --no-codesign --no-pub -t lib/companion_main.dart
           ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app "$RUNNER_TEMP/native-artifacts/kinaiya-companion-simulator.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-owner-ios-simulator
           path: ${{ runner.temp }}/native-artifacts/kinaiya-owner-simulator.zip
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-companion-ios-simulator
           path: ${{ runner.temp }}/native-artifacts/kinaiya-companion-simulator.zip

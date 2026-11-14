@@ -490,6 +490,7 @@ def test_storage_status_diagnosis_reports_missing_corrupt_and_ready_without_rein
 
         # Write file with insecure permissions (0644)
         (data_dir / "service-tokens.json").write_text("{}")
+        (data_dir / "service-tokens.json").chmod(0o644)
         conn.request("GET", "/__kinaiya/storage-status")
         res = conn.getresponse()
         assert res.status == 503

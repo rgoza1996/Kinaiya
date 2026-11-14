@@ -321,7 +321,10 @@ def build_bwrap_args(
             )
         args += ["--ro-bind", str(root), str(_sandbox_path(policy, root))]
     for kind, descriptor, destination in readonly_bindings:
-        if kind == "--ro-bind-fd":
+        # The root was already mounted above. Bubblewrap 0.11 consumes a bind
+        # descriptor after use; submitting it twice fails instead of launching
+        # the command. Keep that single original root mount read-only (#580).
+        if kind == "--ro-bind-fd" and destination != "/workspace":
             args += [kind, str(descriptor), str(destination)]
     if _program_fds is not None:
         if type(_program_fds) is not tuple or len(_program_fds) != 2:
