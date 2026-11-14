@@ -145,7 +145,22 @@ async def run_public_command(tmp_path, command, *, readonly="file"):
             )
         )
         final = await runtime.wait(task.task_id, timeout=40)
-        assert final.state == TaskState.SUCCEEDED, final.error
+        # #580: preserve the actual public fixture failure behind the evaluator's
+        # refusal. This diagnostic runs only after the unchanged assertion fails;
+        # it contains no environment, credentials or full conversation history.
+        assert final.state == TaskState.SUCCEEDED, {
+            "task_error": final.error,
+            "commands": [
+                {"exit_code": item.exit_code, "output_tail": item.output[-1000:]}
+                for item in final.evidence
+                if item.kind == "command"
+            ],
+            "last_observation": [
+                message["content"][-1000:]
+                for message in runtime._tasks[task.task_id].history
+                if message.get("role") == "user" and isinstance(message.get("content"), str)
+            ][-1:],
+        }
         evidence = [item for item in final.evidence if item.kind == "command"]
         assert len(evidence) == 1 and evidence[0].exit_code == 0
         events = store.read(task_id=task.task_id, kinds=["agent.tool"])

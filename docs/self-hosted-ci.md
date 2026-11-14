@@ -136,6 +136,11 @@ and web qualification, or `suite=android` for Android alone. The Agent mode
 scope/recovery fixture uses the ordinary test transport budget and explicitly
 verifies an actual send (#579); independent late-acquisition refusal tests and
 all application deadlines remain unchanged.
+Manual `suite=workspace` runs the existing managed-workspace `pwd` positive
+controls on Python 3.14 on both native hosts. It captures bounded failure
+observations from those public synthetic fixtures (#580), with no runtime,
+permission, deadline or success-condition changes. A narrow diagnostic run is
+not a completed full-suite qualification or proof of a causal repair.
 
 The service binds only its own `home/tmp` into its private namespace as
 `/tmp/ci`, with `TMPDIR=/tmp/ci`. Native pytest uses a short per-job base there.

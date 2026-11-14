@@ -8,7 +8,7 @@ on:
       suite:
         description: Trusted runner qualification (host admission policy also applies)
         type: choice
-        options: [smoke, media, compat, full, flutter, android]
+        options: [smoke, media, compat, workspace, full, flutter, android]
         default: smoke
       python:
         description: Python version for manual full qualification
@@ -107,6 +107,28 @@ jobs:
           tests/integration/test_media_decoder_multitrack.py
           tests/unit/test_owner_local_signin.py::test_storage_status_diagnosis_reports_missing_corrupt_and_ready_without_reinitialization
           tests/unit/test_qwen3_native.py::test_main_seals_before_zero_file_limit_and_imports
+
+  workspace-regression:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'workspace'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ARM64, X64]
+    runs-on: [self-hosted, Linux, '${{ matrix.arch }}', kinaiya-ci]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Create isolated Python 3.14 environment
+        run: |
+          bash scripts/ci/python-env.sh 3.14 "$RUNNER_TEMP/workspace-venv"
+          echo "$RUNNER_TEMP/workspace-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Observe actual managed workspace shell results
+        run: >-
+          python -m pytest --basetemp /tmp/ci/pytest-workspace -x --tb=short -q
+          tests/integration/test_managed_workspace_shell.py::test_actual_runtime_settings_permissions_and_pinned_workspace_execute_pwd
 
   python:
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
