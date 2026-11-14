@@ -132,10 +132,12 @@ all three versions on both native hosts; main pushes and PR checks retain their
 complete existing matrices. This selects jobs, never a smaller test subset.
 Selecting a Python/architecture pair skips the mobile/web build jobs; use the
 default full dispatch for every build, `suite=flutter` for Flutter/Dart/Session
-and web qualification, or `suite=android` for Android alone. The Agent mode
-scope/recovery fixture uses the ordinary test transport budget and explicitly
-verifies an actual send (#579); independent late-acquisition refusal tests and
-all application deadlines remain unchanged.
+and web qualification, or `suite=android` for Android alone. Scope, capacity and
+fence fixtures use the ordinary one-second test acquisition budget and verify
+actual sends (#579/#581). These controls release their held synthetic responses
+through genuine settlement in teardown, so an assertion failure does not leave
+another test's capacity occupied. Independent short-deadline refusal tests,
+production deadlines, global32 admission and native fence rules are unchanged.
 Manual `suite=workspace` runs managed-workspace `pwd` and actual write-boundary
 controls on Python 3.14 on both native hosts. It captures bounded failure
 observations from those public synthetic fixtures (#580). Bubblewrap 0.11 closes
