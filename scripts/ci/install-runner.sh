@@ -14,6 +14,9 @@ archive="$HOME/runner-2.338.2.tar.gz"
 curl -fsSL --retry 3 "https://github.com/actions/runner/releases/download/v2.338.2/actions-runner-linux-$arch-2.338.2.tar.gz" -o "$archive"
 printf '%s  %s\n' "$digest" "$archive" | sha256sum -c -
 tar -xzf "$archive"
+# The archive's directory metadata can override prepare-host's private mode.
+# Reassert it before registration creates this account's runner credentials.
+chmod 0700 "$ci_root/runner"
 rm -- "$archive"
 # The short-lived registration token arrives only on stdin. The administrator's
 # GitHub credential is never copied to this account or interpolated into argv.
