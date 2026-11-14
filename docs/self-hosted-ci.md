@@ -120,9 +120,12 @@ Dell's missing unzip is supplied by a checksum-verified distro package extracted
 only into the CI account. Gradle uses a private 3 GiB heap, bounded metaspace,
 two workers and no persistent daemon to fit the service budget.
 The broad Python suite already takes roughly 28–44 minutes on hosted machines
-at the inspected baseline. Its job wrapper allows 60 minutes hosted and 120 on
+at the inspected baseline. Its job wrapper allows 60 minutes hosted and 180 on
 the older native hosts; application/test deadlines and resource limits remain
-the original values. Each host processes one job at a time.
+the original values. Each host processes one job at a time. Dell's initial
+120-minute native wrapper expired while pytest was still advancing (#578).
+Native runs stop at the first failing test and print a short trace immediately;
+a failing or canceled run is never counted as a completed suite.
 
 The service binds only its own `home/tmp` into its private namespace as
 `/tmp/ci`, with `TMPDIR=/tmp/ci`. Native pytest uses a short per-job base there.

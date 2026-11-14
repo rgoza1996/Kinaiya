@@ -103,7 +103,7 @@ jobs:
     # PRs always use disposable hosted machines. The host-owned admission policy
     # independently rejects PR events if a PR edits this YAML to request a host.
     runs-on: ${{ matrix.runner == 'hosted' && 'ubuntu-22.04' || fromJSON(matrix.runner == 'arm64' && '["self-hosted","Linux","ARM64","kinaiya-ci"]' || '["self-hosted","Linux","X64","kinaiya-ci"]') }}
-    timeout-minutes: ${{ matrix.runner == 'hosted' && 60 || 120 }}
+    timeout-minutes: ${{ matrix.runner == 'hosted' && 60 || 180 }}
     strategy:
       fail-fast: false
       matrix:
@@ -156,7 +156,7 @@ jobs:
           if test "$RUNNER_KIND" = hosted; then
             pytest -m 'not live' -q
           else
-            pytest --basetemp /tmp/ci/pytest -m 'not live' -q
+            pytest --basetemp /tmp/ci/pytest -x --tb=short -m 'not live' -q
           fi
       - run: python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas
       - name: Dependency audit
