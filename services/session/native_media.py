@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import json
 import math
+import re
 import secrets
 import struct
 import threading
@@ -48,13 +49,14 @@ _DDL = (
     "CREATE TABLE native_media_v2_records(id TEXT PRIMARY KEY,operation_id TEXT NOT NULL,kind TEXT NOT NULL,value BLOB NOT NULL)",
 )
 _TYPES = {
-    kind.__name__.removeprefix("Media"): kind
+    ("MediaRange" if kind is m.MediaRange else kind.__name__.removeprefix("Media")): kind
     for kind in (
         m.MediaConsumer,
         m.MediaBlob,
         m.MediaManifestPage,
         m.MediaRange,
         m.MediaChildOwner,
+        m.MediaWorkerCleanup,
         m.MediaLocalBodyOwnerV2,
         m.MediaLocalExchangeOwnerV2,
         m.MediaLocalBodyCloseV2,
@@ -93,6 +95,8 @@ class _Attempt:
     deadline: float
     owner_event: object
     system_prompt: str | None
+    caller: object
+    caller_stamp: object
     operation_id: str = field(default_factory=_id)
     instance: str = field(default_factory=_id)
     task_id: str = field(default_factory=_id)
@@ -111,6 +115,9 @@ class _Attempt:
     reader_open_finished: bool = False
     reader_closed: bool = False
     registration: LlamaExchangeRegistration | None = None
+    worker_owner: m.MediaNativeRef | None = None
+    worker_binding: str | None = None
+    worker_cleanup: m.MediaNativeRef | None = None
     prepared: object = None
     staged: object = None
     state: object = None
@@ -174,39 +181,10 @@ class _Bridge:
             body={"kind": "wire_buffer"},
         )
         a.request_sha256 = prepared.request_sha256
-        binding = hashlib.sha256(
-            b"kinaiya.native.media-exchange.v2\0"
-            + _json(
-                {
-                    "operation": a.operation_id,
-                    "source": _value(a.reference),
-                    "consumer": _value(a.consumer),
-                    "request": prepared.request_sha256,
-                    "pin": _value(a.pin),
-                    "protocol": _PROTOCOL,
-                }
-            )
-        ).hexdigest()
+        binding, child = a.worker_binding, a.worker_owner
+        if binding is None or child is None:
+            refuse()
         with self.owner.session_owner._boundary():
-            child = self.owner._record(
-                a,
-                m.MediaChildOwner(
-                    v=1,
-                    kind="converse_provider" if mode == "converse_chat" else "decisions_provider",
-                    instance=a.instance,
-                    operation_id=a.operation_id,
-                    source=a.reference,
-                    consumer=a.consumer,
-                    binding_sha256=binding,
-                    backend_id=self.owner.session_owner.backend_id,
-                    peer=m.MediaNativeTaskPeer(
-                        kind="native_task",
-                        backend_instance=self.owner.session_owner.app_instance,
-                        task_id=a.task_id,
-                        request_sha256=prepared.request_sha256,
-                    ),
-                ),
-            )
             body_ref = self.owner._record(
                 a,
                 m.MediaLocalBodyOwnerV2(
@@ -329,24 +307,233 @@ class NativeBufferedMediaOwner:
 
     def _audit(self):
         owner = self.session_owner
-        for row in owner._sql("SELECT * FROM native_media_v2_attempts"):
-            if len(bytes(row["request"])) > 65_536:
+        token = owner._local.token
+        rows = owner._sql("SELECT * FROM native_media_v2_attempts").fetchall()
+        if (
+            len(rows) > _ATTEMPTS
+            or owner._sql(
+                "SELECT 1 FROM native_media_v2_records r LEFT JOIN native_media_v2_attempts a ON a.operation_id=r.operation_id WHERE a.key IS NULL LIMIT 1"
+            ).fetchone()
+        ):
+            refuse()
+        for row in rows:
+            raw = bytes(row["request"])
+            if len(raw) > 65_536:
+                refuse()
+            m._lexical_bounds(raw.decode("utf-8"))
+            request = json.loads(
+                raw,
+                object_pairs_hook=m._pairs,
+                parse_int=m._integer,
+                parse_float=m._reject_number,
+                parse_constant=m._reject_number,
+            )
+            if (
+                type(request) is not dict
+                or request.keys()
+                != {
+                    "v",
+                    "key",
+                    "source",
+                    "fence",
+                    "model_pin",
+                    "timeout_us",
+                    "protocol_sha256",
+                    "caller_stamp",
+                    "system_prompt_sha256",
+                }
+                or _json(request) != raw
+            ):
+                refuse()
+            if (
+                type(request["v"]) is not int
+                or request["v"] != 2
+                or request["key"] != row["key"]
+                or (
+                    type(request["timeout_us"]) is not int
+                    or not 1 <= request["timeout_us"] <= 120_000_000
+                )
+                or request["protocol_sha256"] != _PROTOCOL
+            ):
+                refuse()
+            pin = m.media_json(_json(request["model_pin"]), m.MediaCanonicalModelPinV2)
+            source_ref = m.media_json(_json(request["source"]), m.MediaNativeRef)
+            source = owner._lookup_ref(token, source_ref, "source").body
+            fence = m.media_json(_json(request["fence"]), m.MediaFence)
+            if source.source_id != row["source_id"] or source.fence != fence:
+                refuse()
+            for identity in (row["operation_id"], row["app_instance"]):
+                if type(identity) is not str or re.fullmatch("[a-f0-9]{32}", identity) is None:
+                    refuse()
+            stamp = request["caller_stamp"]
+            if pin.role == "converse":
+                if (
+                    type(stamp) is not list
+                    or len(stamp) != 2
+                    or any(type(n) is not int or not 0 <= n <= m.MAX_MEDIA_INTEGER for n in stamp)
+                ):
+                    refuse()
+            elif stamp is not None:
                 refuse()
             records = owner._sql(
-                "SELECT kind,value FROM native_media_v2_records WHERE operation_id=?",
+                "SELECT id,kind,value FROM native_media_v2_records WHERE operation_id=?",
                 (row["operation_id"],),
             ).fetchall()
             if len(records) > _RECORDS or sum(len(record["value"]) for record in records) > 524_288:
                 refuse()
+            parsed = {}
             for record in records:
                 kind = _TYPES.get(record["kind"])
                 if kind is None:
                     refuse()
-                m.media_json(bytes(record["value"]), m.MediaReceipt[kind])
+                receipt = m.media_json(bytes(record["value"]), m.MediaReceipt[kind])
+                if (
+                    receipt.id != record["id"]
+                    or receipt.request_sha256 != hashlib.sha256(raw).hexdigest()
+                    or m.media_bytes(receipt) != bytes(record["value"])
+                ):
+                    refuse()
+                parsed[receipt.id] = receipt
+
+            def resolve(reference, kind, records=parsed):
+                found = records.get(reference.receipt_id)
+                if (
+                    reference.backend_id != owner.backend_id
+                    or found is None
+                    or (type(found.body) is not kind or found.sha256 != reference.sha256)
+                ):
+                    refuse()
+                return found.body
+
+            children = [
+                receipt.body
+                for receipt in parsed.values()
+                if type(receipt.body) is m.MediaChildOwner
+            ]
+            if len(children) != 1:
+                refuse()
+            child = children[0]
+            binding = hashlib.sha256(b"kinaiya.native.media-worker.v2\0" + raw).hexdigest()
+            if (
+                child.source != source_ref
+                or child.operation_id != row["operation_id"]
+                or child.consumer is not None
+                or child.backend_id != owner.backend_id
+                or (
+                    type(child.peer) is not m.MediaNativeTaskPeer
+                    or child.peer.backend_instance != row["app_instance"]
+                    or child.peer.request_sha256 != hashlib.sha256(raw).hexdigest()
+                    or child.binding_sha256 != binding
+                    or child.kind
+                    != ("converse_provider" if pin.role == "converse" else "decisions_provider")
+                )
+            ):
+                refuse()
+            positives = []
+            for receipt in parsed.values():
+                body = receipt.body
+                if type(body) is m.MediaWorkerCleanup:
+                    original = resolve(body.original_owner, m.MediaChildOwner)
+                    if (
+                        original != child
+                        or body.operation_id != child.operation_id
+                        or body.child_instance != child.instance
+                        or body.binding_sha256 != binding
+                        or body.scope != "native_task"
+                    ):
+                        refuse()
+                    positives.append(body.state == "settled")
+                elif type(body) is m.MediaLocalExchangeOwnerV2:
+                    if (
+                        resolve(body.child_owner, m.MediaChildOwner) != child
+                        or body.source != source_ref
+                        or body.model_pin != pin
+                        or body.protocol_sha256 != _PROTOCOL
+                        or body.local_task_id != child.peer.task_id
+                    ):
+                        refuse()
+                elif type(body) is m.MediaLocalExchangeCleanupV2:
+                    exchange = resolve(body.exchange_owner, m.MediaLocalExchangeOwnerV2)
+                    original = resolve(body.original_owner, m.MediaChildOwner)
+                    encoded = resolve(body.body_owner, m.MediaLocalBodyOwnerV2)
+                    close = resolve(body.body_observation, m.MediaLocalBodyCloseV2)
+                    observations = [
+                        resolve(ref, m.MediaLocalCloseObservationV2) for ref in body.observations
+                    ]
+                    expected = {
+                        ("local_task", exchange.local_task_id): "task_join",
+                        ("transport", exchange.transport_owner_id): "sole_transport_close",
+                        **{("reader", rid): "reader_join" for rid in exchange.reader_owner_ids},
+                        **{
+                            ("publication", pid): "publication_settlement"
+                            for pid in exchange.publication_owner_ids
+                        },
+                    }
+                    if (
+                        original != child
+                        or body.operation_id != child.operation_id
+                        or body.child_instance != child.instance
+                        or body.binding_sha256 != binding
+                        or close.body_owner != body.body_owner
+                        or encoded.body_owner_id != exchange.body_owner_id
+                        or encoded.exchange_id != exchange.exchange_id
+                        or (
+                            encoded.request_sha256 != exchange.request_sha256
+                            or encoded.consumer != exchange.consumer
+                            or encoded.source != source_ref
+                            or encoded.reader_owner_ids != exchange.reader_owner_ids
+                        )
+                        or set((o.component, o.owner_id) for o in observations) != set(expected)
+                        or len(observations) != len(expected)
+                    ):
+                        refuse()
+                    for observation in [close, *observations]:
+                        if (
+                            observation.request_sha256 != exchange.request_sha256
+                            or observation.binding_sha256 != binding
+                        ):
+                            refuse()
+                    if any(o.exchange_owner != body.exchange_owner for o in observations):
+                        refuse()
+                    by_owner = {
+                        (o.component, o.owner_id): o.state == "settled"
+                        and o.proof == expected[(o.component, o.owner_id)]
+                        for o in observations
+                    }
+                    if (
+                        body.local_task_joined != by_owner[("local_task", exchange.local_task_id)]
+                        or body.transport_sole_closed
+                        != by_owner[("transport", exchange.transport_owner_id)]
+                        or body.all_readers_settled
+                        != all(by_owner[("reader", rid)] for rid in exchange.reader_owner_ids)
+                        or body.publications_settled
+                        != all(
+                            by_owner[("publication", pid)] for pid in exchange.publication_owner_ids
+                        )
+                        or body.body_settled
+                        != (close.state == "settled" and close.proof == "wire_buffer_retired")
+                    ):
+                        refuse()
+            if row["state"] == "settled" and positives != [True]:
+                refuse()
+            if row["event_id"] is not None:
+                event = owner.store.entry(row["event_id"])
+                if (
+                    (event.session_id, event.thread_id, event.epoch)
+                    != (fence.session.session_id, fence.session.thread_id, fence.session.epoch)
+                    or event.kind
+                    != ("conversation.converse" if pin.role == "converse" else "routing.decided")
+                    or event.idempotency_key != f"native-media-v2:{row['operation_id']}"
+                ):
+                    refuse()
 
     def _record(self, a, body):
         owner = self.session_owner
-        short = type(body).__name__.removeprefix("Media")
+        short = (
+            "MediaRange"
+            if type(body) is m.MediaRange
+            else type(body).__name__.removeprefix("Media")
+        )
         if _TYPES.get(short) is not type(body) or not owner.store.db.in_transaction:
             refuse()
         fields = {
@@ -389,6 +576,16 @@ class NativeBufferedMediaOwner:
             raise TimeoutError("Native media deadline expired")
         if a.lease.current() is not True or m.canonical_media_model_pin_v2(a.lease.pin) != a.pin:
             refuse("stale")
+        if a.caller.native_media_owner is not self or a.caller.model_settings is not a.lease.owner:
+            refuse("stale")
+        if a.pin.role == "converse":
+            if (
+                not a.caller.admission_current(a.caller_stamp)
+                or a.caller.personality != a.system_prompt
+            ):
+                refuse("stale")
+        elif a.caller.enabled is not True:
+            refuse("stale")
         if token is None:
             with owner._transaction(a.principal, {"owner"}) as original:
                 self._guard_source(a, original)
@@ -402,7 +599,10 @@ class NativeBufferedMediaOwner:
         if source is not a.source:
             refuse("stale")
 
-    def _admit(self, reference, fence, principal, lease, key, timeout, system_prompt):
+    def _admit(self, reference, fence, principal, lease, key, timeout, system_prompt, caller):
+        from services.converse.runtime import ConverseRuntime
+        from services.decisions.runtime import DecisionsWorker
+
         owner = self.session_owner
         if self._closed or self._unknown:
             refuse()
@@ -426,6 +626,13 @@ class NativeBufferedMediaOwner:
             refuse("bound")
         provider = lease.provider
         role = "converse" if type(lease) is ConverseModelLease else "decisions"
+        if type(caller) is not (ConverseRuntime if role == "converse" else DecisionsWorker) or (
+            caller.native_media_owner is not self or caller.model_settings is not lease.owner
+        ):
+            refuse("denied")
+        caller_stamp = caller.admission() if role == "converse" else None
+        if role == "decisions" and caller.enabled is not True:
+            refuse("stale")
         if (
             type(provider) is not NativeLlamaMediaProvider
             or provider.mode != ("converse_chat" if role == "converse" else "decisions_systemone")
@@ -448,6 +655,7 @@ class NativeBufferedMediaOwner:
                 "model_pin": _value(pin),
                 "timeout_us": int(timeout * 1_000_000),
                 "protocol_sha256": _PROTOCOL,
+                "caller_stamp": caller_stamp,
                 "system_prompt_sha256": None
                 if system_prompt is None
                 else hashlib.sha256(system_prompt.encode("utf-8")).hexdigest(),
@@ -504,6 +712,8 @@ class NativeBufferedMediaOwner:
                 loop.time() + timeout,
                 event,
                 system_prompt,
+                caller,
+                caller_stamp,
             )
             a.coroutine = self._worker(a)
             a.worker = asyncio.create_task(a.coroutine)
@@ -514,15 +724,48 @@ class NativeBufferedMediaOwner:
                 "INSERT INTO native_media_v2_attempts VALUES(?,?,?,?,?,'active',NULL)",
                 (key, request, row["source_id"], owner.app_instance, a.operation_id),
             )
+            a.worker_binding = hashlib.sha256(
+                b"kinaiya.native.media-worker.v2\0" + request
+            ).hexdigest()
+            a.worker_owner = self._record(
+                a,
+                m.MediaChildOwner(
+                    v=1,
+                    kind="converse_provider" if role == "converse" else "decisions_provider",
+                    instance=a.instance,
+                    operation_id=a.operation_id,
+                    source=a.reference,
+                    consumer=None,
+                    binding_sha256=a.worker_binding,
+                    backend_id=owner.backend_id,
+                    peer=m.MediaNativeTaskPeer(
+                        kind="native_task",
+                        backend_instance=owner.app_instance,
+                        task_id=a.task_id,
+                        request_sha256=hashlib.sha256(request).hexdigest(),
+                    ),
+                ),
+            )
         a.gate.set()
         return a, True
 
     async def run(
-        self, reference, fence, principal, lease, *, key, timeout=30.0, system_prompt=None
+        self,
+        reference,
+        fence,
+        principal,
+        lease,
+        *,
+        key,
+        timeout=30.0,
+        system_prompt=None,
+        caller=None,
     ):
         """Observe the same original; cancellation fences before returning."""
         try:
-            a, fresh = self._admit(reference, fence, principal, lease, key, timeout, system_prompt)
+            a, fresh = self._admit(
+                reference, fence, principal, lease, key, timeout, system_prompt, caller
+            )
         except BaseException:
             original = self._attempts.get(key) if type(key) is str else None
             if original is not None and original.lease is lease:
@@ -957,10 +1200,32 @@ class NativeBufferedMediaOwner:
             positive = bool(
                 positive and not a.unknown and (a.reader_closed or not a.reader_open_started)
             )
+            publication_finished = a.publication_finished or (
+                a.worker.done() and not a.reader_open_started
+            )
+            positive = positive and publication_finished
             if positive:
                 await a.lease.close()
             a.settled = positive
             with self.session_owner._boundary():
+                a.worker_cleanup = self._record(
+                    a,
+                    m.MediaWorkerCleanup(
+                        v=1,
+                        kind="native_owner",
+                        operation_id=a.operation_id,
+                        child_instance=a.instance,
+                        binding_sha256=a.worker_binding,
+                        original_owner=a.worker_owner,
+                        state="settled" if positive else "unknown",
+                        outcome=a.outcome if positive else None,
+                        proof="local_join" if positive else "none",
+                        publication="settled"
+                        if publication_finished and not a.publication_unknown
+                        else "unknown",
+                        scope="native_task",
+                    ),
+                )
                 self.session_owner._sql(
                     "UPDATE native_media_v2_attempts SET state=? WHERE key=?",
                     ("settled" if a.settled else "unknown", a.key),

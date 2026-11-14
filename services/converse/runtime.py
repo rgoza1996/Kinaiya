@@ -969,7 +969,7 @@ class ConverseRuntime:
             or self.model_settings is None
         ):
             refuse()
-        lease = self.model_settings.capture()
+        lease = self.model_settings.capture_native_media()
         return await self.native_media_owner.run(
             source,
             fence,
@@ -978,6 +978,7 @@ class ConverseRuntime:
             key=key,
             timeout=timeout,
             system_prompt=self.personality,
+            caller=self,
         )
 
     async def close(self):

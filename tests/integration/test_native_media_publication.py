@@ -130,6 +130,22 @@ async def _reconciled(native, *, key="native-a"):
     return a
 
 
+async def _entered(call, event):
+    observer = asyncio.create_task(event.wait())
+    try:
+        done, _ = await asyncio.wait(
+            {call, observer}, timeout=_WAIT, return_when=asyncio.FIRST_COMPLETED
+        )
+        if call in done:
+            await call  # Preserve an actual early refusal instead of a wait timeout.
+            pytest.fail("Native caller returned before the held operation")
+        assert observer in done and observer.result() is True
+    finally:
+        if not observer.done():
+            observer.cancel()
+        await asyncio.gather(observer, return_exceptions=True)
+
+
 @asynccontextmanager
 async def _case(tmp_path, mode, phase=None, *, provider_timeout=5, fail_close=False):
     wire = _Wire(phase, fail_close=fail_close)
@@ -263,7 +279,7 @@ async def test_native_callers_refuse_resistant_late_transport_before_publication
         tmp_path, mode, phase, provider_timeout=0.3 if fault == "provider_deadline" else 5
     ) as case:
         call = case.start()
-        await asyncio.wait_for(case.wire.entered.wait(), _WAIT)
+        await _entered(call, case.wire.entered)
         if fault == "cancel":
             call.cancel()
             with pytest.raises(asyncio.CancelledError):
@@ -288,7 +304,7 @@ async def test_real_publication_guard_rechecks_after_waiting_for_its_original_sl
     async with _case(tmp_path, mode) as case:
         async with case.native._publication_lock:
             call = case.start(timeout=1.0 if fault == "deadline" else 30.0)
-            await asyncio.wait_for(case.wire.close_done.wait(), _WAIT)
+            await _entered(call, case.wire.close_done)
             # The real caller has returned from HTTP and is queued at its
             # actual native publication lock, not a synthetic settle callback.
             for _ in range(1000):

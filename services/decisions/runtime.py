@@ -392,7 +392,7 @@ class DecisionsWorker:
             refuse()
         lease = self.model_settings._capture()
         return await self.native_media_owner.run(
-            source, fence, principal, lease, key=key, timeout=timeout
+            source, fence, principal, lease, key=key, timeout=timeout, caller=self
         )
 
     def _active_provider_info(self):
