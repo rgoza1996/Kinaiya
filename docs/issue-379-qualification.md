@@ -17,7 +17,7 @@ value to that harness. They do **not** invoke the production Converse/Decisions
 publication owner or an actual Agent dispatch. A real Store alone does not turn
 the hand-written caller into the production caller.
 
-On this baseline, `MediaSessionOwner._control` still refuses `start` and
+On this baseline, `MediaSessionOwner.control` still refuses `start` and
 `resume` with `unavailable`. `NativeLlamaMediaProvider.complete_media` has no
 production service caller; `services/decisions/media_classifier.py` contains
 pure projection/parsing functions. The absent native worker path remains a
@@ -25,8 +25,8 @@ dependency of #204. Do not enable it or manufacture cleanup receipts just to
 close #379.
 
 The self-hosted `suite=media` selection therefore verifies the existing real
-provider, classifier and final-fence tests, plus the actual Session missing-
-runtime refusal tests, on both CPU architectures. This preserves a useful
+provider, classifier and final-fence tests, plus actual Store reset/delete
+refusal when the original media owner is missing, on both CPU architectures. This preserves a useful
 regression baseline while keeping the final acceptance gap explicit.
 
 Before #379 can close, compose the actual native worker/caller under #204 and

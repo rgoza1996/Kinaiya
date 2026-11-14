@@ -1,9 +1,11 @@
 """Reject attacker-controlled PR contexts independently of repository YAML."""
 
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
+from scripts.ci import runner_job_policy
 from scripts.ci.runner_job_policy import authorize
 
 _SHA = "a" * 40
@@ -93,3 +95,35 @@ def test_reviewed_branch_cannot_advance_or_receive_push_jobs():
     policy["reviewed_refs"] = {}
     context["GITHUB_EVENT_NAME"] = "workflow_dispatch"
     assert not authorize(context, event, policy)
+
+
+def test_refusal_terminates_original_worker_before_any_remaining_actions(monkeypatch):
+    signals = []
+    monkeypatch.setattr(runner_job_policy.os, "getppid", lambda: 101)
+    monkeypatch.setattr(runner_job_policy.os, "readlink", lambda path: "/runner/bin/Runner.Worker")
+    monkeypatch.setattr(runner_job_policy.os, "kill", lambda pid, sig: signals.append((pid, sig)))
+    runner_job_policy._terminate_job()
+    assert signals == [(101, runner_job_policy.signal.SIGKILL)]
+
+
+@pytest.mark.parametrize("in_service", [False, True])
+def test_unknown_worker_layout_can_only_stop_own_service_and_never_itself(monkeypatch, in_service):
+    signals = []
+    monkeypatch.setattr(runner_job_policy.os, "getppid", lambda: 101)
+    monkeypatch.setattr(runner_job_policy.os, "getpid", lambda: 102)
+    monkeypatch.setattr(runner_job_policy.os, "readlink", lambda path: "/usr/bin/bash")
+    monkeypatch.setattr(runner_job_policy.os, "kill", lambda pid, sig: signals.append((pid, sig)))
+
+    def read_text(path):
+        if str(path) == "/proc/self/cgroup":
+            return "0::/system.slice/kinaiya-ci.service" if in_service else "0::/other.service"
+        assert str(path) == "/sys/fs/cgroup/system.slice/kinaiya-ci.service/cgroup.procs"
+        return "100\n101\n102\n"
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    runner_job_policy._terminate_job()
+    assert signals == (
+        [(100, runner_job_policy.signal.SIGKILL), (101, runner_job_policy.signal.SIGKILL)]
+        if in_service
+        else []
+    )

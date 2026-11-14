@@ -16,6 +16,22 @@ tar -xzf "$stage/uv.tar.gz" -C "$stage"
 install -m 0755 "$stage/uv-$target/uv" "$HOME/.local/bin/uv"
 "$HOME/.local/bin/uv" --version
 if test "$target" = x86_64-unknown-linux-gnu; then
+  if ! command -v unzip >/dev/null; then
+    # Download/extract the distro package into this account; do not install it
+    # into Dell's full root filesystem or modify the host dpkg database.
+    (cd "$stage" && apt-get download unzip=6.0-29ubuntu1)
+    printf '%s  %s\n' 1f6f2bdcde84641e89c9367a7a99d90e990efa3e487a8d625241c2f9c55db5f4 "$stage/unzip_6.0-29ubuntu1_amd64.deb" | sha256sum -c -
+    dpkg-deb -x "$stage/unzip_6.0-29ubuntu1_amd64.deb" "$HOME/.local/unzip-package"
+    ln -s "$HOME/.local/unzip-package/usr/bin/unzip" "$HOME/.local/bin/unzip"
+  fi
+  mkdir -p "$HOME/.gradle"
+  cat > "$HOME/.gradle/gradle.properties" <<'GRADLE'
+org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g -XX:ReservedCodeCacheSize=256m -Dfile.encoding=UTF-8
+org.gradle.workers.max=2
+org.gradle.parallel=false
+org.gradle.daemon=false
+kotlin.compiler.execution.strategy=in-process
+GRADLE
   test ! -e "$HOME/jdk17"
   mkdir "$HOME/jdk17"
   curl -fsSL --retry 3 'https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.21%2B9/OpenJDK17U-jdk_x64_linux_hotspot_17.0.21_9.tar.gz' -o "$stage/jdk.tar.gz"

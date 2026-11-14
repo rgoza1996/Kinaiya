@@ -90,7 +90,7 @@ Initial versions, verified against upstream downloads:
 | --- | --- |
 | Actions runner | 2.338.2; official archive SHA-256 in `install-runner.sh`; automatic updates enabled |
 | uv | 0.11.26; architecture-specific official SHA-256 in `install-tooling.sh` |
-| Python | Isolated managed 3.11/3.12/3.14 environments per job; `requirements-dev.lock` with hashes |
+| Python | Official `actions/python-versions` Ubuntu 24.04 builds for both architectures: 3.11.18 / 3.12.16 / 3.14.10, SHA-256 in `python-builds.json`; isolated per-job environments and hashed dependency lock |
 | Flutter | Existing 3.47.8 tag, exact `737ba8f885dc774b53b442759999a312c9461e4e` commit |
 | Dell JDK | Temurin 17.0.21+9, private `home/jdk17` |
 | Dell Android | Command tools 15859902, platform/build-tools 36, NDK 28.2.13676358, private `home/android-sdk` |
@@ -100,6 +100,14 @@ license acceptance/install logs remain private there. No production signing
 key is installed; deterministic Android jobs produce debug APKs. The Python
 environment and Flutter SDK live in each job's temporary directory; caches
 belong only to this account. ARM64 Android host tooling is not qualified.
+
+Portable uv-managed CPython initially lacked the Linux sealing constants that
+Agent requires (#571). `python-env.sh` instead verifies official upstream build
+hashes and real kernel-enforced memfd seals before creating the environment.
+Those Ubuntu 24.04 builds are also explicitly qualified on Dell's newer Ubuntu.
+Dell's missing unzip is supplied by a checksum-verified distro package extracted
+only into the CI account. Gradle uses a private 3 GiB heap, bounded metaspace,
+two workers and no persistent daemon to fit the service budget.
 
 ## Operation, logging and updates
 

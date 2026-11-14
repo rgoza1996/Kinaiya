@@ -56,7 +56,7 @@ jobs:
           persist-credentials: false
       - name: Create isolated Python environment
         run: |
-          uv venv --seed --python 3.12 --python-preference only-managed "$RUNNER_TEMP/media-venv"
+          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/media-venv"
           echo "$RUNNER_TEMP/media-venv/bin" >> "$GITHUB_PATH"
       - run: python -m pip install --require-hashes -r requirements-dev.lock
       - name: Qualify issue 379 and runner admission
@@ -94,7 +94,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python }}
         run: |
-          uv venv --seed --python "$PYTHON_VERSION" --python-preference only-managed "$RUNNER_TEMP/python-venv"
+          bash scripts/ci/python-env.sh "$PYTHON_VERSION" "$RUNNER_TEMP/python-venv"
           echo "$RUNNER_TEMP/python-venv/bin" >> "$GITHUB_PATH"
       - run: python -m pip install --require-hashes -r requirements-dev.lock
       - run: python -m pip install --no-deps -e .
