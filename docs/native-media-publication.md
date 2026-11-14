@@ -1,8 +1,9 @@
 # Native media caller and publication ownership
 
 Implementation contract for #379, with prerequisite composition under #204 and
-#449. This document records the planned integration. No native worker/caller is
-implemented or enabled by this documentation-only revision.
+#449. This revision adds an experimental native caller/worker and Session
+publication owner. Linux integration qualification is pending; the launcher
+does not install it, and general media start/resume remains unavailable.
 
 ## Existing boundary and required behavior
 
@@ -18,8 +19,12 @@ the production caller. The integration must replace that qualification gap
 with observations of the actual native worker, publication owner and Agent
 ingress. Existing provider regressions remain intact.
 
-The initial implementation scope is the bounded local buffered-media path for
-Converse chat and direct SystemOne Decisions. It does not qualify physical
+The first implemented lane accepts one sealed canonical PCM16 mono16k WAV of at
+most one second through the original native spool reader. Converse chat and
+direct SystemOne Decisions retain their own request/result projections. The
+lane requires actual source/channel/anchor/authentication and protected native
+model leases; it exposes no request flag or new public route. It does not
+qualify physical
 capture, realtime/duplex speech, model quality, cloud liability reconciliation
 or the complete news-video demonstration. Those #204 acceptance gates remain
 separate. Unsupported composition remains explicitly unavailable.

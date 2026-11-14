@@ -364,11 +364,13 @@ class DecisionsWorker:
         enabled=True,
         model_settings=None,
         max_attempts=MAX_ATTEMPTS,
+        native_media_owner=None,
     ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
         self.window_turns, self.enabled = window_turns, enabled
         self.consumer = "decisions-v1"
         self.model_settings = model_settings
+        self.native_media_owner = native_media_owner
         self.max_attempts = max(1, int(max_attempts))
         self.last_error = None
         self.running = False
@@ -376,6 +378,22 @@ class DecisionsWorker:
         self._pending_decisions = {}
         self._transport_attempts = {}
         self._lookup_failures = {}
+
+    async def complete_native_media(self, source, fence, principal, *, key, timeout=30.0):
+        """Imported native evidence can publish routing, never admit commands."""
+        from services.session.media_clients import refuse
+        from services.session.native_media import NativeBufferedMediaOwner
+
+        if (
+            type(self.native_media_owner) is not NativeBufferedMediaOwner
+            or self.model_settings is None
+            or not self.enabled
+        ):
+            refuse()
+        lease = self.model_settings._capture()
+        return await self.native_media_owner.run(
+            source, fence, principal, lease, key=key, timeout=timeout
+        )
 
     def _active_provider_info(self):
         if self.model_settings is not None:

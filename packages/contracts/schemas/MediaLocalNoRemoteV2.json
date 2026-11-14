@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "local_no_remote",
+      "title": "Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "title": "MediaLocalNoRemoteV2",
+  "type": "object"
+}

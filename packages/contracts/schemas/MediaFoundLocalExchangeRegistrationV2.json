@@ -1,0 +1,318 @@
+{
+  "$defs": {
+    "MediaConsumerRef": {
+      "additionalProperties": false,
+      "properties": {
+        "consumer_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Consumer Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "consumer_id",
+        "generation"
+      ],
+      "title": "MediaConsumerRef",
+      "type": "object"
+    },
+    "MediaLocalBodyOwnerV2": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaWireBodyStorageV2"
+        },
+        "body_bytes": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Body Bytes",
+          "type": "integer"
+        },
+        "body_owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Body Owner Id",
+          "type": "string"
+        },
+        "body_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Body Sha256",
+          "type": "string"
+        },
+        "consumer": {
+          "$ref": "#/$defs/MediaConsumerRef"
+        },
+        "exchange_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Exchange Id",
+          "type": "string"
+        },
+        "reader_owner_ids": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 32,
+            "pattern": "^[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reader Owner Ids",
+          "type": "array"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "exchange_id",
+        "body_owner_id",
+        "source",
+        "consumer",
+        "request_sha256",
+        "body_bytes",
+        "body_sha256",
+        "reader_owner_ids",
+        "body"
+      ],
+      "title": "MediaLocalBodyOwnerV2",
+      "type": "object"
+    },
+    "MediaLocalExchangeRegistrationV2": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding Sha256",
+          "type": "string"
+        },
+        "body_owner": {
+          "$ref": "#/$defs/MediaLocalBodyOwnerV2"
+        },
+        "body_owner_ref": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "child_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Child Instance",
+          "type": "string"
+        },
+        "exchange_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "local_task_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Local Task Id",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "original_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "publication_owner_ids": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 32,
+            "pattern": "^[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Publication Owner Ids",
+          "type": "array"
+        },
+        "transport_owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Transport Owner Id",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "operation_id",
+        "child_instance",
+        "binding_sha256",
+        "original_owner",
+        "exchange_owner",
+        "body_owner_ref",
+        "body_owner",
+        "local_task_id",
+        "transport_owner_id",
+        "publication_owner_ids"
+      ],
+      "title": "MediaLocalExchangeRegistrationV2",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    },
+    "MediaReceipt_MediaLocalExchangeRegistrationV2_": {
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "$ref": "#/$defs/MediaLocalExchangeRegistrationV2"
+        },
+        "id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "id",
+        "key",
+        "request_sha256",
+        "body",
+        "sha256"
+      ],
+      "title": "MediaReceipt[MediaLocalExchangeRegistrationV2]",
+      "type": "object"
+    },
+    "MediaWireBodyStorageV2": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "wire_buffer",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "MediaWireBodyStorageV2",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "found": {
+      "title": "Found",
+      "type": "boolean"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MediaReceipt_MediaLocalExchangeRegistrationV2_"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "found",
+    "value"
+  ],
+  "title": "MediaFound[MediaLocalExchangeRegistrationV2]",
+  "type": "object"
+}
