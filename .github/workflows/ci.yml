@@ -208,12 +208,12 @@ jobs:
       - run: flutter build web --release --no-web-resources-cdn
       - name: Build foreground companion
         run: flutter build web --release --no-web-resources-cdn -t lib/companion_main.dart --output build/companion-web
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-flutter-web
           path: apps/kinaiya_flutter/build/web
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-companion-web
           path: apps/kinaiya_flutter/build/companion-web
@@ -270,12 +270,12 @@ jobs:
         run: |
           flutter build apk --debug --no-pub -t lib/companion_main.dart
           cp build/app/outputs/flutter-apk/app-debug.apk "$RUNNER_TEMP/native-artifacts/kinaiya-companion-debug.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-owner-android-debug
           path: ${{ runner.temp }}/native-artifacts/kinaiya-owner-debug.apk
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-companion-android-debug
           path: ${{ runner.temp }}/native-artifacts/kinaiya-companion-debug.apk
@@ -321,12 +321,12 @@ jobs:
         run: |
           flutter build ios --simulator --debug --no-codesign --no-pub -t lib/companion_main.dart
           ditto -c -k --sequesterRsrc --keepParent build/ios/iphonesimulator/Runner.app "$RUNNER_TEMP/native-artifacts/kinaiya-companion-simulator.zip"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-owner-ios-simulator
           path: ${{ runner.temp }}/native-artifacts/kinaiya-owner-simulator.zip
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: kinaiya-companion-ios-simulator
           path: ${{ runner.temp }}/native-artifacts/kinaiya-companion-simulator.zip
