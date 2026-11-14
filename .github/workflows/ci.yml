@@ -159,6 +159,7 @@ jobs:
         run: >-
           python -m pytest --basetemp /tmp/ci/pytest-workspace -x --tb=short -q
           tests/integration/test_managed_workspace_shell.py::test_actual_runtime_settings_permissions_and_pinned_workspace_execute_pwd
+          tests/integration/test_managed_workspace_shell.py::test_actual_managed_workspace_mount_preserves_write_boundary
 
   python:
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'

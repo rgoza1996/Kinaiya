@@ -181,6 +181,19 @@ async def test_actual_runtime_settings_permissions_and_pinned_workspace_execute_
 
 
 @pytest.mark.sandbox
+@pytest.mark.parametrize("readonly,writable", [("none", True), ("workspace", False)])
+async def test_actual_managed_workspace_mount_preserves_write_boundary(
+    tmp_path, readonly, writable
+):
+    command = "touch /workspace/public-write-probe && pwd"
+    if not writable:
+        command = "! " + command
+    evidence, workspace = await run_public_command(tmp_path, command, readonly=readonly)
+    assert "/workspace" in evidence.output
+    assert (workspace / "public-write-probe").exists() is writable
+
+
+@pytest.mark.sandbox
 @pytest.mark.live
 async def test_opt_in_public_https_through_managed_runtime(tmp_path):
     if os.environ.get("KINAIYA_PUBLIC_HTTPS_TEST") != "1":
