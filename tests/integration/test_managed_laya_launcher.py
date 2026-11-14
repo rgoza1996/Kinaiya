@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from packages.providers.complete_http import RequestBoundAsyncClient
 from packages.providers.laya_artifact import ARTIFACT_HEADER, WORKER_PID_HEADER
 from services.common.auth import Auth
 from services.resources import launcher
@@ -97,12 +98,20 @@ async def test_launcher_requires_both_owned_endpoints_before_ready(
         )
 
     original_client = httpx.AsyncClient
+    original_bound_init = RequestBoundAsyncClient.__init__
 
     def client(*args, **kwargs):
         kwargs["transport"] = httpx.MockTransport(transport)
         return original_client(*args, **kwargs)
 
+    def bound_init(self, *args, **kwargs):
+        # Keep the actual fenced client class; replacing only HTTPX's factory
+        # neither injects this transport nor preserves standalone import order.
+        kwargs["transport"] = httpx.MockTransport(transport)
+        original_bound_init(self, *args, **kwargs)
+
     monkeypatch.setattr(httpx, "AsyncClient", client)
+    monkeypatch.setattr(RequestBoundAsyncClient, "__init__", bound_init)
     made = []
 
     class Manager:
