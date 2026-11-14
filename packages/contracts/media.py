@@ -1811,6 +1811,287 @@ MediaCleanupReceipt = Annotated[
 ]
 
 
+MAX_MEDIA_MODEL_PIN_BYTES = 16_384
+
+
+def _decode_model_pin_v2(role, encoded, digest):
+    """Validate the unchanged legacy pin inside its canonical byte envelope."""
+    from packages.contracts.converse_models import RoleModelPin
+    from packages.contracts.decisions_models import DecisionsModelPin
+
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+        if (
+            not raw
+            or len(raw) > MAX_MEDIA_MODEL_PIN_BYTES
+            or base64.b64encode(raw).decode("ascii") != encoded
+            or hashlib.sha256(raw).hexdigest() != digest
+        ):
+            _bad()
+        text = raw.decode("utf-8")
+        _lexical_bounds(text)
+        value = json.loads(
+            text, object_pairs_hook=_pairs, parse_int=_integer, parse_constant=_reject_number
+        )
+        kind = {"converse": RoleModelPin, "decisions": DecisionsModelPin}.get(role)
+        if kind is None or type(value) is not dict or value.keys() != kind.model_fields.keys():
+            _bad()
+        pin = kind.model_validate(value, strict=True)
+        canonical = json.dumps(
+            pin.model_dump(mode="json"),
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        if raw != canonical or pin.role != role:
+            _bad()
+        return pin
+    except MediaContractError:
+        raise
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        _bad()
+
+
+class MediaCanonicalModelPinV2(_MediaModel):
+    """Full canonical legacy pin, not an availability or permission receipt.
+
+    The byte envelope keeps legacy JSON/validation independent of media's
+    integer-only graph. Neither legacy pin schemas nor media V1 graphs change.
+    """
+
+    v: Literal[1]
+    role: Literal["converse", "decisions"]
+    canonical_utf8_b64: _text(4 * ((MAX_MEDIA_MODEL_PIN_BYTES + 2) // 3))
+    pin_sha256: _Hash
+
+    @model_validator(mode="after")
+    def _pin(self) -> Self:
+        _decode_model_pin_v2(self.role, self.canonical_utf8_b64, self.pin_sha256)
+        return self
+
+
+def canonical_media_model_pin_v2(pin) -> MediaCanonicalModelPinV2:
+    from packages.contracts.converse_models import RoleModelPin
+    from packages.contracts.decisions_models import DecisionsModelPin
+
+    if type(pin) not in (RoleModelPin, DecisionsModelPin):
+        _bad()
+    try:
+        # Serialization can normalize an unchecked bool in an integer field.
+        # Validate the original Python graph before producing canonical bytes.
+        if pin.__dict__.keys() != type(pin).model_fields.keys():
+            _bad()
+        fresh = type(pin).model_validate(pin.__dict__, strict=True)
+        raw = json.dumps(
+            fresh.model_dump(mode="json"),
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        if len(raw) > MAX_MEDIA_MODEL_PIN_BYTES:
+            _bound()
+        return MediaCanonicalModelPinV2(
+            v=1,
+            role=fresh.role,
+            canonical_utf8_b64=base64.b64encode(raw).decode("ascii"),
+            pin_sha256=hashlib.sha256(raw).hexdigest(),
+        )
+    except MediaContractError:
+        raise
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        _bad()
+
+
+def materialize_media_model_pin_v2(value):
+    if type(value) is not MediaCanonicalModelPinV2:
+        _bad()
+    fresh = media_json(media_bytes(value), MediaCanonicalModelPinV2)
+    return _decode_model_pin_v2(fresh.role, fresh.canonical_utf8_b64, fresh.pin_sha256)
+
+
+class MediaWireBodyStorageV2(_MediaModel):
+    kind: Literal["wire_buffer"]
+
+
+class MediaLocalBodyOwnerV2(_MediaModel):
+    v: Literal[1]
+    exchange_id: _Id
+    body_owner_id: _Id
+    source: MediaNativeRef
+    consumer: MediaConsumerRef
+    request_sha256: _Hash
+    body_bytes: Annotated[int, Field(ge=1, le=33_554_432)]
+    body_sha256: _Hash
+    reader_owner_ids: Annotated[list[_Id], Field(min_length=1, max_length=16)]
+    body: MediaWireBodyStorageV2
+
+    @model_validator(mode="after")
+    def _binding(self) -> Self:
+        if self.body_sha256 != self.request_sha256 or len(set(self.reader_owner_ids)) != len(
+            self.reader_owner_ids
+        ):
+            _bad()
+        return self
+
+
+class MediaLocalExchangeOwnerV2(_MediaModel):
+    v: Literal[1]
+    exchange_id: _Id
+    source: MediaNativeRef
+    consumer: MediaConsumerRef
+    child_owner: MediaNativeRef
+    local_task_id: _Id
+    transport_owner_id: _Id
+    body_owner_id: _Id
+    reader_owner_ids: Annotated[list[_Id], Field(min_length=1, max_length=16)]
+    publication_owner_ids: Annotated[list[_Id], Field(min_length=1, max_length=16)]
+    request_sha256: _Hash
+    model_pin: MediaCanonicalModelPinV2
+    protocol_sha256: _Hash
+
+    @model_validator(mode="after")
+    def _owners(self) -> Self:
+        if (
+            len(set(self.reader_owner_ids)) != len(self.reader_owner_ids)
+            or len(set(self.publication_owner_ids)) != len(self.publication_owner_ids)
+            or materialize_media_model_pin_v2(self.model_pin).local is not True
+        ):
+            _bad()
+        return self
+
+
+class MediaLocalBodyCloseV2(_MediaModel):
+    v: Literal[1]
+    body_owner: MediaNativeRef
+    state: Literal["settled", "unknown"]
+    proof: Literal["wire_buffer_retired", "none"]
+    request_sha256: _Hash
+    binding_sha256: _Hash
+
+    @model_validator(mode="after")
+    def _proof(self) -> Self:
+        if (self.state == "settled") != (self.proof == "wire_buffer_retired"):
+            _bad()
+        return self
+
+
+class MediaLocalCloseObservationV2(_MediaModel):
+    v: Literal[1]
+    exchange_owner: MediaNativeRef
+    component: Literal["local_task", "transport", "reader", "publication"]
+    owner_id: _Id
+    state: Literal["settled", "unknown"]
+    proof: Literal[
+        "task_join", "sole_transport_close", "reader_join", "publication_settlement", "none"
+    ]
+    request_sha256: _Hash
+    binding_sha256: _Hash
+
+    @model_validator(mode="after")
+    def _proof(self) -> Self:
+        expected = {
+            "local_task": "task_join",
+            "transport": "sole_transport_close",
+            "reader": "reader_join",
+            "publication": "publication_settlement",
+        }[self.component]
+        if self.proof != (expected if self.state == "settled" else "none"):
+            _bad()
+        return self
+
+
+class MediaLocalNoRemoteV2(_MediaModel):
+    kind: Literal["local_no_remote"]
+
+
+class MediaLocalExchangeCleanupV2(_MediaModel):
+    v: Literal[1]
+    kind: Literal["local_exchange_v2"]
+    operation_id: _Id
+    child_instance: _Id
+    binding_sha256: _Hash
+    original_owner: MediaNativeRef
+    exchange_owner: MediaNativeRef
+    body_owner: MediaNativeRef
+    body_observation: MediaNativeRef
+    state: Literal["settled", "unknown"]
+    outcome: Literal["completed", "cancelled", "failed", "not_started"] | None
+    local_task_joined: bool
+    transport_sole_closed: bool
+    body_settled: bool
+    all_readers_settled: bool
+    publications_settled: bool
+    observations: _items(MediaNativeRef, 63)
+    liability: MediaLocalNoRemoteV2
+
+    @model_validator(mode="after")
+    def _proofs(self) -> Self:
+        refs = [self.body_observation, *self.observations]
+        if len({(ref.backend_id, ref.receipt_id) for ref in refs}) != len(refs):
+            _bad()
+        if self.state == "settled":
+            if (
+                self.outcome is None
+                or len(self.observations) < 4
+                or not (
+                    self.local_task_joined
+                    and self.transport_sole_closed
+                    and self.body_settled
+                    and self.all_readers_settled
+                    and self.publications_settled
+                )
+            ):
+                _bad()
+        elif self.outcome is not None:
+            _bad()
+        return self
+
+
+class MediaLocalExchangeRegistrationV2(_MediaModel):
+    v: Literal[1]
+    operation_id: _Id
+    child_instance: _Id
+    binding_sha256: _Hash
+    original_owner: MediaNativeRef
+    exchange_owner: MediaNativeRef
+    body_owner_ref: MediaNativeRef
+    body_owner: MediaLocalBodyOwnerV2
+    local_task_id: _Id
+    transport_owner_id: _Id
+    publication_owner_ids: Annotated[list[_Id], Field(min_length=1, max_length=16)]
+
+    @model_validator(mode="after")
+    def _binding(self) -> Self:
+        refs = [self.original_owner, self.exchange_owner, self.body_owner_ref]
+        if len({(ref.backend_id, ref.receipt_id) for ref in refs}) != 3 or len(
+            set(self.publication_owner_ids)
+        ) != len(self.publication_owner_ids):
+            _bad()
+        return self
+
+
+class MediaLocalExchangeBundleV2(_MediaModel):
+    v: Literal[1]
+    body_close: MediaLocalBodyCloseV2
+    body_observation: MediaNativeRef
+    component_observations: _items(MediaLocalCloseObservationV2, 63)
+    observation_refs: _items(MediaNativeRef, 63)
+    cleanup: MediaLocalExchangeCleanupV2
+
+    @model_validator(mode="after")
+    def _bindings(self) -> Self:
+        if (
+            len(self.component_observations) != len(self.observation_refs)
+            or self.cleanup.body_observation != self.body_observation
+            or self.cleanup.body_owner != self.body_close.body_owner
+            or self.cleanup.observations != self.observation_refs
+        ):
+            _bad()
+        return self
+
+
 class MediaStatus(_MediaModel):
     v: Literal[1]
     source: MediaNativeRef
@@ -2110,6 +2391,16 @@ _RECORDS = (
     MediaChild,
     MediaWorkerCleanup,
     MediaLocalExchangeCleanup,
+    MediaCanonicalModelPinV2,
+    MediaWireBodyStorageV2,
+    MediaLocalBodyOwnerV2,
+    MediaLocalExchangeOwnerV2,
+    MediaLocalBodyCloseV2,
+    MediaLocalCloseObservationV2,
+    MediaLocalNoRemoteV2,
+    MediaLocalExchangeCleanupV2,
+    MediaLocalExchangeRegistrationV2,
+    MediaLocalExchangeBundleV2,
     MediaStatus,
     MediaControl,
     MediaDeleteRequest,
@@ -2161,7 +2452,11 @@ _BY_SHORT = MappingProxyType(
         **{name.removeprefix("Media"): alias for name, alias in _ALIASES.items()},
     }
 )
-_GRAPH_KINDS = frozenset(_short_names) | {MediaCaptureTrackOffer}
+_GRAPH_KINDS = frozenset(_short_names) | {
+    MediaCaptureTrackOffer,
+    MediaWireBodyStorageV2,
+    MediaLocalNoRemoteV2,
+}
 _FORMAT_KINDS = (MediaAudioFormat, MediaImageFormat, MediaClipFormat)
 _FORMAT_TAGS = MappingProxyType(
     {

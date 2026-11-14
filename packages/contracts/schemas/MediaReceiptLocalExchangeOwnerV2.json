@@ -1,0 +1,254 @@
+{
+  "$defs": {
+    "MediaCanonicalModelPinV2": {
+      "additionalProperties": false,
+      "description": "Full canonical legacy pin, not an availability or permission receipt.\n\nThe byte envelope keeps legacy JSON/validation independent of media's\ninteger-only graph. Neither legacy pin schemas nor media V1 graphs change.",
+      "properties": {
+        "canonical_utf8_b64": {
+          "maxLength": 21848,
+          "minLength": 1,
+          "title": "Canonical Utf8 B64",
+          "type": "string"
+        },
+        "pin_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Pin Sha256",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "converse",
+            "decisions"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "role",
+        "canonical_utf8_b64",
+        "pin_sha256"
+      ],
+      "title": "MediaCanonicalModelPinV2",
+      "type": "object"
+    },
+    "MediaConsumerRef": {
+      "additionalProperties": false,
+      "properties": {
+        "consumer_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Consumer Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "consumer_id",
+        "generation"
+      ],
+      "title": "MediaConsumerRef",
+      "type": "object"
+    },
+    "MediaLocalExchangeOwnerV2": {
+      "additionalProperties": false,
+      "properties": {
+        "body_owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Body Owner Id",
+          "type": "string"
+        },
+        "child_owner": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "consumer": {
+          "$ref": "#/$defs/MediaConsumerRef"
+        },
+        "exchange_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Exchange Id",
+          "type": "string"
+        },
+        "local_task_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Local Task Id",
+          "type": "string"
+        },
+        "model_pin": {
+          "$ref": "#/$defs/MediaCanonicalModelPinV2"
+        },
+        "protocol_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Protocol Sha256",
+          "type": "string"
+        },
+        "publication_owner_ids": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 32,
+            "pattern": "^[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Publication Owner Ids",
+          "type": "array"
+        },
+        "reader_owner_ids": {
+          "items": {
+            "maxLength": 32,
+            "minLength": 32,
+            "pattern": "^[0-9a-f]{32}$",
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reader Owner Ids",
+          "type": "array"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/MediaNativeRef"
+        },
+        "transport_owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Transport Owner Id",
+          "type": "string"
+        },
+        "v": {
+          "const": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "v",
+        "exchange_id",
+        "source",
+        "consumer",
+        "child_owner",
+        "local_task_id",
+        "transport_owner_id",
+        "body_owner_id",
+        "reader_owner_ids",
+        "publication_owner_ids",
+        "request_sha256",
+        "model_pin",
+        "protocol_sha256"
+      ],
+      "title": "MediaLocalExchangeOwnerV2",
+      "type": "object"
+    },
+    "MediaNativeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "receipt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "receipt_id",
+        "sha256"
+      ],
+      "title": "MediaNativeRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "body": {
+      "$ref": "#/$defs/MediaLocalExchangeOwnerV2"
+    },
+    "id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Key",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256",
+      "type": "string"
+    },
+    "v": {
+      "const": 1,
+      "title": "V",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "v",
+    "id",
+    "key",
+    "request_sha256",
+    "body",
+    "sha256"
+  ],
+  "title": "MediaReceipt[MediaLocalExchangeOwnerV2]",
+  "type": "object"
+}

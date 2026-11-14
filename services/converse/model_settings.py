@@ -640,6 +640,42 @@ class ConverseModelSettings:
                 raise RuntimeError("Converse model settings are unavailable") from None
             raise
 
+    def capture_native_media(self):
+        """Separate native operation; ordinary text capture still requires streaming."""
+        from packages.providers.llama_media import NativeLlamaMediaProvider
+
+        asyncio.get_running_loop()
+        if (
+            self.closed
+            or len(self.leases) >= LEASE_LIMIT
+            or any(lease.cleanup is not None or lease.cleanup_failed for lease in self.leases)
+        ):
+            raise ValueError("Converse provider cleanup or ownership is busy")
+        revision, selection = self._read()
+        provider = self.host_provider
+        if (
+            selection.source != "host"
+            or type(provider) is not NativeLlamaMediaProvider
+            or (provider.mode != "converse_chat" or provider is not self.runtime.provider)
+        ):
+            raise ValueError("Native Converse media selection is unavailable")
+        info = _info(provider)
+        if info.provider != "native_llama_media" or info.local is not True or info.streaming:
+            raise ValueError("Native Converse media declaration is unavailable")
+        pin = RoleModelPin(
+            source="host",
+            settings_revision=revision,
+            catalog_revision=None,
+            catalog_binding=None,
+            provider=info.provider,
+            model=info.model,
+            local=True,
+            reasoning=self.host_reasoning,
+        )
+        lease = ConverseModelLease(self, provider, pin, selection)
+        self.leases.add(lease)
+        return lease
+
     def capture(self):
         # Every locally constructed async adapter must have a real cleanup
         # owner even if its later identity validation refuses the capture.

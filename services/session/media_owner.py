@@ -288,13 +288,25 @@ class _CleanupContinuation:
         return authority.original if type(authority) is _MediaCleanupAuthority else authority.change
 
 
+class _SourceFence(threading.Event):
+    """Serialize a native publication commit with its original negative gate."""
+
+    def __init__(self):
+        super().__init__()
+        self.publication_lock = threading.RLock()
+
+    def set(self):
+        with self.publication_lock:
+            super().set()
+
+
 @dataclass(slots=True)
 class _Source:
     admission: object
     upload: object
     expires: float
     original_operation_id: str
-    fenced: threading.Event = field(default_factory=threading.Event)
+    fenced: threading.Event = field(default_factory=_SourceFence)
     reason: str = "none"
     connection: object = None
     sealed_result: tuple | None = None
@@ -453,6 +465,7 @@ class MediaSessionOwner:
         self._pending_bytes = 0
         self._intakes = {}
         self._loop = None
+        self._native_media = None
         self._retirement_requests = {}
         self._retirement_unknown = False
         self._close_operation = None
@@ -484,7 +497,7 @@ class MediaSessionOwner:
             refuse()
 
     @contextmanager
-    def _boundary(self):
+    def _boundary(self, *, before_commit=None):
         with self.store.lock:
             connection = self.store.db
             if self._poisoned or connection.in_transaction:
@@ -499,6 +512,8 @@ class MediaSessionOwner:
                 yield token
                 if self._initialized:
                     self._audit(token)
+                if before_commit is not None:
+                    before_commit(token)
                 try:
                     connection.commit()
                 except BaseException:
@@ -779,9 +794,9 @@ class MediaSessionOwner:
         )
 
     @contextmanager
-    def _transaction(self, principal, roles):
+    def _transaction(self, principal, roles, *, before_commit=None):
         self._principal_memory(principal, roles)
-        with self._boundary() as token:
+        with self._boundary(before_commit=before_commit) as token:
             self._principal(principal, roles)
             yield token
             self._principal(principal, roles)
@@ -789,6 +804,8 @@ class MediaSessionOwner:
     def _audit(self, token):
         try:
             self._validate_history(token)
+            if self._native_media is not None:
+                self._native_media._audit()
         except BaseException as error:
             self._poisoned = True
             if not isinstance(error, Exception):
@@ -4110,6 +4127,18 @@ class MediaSessionOwner:
         source.fenced.set()
         source.cleanup_checkpoint = None
         try:
+            if self._native_media is not None:
+                if await self._native_media.retire_source(source) is not True:
+                    return False
+            elif (
+                self._sql(
+                    "SELECT 1 FROM sqlite_schema WHERE type='table' AND substr(name,1,16)='native_media_v2_' LIMIT 1"
+                ).fetchone()
+                is not None
+            ):
+                # Missing original native composition cannot manufacture task,
+                # reader or publication settlement from a surviving SQL row.
+                return False
             if (
                 not self._cleanup_probe_joined(source)
                 or source.cleanup_continuation is not None
@@ -4585,6 +4614,20 @@ class MediaSessionOwner:
         if not self.store.db.in_transaction or not self.store.lock._is_owned():
             refuse()
         self._authority()
+        if (
+            self._sql(
+                "SELECT 1 FROM sqlite_schema WHERE type='table' AND substr(name,1,16)='native_media_v2_' LIMIT 1"
+            ).fetchone()
+            is not None
+        ):
+            if (
+                self._native_media is None
+                or self._sql(
+                    "SELECT 1 FROM native_media_v2_attempts a JOIN media_sources s ON s.source_id=a.source_id WHERE s.session_id=? AND a.state!='settled' LIMIT 1",
+                    (session.session_id,),
+                ).fetchone()
+            ):
+                refuse("conflict")
         previous = getattr(self._local, "token", None)
         token = object()
         self._local.token = token

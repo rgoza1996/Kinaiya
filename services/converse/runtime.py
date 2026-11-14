@@ -198,8 +198,10 @@ class ConverseRuntime:
         intent=None,
         resources_managed=False,
         memory_adapters=None,
+        native_media_owner=None,
     ):
         self.journal, self.provider = journal, provider
+        self.native_media_owner = native_media_owner
         self.name, self.context_turns = name, context_turns
         self.context_budgeted = context_budgeted
         self.context_observations = ContextObservations("converse")
@@ -956,6 +958,28 @@ class ConverseRuntime:
             turn.wait_remaining = max(
                 0, turn.wait_remaining - (asyncio.get_running_loop().time() - started)
             )
+
+    async def complete_native_media(self, source, fence, principal, *, key, timeout=30.0):
+        """Protected native composition only; ordinary routes never call this."""
+        from services.session.media_clients import refuse
+        from services.session.native_media import NativeBufferedMediaOwner
+
+        if (
+            type(self.native_media_owner) is not NativeBufferedMediaOwner
+            or self.model_settings is None
+        ):
+            refuse()
+        lease = self.model_settings.capture_native_media()
+        return await self.native_media_owner.run(
+            source,
+            fence,
+            principal,
+            lease,
+            key=key,
+            timeout=timeout,
+            system_prompt=self.personality,
+            caller=self,
+        )
 
     async def close(self):
         self._stt_stopping = True
