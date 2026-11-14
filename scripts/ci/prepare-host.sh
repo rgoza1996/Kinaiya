@@ -69,7 +69,7 @@ WorkingDirectory=$ci_root/runner
 ExecStart=$ci_root/runner/runsvc.sh
 Environment=HOME=$ci_root/home
 Environment=PATH=$ci_root/home/.local/bin:$ci_root/home/jdk17/bin:/usr/local/bin:/usr/bin:/bin
-Environment=TMPDIR=$ci_root/home/tmp
+Environment=TMPDIR=/tmp/ci
 Environment=UV_CACHE_DIR=$ci_root/home/.cache/uv
 Environment=ANDROID_HOME=$ci_root/home/android-sdk
 Environment=ANDROID_USER_HOME=$ci_root/home/.android
@@ -106,6 +106,7 @@ LockPersonality=yes
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 TemporaryFileSystem=/srv:ro
 BindPaths=$ci_root
+BindPaths=$ci_root/home/tmp:/tmp/ci
 ReadWritePaths=$ci_root/home $ci_root/runner
 InaccessiblePaths=-/run/docker.sock -/run/containerd -/var/lib/docker -/opt -/mnt -/media
 AppArmorProfile=kinaiya-ci-runner

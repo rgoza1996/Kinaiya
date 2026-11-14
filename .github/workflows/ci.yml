@@ -8,7 +8,7 @@ on:
       suite:
         description: Trusted runner qualification (host admission policy also applies)
         type: choice
-        options: [smoke, media, native, full, android]
+        options: [smoke, media, native, compat, full, android]
         default: smoke
 permissions:
   contents: read
@@ -96,6 +96,33 @@ jobs:
           tests/integration/test_session_media_owner.py
           tests/integration/test_session_media_lifecycle_guards.py
 
+  native-compatibility:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'compat'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ARM64, X64]
+    runs-on: [self-hosted, Linux, '${{ matrix.arch }}', kinaiya-ci]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Create isolated Python environment
+        run: |
+          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/compat-venv"
+          echo "$RUNNER_TEMP/compat-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Qualify native socket, permissions, timing and PCM assumptions
+        run: >-
+          python -m pytest --basetemp /tmp/ci/pytest-compat -q
+          tests/integration/test_agent_standing_claim_retirement.py::test_real_acquisition_and_lost_final_ack_reconcile_without_second_restore
+          tests/integration/test_standing_physical_finalization.py
+          tests/integration/test_converse_window_recovery.py::test_stop_tick_budget_rotates_past_a_hanging_session
+          tests/integration/test_media_decoder_multitrack.py
+          tests/unit/test_owner_local_signin.py::test_storage_status_diagnosis_reports_missing_corrupt_and_ready_without_reinitialization
+          tests/unit/test_qwen3_native.py::test_main_seals_before_zero_file_limit_and_imports
+
   python:
     if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
     # PRs always use disposable hosted machines. The host-owned admission policy
@@ -147,7 +174,15 @@ jobs:
           PY
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest -m 'not live' -q
+      - name: Run the complete non-live Python suite
+        env:
+          RUNNER_KIND: ${{ matrix.runner }}
+        run: |
+          if test "$RUNNER_KIND" = hosted; then
+            pytest -m 'not live' -q
+          else
+            pytest --basetemp /tmp/ci/pytest -m 'not live' -q
+          fi
       - run: python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas
       - name: Dependency audit
         run: python -m pip_audit -r requirements-dev.lock --disable-pip
@@ -173,10 +208,27 @@ jobs:
           git -C "$RUNNER_TEMP/flutter" checkout --detach 737ba8f885dc774b53b442759999a312c9461e4e
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/flutter/bin/flutter" --version
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        if: github.event_name == 'pull_request'
+        with:
+          python-version: '3.12'
+      - name: Create isolated native Python environment
+        if: github.event_name != 'pull_request'
+        working-directory: .
+        run: |
+          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/flutter-python-venv"
+          echo "$RUNNER_TEMP/flutter-python-venv/bin" >> "$GITHUB_PATH"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+        working-directory: .
       - run: flutter pub get --enforce-lockfile
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze
       - run: flutter test
+      - name: Qualify actual Dart transports against the live Session fixture
+        working-directory: .
+        run: >-
+          python -m pytest -q
+          tests/integration/test_companion_control.py::test_owner_and_companion_dart_transports_against_live_session_asgi
       - run: node --test web/audio_bridge.test.js
       - run: flutter build web --release --no-web-resources-cdn
       - name: Build foreground companion

@@ -124,6 +124,23 @@ at the inspected baseline. Its job wrapper allows 60 minutes hosted and 120 on
 the older native hosts; application/test deadlines and resource limits remain
 the original values. Each host processes one job at a time.
 
+The service binds only its own `home/tmp` into its private namespace as
+`/tmp/ci`, with `TMPDIR=/tmp/ci`. Native pytest uses a short per-job base there.
+This preserves the original Unix socket path guards and avoids storing Dell's
+temporary test data on its full root volume. Existing installations apply
+`scripts/ci/short-tmp.sh` as administrator only after the runner is idle; the
+script changes and restarts only the dedicated CI unit. The service umask stays
+0077. Fixtures that deliberately create insecure credentials set0644 explicitly.
+The Python/Dart live Session integration runs with the x64 Flutter job and its
+actual SDK; Python-only jobs report that SDK-dependent case skipped.
+
+Whistle's pinned syscall fence currently supports Linux x86_64 only. Its real
+physical-finalization fixture uses the same existing architecture availability
+gate as the original managed-Whistle tier; Dell still executes those assertions.
+ARM core/provider/storage tests run normally. The actual ARM multitrack PCM
+byte-parity failure remains tracked in #575; it is neither skipped nor assigned
+a numerical tolerance to conceal a failed qualification.
+
 ## Operation, logging and updates
 
 Use the existing Tailscale identities, `ubuntu@oracle-vps` and `dell@server`,

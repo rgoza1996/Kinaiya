@@ -668,16 +668,16 @@ def _find_flutter_bin() -> str | None:
     if found:
         return found
     repo_root = Path(__file__).resolve().parents[2]
-    for candidate in (
-        repo_root / ".dev-run" / "flutter" / "bin" / "flutter",
-        Path("/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter"),
-    ):
+    for candidate in (repo_root / ".dev-run" / "flutter" / "bin" / "flutter",):
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return str(candidate)
     return None
 
 
 def test_owner_and_companion_dart_transports_against_live_session_asgi(tmp_path):
+    flutter_bin = _find_flutter_bin()
+    if flutter_bin is None:
+        pytest.skip("Flutter SDK is required for the actual Dart transport integration")
     store = Store(tmp_path / "live_e2e.sqlite")
     auth = Auth({"owner": "o" * 32, "agent": "a" * 32}, ("https://ui.invalid",))
     app = create_app(store, auth)
@@ -704,7 +704,6 @@ def test_owner_and_companion_dart_transports_against_live_session_asgi(tmp_path)
         else:
             pytest.fail("Live Session ASGI server did not become ready on loopback")
 
-        flutter_bin = _find_flutter_bin()
         if flutter_bin is not None:
             flutter_dir = Path(__file__).resolve().parents[2] / "apps" / "kinaiya_flutter"
             env = {
