@@ -1100,20 +1100,19 @@ class NativeBufferedMediaOwner:
             # this commit or after its retained receipt, never between them.
             self._guard(a)
             owner = self.session_owner
-            with owner._transaction(a.principal, {"owner"}) as token:
-                with owner._mutex, a.source.fenced.publication_lock:
-                    self._guard(a, token)
-                    owner._source_guard(token, a.reference, a.fence, a.principal)
-                    try:
+            with owner.store.lock, owner._mutex, a.source.fenced.publication_lock:
+                try:
+                    with owner._transaction(a.principal, {"owner"}) as token:
+                        self._guard(a, token)
                         event = owner.store._append_entry_locked(request, a.pin.role)
                         owner._sql(
                             "UPDATE native_media_v2_attempts SET event_id=? WHERE key=?",
                             (event.event_id, a.key),
                         )
-                    except BaseException:
-                        a.publication_unknown = True
-                        raise
-            a.event = event
+                except BaseException:
+                    a.publication_unknown = True
+                    raise
+                a.event = event
             return event
 
     def _snapshot(self, a, *, joined):

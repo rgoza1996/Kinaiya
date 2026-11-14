@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import sys
+import threading
 import wave
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -30,6 +31,7 @@ from services.converse.model_settings import ConverseModelSettings
 from services.converse.runtime import ConverseRuntime
 from services.decisions.model_settings import DecisionsModelSettings
 from services.decisions.runtime import DecisionsWorker
+from services.session.media_clients import MediaSessionError
 from services.session.native_media import NativeBufferedMediaOwner
 from services.session.store import LocalJournal
 
@@ -379,6 +381,53 @@ async def test_native_callers_refuse_resistant_late_transport_before_publication
         _assert_original(case, a)
         assert a.outcome != "completed" and not _publications(case)
         assert len(case.env.store.read(kinds=["agent.command"])) == 1
+
+
+@pytest.mark.parametrize("mode", _MODES)
+async def test_original_source_fence_serializes_through_the_actual_sqlite_commit(tmp_path, mode):
+    async with _case(tmp_path, mode, "before_response") as case:
+        call = case.start()
+        await _entered(call, case.wire.entered)
+        a = case.native._attempts["native-a"]
+        attempted, finished = threading.Event(), threading.Event()
+        observations, retained = [], []
+        armed = False
+
+        def stop_original():
+            attempted.set()
+            a.source.fenced.set()
+            retained.append(a.event)
+            finished.set()
+
+        original_stop = threading.Thread(target=stop_original, daemon=True)
+
+        def at_sqlite_commit(statement):
+            nonlocal armed
+            if statement.startswith("UPDATE native_media_v2_attempts SET event_id="):
+                armed = True
+            elif armed and statement == "COMMIT":
+                armed = False
+                # SQLite's real COMMIT is entered, but has not executed yet.
+                # Trace callback assertions would be swallowed by SQLite, so
+                # retain the actual observations and assert them below.
+                original_stop.start()
+                observations.append(attempted.wait(2) and not finished.wait(0.25))
+
+        case.env.store.db.set_trace_callback(at_sqlite_commit)
+        try:
+            case.wire.release.set()
+            (result,) = await asyncio.wait_for(asyncio.gather(call, return_exceptions=True), _WAIT)
+            await asyncio.to_thread(original_stop.join, 2)
+        finally:
+            case.env.store.db.set_trace_callback(None)
+        assert observations == [True] and finished.is_set()
+        assert a.event is not None and retained == [a.event]
+        assert _publications(case) == [a.event]
+        # A stop after the committed effect may suppress the caller's return,
+        # but cannot rewrite that original publication into zero effects.
+        assert result is a.event or isinstance(result, MediaSessionError)
+        await _reconciled(case.native)
+        _assert_original(case, a)
 
 
 @pytest.mark.parametrize("mode", _MODES)

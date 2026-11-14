@@ -17,23 +17,73 @@ value to that harness. They do **not** invoke the production Converse/Decisions
 publication owner or an actual Agent dispatch. A real Store alone does not turn
 the hand-written caller into the production caller.
 
-On this baseline, `MediaSessionOwner.control` still refuses `start` and
-`resume` with `unavailable`. `NativeLlamaMediaProvider.complete_media` has no
-production service caller; `services/decisions/media_classifier.py` contains
-pure projection/parsing functions. The absent native worker path remains a
-dependency of #204. Do not enable it or manufacture cleanup receipts just to
-close #379.
+## Native increment in PR #572
 
-The self-hosted `suite=media` selection therefore verifies the existing real
-provider, classifier and final-fence tests, plus actual Store reset/delete
-refusal when the original media owner is missing, on both CPU architectures. This preserves a useful
-regression baseline while keeping the final acceptance gap explicit.
+The separate native PR adds the protected, optional one-packet PCM lane described
+in [the implementation contract](native-media-publication.md). Actual
+`ConverseRuntime` and `DecisionsWorker` methods capture their real selected-model
+leases and invoke an original `NativeBufferedMediaOwner` on Session's event loop.
+Session retains the actual source, reader, worker, exchange and publication;
+public records cannot reconstruct that authority. Provider candidates remain
+private until the original return fence and authoritative publication guard.
 
-Before #379 can close, compose the actual native worker/caller under #204 and
-test that path with controlled cancellation-resistant transport/body/original
-cleanup. Observe the real publication owner and Agent ingress, with a healthy
-positive control that proves each observer is connected. Verify both modes,
-caller cancellation versus original timeout, currentness, one original close
-and explicit unknown settlement. Review and run CI on the final integrated
-tree. Passing the current harness or an architecture smoke test is not that
-evidence.
+The publication transaction holds the Store lock, owner mutex and original
+source fence lock through SQLite commit. Source stop either fences first and
+refuses publication, or follows the committed receipt. A lost caller response
+does not establish that a committed effect is absent. Original unknown work
+remains charged; replay observes the same attempt rather than dispatching again.
+
+`tests/integration/test_native_media_publication.py` composes the actual caller,
+Session/ASGI owner-channel authentication, sealed spool, Store, selected model
+settings and original exchange bridge. Only HTTPX delivery/body/close is
+controlled. Its acceptance observations include:
+
+- Both modes publish healthy dialogue/routing through the actual native owner.
+- Caller cancellation and original provider deadlines are exercised separately
+  before response, during body and during original close; no publication escapes.
+- Cancellation, expiration, model retirement and source stop while queued at the
+  actual publication operation are rechecked before commit.
+- A thread-side source fence at the real SQLite COMMIT waits for the original
+  committed receipt. Observer cancellation after commit preserves that receipt.
+- Earlier handled cancellation remains acceptable; replay does not issue another
+  HTTP request or duplicate publication.
+- Failed original close retains unknown cleanup, reader/source claims and model
+  operation capacity; stop/delete cannot manufacture positive settlement.
+- Ordinary authenticated journal append cannot forge the reserved native marker.
+- A real Agent admits a permitted authenticated owner-text positive control.
+  Native evidence does not create an Agent command, and direct admission using
+  its published observation is refused by the actual Agent boundary.
+
+The existing media owner/lifecycle and missing-runtime tests additionally cover
+source reset/delete/shutdown and partial native namespaces. New V2 contract
+round-trip/strict-validation tests do not widen the unchanged legacy schemas.
+
+## Commands and evidence
+
+All environments install `requirements-dev.lock` with hashes. The combined tree
+adds native tests to the ordinary non-live suite. The guarded architecture check
+is dispatched using:
+
+```sh
+gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=media
+gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=compat
+gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=full
+```
+
+These dispatches require the administrator's exact reviewed-commit allowlist;
+PR events always remain on disposable hosted machines. The PR records exact
+source SHAs, original failed iterations and subsequent observed results. A
+passing smoke, protocol double or earlier source cut is not a final native
+qualification. Preserve failures and report passed/skipped/failed separately.
+
+## Remaining production gates
+
+This increment is an in-process composition seam for a sealed canonical PCM16
+mono 16 kHz WAV of at most one second. The default launcher does not install it;
+general media start/resume still returns unavailable. It introduces no public
+route, cross-service RPC, catalog media selection, model/device capability
+qualification, managed physical model-worker termination, video pipeline or
+automatic crash reconciliation. Local HTTP cleanup does not prove model or
+device termination. Those broader #204/#449 prerequisites must remain explicit
+before production wiring. No live model, camera, GPU, paid inference, service
+configuration or model-quality claim is part of this qualification.
