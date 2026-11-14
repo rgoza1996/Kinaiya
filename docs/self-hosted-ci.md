@@ -104,6 +104,10 @@ belong only to this account. ARM64 Android host tooling is not qualified.
 Portable uv-managed CPython initially lacked the Linux sealing constants that
 Agent requires (#571). `python-env.sh` instead verifies official upstream build
 hashes and real kernel-enforced memfd seals before creating the environment.
+Account-local patchelf 0.19.3, also checksum-pinned, relocates each executable's
+library search path to its matching private libpython; an empty-environment
+interpreter probe checks this. Initial direct relocation without that change
+failed to load libpython on Dell and crashed during asyncio tests on Oracle.
 Those Ubuntu 24.04 builds are also explicitly qualified on Dell's newer Ubuntu.
 Dell's missing unzip is supplied by a checksum-verified distro package extracted
 only into the CI account. Gradle uses a private 3 GiB heap, bounded metaspace,

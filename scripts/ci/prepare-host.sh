@@ -85,6 +85,7 @@ MemoryMax=8G
 TasksMax=2048
 IOWeight=20
 OOMPolicy=stop
+LimitCORE=0
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 # NoNewPrivileges already prevents set-ID escalation. RestrictSUIDSGID blocks
