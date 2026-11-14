@@ -1,0 +1,2 @@
+self-hosted-runner:
+  labels: [kinaiya-ci, kinaiya-arm64, kinaiya-x64]

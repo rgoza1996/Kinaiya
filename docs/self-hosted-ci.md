@@ -1,0 +1,182 @@
+# Trusted self-hosted CI
+
+Infrastructure tracking: #569. Regression qualification: #379. Workflow changes
+are proposed through a PR; adding hosts does not enable any production feature.
+
+## Inspected hosts
+
+Read-only inspection on November 13, 2026 preceded installation. Both machines
+already run Docker, Tailscale, remote desktop and application services.
+
+| Host | Observed OS / CPU | Visible RAM | CI root | Work |
+| --- | --- | --- | --- | --- |
+| Oracle | Ubuntu 24.04.4, ARM64, four Neoverse-N1 CPUs | 23 GiB | `/srv/kinaiya-ci` | Native Python checks |
+| Dell | Ubuntu 26.04, x64, Xeon E3-1271 v3, eight threads | 22 GiB | `/srv/storage/kinaiya-ci` | Native Python, Flutter/web and Android builds |
+| GitHub macOS | Existing `macos-15` workflow | Hosted | Disposable | Existing iOS/Xcode builds |
+
+Oracle had about 16 GB free on its root filesystem. Dell's root filesystem had
+**zero bytes available to unprivileged users**; its separately mounted data
+filesystem had about 1.2 TB free. CI uses that data filesystem. No existing data,
+cache, container or application was removed. The Dell RAM observation does not
+establish that all of the owner's expected 32 GB is available; hardware/firmware
+investigation remains separate maintenance. Do not fill Oracle with Android SDKs.
+
+## Admission and isolation
+
+`ci.yml` keeps every `pull_request` job on GitHub-hosted machines. Trusted main
+pushes use native ARM64/x64 Python matrices and Dell for Flutter/Android. Manual
+`suite=smoke`, `media`, `android` and `full` dispatches qualify these paths. iOS
+stays on macOS. The existing mobile emulator/installer/release workflows remain
+hosted: they require distinct privileges, OS matrices or publishing credentials
+and were not migrated to these persistent hosts.
+
+**YAML conditions are not the security boundary.** A fork can edit workflow
+labels. The systemd service always supplies a root-owned job-started hook from
+`/etc/kinaiya-ci`; it never executes the policy copy in the checkout. The policy
+uses the runner's GitHub context and original webhook, and requires:
+
+- The exact repository ID/name, owner actor ID and matching webhook sender.
+- `push` on main, or an explicitly reviewed `workflow_dispatch`.
+- An allowlisted workflow filename and matching workflow/source commit.
+- Main, or a temporary branch-to-exact-SHA entry installed by the administrator.
+- No PR, PR-target, workflow-run, comment, schedule or other indirect event.
+
+The hook fails closed on missing/malformed/oversized input or unsafe policy-file
+ownership. On refusal it also kills its verified original `Runner.Worker`
+parent, preventing `always()` or action pre/post entrypoints from running after
+the refusal. The listener remains available for other jobs. Qualification must
+include a real rejected PR job, not just tests of the Python predicate.
+
+GitHub downloads/parses action metadata before this hook. This is a narrow
+admission control on persistent runners, **not a disposable isolation boundary**
+or protection against vulnerabilities in the runner itself. Only reviewed
+repository code and pinned actions may be admitted. Do not grant access to
+arbitrary PRs or reuse these identities for another repository. Automatic runner
+security updates stay enabled. A compromised trusted job requires rebuilding
+the account/runner and investigating host exposure; deleting its checkout alone
+does not restore trust.
+
+Both hosts use a new `kinaiya-ci` system account with a nologin shell and no
+sudo/Docker supplementary groups. No GitHub PAT, application credential, SSH key
+or Tailscale auth key is copied to it. Registration tokens travel only over SSH
+stdin and are short lived. Runner credentials remain private files in its own
+directory. Checkouts set `persist-credentials: false`; tokens are read-only.
+
+The root-owned `kinaiya-ci.service` limits the process tree to two CPU
+equivalents, 6 GiB soft/8 GiB hard memory and 2,048 tasks, with lower scheduling
+and IO priority. It uses private temporary/device mounts, a read-only host
+filesystem, hidden existing home directories, and only its own CI root exposed
+under `/srv`. Docker/containerd sockets are inaccessible. It grants no KVM or
+container privilege. A separate AppArmor service domain permits the user
+namespaces required by bubblewrap without changing the global restriction.
+
+## Installation and tools
+
+Owner approval is required for `scripts/ci/prepare-host.sh`: it creates the
+account, dedicated directories, `/etc/kinaiya-ci`, a new AppArmor profile and the
+new systemd unit. It refuses pre-existing paths/accounts. It does not install or
+upgrade system packages, edit networking, alter other services or prune data.
+
+After preparation, run `install-runner.sh` as `kinaiya-ci` with a freshly minted
+repository registration token on stdin. Never paste it into an issue, command
+argument, transcript or commit. The script verifies the official architecture's
+runner archive checksum, registers explicit labels, and prepares GitHub's
+`runsvc.sh` wrapper for the custom systemd service. Start that unit only after
+registration. Do not separately install a second `actions.runner.*` service.
+
+Initial versions, verified against upstream downloads:
+
+| Tool | Pin / location |
+| --- | --- |
+| Actions runner | 2.338.2; official archive SHA-256 in `install-runner.sh`; automatic updates enabled |
+| uv | 0.11.26; architecture-specific official SHA-256 in `install-tooling.sh` |
+| Python | Isolated managed 3.11/3.12/3.14 environments per job; `requirements-dev.lock` with hashes |
+| Flutter | Existing 3.47.8 tag, exact `737ba8f885dc774b53b442759999a312c9461e4e` commit |
+| Dell JDK | Temurin 17.0.21+9, private `home/jdk17` |
+| Dell Android | Command tools 15859902, platform/build-tools 36, NDK 28.2.13676358, private `home/android-sdk` |
+
+`install-tooling.sh` writes only the new account's directories. Android SDK
+license acceptance/install logs remain private there. No production signing
+key is installed; deterministic Android jobs produce debug APKs. The Python
+environment and Flutter SDK live in each job's temporary directory; caches
+belong only to this account. ARM64 Android host tooling is not qualified.
+
+## Operation, logging and updates
+
+Use the existing Tailscale identities, `ubuntu@oracle-vps` and `dell@server`,
+for administration. These are distinct from the unprivileged runner account.
+
+```sh
+systemctl is-active kinaiya-ci
+systemctl is-enabled kinaiya-ci
+sudo journalctl -u kinaiya-ci --since '1 hour ago' --no-pager
+sudo systemctl show kinaiya-ci -p User -p CPUQuotaPerSecUSec -p MemoryMax -p TasksMax
+```
+
+The service is enabled at boot, waits for its filesystem and network, and
+restarts on exit. Registration must remain present. The runner's `_diag` logs
+and `_work` live inside its CI root. Logs are sensitive operational material;
+do not upload entire logs or `.credentials*` files to issues. Inspect only
+relevant redacted lines. System journal retention remains the host's existing
+policy. Review disk usage weekly and retain useful failure logs before cleaning
+**this account's** stale job files/caches while idle. Never prune the hosts'
+existing user caches or Docker storage as runner maintenance.
+
+```sh
+gh api repos/rgoza1996/Kinaiya/actions/runners \
+  --jq '.runners[] | {name,status,busy,labels:[.labels[].name]}'
+gh workflow run ci.yml --ref main -f suite=smoke
+gh workflow run ci.yml --ref main -f suite=media
+gh workflow run ci.yml --ref main -f suite=android
+```
+
+Keep built-in automatic runner updates enabled; do not use `--disableupdate`.
+Updates are performed by the dedicated account inside its writable runner
+directory, under the same service limits. Review upstream security notices and
+check the version/logs and smoke dispatch after an update. System packages,
+AppArmor/kernel changes, JDK/SDK/Flutter pins and disk expansion need separate
+reviewed maintenance; do not run unattended global upgrades from a CI job.
+
+## Recovery and removal
+
+1. Inspect GitHub job state, the service journal and free space. Do not interrupt
+   a busy runner without considering the job's outcome; cancellation is not
+   proof an external operation did not happen.
+2. Stop/restart **only** `kinaiya-ci` when idle. Do not restart Docker, Tailscale,
+   the model service or desktop services to repair CI.
+3. Re-run smoke qualification. For dependency failure, recreate only the job's
+   temporary Python environment from the existing lock; do not repair another
+   user's Python installation or loosen lock hashes.
+4. If credentials/registration are lost, stop the unit, remove the exact runner
+   registration in GitHub, and use a fresh short-lived token to register again.
+   Do not use `--replace` against an unexplained existing runner.
+5. If the host or runner account may be compromised, stop the unit, remove its
+   GitHub registration, revoke affected credentials, preserve evidence and
+   rebuild from a trusted source. Review other services before restoring CI.
+6. For deliberate decommissioning, disable/stop the unit and remove the matching
+   repository runner registration. Archive any needed evidence, then remove
+   only the dedicated unit/profile/policy/account/directories with explicit
+   administrator approval. Never recursively delete `/srv/storage` or `/srv`.
+
+Temporary reviewed-ref entries must be removed after qualification. Main's PR
+protection was already present and enforced for administrators; this setup does
+not change it. Updating the host policy is an administrator action, separate
+from checking out code. A new actor or workflow fails closed until explicitly
+reviewed and installed.
+
+## Qualification record and remaining limits
+
+The PR and #569 contain exact commit/run evidence, including initial failed
+setup attempts and subsequent corrections. Full CI, smoke admission, rejected
+PRs, Android compilation, iOS compilation and actual native media integration
+are separate claims. See [issue 379 qualification](issue-379-qualification.md).
+
+Dell's full root filesystem still requires owner storage maintenance even
+though CI uses its data volume. No reboot was performed to test boot startup;
+unit enablement and controlled service restarts establish configuration only.
+No production media/model, camera, GPU, physical phone, KVM emulator, release
+signing or deployment is qualified by these tests.
+
+References: [GitHub service setup](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application),
+[job hooks](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/run-scripts),
+[runner requirements](https://docs.github.com/en/actions/reference/runners/self-hosted-runners).
