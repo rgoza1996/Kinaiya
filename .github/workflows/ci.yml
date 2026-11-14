@@ -11,7 +11,7 @@ on:
         options: [smoke, media, native, compat, workspace, full, flutter, android]
         default: smoke
       python:
-        description: Python version for manual full qualification
+        description: Python version for manual full/media qualification
         type: choice
         options: [all, '3.11', '3.12', '3.14']
         default: all
@@ -68,13 +68,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Create isolated Python environment
+        env:
+          PYTHON_VERSION: ${{ inputs.python == 'all' && '3.12' || inputs.python }}
         run: |
-          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/media-venv"
+          bash scripts/ci/python-env.sh "$PYTHON_VERSION" "$RUNNER_TEMP/media-venv"
           echo "$RUNNER_TEMP/media-venv/bin" >> "$GITHUB_PATH"
       - run: python -m pip install --require-hashes -r requirements-dev.lock
       - name: Qualify issue 379 and runner admission
         run: >-
-          python -m pytest --basetemp /tmp/ci/pytest-media -q
+          python -m pytest --basetemp /tmp/ci/pytest-media -o faulthandler_timeout=60 -q
           tests/unit/test_runner_job_policy.py
           tests/unit/test_llama_media.py
           tests/unit/test_llama_media_final_fence.py
@@ -102,7 +104,7 @@ jobs:
           cache-dependency-path: requirements-dev.lock
       - run: python -m pip install --require-hashes -r requirements-dev.lock
       - run: >-
-          python -m pytest -x --tb=short -q
+          python -m pytest -o faulthandler_timeout=60 -x --tb=short -q
           tests/unit/test_media_exchange_v2_contracts.py
           tests/unit/test_media_pcm_rounding.py
           tests/integration/test_media_decoder_multitrack.py
@@ -217,9 +219,9 @@ jobs:
           RUNNER_KIND: ${{ matrix.runner }}
         run: |
           if test "$RUNNER_KIND" = hosted; then
-            pytest -m 'not live' -q
+            pytest -o faulthandler_timeout=60 -m 'not live' -q
           else
-            pytest --basetemp /tmp/ci/pytest -x --tb=short -m 'not live' -q
+            pytest --basetemp /tmp/ci/pytest -o faulthandler_timeout=60 -x --tb=short -m 'not live' -q
           fi
       - run: python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas
       - name: Dependency audit

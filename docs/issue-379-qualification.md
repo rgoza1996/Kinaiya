@@ -68,6 +68,7 @@ is dispatched using:
 
 ```sh
 gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=media
+gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=media -f python=3.11
 gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=compat
 gh workflow run ci.yml --ref codex/native-media-publication-379 -f suite=full
 ```
@@ -77,6 +78,18 @@ PR events always remain on disposable hosted machines. The PR records exact
 source SHAs, original failed iterations and subsequent observed results. A
 passing smoke, protocol double or earlier source cut is not a final native
 qualification. Preserve failures and report passed/skipped/failed separately.
+
+Manual media qualification defaults to Python 3.12 and can explicitly select
+another supported version. The complete and focused Python jobs emit a thread
+stack after a test has run for 60 seconds; this diagnostic neither stops the
+test nor changes an application deadline.
+
+Issue #585 captured a real CPython 3.11 GIL/SQLite-mutex deadlock in the source
+fence test's trace-observer teardown. Installing or removing that observer now
+uses the actual Store lock, matching native threaded SQL access. The original
+SQLite COMMIT/source-fence interleaving and every publication assertion remain
+unchanged. This fixture correction changes no production guard or owner.
+See [CPython's trace configuration and callback](https://github.com/python/cpython/blob/v3.11.18/Modules/_sqlite/connection.c).
 
 ## Remaining production gates
 
