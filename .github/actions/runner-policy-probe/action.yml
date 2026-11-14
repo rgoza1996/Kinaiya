@@ -1,9 +1,0 @@
-name: Harmless admission negative probe
-description: This code must never execute on a PR job
-runs:
-  using: node24
-  pre: probe.cjs
-  pre-if: always()
-  main: probe.cjs
-  post: probe.cjs
-  post-if: always()

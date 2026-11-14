@@ -44,7 +44,10 @@ uses the runner's GitHub context and original webhook, and requires:
 The hook fails closed on missing/malformed/oversized input or unsafe policy-file
 ownership. On refusal it also kills its verified original `Runner.Worker`
 parent, preventing `always()` or action pre/post entrypoints from running after
-the refusal. The listener remains available for other jobs. Qualification must
+the refusal. An unexpected worker layout stops only its own exact service
+process tree; systemd then restarts it. Refusals/admissions also record only the
+public run ID in the host journal, since abruptly stopped workers may not
+finish uploading GitHub job logs. Qualification must
 include a real rejected PR job, not just tests of the Python predicate.
 
 GitHub downloads/parses action metadata before this hook. This is a narrow
@@ -188,6 +191,18 @@ though CI uses its data volume. No reboot was performed to test boot startup;
 unit enablement and controlled service restarts establish configuration only.
 No production media/model, camera, GPU, physical phone, KVM emulator, release
 signing or deployment is qualified by these tests.
+
+Completed dispatch evidence before final combined qualification:
+
+- [Smoke, both architectures](https://github.com/rgoza1996/Kinaiya/actions/runs/43555964971), source `db46c7795a0b53bfd2b2ba451aa4577982a89551`, attempt 4: success. Earlier attempts retain the `/proc` mount and tar/openat2 failures.
+- [Initial focused media baseline](https://github.com/rgoza1996/Kinaiya/actions/runs/43556338868), same source, attempt 2: 114 passed on each architecture; first attempt records the private directory ownership failure.
+- [Real PR rejection probe](https://github.com/rgoza1996/Kinaiya/actions/runs/43557294248), source `fa65cca0bd33ad71fc2c517ba40508af9f0bb054`: both jobs deliberately failed before any action/step, despite forged job-level GitHub variables and an action with `always()` pre/post hooks. Host journals record refusal; listeners record worker exit 137. Temporary probe files were removed from the final diff.
+- [Python/runtime bootstrap failures](https://github.com/rgoza1996/Kinaiya/actions/runs/43557334404) retain the initial libpython load/crash evidence. The [original portable-Python/full failure](https://github.com/rgoza1996/Kinaiya/actions/runs/43556654007) and [missing-unzip failure](https://github.com/rgoza1996/Kinaiya/actions/runs/43556651649) remain linked to #571.
+
+These checks cover different source cuts and are not a final-tree full-CI pass.
+The final PR description links the later combined-tree checks and their actual
+results, including any remaining failures. Do not add matrix counts as distinct
+behavioral coverage.
 
 References: [GitHub service setup](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application),
 [job hooks](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/run-scripts),

@@ -13,7 +13,7 @@ _POLICY = {
     "repository": "rgoza1996/Kinaiya",
     "repository_id": "1435085891",
     "actor_ids": ["97354241"],
-    "workflows": ["ci.yml", "self-hosted.yml"],
+    "workflows": ["ci.yml"],
     "reviewed_refs": {"refs/heads/codex/self-hosted-ci-379": _SHA},
 }
 
