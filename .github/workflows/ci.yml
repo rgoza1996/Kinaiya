@@ -38,6 +38,9 @@ jobs:
           test ! -r /home/ubuntu
           test ! -r /home/dell
           case "$EXPECTED_ARCH:$(uname -m)" in ARM64:aarch64|X64:x86_64) ;; *) exit 1 ;; esac
+          if test "$EXPECTED_ARCH" = X64; then
+            lsattr -d "$(dirname "$HOME")" | awk '{print $1}' | grep -q i
+          fi
           bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev true
           uv --version
           printf 'runner=%s arch=%s user=%s\n' "$RUNNER_NAME" "$(uname -m)" "$(id -un)" | tee -a "$GITHUB_STEP_SUMMARY"

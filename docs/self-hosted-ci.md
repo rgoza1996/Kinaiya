@@ -20,6 +20,10 @@ filesystem had about 1.2 TB free. CI uses that data filesystem. No existing data
 cache, container or application was removed. The Dell RAM observation does not
 establish that all of the owner's expected 32 GB is available; hardware/firmware
 investigation remains separate maintenance. Do not fill Oracle with Android SDKs.
+Dell's existing storage parent is world-writable. The new CI root alone has
+the ext4 immutable attribute, protecting its directory entry from rename while
+its `home` and `runner` children remain writable. The storage parent's
+permissions and existing data are unchanged.
 
 ## Admission and isolation
 
@@ -172,6 +176,8 @@ reviewed maintenance; do not run unattended global upgrades from a CI job.
    repository runner registration. Archive any needed evidence, then remove
    only the dedicated unit/profile/policy/account/directories with explicit
    administrator approval. Never recursively delete `/srv/storage` or `/srv`.
+   On Dell, an administrator must first run
+   `sudo chattr -i /srv/storage/kinaiya-ci` to unlock that exact directory entry.
 
 Temporary reviewed-ref entries must be removed after qualification. Main's PR
 protection was already present and enforced for administrators; this setup does

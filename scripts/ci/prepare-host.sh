@@ -22,6 +22,9 @@ useradd --system --user-group --home-dir "$ci_root/home" --shell /usr/sbin/nolog
 install -d -m 0755 -o root -g root "$ci_root"
 install -d -m 0700 -o kinaiya-ci -g kinaiya-ci "$ci_root/home" "$ci_root/runner"
 install -d -m 0700 -o kinaiya-ci -g kinaiya-ci "$ci_root/home/tmp" "$ci_root/home/.local" "$ci_root/home/.local/bin"
+# Dell's existing shared storage parent is world-writable. Protect only this
+# new directory entry against rename; descendants remain writable for CI.
+if test "$1" = dell; then chattr +i "$ci_root"; fi
 install -d -m 0755 -o root -g root /etc/kinaiya-ci
 install -m 0644 -o root -g root "$source_dir/runner_job_policy.py" /etc/kinaiya-ci/runner_job_policy.py
 cat > /etc/kinaiya-ci/policy.json <<'JSON'
