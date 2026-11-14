@@ -81,6 +81,10 @@ not accept an independently reconstructed record with matching fields.
    source/model/consumer currentness. The actual publication commit must enforce
    its authoritative guard at the commit boundary. A separate earlier Boolean
    check or later caller check cannot protect an intervening append.
+   Session repeats that guard after its synchronous mutation audit immediately
+   before SQLite commit, since the original deadline can expire during the audit.
+   A positively acknowledged rollback proves no local publication; a poisoned
+   commit/rollback boundary remains unknown and retains its original claims.
 6. Observe actual publication/Agent admission and then reconcile the same
    original local owners. `LocalExchangeCleanupV2` may become settled only after
    its actual required task, transport, body, every reader and every publication
@@ -105,6 +109,8 @@ Use the actual production caller/worker, Session publication owner and Store,
 and the real Agent admission boundary. Only the HTTPX transport/body/close is
 controlled for failure injection; no synthetic exchange bridge supplies native
 settlement and no hand-written publication harness substitutes for the caller.
+Scheduling tests also hold the actual publication lock or pause the real SQL
+commit/post-audit boundary; they do not replace the native owners or publisher.
 
 For both modes, cover normal success, cancellation suppressed before response,
 during body and during the original close, original deadline expiration in

@@ -1102,7 +1102,9 @@ class NativeBufferedMediaOwner:
             owner = self.session_owner
             with owner.store.lock, owner._mutex, a.source.fenced.publication_lock:
                 try:
-                    with owner._transaction(a.principal, {"owner"}) as token:
+                    with owner._transaction(
+                        a.principal, {"owner"}, before_commit=lambda token: self._guard(a, token)
+                    ) as token:
                         self._guard(a, token)
                         event = owner.store._append_entry_locked(request, a.pin.role)
                         owner._sql(
@@ -1110,7 +1112,10 @@ class NativeBufferedMediaOwner:
                             (event.event_id, a.key),
                         )
                 except BaseException:
-                    a.publication_unknown = True
+                    # A positive rollback proves no local publication. Commit
+                    # or rollback uncertainty poisons the original boundary;
+                    # retain that unknown outcome rather than retrying it.
+                    a.publication_unknown = owner._poisoned
                     raise
                 a.event = event
             return event

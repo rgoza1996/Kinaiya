@@ -497,7 +497,7 @@ class MediaSessionOwner:
             refuse()
 
     @contextmanager
-    def _boundary(self):
+    def _boundary(self, *, before_commit=None):
         with self.store.lock:
             connection = self.store.db
             if self._poisoned or connection.in_transaction:
@@ -512,6 +512,8 @@ class MediaSessionOwner:
                 yield token
                 if self._initialized:
                     self._audit(token)
+                if before_commit is not None:
+                    before_commit(token)
                 try:
                     connection.commit()
                 except BaseException:
@@ -792,9 +794,9 @@ class MediaSessionOwner:
         )
 
     @contextmanager
-    def _transaction(self, principal, roles):
+    def _transaction(self, principal, roles, *, before_commit=None):
         self._principal_memory(principal, roles)
-        with self._boundary() as token:
+        with self._boundary(before_commit=before_commit) as token:
             self._principal(principal, roles)
             yield token
             self._principal(principal, roles)

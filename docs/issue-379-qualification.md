@@ -45,6 +45,8 @@ controlled. Its acceptance observations include:
   actual publication operation are rechecked before commit.
 - A thread-side source fence at the real SQLite COMMIT waits for the original
   committed receipt. Observer cancellation after commit preserves that receipt.
+- Expiration during the real synchronous post-mutation audit is rechecked
+  immediately before commit; the acknowledged rollback leaves no publication.
 - Earlier handled cancellation remains acceptable; replay does not issue another
   HTTP request or duplicate publication.
 - Failed original close retains unknown cleanup, reader/source claims and model

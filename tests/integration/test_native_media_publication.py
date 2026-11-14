@@ -12,6 +12,7 @@ import io
 import json
 import sys
 import threading
+import time
 import wave
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -381,6 +382,40 @@ async def test_native_callers_refuse_resistant_late_transport_before_publication
         _assert_original(case, a)
         assert a.outcome != "completed" and not _publications(case)
         assert len(case.env.store.read(kinds=["agent.command"])) == 1
+
+
+@pytest.mark.parametrize("mode", _MODES)
+async def test_original_deadline_crossed_during_post_audit_refuses_sqlite_commit(
+    tmp_path, mode, monkeypatch
+):
+    async with _case(tmp_path, mode, "before_response") as case:
+        call = case.start(timeout=15)
+        await _entered(call, case.wire.entered)
+        a = case.native._attempts["native-a"]
+        original_deadline, audit = a.deadline, case.env.owner._audit
+        held = []
+
+        def pause_original_post_audit(token):
+            audit(token)
+            row = case.env.owner._sql(
+                "SELECT event_id FROM native_media_v2_attempts WHERE key=?", (a.key,)
+            ).fetchone()
+            if row[0] is not None and not held:
+                held.append(a.deadline)
+                # Pause only after the real mutation audit. A synchronous audit
+                # can exhaust the absolute budget without an asyncio await.
+                # Never renew or replace the original admitted deadline.
+                time.sleep(max(0, a.deadline - a.loop.time()) + 0.02)
+
+        monkeypatch.setattr(case.env.owner, "_audit", pause_original_post_audit)
+        case.wire.release.set()
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(call, _WAIT)
+        await _reconciled(case.native)
+        assert held == [original_deadline] and a.deadline == original_deadline
+        assert a.event is None and not _publications(case)
+        assert not a.publication_unknown  # The original transaction positively rolled back.
+        _assert_original(case, a)
 
 
 @pytest.mark.parametrize("mode", _MODES)
