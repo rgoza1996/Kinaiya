@@ -303,7 +303,9 @@ void main() {
         final operation = writes.begin(scope, api, scopedModeRequest(scope))!;
         addTearDown(() async {
           if (!held.isCompleted) {
-            held.complete(modelResponse(modeReceiptJson(operation.request.body)));
+            held.complete(
+              modelResponse(modeReceiptJson(operation.request.body)),
+            );
           }
           await modeOwners(operation, 0, 0);
           await api.close();
