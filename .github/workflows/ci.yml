@@ -11,7 +11,7 @@ on:
         options: [smoke, media, native, compat, workspace, full, flutter, android]
         default: smoke
       python:
-        description: Python version for manual full qualification
+        description: Python version for manual full/media qualification
         type: choice
         options: [all, '3.11', '3.12', '3.14']
         default: all
@@ -68,8 +68,10 @@ jobs:
         with:
           persist-credentials: false
       - name: Create isolated Python environment
+        env:
+          PYTHON_VERSION: ${{ inputs.python == 'all' && '3.12' || inputs.python }}
         run: |
-          bash scripts/ci/python-env.sh 3.12 "$RUNNER_TEMP/media-venv"
+          bash scripts/ci/python-env.sh "$PYTHON_VERSION" "$RUNNER_TEMP/media-venv"
           echo "$RUNNER_TEMP/media-venv/bin" >> "$GITHUB_PATH"
       - run: python -m pip install --require-hashes -r requirements-dev.lock
       - name: Qualify issue 379 and runner admission

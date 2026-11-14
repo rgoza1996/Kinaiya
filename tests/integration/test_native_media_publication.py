@@ -448,13 +448,18 @@ async def test_original_source_fence_serializes_through_the_actual_sqlite_commit
                 original_stop.start()
                 observations.append(attempted.wait(2) and not finished.wait(0.25))
 
-        case.env.store.db.set_trace_callback(at_sqlite_commit)
+        # #585: configure the observer under the same lock as threaded SQL.
+        # Otherwise CPython can hold the GIL while waiting for SQLite's mutex,
+        # while an in-flight SQL trace callback waits to reacquire the GIL.
+        with case.env.store.lock:
+            case.env.store.db.set_trace_callback(at_sqlite_commit)
         try:
             case.wire.release.set()
             (result,) = await asyncio.wait_for(asyncio.gather(call, return_exceptions=True), _WAIT)
             await asyncio.to_thread(original_stop.join, 2)
         finally:
-            case.env.store.db.set_trace_callback(None)
+            with case.env.store.lock:
+                case.env.store.db.set_trace_callback(None)
         assert observations == [True] and finished.is_set()
         assert a.event is not None and retained == [a.event]
         assert _publications(case) == [a.event]
