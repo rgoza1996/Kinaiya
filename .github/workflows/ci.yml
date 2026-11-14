@@ -173,7 +173,7 @@ jobs:
         run: python -m pip_audit -r requirements-dev.lock --disable-pip
 
   flutter:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 20
     defaults:
@@ -230,7 +230,7 @@ jobs:
           if-no-files-found: error
 
   android:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full' || inputs.suite == 'android'
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'android' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || fromJSON('["self-hosted","Linux","X64","kinaiya-ci"]') }}
     timeout-minutes: 30
     defaults:
@@ -292,7 +292,7 @@ jobs:
           if-no-files-found: error
 
   ios:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'full'
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite == 'full' && inputs.python == 'all' && inputs.architecture == 'both')
     runs-on: macos-15
     timeout-minutes: 30
     defaults:

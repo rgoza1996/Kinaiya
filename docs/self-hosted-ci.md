@@ -130,6 +130,8 @@ Manual `suite=full` dispatches can select `python=3.12` and
 `architecture=arm64` (or `x64`) to requalify one complete pair. Defaults remain
 all three versions on both native hosts; main pushes and PR checks retain their
 complete existing matrices. This selects jobs, never a smaller test subset.
+Selecting a Python/architecture pair skips the mobile/web build jobs; use the
+default full dispatch for every build or `suite=android` for Android alone.
 
 The service binds only its own `home/tmp` into its private namespace as
 `/tmp/ci`, with `TMPDIR=/tmp/ci`. Native pytest uses a short per-job base there.
