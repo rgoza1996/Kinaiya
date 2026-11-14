@@ -91,6 +91,7 @@ class _Wire(httpx.AsyncByteStream):
         self.close_done = asyncio.Event()
         self.requests = []
         self.close_calls = 0
+        self.close_task = None
         self.body = None
 
     async def _hold(self, phase):
@@ -115,6 +116,7 @@ class _Wire(httpx.AsyncByteStream):
 
     async def aclose(self):
         self.close_calls += 1
+        self.close_task = asyncio.current_task()
         await self._hold("close")
         self.close_done.set()
         if self.fail_close:
@@ -284,7 +286,16 @@ async def test_native_callers_refuse_resistant_late_transport_before_publication
             call.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await call
-        await asyncio.wait_for(case.wire.cancel_observed.wait(), _WAIT)
+        if phase == "close":
+            a = case.native._attempts["native-a"]
+            async with asyncio.timeout(_WAIT):
+                while not a.worker.cancelling():
+                    await asyncio.sleep(0.01)
+            assert case.wire.close_task is not a.worker
+            assert not case.wire.close_task.done() and not case.wire.close_task.cancelling()
+            assert not case.wire.cancel_observed.is_set()
+        else:
+            await asyncio.wait_for(case.wire.cancel_observed.wait(), _WAIT)
         assert not _publications(case)
         case.wire.release.set()
         if fault == "provider_deadline":

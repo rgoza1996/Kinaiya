@@ -31,7 +31,7 @@
           "$ref": "#/$defs/MediaWireBodyStorageV2"
         },
         "body_bytes": {
-          "maximum": 9007199254740991,
+          "maximum": 33554432,
           "minimum": 1,
           "title": "Body Bytes",
           "type": "integer"

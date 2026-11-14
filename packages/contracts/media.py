@@ -1922,7 +1922,7 @@ class MediaLocalBodyOwnerV2(_MediaModel):
     source: MediaNativeRef
     consumer: MediaConsumerRef
     request_sha256: _Hash
-    body_bytes: _P
+    body_bytes: Annotated[int, Field(ge=1, le=33_554_432)]
     body_sha256: _Hash
     reader_owner_ids: Annotated[list[_Id], Field(min_length=1, max_length=16)]
     body: MediaWireBodyStorageV2
@@ -2029,15 +2029,19 @@ class MediaLocalExchangeCleanupV2(_MediaModel):
     @model_validator(mode="after")
     def _proofs(self) -> Self:
         refs = [self.body_observation, *self.observations]
-        if len({(ref.backend_id, ref.receipt_id, ref.sha256) for ref in refs}) != len(refs):
+        if len({(ref.backend_id, ref.receipt_id) for ref in refs}) != len(refs):
             _bad()
         if self.state == "settled":
-            if self.outcome is None or not (
-                self.local_task_joined
-                and self.transport_sole_closed
-                and self.body_settled
-                and self.all_readers_settled
-                and self.publications_settled
+            if (
+                self.outcome is None
+                or len(self.observations) < 4
+                or not (
+                    self.local_task_joined
+                    and self.transport_sole_closed
+                    and self.body_settled
+                    and self.all_readers_settled
+                    and self.publications_settled
+                )
             ):
                 _bad()
         elif self.outcome is not None:
@@ -2061,7 +2065,7 @@ class MediaLocalExchangeRegistrationV2(_MediaModel):
     @model_validator(mode="after")
     def _binding(self) -> Self:
         refs = [self.original_owner, self.exchange_owner, self.body_owner_ref]
-        if len({(ref.backend_id, ref.receipt_id, ref.sha256) for ref in refs}) != 3 or len(
+        if len({(ref.backend_id, ref.receipt_id) for ref in refs}) != 3 or len(
             set(self.publication_owner_ids)
         ) != len(self.publication_owner_ids):
             _bad()
