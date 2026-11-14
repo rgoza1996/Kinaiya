@@ -63,6 +63,34 @@ class _Boundary:
 
 
 _request_boundary = ContextVar("complete_http_request_boundary", default=None)
+_decision_boundary = ContextVar("decisions_final_transport_boundary", default=None)
+
+
+def _enter_decision(client, transport, request):
+    bound = _decision_boundary.get()
+    if bound is None or bound.client is not client:
+        return
+    bound.current(transport, request)
+    from packages.providers.decision_capture import _capture
+
+    capture = _capture.get()
+    if capture is None or capture.admission is None:
+        raise PromptCountUnavailable("Decisions original admission scope changed")
+    capture.admission.enter(client, request.content)
+
+
+class _DecisionTransport(httpx.AsyncBaseTransport):
+    def __init__(self, client, transport):
+        self.client, self.transport = client, transport
+
+    async def handle_async_request(self, request):
+        _enter_decision(self.client, self.transport, request)
+        response = await self.transport.handle_async_request(request)
+        from packages.providers.text import _OwnedHTTPStream
+
+        # Enroll the original close before an awaited response hook can fail.
+        response.stream = _OwnedHTTPStream(response.stream)
+        return response
 
 
 class _ForwardingTransport(httpx.AsyncBaseTransport):
@@ -85,6 +113,7 @@ class _ForwardingTransport(httpx.AsyncBaseTransport):
                 self.boundary.purpose, hashlib.sha256(self.boundary.body).hexdigest()
             )
             self.boundary.current(self.transport, request)
+        _enter_decision(self.boundary.client, self.transport, request)
         response = await self.transport.handle_async_request(request)
         # HTTPX runs response hooks before returning to the caller. Establish
         # close ownership before one of those hooks can await or raise.
@@ -93,10 +122,46 @@ class _ForwardingTransport(httpx.AsyncBaseTransport):
 
 
 class RequestBoundAsyncClient(httpx.AsyncClient):
+    async def send(self, request, **kwargs):
+        from packages.providers.decision_capture import _capture
+
+        capture = _capture.get()
+        native = getattr(capture, "admission", None)
+        if native is None or native.client is not self:
+            return await super().send(request, **kwargs)
+        native.check_transport(self, request.content)
+        if not isinstance(request.stream, _FrozenBody):
+            request.stream = _FrozenBody(request.content)
+        bound = _Boundary(
+            self,
+            asyncio.current_task(),
+            lambda: native.check_transport(self, request.content),
+            lambda stream: stream,
+            httpx.AsyncClient._transport_for_url(self, request.url),
+            request,
+            request.method,
+            request.url,
+            tuple(request.headers.raw),
+            request.content,
+            request.stream,
+            copy.deepcopy(request.extensions),
+            None,
+            "decisions",
+            [False],
+        )
+        token = _decision_boundary.set(bound)
+        try:
+            return await super().send(request, **kwargs)
+        finally:
+            _decision_boundary.reset(token)
+
     def _transport_for_url(self, url):
         transport = super()._transport_for_url(url)
         boundary = _request_boundary.get()
         if boundary is None or boundary.client is not self:
+            decision = _decision_boundary.get()
+            if decision is not None and decision.client is self:
+                return _DecisionTransport(self, transport)
             return transport
         return _ForwardingTransport(boundary, transport)
 

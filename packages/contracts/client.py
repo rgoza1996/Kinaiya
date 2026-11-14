@@ -588,6 +588,56 @@ class JournalClient:
             asyncio.get_running_loop().time() + 5,
         )
 
+    async def _decisions_attempt(self, operation, request, result_type):
+        from packages.contracts.decisions_attempts import MAX_ATTEMPT_BYTES, digest
+
+        # Keep the original exchange, response and sole close enrolled if this
+        # facade times out or is cancelled. A lost ACK is not non-admission.
+        async with asyncio.timeout(2):
+            payload = await self._owned_metadata(
+                "POST",
+                f"/v1/decisions/attempts/{operation}",
+                json=request.model_dump(mode="json"),
+                maximum=MAX_ATTEMPT_BYTES,
+                raw=True,
+            )
+        result = result_type.model_validate(context_json(payload, maximum=MAX_ATTEMPT_BYTES))
+        if operation == "lookup":
+            if result.source != request.source:
+                raise ValueError("Decisions recovery source mismatch")
+        elif operation == "admit":
+            if result.admission != request or result.admission_sha256 != digest(
+                request.model_dump(mode="json")
+            ):
+                raise ValueError("Decisions admission receipt mismatch")
+        elif result.completion != request:
+            raise ValueError("Decisions completion receipt mismatch")
+        return result
+
+    async def decisions_attempt_lookup(self, request):
+        from packages.contracts.decisions_attempts import (
+            DecisionsAttemptLookup,
+            DecisionsAttemptState,
+        )
+
+        return await self._decisions_attempt(
+            "lookup", DecisionsAttemptLookup.model_validate(request), DecisionsAttemptState
+        )
+
+    async def decisions_attempt_admit(self, request):
+        from packages.contracts.decisions_attempts import DecisionsAttempt, DecisionsAttemptAdmit
+
+        return await self._decisions_attempt(
+            "admit", DecisionsAttemptAdmit.model_validate(request), DecisionsAttempt
+        )
+
+    async def decisions_attempt_finish(self, request):
+        from packages.contracts.decisions_attempts import DecisionsAttempt, DecisionsAttemptFinish
+
+        return await self._decisions_attempt(
+            "finish", DecisionsAttemptFinish.model_validate(request), DecisionsAttempt
+        )
+
     async def decisions_call_start(self, request):
         response = await self.http.post(
             "/v1/decisions/calls/start", json=request.model_dump(mode="json")

@@ -94,7 +94,14 @@ class JournalError(ValueError):
 
 
 class Store:
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, *, decisions_max_attempts=2):
+        from packages.contracts.decisions_attempts import MAX_ATTEMPTS
+
+        if (
+            type(decisions_max_attempts) is not int
+            or not 1 <= decisions_max_attempts <= MAX_ATTEMPTS
+        ):
+            raise ValueError("decisions_max_attempts must be an integer from 1 to 16")
         self.path = str(path)
         self.lock = threading.RLock()
         self._converse_context_validators = {}
@@ -206,6 +213,9 @@ class Store:
         from services.session.decisions_store import DecisionsInspectionStore
 
         self.decisions = DecisionsInspectionStore(self)
+        from services.session.decisions_attempts import DecisionsAttemptStore
+
+        self.decisions_attempts = DecisionsAttemptStore(self, decisions_max_attempts)
         from services.session.agent_control import AgentControl
 
         self.agent_control = AgentControl(self, new_store=new_store)
@@ -1016,6 +1026,12 @@ class Store:
             and request.payload.get("op") in {"submit", "steer-requested"}
         ):
             raise JournalError("Agent submit and steering intent require native admission")
+        if (
+            role == "decisions"
+            and request.kind in {"routing.decided", "routing.classification_refused"}
+            and len(request.causes) == 1
+        ):
+            return self.decisions_attempts.publish(request, role)
         with self.lock, self.db:
             return self._append_entry_locked(request, role)
 
@@ -1909,6 +1925,21 @@ class LocalJournal:
         if self.role != "decisions":
             raise PermissionError("Decisions capture requires Decisions")
         return self.store.decisions.start(request)
+
+    async def decisions_attempt_lookup(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions attempt recovery requires Decisions")
+        return self.store.decisions_attempts.lookup(request)
+
+    async def decisions_attempt_admit(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions attempt admission requires Decisions")
+        return self.store.decisions_attempts.admit(request)
+
+    async def decisions_attempt_finish(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions attempt completion requires Decisions")
+        return self.store.decisions_attempts.finish(request)
 
     async def decisions_call_finish(self, call_id, request):
         if self.role != "decisions":

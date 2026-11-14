@@ -748,7 +748,9 @@ class CompatibleTextProvider:
         headers = {"Accept-Encoding": "identity"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        self.http = httpx.AsyncClient(
+        from packages.providers.complete_http import RequestBoundAsyncClient
+
+        self.http = RequestBoundAsyncClient(
             base_url=base_url.rstrip("/") + "/",
             headers=headers,
             timeout=timeout,

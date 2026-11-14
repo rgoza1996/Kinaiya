@@ -571,7 +571,10 @@ def serve(args):
         from services.session.store import Store
 
         app = create_app(
-            Store(args.data_dir / "journal.sqlite"),
+            Store(
+                args.data_dir / "journal.sqlite",
+                decisions_max_attempts=config.get("decisions_max_attempts", 2),
+            ),
             auth,
             converse_memory=getattr(args, "converse_memory", False),
             agent_enabled=config.get("agent_enabled"),

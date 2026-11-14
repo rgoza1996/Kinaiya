@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "DecisionsSource": {
+      "additionalProperties": false,
+      "properties": {
+        "source_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "source_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Sequence",
+          "type": "integer"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_event_id",
+        "source_sequence",
+        "source_revision",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "DecisionsSource",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "#/$defs/DecisionsSource"
+    },
+    "attempt_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "owner_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "admission_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Admission Sha256",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "refused",
+        "error",
+        "uncertain"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "raw_response": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Raw Response"
+    },
+    "validated_output": {
+      "default": null,
+      "title": "Validated Output"
+    },
+    "error_type": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,120}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Type"
+    },
+    "reason_code": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9_.:-]{1,120}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason Code"
+    }
+  },
+  "required": [
+    "source",
+    "attempt_id",
+    "owner_id",
+    "admission_sha256",
+    "status"
+  ],
+  "title": "DecisionsAttemptFinish",
+  "type": "object"
+}

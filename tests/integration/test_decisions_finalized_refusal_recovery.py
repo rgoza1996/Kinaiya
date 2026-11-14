@@ -8,7 +8,12 @@ import httpx
 import pytest
 
 from packages.contracts.client import JournalClient
-from packages.contracts.decisions import DecisionsCallFinish, DecisionsCallStart
+from packages.contracts.decisions_attempts import (
+    DecisionsAttemptAdmit,
+    DecisionsAttemptFinish,
+    DecisionsSource,
+    digest,
+)
 from packages.contracts.models import (
     AppendRequest,
     ProviderInfo,
@@ -62,7 +67,6 @@ class DummyAgent:
             state=TaskState.QUEUED,
             idempotency_key=request.idempotency_key,
             source_event_ids=request.source_event_ids,
-            source_revision=request.source_revision,
         )
 
     async def steer(self, task_id, request, actor="decisions"):
@@ -77,7 +81,6 @@ class DummyAgent:
             state=TaskState.RUNNING,
             idempotency_key=request.idempotency_key,
             source_event_ids=request.source_event_ids,
-            source_revision=1,
         )
 
     async def interrupt(self, task_id, request, actor="decisions"):
@@ -92,7 +95,6 @@ class DummyAgent:
             state=TaskState.CANCELLED,
             idempotency_key=request.idempotency_key,
             source_event_ids=request.source_event_ids,
-            source_revision=request.source_revision,
         )
 
 
@@ -142,6 +144,41 @@ def append_user_source(
             idempotency_key=idem,
         ),
         "owner",
+    )
+
+
+async def admit_native(client, source, *, expected_attempts=0, model="m", local=True):
+    binding = DecisionsSource.of(source)
+    return await client.decisions_attempt_admit(
+        DecisionsAttemptAdmit(
+            source=binding,
+            attempt_id=uuid.uuid4().hex,
+            owner_id=uuid.uuid4().hex,
+            expected_attempts=expected_attempts,
+            provider=ProviderInfo(provider="test", model=model, local=local).model_dump(
+                mode="json"
+            ),
+            model_pin=None,
+            request_format="chat_completions",
+            request_sha256=digest({"model": model}),
+            transport_sha256="a" * 64,
+            disclosure_sources=[binding],
+        )
+    )
+
+
+async def finish_native(client, attempt, *, status="completed", raw=None, output=None):
+    return await client.decisions_attempt_finish(
+        DecisionsAttemptFinish(
+            source=attempt.admission.source,
+            attempt_id=attempt.admission.attempt_id,
+            owner_id=attempt.admission.owner_id,
+            admission_sha256=attempt.admission_sha256,
+            status=status,
+            raw_response=raw,
+            validated_output=output,
+            error_type="ProviderError" if status == "error" else None,
+        )
     )
 
 
@@ -312,24 +349,8 @@ async def test_unsettled_started_call_counts_against_retry_budget_over_http_clie
         source = append_user_source(store, session, idem="unsettled-start")
         client = make_client("decisions")
 
-        # Simulate a worker that persisted decisions_call_start(attempt=1) and crashed before finish.
-        await client.decisions_call_start(
-            DecisionsCallStart(
-                call_id=str(uuid.uuid4()),
-                attempt_id=str(uuid.uuid4()),
-                attempt=1,
-                source_event_id=source.event_id,
-                source_sequence=source.sequence,
-                source_revision=1,
-                session_id=session.session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                provider="test",
-                model="m",
-                request_format="chat_completions",
-                request={"model": "m", "messages": []},
-            )
-        )
+        # A committed original native reservation is uncertain until completed.
+        await admit_native(client, source)
 
         calls = 0
 
@@ -351,16 +372,16 @@ async def test_unsettled_started_call_counts_against_retry_budget_over_http_clie
         assert persisted.state == "pending_uncertain"
         assert persisted.prior_attempts == 1
 
-        # Because 1 attempt was already started, only 1 more attempt (attempt=2) is permitted.
+        # An unsettled original never transfers its provider opportunity.
         await worker.tick()
-        assert calls == 1
+        assert calls == 0
         refusals = store.read(kinds=["routing.classification_refused"])
         assert len(refusals) == 1
         assert refusals[0].payload == {
             "source_event_id": source.event_id,
             "source_revision": 1,
-            "reason": "provider_failed",
-            "error_type": "ProviderError",
+            "reason": "call_outcome_uncertain",
+            "error_type": "UncertainCallAttempt",
         }
 
 
@@ -370,24 +391,9 @@ async def test_two_unsettled_started_calls_refuse_without_additional_inference(t
         source = append_user_source(store, session, idem="two-unsettled-starts")
         client = make_client("decisions")
 
-        for attempt in (1, 2):
-            await client.decisions_call_start(
-                DecisionsCallStart(
-                    call_id=str(uuid.uuid4()),
-                    attempt_id=str(uuid.uuid4()),
-                    attempt=attempt,
-                    source_event_id=source.event_id,
-                    source_sequence=source.sequence,
-                    source_revision=1,
-                    session_id=session.session_id,
-                    thread_id=session.thread_id,
-                    epoch=session.epoch,
-                    provider="test",
-                    model="m",
-                    request_format="chat_completions",
-                    request={"model": "m", "messages": []},
-                )
-            )
+        first = await admit_native(client, source)
+        await finish_native(client, first, status="error")
+        await admit_native(client, source, expected_attempts=1)
 
         calls = 0
 
@@ -403,19 +409,19 @@ async def test_two_unsettled_started_calls_refuse_without_additional_inference(t
             make_client("decisions"), DummyAgent(), ModelClassifier(UnexpectedProvider())
         )
         persisted = await worker._persisted_call_state(source)
-        assert persisted.state == "refused"
+        assert persisted.state == "pending_uncertain"
         assert persisted.prior_attempts == 2
-        assert persisted.refusal == ("provider_failed", "UncertainCallAttempt")
+        assert persisted.refusal == ("call_outcome_uncertain", "UncertainCallAttempt")
 
         await worker.tick()
         assert calls == 0
         refusals = store.read(kinds=["routing.classification_refused"])
         assert len(refusals) == 1
-        assert refusals[0].payload["reason"] == "provider_failed"
+        assert refusals[0].payload["reason"] == "call_outcome_uncertain"
 
 
 @pytest.mark.asyncio
-async def test_failed_decisions_calls_lookup_blocks_tick_without_paid_inference_and_bounds_starvation(
+async def test_failed_native_lookup_blocks_tick_without_paid_inference_and_bounds_starvation(
     tmp_path,
 ):
     async with session_http_env(tmp_path) as (store, session, app, make_client):
@@ -427,8 +433,8 @@ async def test_failed_decisions_calls_lookup_blocks_tick_without_paid_inference_
         async def flaky_calls_lookup(request: httpx.Request) -> httpx.Response:
             if (
                 fail_for_first
-                and request.url.path == "/v1/decisions/calls"
-                and request.url.params.get("source_event_id") == source_1.event_id
+                and request.url.path == "/v1/decisions/attempts/lookup"
+                and json.loads(request.content)["source"]["source_event_id"] == source_1.event_id
             ):
                 return httpx.Response(503, json={"detail": "decisions_calls unavailable"})
             return await asgi.handle_async_request(request)
@@ -454,10 +460,10 @@ async def test_failed_decisions_calls_lookup_blocks_tick_without_paid_inference_
 
         persisted = await worker._persisted_call_state(source_1)
         assert persisted.state == "unavailable"
-        assert persisted.prior_attempts == 2
+        assert persisted.prior_attempts is None  # Unknown is never reported as zero.
 
         # First tick: lookup failure blocks classification without calling the provider.
-        with pytest.raises(CaptureNativeUnavailable, match="call history is unavailable"):
+        with pytest.raises(CaptureNativeUnavailable, match="attempt history is unavailable"):
             await worker.tick()
         assert calls == 0
         assert store.read(kinds=["routing.classification_refused"]) == []
@@ -541,204 +547,43 @@ async def test_recovered_completed_output_is_strictly_validated_and_revalidates_
 ):
     async with session_http_env(tmp_path) as (store, session, _app, make_client):
         client = make_client("decisions")
-
-        # 1. Legacy/invalid recovered output: {'route': 'interrupt'} without target fields.
-        s_invalid = append_user_source(store, session, text="Stop it", idem="rec-invalid-target")
-        call_invalid = str(uuid.uuid4())
-        await client.decisions_call_start(
-            DecisionsCallStart(
-                call_id=call_invalid,
-                attempt_id=str(uuid.uuid4()),
-                attempt=1,
-                source_event_id=s_invalid.event_id,
-                source_sequence=s_invalid.sequence,
-                source_revision=1,
-                session_id=session.session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                provider="test",
-                model="m",
-                request_format="chat_completions",
-                request={"model": "m", "messages": []},
-            )
-        )
-        await client.decisions_call_finish(
-            call_invalid,
-            DecisionsCallFinish(
-                source_event_id=s_invalid.event_id,
-                status="completed",
-                raw_response='{"route":"interrupt"}',
-                validated_output={"route": "interrupt"},
-            ),
-        )
-
-        # 2. Mismatched model binding on a completed call.
-        s_wrong_model = append_user_source(
-            store, session, text="Queue work", idem="rec-wrong-model"
-        )
-        call_wrong_model = str(uuid.uuid4())
-        await client.decisions_call_start(
-            DecisionsCallStart(
-                call_id=call_wrong_model,
-                attempt_id=str(uuid.uuid4()),
-                attempt=1,
-                source_event_id=s_wrong_model.event_id,
-                source_sequence=s_wrong_model.sequence,
-                source_revision=1,
-                session_id=session.session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                provider="test",
-                model="other-model",
-                request_format="chat_completions",
-                request={"model": "other-model", "messages": []},
-            )
-        )
-        await client.decisions_call_finish(
-            call_wrong_model,
-            DecisionsCallFinish(
-                source_event_id=s_wrong_model.event_id,
-                status="completed",
-                raw_response='{"route":"queue","reason_code":"ok","confidence":0.9}',
-                validated_output={"route": "queue", "reason_code": "ok", "confidence": 0.9},
-            ),
-        )
-
-        # 3. Mismatched source_revision / epoch on a completed call record.
-        s_wrong_rev = append_user_source(store, session, text="Queue work", idem="rec-wrong-rev")
-        call_wrong_rev = str(uuid.uuid4())
-        await client.decisions_call_start(
-            DecisionsCallStart(
-                call_id=call_wrong_rev,
-                attempt_id=str(uuid.uuid4()),
-                attempt=1,
-                source_event_id=s_wrong_rev.event_id,
-                source_sequence=s_wrong_rev.sequence,
-                source_revision=1,
-                session_id=session.session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                provider="test",
-                model="m",
-                request_format="chat_completions",
-                request={"model": "m", "messages": []},
-            )
-        )
-        await client.decisions_call_finish(
-            call_wrong_rev,
-            DecisionsCallFinish(
-                source_event_id=s_wrong_rev.event_id,
-                status="completed",
-                raw_response='{"route":"queue","reason_code":"ok","confidence":0.9}',
-                validated_output={"route": "queue", "reason_code": "ok", "confidence": 0.9},
-            ),
-        )
-        with store.lock, store.db:
-            row = store.db.execute(
-                "SELECT value FROM decisions_calls WHERE call_id=?", (call_wrong_rev,)
-            ).fetchone()
-            tampered = json.loads(row[0])
-            tampered["source_revision"] = 2
-            store.db.execute(
-                "UPDATE decisions_calls SET value=? WHERE call_id=?",
-                (json.dumps(tampered), call_wrong_rev),
-            )
-
-        # 4. Disclosure policy violation on recovered call (local_only source with cloud provider).
-        s_local = append_user_source(
-            store,
-            session,
-            text="Private local instruction",
-            idem="rec-disclosure",
-            content_scope="local_only",
-        )
-        call_local = str(uuid.uuid4())
-        await client.decisions_call_start(
-            DecisionsCallStart(
-                call_id=call_local,
-                attempt_id=str(uuid.uuid4()),
-                attempt=1,
-                source_event_id=s_local.event_id,
-                source_sequence=s_local.sequence,
-                source_revision=1,
-                session_id=session.session_id,
-                thread_id=session.thread_id,
-                epoch=session.epoch,
-                provider="cloud",
-                model="m",
-                request_format="chat_completions",
-                request={"model": "m", "messages": []},
-            )
-        )
-        await client.decisions_call_finish(
-            call_local,
-            DecisionsCallFinish(
-                source_event_id=s_local.event_id,
-                status="completed",
-                raw_response='{"route":"queue","reason_code":"ok","confidence":0.9}',
-                validated_output={"route": "queue", "reason_code": "ok", "confidence": 0.9},
-            ),
-        )
+        invalid = append_user_source(store, session, idem="rec-invalid")
+        wrong_model = append_user_source(store, session, idem="rec-model")
+        local = append_user_source(store, session, idem="rec-scope", content_scope="local_only")
+        for source, model, raw, output in (
+            (invalid, "m", '{"route":"interrupt"}', {"route": "interrupt"}),
+            (wrong_model, "other-model", '{"route":"queue"}', {"route": "queue"}),
+            (local, "m", '{"route":"queue"}', {"route": "queue"}),
+        ):
+            attempt = await admit_native(client, source, model=model)
+            await finish_native(client, attempt, raw=raw, output=output)
 
         calls = 0
 
-        class NeverCalledLocalProvider:
+        class NeverCalledProvider:
             info = ProviderInfo(provider="test", model="m", local=True)
 
             async def complete(self, messages):
                 nonlocal calls
                 calls += 1
-                return '{"route":"queue"}'
+                raise AssertionError("Recovered result must not trigger inference")
 
-        class NeverCalledCloudProvider:
-            info = ProviderInfo(provider="cloud", model="m", local=False)
-
-            async def complete(self, messages):
-                nonlocal calls
-                calls += 1
-                return '{"route":"queue"}'
-
-        local_worker = DecisionsWorker(
-            make_client("decisions"), DummyAgent(), ModelClassifier(NeverCalledLocalProvider())
-        )
-        for entry in (s_invalid, s_wrong_model, s_wrong_rev):
-            await local_worker.process(entry)
-
-        cloud_worker = DecisionsWorker(
-            make_client("decisions"), DummyAgent(), ModelClassifier(NeverCalledCloudProvider())
-        )
-        await cloud_worker.process(s_local)
-
+        provider = NeverCalledProvider()
+        worker = DecisionsWorker(make_client(), DummyAgent(), ModelClassifier(provider))
+        await worker.process(invalid)
+        await worker.process(wrong_model)
+        provider.info = ProviderInfo(provider="test", model="m", local=False)
+        await worker.process(local)
         assert calls == 0
         assert store.read(kinds=["routing.decided"]) == []
-
         refusals = {
-            r.payload["source_event_id"]: r.payload
+            r.causes[0]: r.payload["reason"]
             for r in store.read(kinds=["routing.classification_refused"])
         }
-        assert refusals[s_invalid.event_id] == {
-            "source_event_id": s_invalid.event_id,
-            "source_revision": 1,
-            "reason": "invalid_target_fields",
-            "error_type": "InvalidClassificationError",
-        }
-        assert refusals[s_wrong_model.event_id] == {
-            "source_event_id": s_wrong_model.event_id,
-            "source_revision": 1,
-            "reason": "invalid_call_binding",
-            "error_type": "InvalidClassificationError",
-        }
-        assert refusals[s_wrong_rev.event_id] == {
-            "source_event_id": s_wrong_rev.event_id,
-            "source_revision": 1,
-            "reason": "invalid_call_binding",
-            "error_type": "InvalidClassificationError",
-        }
-        assert refusals[s_local.event_id] == {
-            "source_event_id": s_local.event_id,
-            "source_revision": 1,
-            "reason": "provider_refused",
-            "error_type": "ProviderRefusal",
+        assert refusals == {
+            invalid.event_id: "invalid_target_fields",
+            wrong_model.event_id: "invalid_call_binding",
+            local.event_id: "provider_refused",
         }
 
 
@@ -806,3 +651,51 @@ async def test_native_source_read_failures_do_not_consume_provider_attempts_or_t
         assert len(decided) == 1
         assert decided[0].payload["route"] == "queue"
         assert len(agent.submitted) == 1
+
+
+@pytest.mark.asyncio
+async def test_http_capture_outage_cannot_reset_charged_attempts(tmp_path):
+    """Lost inspection writes and a replacement worker must not reset spend."""
+    async with session_http_env(tmp_path) as (store, session, _app, make_client):
+        append_user_source(store, session, idem="capture-outage")
+        provider_entries = 0
+
+        class FailingProvider:
+            info = ProviderInfo(provider="test", model="m", local=True)
+
+            async def complete(self, messages):
+                nonlocal provider_entries
+                await capture_request(
+                    self, {"model": "m", "messages": messages}, "chat_completions"
+                )
+                provider_entries += 1
+                raise ProviderError("synthetic provider failure")
+
+        def unavailable_client():
+            client = make_client("decisions")
+
+            async def unavailable(*args, **kwargs):
+                raise OSError("synthetic inspection outage")
+
+            client.decisions_call_start = unavailable
+            client.decisions_call_finish = unavailable
+            return client
+
+        agent = DummyAgent()
+        for _ in range(3):
+            client = unavailable_client()
+            # A lost refusal publication leaves the source eligible for recovery.
+            original_append = client.append
+
+            async def append(request, original_append=original_append):
+                if request.kind == "routing.classification_refused":
+                    raise OSError("synthetic publication outage")
+                return await original_append(request)
+
+            client.append = append
+            worker = DecisionsWorker(client, agent, ModelClassifier(FailingProvider()))
+            try:
+                await worker.tick()
+            except (ProviderError, OSError):
+                pass
+        assert provider_entries <= 2

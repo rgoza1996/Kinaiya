@@ -29,13 +29,22 @@ class CaptureNativeUnavailable(Exception):
 
 class DecisionCapture:
     def __init__(
-        self, journal, source, provider, attempt, reused_from=None, model_pin=None, current=None
+        self,
+        journal,
+        source,
+        provider,
+        attempt,
+        reused_from=None,
+        model_pin=None,
+        current=None,
+        admission=None,
     ):
         self.journal, self.source = journal, source
         self.call_id, self.attempt_id = str(uuid4()), str(uuid4())
         self.attempt, self.reused_from = attempt or 1, reused_from
         self.provider = provider
         self.model_pin, self.model_current = model_pin, current
+        self.admission = admission
         self.started = False
         self.raw_response, self.validated_output = None, None
         self.artifact_sha256 = None
@@ -168,9 +177,19 @@ class DecisionCapture:
 
 @asynccontextmanager
 async def decision_attempt(
-    journal, source, provider, *, attempt=1, reused_from=None, model_pin=None, current=None
+    journal,
+    source,
+    provider,
+    *,
+    attempt=1,
+    reused_from=None,
+    model_pin=None,
+    current=None,
+    admission=None,
 ):
-    capture = DecisionCapture(journal, source, provider, attempt, reused_from, model_pin, current)
+    capture = DecisionCapture(
+        journal, source, provider, attempt, reused_from, model_pin, current, admission
+    )
     token = _capture.set(capture)
     try:
         yield capture
@@ -182,10 +201,18 @@ async def decision_attempt(
             if isinstance(exc, ProviderRefusal)
             else "error"
         )
-        await capture.finish(status, exc)
+        try:
+            if admission is not None:
+                await admission.finish(capture, status, exc)
+        finally:
+            await capture.finish(status, exc)
         raise
     else:
-        await capture.finish("reused" if reused_from else "completed")
+        try:
+            if admission is not None:
+                await admission.finish(capture, "completed")
+        finally:
+            await capture.finish("reused" if reused_from else "completed")
     finally:
         _capture.reset(token)
 
@@ -201,6 +228,8 @@ async def capture_request(provider, body, request_format):
             raise CaptureNativeUnavailable(
                 "Decisions currentness check exceeded its bound"
             ) from exc
+        if getattr(capture, "admission", None) is not None:
+            await capture.admission.admit(capture, provider, body, request_format)
 
 
 def capture_sources(source, context):
