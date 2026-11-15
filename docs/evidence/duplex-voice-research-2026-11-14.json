@@ -1,0 +1,112 @@
+{
+  "sources": [
+    {
+      "key": "openai-live-delegation",
+      "url": "https://developers.openai.com/api/docs/guides/live-delegation.md",
+      "resolved_url": "https://developers.openai.com/api/docs/guides/live-delegation.md",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 56738,
+      "sha256": "e218328c72a254214925bba72d0e807fa85e377934905e37d2c60db37dbd30cd",
+      "fetched_at_utc": "2026-11-15T03:04:33.835247+00:00"
+    },
+    {
+      "key": "openai-live-sessions",
+      "url": "https://developers.openai.com/api/docs/guides/live-conversations.md",
+      "resolved_url": "https://developers.openai.com/api/docs/guides/live-conversations.md",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 53195,
+      "sha256": "c88bd21e8e570374bf1cecaf5626b1787a4e751250061ba31b3d9f270f769a66",
+      "fetched_at_utc": "2026-11-15T03:04:33.828058+00:00"
+    },
+    {
+      "key": "openai-realtime-conversations",
+      "url": "https://developers.openai.com/api/docs/guides/realtime-conversations.md",
+      "resolved_url": "https://developers.openai.com/api/docs/guides/realtime-conversations.md",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 80626,
+      "sha256": "d8de3219c6d59165ef72000cb38e949126a6dde08c61d34618a9a3bd9593c605",
+      "fetched_at_utc": "2026-11-15T03:04:33.835314+00:00"
+    },
+    {
+      "key": "openai-pricing",
+      "url": "https://developers.openai.com/api/docs/pricing.md",
+      "resolved_url": "https://developers.openai.com/api/docs/pricing.md",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 21230,
+      "sha256": "a1d8bbfbb336a18083d576e6df763a31648c08043f5d43b3e0e8dd3704c9a8be",
+      "fetched_at_utc": "2026-11-15T03:04:33.963334+00:00"
+    },
+    {
+      "key": "openai-live-model",
+      "url": "https://developers.openai.com/api/docs/models/gpt-live-1.md",
+      "resolved_url": "https://developers.openai.com/api/docs/models/gpt-live-1.md",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 2677,
+      "sha256": "f2584e6a92426313749c04a4e5cedc5538ed69dbbbe48f33516db7e138ced864",
+      "fetched_at_utc": "2026-11-15T03:04:34.039020+00:00"
+    },
+    {
+      "key": "gemini-capabilities",
+      "url": "https://aistudio.google.com/docs/live-api/capabilities",
+      "resolved_url": "https://aistudio.google.com/docs/live-api/capabilities",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 50191,
+      "sha256": "1c3119ff534375187a6745249a59391dffc3906c9a9d4dd1d595d5c95c36e5e2",
+      "fetched_at_utc": "2026-11-15T03:04:34.140337+00:00"
+    },
+    {
+      "key": "gemini-sessions",
+      "url": "https://aistudio.google.com/docs/live-api/session-management",
+      "resolved_url": "https://aistudio.google.com/docs/live-api/session-management",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 9686,
+      "sha256": "77717bc3367fef4bdbffccdeee170174a58f06b13433be12c8c516a9baac99ef",
+      "fetched_at_utc": "2026-11-15T03:04:34.114314+00:00"
+    },
+    {
+      "key": "gemini-tools",
+      "url": "https://aistudio.google.com/docs/live-api/tools",
+      "resolved_url": "https://aistudio.google.com/docs/live-api/tools",
+      "content_type": "text/markdown; charset=utf-8",
+      "bytes": 17558,
+      "sha256": "e396772aebe944f9a19e5400895f5edb9945011413198849c7f504e34d2726b5",
+      "fetched_at_utc": "2026-11-15T03:04:34.253413+00:00"
+    },
+    {
+      "key": "gemini-pricing",
+      "url": "https://aistudio.google.com/docs/pricing",
+      "bytes": 111627,
+      "sha256": "2185b4ebe9b296fe5d6827fba6b9879ddef5c80ca7e41e7cedfe54d3e340085b",
+      "fetched_at_utc": "2026-11-15T03:04:02.308793+00:00"
+    },
+    {
+      "key": "openai-voice-cost",
+      "url": "https://developers.openai.com/api/docs/guides/voice-latency-cost.md?api=live",
+      "bytes": 20444,
+      "sha256": "db4feb30fa3fc1c1dc65861b948cc03c44f5b35e0dd15d11195820f745d2ca49",
+      "fetched_at_utc": "2026-11-15T03:06:27.952066+00:00"
+    },
+    {
+      "key": "gemini-billing",
+      "url": "https://aistudio.google.com/docs/live-api/best-practices",
+      "resolved_url": "https://aistudio.google.com/docs/live-api/best-practices",
+      "bytes": 15527,
+      "sha256": "86f54e2f4cc57094e21e96321929be9350b23f9f883b1483103e8c08ba38661f",
+      "fetched_at_utc": "2026-11-15T03:09:28.889999+00:00"
+    },
+    {
+      "key": "gemini-enterprise-model",
+      "url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-live",
+      "resolved_url": "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-live",
+      "bytes": 14733,
+      "sha256": "de95c802055b8712cdeb0edc3bc09ba30d35797c69f8793d064ea78f11f9e9f3",
+      "fetched_at_utc": "2026-11-15T03:09:29.206310+00:00"
+    }
+  ],
+  "initial_fetch_completed_at": "2026-11-15T03:04:34.253783+00:00",
+  "collection_completed_at": "2026-11-15T03:09:29.206371+00:00",
+  "repository_baseline": "4e34f94df9845717eb5896aec61d4ea6f9d24c19",
+  "model_calls_performed": false,
+  "account_or_project_access_verified": false,
+  "directory_cli_available": false
+}
