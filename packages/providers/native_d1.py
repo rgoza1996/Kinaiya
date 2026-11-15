@@ -265,7 +265,9 @@ class NativeD1RoutingProvider:
         model, min_confidence = self.model, self.min_confidence
         body = {
             "model": model,
-            "state": LayaRoutingProvider._render_state(state),
+            "state": LayaRoutingProvider._render_state(
+                state, system_instructions=messages[0]["content"]
+            ),
             "questions": questions,
         }
         wire = _wire(body)

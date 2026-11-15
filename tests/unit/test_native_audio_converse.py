@@ -463,7 +463,12 @@ async def test_authenticated_release_passes_raw_audio_and_complete_history_witho
         audio, messages = env.native.responses[0]
         assert audio == NativeAudioInput(INPUT_PCM, 16000)
         assert [m["content"] for m in messages if m["role"] == "user"] == [*history, PUBLIC_TEXT]
-        assert messages[0] == {"role": "system", "content": env.runtime.personality}
+        assert messages[0] == {
+            "role": "system",
+            "content": env.runtime.personality
+            + "\n\nNative task observations v1: unavailable. "
+            + "No conclusion about Agent presence, acceptance, progress or completion is established.\n",
+        }
         assert env.provider.counts == env.provider.streams == []
         replies = env.store.read(kinds=["conversation.converse"])
         assert len(replies) == 1
@@ -890,6 +895,7 @@ async def test_explicit_host_pair_constructs_native_provider_without_loading_inf
         "api_key": "public-synthetic-local-bearer",
         "max_output_tokens": 256,
         "timeout": 45,
+        "transcription_connection": "intent_url",
     }
     assert owner.arguments == (
         host_runtime,

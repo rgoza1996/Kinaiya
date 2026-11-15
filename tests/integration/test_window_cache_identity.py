@@ -26,6 +26,56 @@ class FakeAgent:
         return list(self.tasks)
 
 
+@pytest.mark.parametrize("changed", [False, True])
+async def test_owner_instructions_participate_in_actual_reuse_identity(tmp_path, changed):
+    from packages.contracts.decisions_prompts import DecisionsPromptConfig
+
+    seen = []
+
+    def respond(request):
+        seen.append(json.loads(request.content))
+        return _chat_response(
+            {
+                "conversation": "WAIT_FOR_NEXT_WINDOW",
+                "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+                "target_task_id": None,
+                "expected_objective_revision": None,
+                "reason_code": "public_cache_fixture",
+            }
+        )
+
+    provider = CompatibleTextProvider(
+        "http://localhost/v1", "fixture", transport=httpx.MockTransport(respond)
+    )
+    store = Store(tmp_path / "journal.sqlite")
+    try:
+        session = store.create_session(SessionRequest(channel="converse"))
+        prompt = DecisionsPromptConfig(
+            finalized="", window="First public preference", content_scope="public_synthetic"
+        )
+        worker = WindowDecisionsWorker(
+            LocalJournal(store, "decisions"), FakeAgent(), WindowClassifier(provider, prompt=prompt)
+        )
+        entry = _append_window(store, session, text="Public cache test")
+        _fail_next_decision_append(worker)
+        with pytest.raises(JournalUnavailable):
+            await worker.classify(entry)
+        assert len(seen) == 1 and store.window_decision(entry.event_id) is None
+        if changed:
+            worker.classifier = WindowClassifier(
+                provider, prompt=prompt.model_copy(update={"window": "Second public preference"})
+            )
+        await worker.classify(entry)
+        assert len(seen) == (2 if changed else 1)
+        assert store.window_decision(entry.event_id).payload["classification_reused"] is not changed
+        if changed:
+            assert "Second public preference" in seen[1]["messages"][0]["content"]
+            assert seen[0]["messages"][1] == seen[1]["messages"][1]
+    finally:
+        await provider.close()
+        store.close()
+
+
 def _append_window(
     store,
     session,

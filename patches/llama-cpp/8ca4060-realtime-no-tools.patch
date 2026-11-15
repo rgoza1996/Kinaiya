@@ -1,0 +1,22 @@
+--- a/tools/server/server-realtime.cpp
++++ b/tools/server/server-realtime.cpp
+@@ -28,0 +29,6 @@
++
++bool tools_disabled(const json & params) {
++    return params.is_object() &&
++        (!params.contains("tools") || (params["tools"].is_array() && params["tools"].empty())) &&
++        (!params.contains("tool_choice") || params["tool_choice"] == "none");
++}
+@@ -163,0 +170,2 @@
++            {"tools",             json::array()},
++            {"tool_choice",       "none"},
+@@ -370,0 +379,4 @@
++        if (!tools_disabled(resp)) {
++            send_error("response.create: tools are not supported; use tools=[] and tool_choice=none");
++            return;
++        }
+@@ -425,0 +438,4 @@
++        if (!tools_disabled(session)) {
++            send_error("session.update: tools are not supported; use tools=[] and tool_choice=none");
++            return;
++        }

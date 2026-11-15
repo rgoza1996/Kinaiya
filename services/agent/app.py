@@ -79,10 +79,12 @@ def create_app(runtime: AgentRuntime, auth: Any, commands=None) -> FastAPI:
     from services.agent.options_api import router as options_router
     from services.agent.plugin_controls import router as plugin_router
     from services.agent.skill_controls import router as skill_router
+    from services.agent.task_context import router as task_context_router
     from services.agent.workspace_api import router as workspace_router
 
     app.include_router(harness_router(runtime, auth))
     app.include_router(options_router(runtime, auth))
+    app.include_router(task_context_router(runtime, auth))
     app.include_router(capability_router(runtime, auth))
     app.include_router(library_router(runtime, auth, getattr(commands, "journal", runtime.journal)))
     app.include_router(
