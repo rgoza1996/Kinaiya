@@ -25,7 +25,7 @@ The strict `converse_task_context.v1` response contains:
 
 - The exact source binding, backend-instance identity and UTC observation time.
 - At most 16 related runtime task observations, newest submission first.
-- Task identity/revision, observed runtime state, submission confirmation,
+- Task identity/revision, observed runtime state, submission confirmation, pending steer,
   completion-publication pending flag and current disclosure floor.
 - Counts of current-revision native evidence by the nine existing evidence
   kinds, plus remaining required-work count.
@@ -43,6 +43,7 @@ Runtime state and persisted publication remain different facts. In particular,
 `completion_publication_pending: false` does **not** prove that an outcome was
 published, and an `artifact` evidence count does **not** attest a particular UI
 publication or external effect. A file write or consultation is partial work;
+a pending steer does not establish that a new objective revision was applied;
 a program receipt proves only its recorded execution. It does not prove that
 signed content was correctly translated or that the objective was fulfilled.
 The existing independently validated `outcome_notice` path retains its own

@@ -33,7 +33,7 @@ def test_exact_five_additive_exports_match_models_and_have_their_own_byte_pin():
     assert len(paths) == 5
     assert (
         hashlib.sha256(raw).hexdigest()
-        == "f14d9ad16913e023144b2285f8ce287246c1733846cc960659b141856c773440"
+        == "51ca908c96e72ea442b68d59db0d4f465972cb8e82d26067dd5c391053a67da5"
     )
     for model in MODELS:
         assert (
@@ -66,6 +66,7 @@ def wire():
                 "objective_revision": 1,
                 "state": "running",
                 "submission_confirmed": True,
+                "steer_pending": False,
                 "completion_publication_pending": False,
                 "content_scope": "public_synthetic",
                 "evidence_counts": dict.fromkeys(EVIDENCE_KINDS, 0),

@@ -90,6 +90,7 @@ class TaskContextObservation(_Context):
     objective_revision: Positive
     state: ObservedState
     submission_confirmed: bool
+    steer_pending: bool
     completion_publication_pending: bool
     content_scope: Scope
     evidence_counts: dict[str, Counter] = Field(min_length=9, max_length=9)

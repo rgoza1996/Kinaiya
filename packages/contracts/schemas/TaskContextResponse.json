@@ -52,6 +52,10 @@
           "title": "Submission Confirmed",
           "type": "boolean"
         },
+        "steer_pending": {
+          "title": "Steer Pending",
+          "type": "boolean"
+        },
         "completion_publication_pending": {
           "title": "Completion Publication Pending",
           "type": "boolean"
@@ -110,6 +114,7 @@
         "objective_revision",
         "state",
         "submission_confirmed",
+        "steer_pending",
         "completion_publication_pending",
         "content_scope",
         "evidence_counts",

@@ -5,6 +5,40 @@ not a fix for the earlier private rehearsal or a general model-quality claim.
 No owner service, installed engine, configuration, microphone, cloud provider or
 actual Agent task was used or changed.
 
+That statement describes the original baseline below. The later task-context
+qualification uses a separate real native Agent task with a controlled held
+provider, as described next; it does not touch an owner task or run any tool.
+
+## Fresh qualification with native task observations
+
+At application commit `9f8cffc7e27155b9dd455f1aa26ac93d8c3b3a34` with a clean
+worktree, three fresh public speech inputs exercised the same native model and
+compatible engine overlay. Actual Agent acceptance and steering use the native
+Store/AgentRuntime; the actual TaskContextClient reads its ephemeral Agent
+service over genuine socket HTTP. Twelve original metadata responses and the
+first system messages are retained in
+[task-facts-observations.json](task-facts-observations.json). All six associated
+input/output WAVs remain unedited and match the retained native text/PCM
+publication receipts.
+
+The work request asks for an imaginary camping packing checklist. Despite the
+editable default preference and actual running-task observations, LFM3 drafts
+the full checklist instead of acknowledging handoff. It then drafts a revised
+checklist for the flashlight/socks follow-up. The unrelated hour question is
+answered correctly. The follow-up's ASR also alters its wording; that output is
+preserved. These consumed fixtures demonstrate **no verified handoff repair**.
+
+The Agent model is an explicitly controlled, held fixture: one request enters,
+no tools run and no task completes. The real native steering receipt queues a
+pending change while that original remains held. The observed task remains at
+revision 1; neither the steering receipt nor model speech proves revision 2
+was applied. A subsequent draft contract adds an explicit pending-steer flag;
+this run predates that field and is not evidence for its model behavior.
+
+The engine exits normally (`0`); no cleanup failure is recorded. Audio has not
+been listened to and browser/device delivery remains unqualified. The original
+negative nine outputs below are preserved. Issue #483 remains open.
+
 ## Observed boundaries
 
 The actual current Store -> NativeAudioOwner ASR -> WindowConverseController ->

@@ -23,6 +23,7 @@ from packages.contracts.models import (
     ProviderInfo,
     SessionRequest,
     SpeechWindow,
+    SteerRequest,
     TaskRequest,
     TaskState,
     WindowDecision,
@@ -692,5 +693,34 @@ async def test_loopback_metadata_transport_ignores_environment_proxies(tmp_path,
         client = TaskContextClient(env.base, TOKENS["converse"])
         try:
             assert (await client.lookup(proposal(env))).tasks[0].state == "running"
+        finally:
+            await client.close()
+
+
+async def test_actual_pending_steer_receipt_is_not_an_applied_task_revision_or_effect(tmp_path):
+    async with environment(tmp_path, socket_http=True) as env:
+        correction = user_source(env.store, env.session, text="Add public fictional rain cover.")
+        await env.runtime.steer(
+            env.task.task_id,
+            SteerRequest(
+                instruction=correction.payload["text"],
+                source_event_ids=[correction.event_id],
+                expected_objective_revision=1,
+                content_scope="public_synthetic",
+                idempotency_key="public-pending-steer",
+            ),
+        )
+        client = TaskContextClient(env.base, TOKENS["converse"])
+        try:
+            observed = (
+                await client.lookup(TaskContextRequest(source=TaskContextSource.of(correction)))
+            ).tasks[0]
+            assert observed.steer_pending is True
+            assert observed.objective_revision == 1 and observed.state == "running"
+            assert observed.semantic_verification == "not_assessed"
+            assert observed.program_execution_receipt == "not_observed"
+            assert env.runtime._tasks[env.task.task_id].pending_steer is not None
+            assert len(env.provider.calls) == 1
+            assert env.store.read(kinds=["agent.outcome"]) == []
         finally:
             await client.close()

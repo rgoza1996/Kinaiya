@@ -150,6 +150,7 @@ def _observation(record, scope):
         objective_revision=task.objective_revision,
         state=task.state.value if record.submit_confirmed else "unknown",
         submission_confirmed=record.submit_confirmed,
+        steer_pending=record.pending_steer is not None,
         completion_publication_pending=record.completion_pending,
         content_scope=scope,
         evidence_counts=counts,
