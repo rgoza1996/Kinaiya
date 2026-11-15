@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import os
+import select
 import socket
 import tempfile
 import threading
@@ -140,24 +141,47 @@ async def broker_fixture():
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(str(sock))
     listener.listen(4)
+    stop_reader, stop_writer = socket.socketpair()
+
+    class FixtureStopped(Exception):
+        pass
+
+    def accept():
+        ready, _, _ = select.select((listener, stop_reader), (), ())
+        if stop_reader in ready:
+            raise FixtureStopped
+        return listener.accept()
+
+    def run_server():
+        try:
+            serve(
+                directory,
+                engine,
+                INCARNATION,
+                "seccomp-network-v1",
+                SimpleNamespace(accept=accept),
+                pid,
+            )
+        except FixtureStopped:
+            pass
+
     server_thread = threading.Thread(
-        target=serve,
-        args=(directory, engine, INCARNATION, "seccomp-network-v1", listener, pid),
+        target=run_server,
         daemon=True,
     )
-    server_thread.start()
     process = SimpleNamespace(pid=pid, returncode=None)
-    assert await endpoint.probe(None, process)
     manager = _FakeManager(pid)
     coordinator = _FakeCoordinator(manager)
     broker = WhistleBroker(coordinator, endpoint, request_timeout_s=5)
-    app = create_app(coordinator, AUTH, whistle=broker)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app),
-        base_url="http://resources.local",
-        headers={"Authorization": "Bearer " + AUTH.tokens["converse"]},
-    ) as client:
-        try:
+    server_thread.start()
+    try:
+        assert await endpoint.probe(None, process)
+        app = create_app(coordinator, AUTH, whistle=broker)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://resources.local",
+            headers={"Authorization": "Bearer " + AUTH.tokens["converse"]},
+        ) as client:
             yield SimpleNamespace(
                 client=client,
                 broker=broker,
@@ -166,8 +190,19 @@ async def broker_fixture():
                 manager=manager,
                 coordinator=coordinator,
             )
-        finally:
+    finally:
+        try:
             await broker.close()
+        finally:
+            # Closing a listening fd does not settle another thread's accept.
+            # Wake the fixture's private stop boundary, then join before close
+            # so leaked daemon work cannot fail during a later test (#600).
+            # The broker may already have unlinked its IPC pathname.
+            stop_writer.sendall(b"\x00")
+            await asyncio.to_thread(server_thread.join, 1)
+            assert not server_thread.is_alive()
+            stop_reader.close()
+            stop_writer.close()
             listener.close()
             if sock.exists():
                 sock.unlink()

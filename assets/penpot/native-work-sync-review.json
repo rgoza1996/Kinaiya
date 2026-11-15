@@ -1,0 +1,435 @@
+{
+  "source_sha256": "1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c",
+  "source_bytes": 244662707,
+  "result_sha256": "a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd",
+  "result_bytes": 245704624,
+  "master_file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+  "added_page_id": "3d154fd3-c631-5f34-bf0e-4efa76283a20",
+  "added_page_name": "13 · Native work & companions",
+  "original_members_unchanged": 49093,
+  "original_pages_byte_exact": 14,
+  "new_members": 1222,
+  "added_boards": 34,
+  "editable_text_shapes": 744,
+  "prototype_links_resolve": 136,
+  "media_and_object_paths_byte_exact": 696,
+  "cloud_import_verified": false,
+  "runtime_acceptance_claimed": false,
+  "boards": [
+    {
+      "id": "3b75d980-212c-5ebd-9515-a0690da3c8ad",
+      "name": "Native work / Native work & optional companions · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "bfd13b0b-ddd1-5b9a-8b3d-2802e6c87641",
+      "name": "Native work / A reply is not a task receipt · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "b08f00c1-1600-5382-80a5-a39431ac871c",
+      "name": "Native work / Agent working · follow-up pending · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "22900f4b-7d4a-57a7-a630-2a5d078d1868",
+      "name": "Native work / Partial work · task failed · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "ab2c7442-a4f4-5c10-a485-c8f4d7e3e463",
+      "name": "Native work / UI publication only · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "8fe728c0-0cf1-5afb-ac21-12ee09f56845",
+      "name": "Native work / Program ran · meaning unassessed · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "bb3e88c2-fb98-5d37-8f02-2b15ed3799eb",
+      "name": "Native work / Agent result received · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "e2c02029-2ae9-547f-93a7-1fd4c69b8747",
+      "name": "Native work / Task observations unavailable · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "117a938c-6eb1-5439-acd8-53a089ce0163",
+      "name": "Native work / Converse instructions · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "7fa40d54-b848-5b05-8b81-14321b672a1f",
+      "name": "Native work / Decisions instructions · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "cc3a31f8-7934-5cd7-b8bb-0b729e9750fe",
+      "name": "Native work / Native audio · whole utterances · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "48a590c6-027f-5e41-8feb-6299f4f76ddb",
+      "name": "Native work / Component readiness · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "ea613ac0-1fac-57a9-a182-70777b6c98c0",
+      "name": "Native work / Choose independent components · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "a6be72ae-ac06-59ae-80a6-a78e4aa65376",
+      "name": "Native work / Saved creations · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "d07c96ad-2dfa-58d7-af1e-d55ad779bb90",
+      "name": "Native work / Pair a companion device · motion on",
+      "width": 420,
+      "height": 900,
+      "motion": "on"
+    },
+    {
+      "id": "19a75d2b-3b9e-526f-bc1f-2d36d47022ba",
+      "name": "Native work / Offline transcript catch-up · motion on",
+      "width": 420,
+      "height": 900,
+      "motion": "on"
+    },
+    {
+      "id": "c2fa95d8-54b4-5317-b326-3bc1a15f0592",
+      "name": "Native work / Foreground voice control · motion on",
+      "width": 420,
+      "height": 900,
+      "motion": "on"
+    },
+    {
+      "id": "194b8efd-74dd-5a96-951f-00d0877779dd",
+      "name": "Native work / Native work & optional companions · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "3acbfe36-5b5b-5af8-adbe-d4381ab484f0",
+      "name": "Native work / A reply is not a task receipt · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "76192408-7931-522a-b18f-3165d82aaa64",
+      "name": "Native work / Agent working · follow-up pending · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "42dbf718-13f6-5c39-99e1-8b56c378fa3a",
+      "name": "Native work / Partial work · task failed · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "f3f827a6-b00c-587b-a41d-6f50299339c6",
+      "name": "Native work / UI publication only · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "da65d057-d5f4-5242-b4bc-dcbff318373a",
+      "name": "Native work / Program ran · meaning unassessed · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "66a4df03-d199-5f29-8cfe-234dcdf9b189",
+      "name": "Native work / Agent result received · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "76309348-8cd2-55e1-8f88-76eb6b1ba89d",
+      "name": "Native work / Task observations unavailable · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "c521ff34-58c4-5226-99da-73190f3ace13",
+      "name": "Native work / Converse instructions · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "a434c90b-5e8f-5134-8a59-539224fef822",
+      "name": "Native work / Decisions instructions · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "29483428-40e3-5e24-b226-b1de1f5f4229",
+      "name": "Native work / Native audio · whole utterances · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "0f38e2c6-9944-54fc-9a3a-c657a5bb5ca4",
+      "name": "Native work / Component readiness · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "fd32ac28-1b25-5407-8d3e-caf4ee243306",
+      "name": "Native work / Choose independent components · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "4da1a56a-6b70-5db8-8626-eaa8f29d422f",
+      "name": "Native work / Saved creations · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "c730e89d-6e7b-58bc-9ca1-af19f9db1123",
+      "name": "Native work / Pair a companion device · motion off",
+      "width": 420,
+      "height": 900,
+      "motion": "off"
+    },
+    {
+      "id": "48bac390-3275-55e9-9380-28afd4ad828b",
+      "name": "Native work / Offline transcript catch-up · motion off",
+      "width": 420,
+      "height": 900,
+      "motion": "off"
+    },
+    {
+      "id": "0a0e87bb-4f71-5401-9be5-97e6c95465b9",
+      "name": "Native work / Foreground voice control · motion off",
+      "width": 420,
+      "height": 900,
+      "motion": "off"
+    }
+  ],
+  "browser_preview_review": {
+    "kind": "SVGs rendered from the same native vector/text data; not native Penpot import",
+    "boards": [
+      "Native work & optional companions · motion on",
+      "Agent working · follow-up pending · motion on",
+      "Converse instructions · motion on",
+      "Offline transcript catch-up · motion off"
+    ],
+    "selected_views_readable": true,
+    "font_note": "Browser preview can use system font fallback; native Penpot text remains Inter.",
+    "cloud_import_verified": false
+  },
+  "previous_candidate": {
+    "result_sha256": "580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb",
+    "result_bytes": 245700807,
+    "lfs_publication": {
+      "state": "uploaded_and_full_download_verified",
+      "bytes": 245700807,
+      "sha256": "580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb",
+      "ref": "refs/heads/codex/483-native-converse",
+      "credential_or_signed_url_retained": false
+    },
+    "native_animation_discriminator_valid": false,
+    "invalid_transitions": 68,
+    "issue": 598
+  },
+  "native_animation_grammar": {
+    "penpot_version": "2.18.5-RC1",
+    "commit": "f44566963daf61fce4d8608e7c5e8c27c5853a88",
+    "source_path": "common/src/app/common/types/shape/interactions.cljc",
+    "source_blob_sha": "abbbf3fffef05e5b6f5d195a06ad8c87f76ea731",
+    "discriminator": "animationType",
+    "required_fields": [
+      "animationType",
+      "duration",
+      "easing"
+    ],
+    "valid_added_animations": 68,
+    "instant_added_links": 68,
+    "changed_members": 68,
+    "original_members_byte_exact": 49093,
+    "native_import_executed": true
+  },
+  "second_candidate": {
+    "result_sha256": "039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7",
+    "result_bytes": 245700930,
+    "lfs_publication": {
+      "state": "uploaded_and_full_download_verified",
+      "bytes": 245700930,
+      "sha256": "039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7",
+      "ref": "refs/heads/codex/penpot-native-work",
+      "credential_or_signed_url_retained": false
+    },
+    "native_import_rendered": true,
+    "native_hotspot_navigation_passed": false,
+    "no_paint_hotspots": 136,
+    "issue": 603
+  },
+  "native_hotspot_repair": {
+    "issue": 603,
+    "cause": "No-fill/no-stroke link rectangles do not receive pointer events; clicks hit lower painted backgrounds.",
+    "native_controlled_fix": {
+      "fillColor": "#B1B2B5",
+      "fillOpacity": 0
+    },
+    "changed_added_shape_members": 136,
+    "all_new_links_have_transparent_painted_geometry": true,
+    "original_members_byte_exact": 49093,
+    "exact_v3_native_import_executed": true,
+    "exact_v3_overview_to_receipt_click_passed": true
+  },
+  "lfs_publication": {
+    "state": "uploaded_and_full_download_verified",
+    "bytes": 245704624,
+    "sha256": "a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd",
+    "ref": "refs/heads/codex/penpot-native-work",
+    "credential_or_signed_url_retained": false
+  },
+  "local_native_import_verified": true,
+  "local_native_verification": {
+    "date_utc": "2026-11-15",
+    "date_local": "2026-11-14",
+    "origin": "http://localhost:9001",
+    "canonical_file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+    "canonical_page_id": "539d030b-728d-808b-8008-f29cdb0cd579",
+    "recovery_version": {
+      "name": "Before native work & companions (#590)",
+      "locked": true
+    },
+    "transfer_method": "Native copy/paste of all 34 boards into a new master page; 136 transparent fills and two flow starts set through native controls.",
+    "native_master_clicks_passed": [
+      "motion on overview -> receipt",
+      "receipt -> running/pending steering",
+      "running -> failed partial work",
+      "partial work -> overview",
+      "overview -> mobile offline catch-up",
+      "motion off overview -> receipt"
+    ],
+    "native_export": {
+      "origin": "http://localhost:9001",
+      "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+      "page_id": "539d030b-728d-808b-8008-f29cdb0cd579",
+      "export_bytes": 245558625,
+      "export_sha256": "f832e651a39437fcf883176385c10652f57f9a0aa11e6651d4d9d3ade6f1f8d6",
+      "export_member_count": 50267,
+      "original_page_records_structurally_equal": 14,
+      "original_shape_records_structurally_equal": 48017,
+      "original_all_members_byte_exact_claimed": false,
+      "native_export_note": "Native export changes JSON serialization and regenerates thumbnail/object metadata; all original page and shape values were compared structurally without discarding fields.",
+      "boards": 34,
+      "editable_text_shapes": 744,
+      "all_added_text_content_equal_to_prepared_page": true,
+      "all_added_shape_parent_ids_remapped_correctly": true,
+      "all_added_shape_positions_match_prepared_plus_offset": [
+        282,
+        350
+      ],
+      "links_resolve_to_mapped_local_boards": 136,
+      "transparent_painted_hotspots": 136,
+      "flows": [
+        {
+          "id": "539d030b-728d-808b-8008-f2a63a7aeb99",
+          "name": "Native work & companions · motion on",
+          "startingFrame": "539d030b-728d-808b-8008-f29d838bfa6b"
+        },
+        {
+          "id": "539d030b-728d-808b-8008-f2a64c11bf6a",
+          "name": "Native work & companions · motion off",
+          "startingFrame": "539d030b-728d-808b-8008-f29d838c7067"
+        }
+      ],
+      "zip_crc_passed": true,
+      "duplicate_members": false
+    },
+    "exact_v3_import": {
+      "file_id": "28bf7c0f-3760-81b5-8008-f2a7c70ee0fa",
+      "project_id": "aed0c863-4a2a-8195-8008-ded65d82d6e2",
+      "name": "Kinaiya — Native work v3 · import verified (#590)",
+      "import_success_observed": true,
+      "editor_text_layout_observed": true,
+      "overview_to_receipt_click_passed": true,
+      "initial_direct_cold_viewer": "Shapes appeared without text before the page was opened in the native editor.",
+      "all_links_manually_exercised": false
+    },
+    "retained_v2_rehearsal": {
+      "file_id": "28bf7c0f-3760-81b5-8008-f29a0df763f2",
+      "name": "Kinaiya — Native work v2 · failed hotspots (#603)",
+      "project": "Kinaiya — Archive",
+      "single_controlled_hotspot_fix_applied": true
+    },
+    "browser_observation_limits": [
+      "A qualification tab crashed while its file menu was open; a new tab in the same local browser recovered.",
+      "The download event observer timed out; the completed native file was present in Downloads and independently checked."
+    ]
+  },
+  "native_screenshots": [
+    {
+      "path": "assets/penpot/previews/native-work/local-master-overview.jpg",
+      "bytes": 135482,
+      "sha256": "a697c28b87622e82ce9569909c610c41c7b8f1e6dc4acee65d96cd731df89245"
+    },
+    {
+      "path": "assets/penpot/previews/native-work/local-master-receipt.jpg",
+      "bytes": 83255,
+      "sha256": "b27fa77d076928ecd65cf59cbf99300cf98ab5a1743ec88cc9ca0a45e4bd21fc"
+    },
+    {
+      "path": "assets/penpot/previews/native-work/local-master-mobile-catchup.jpg",
+      "bytes": 63853,
+      "sha256": "ee25d39961162145a60cf9285459de002a677c12159167c673745478eeb71731"
+    },
+    {
+      "path": "assets/penpot/previews/native-work/v3-import-receipt.jpg",
+      "bytes": 56862,
+      "sha256": "0996ab28be0f83adda76346e86f94f544ad07579fda00950f215973839a96838"
+    }
+  ]
+}

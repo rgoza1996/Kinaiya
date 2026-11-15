@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-15-pending-preference/run-1.py", line 260, in <module>
+    asyncio.run(asyncio.wait_for(main(),timeout=600))
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/tasks.py", line 520, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-15-pending-preference/run-1.py", line 129, in main
+    assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='abb0f87f947fc772b7da1fb5c1403045e46507e3'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

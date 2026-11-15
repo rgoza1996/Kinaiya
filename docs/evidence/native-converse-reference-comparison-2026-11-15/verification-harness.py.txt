@@ -1,0 +1,93 @@
+"""Verify retained public bytes without inference, then export the evidence."""
+from pathlib import Path
+import base64
+import hashlib
+import json
+import shutil
+import wave
+
+from packages.contracts.task_context import TaskContextResponse
+
+source = Path(__file__).resolve().parent
+out = Path('docs/evidence/native-converse-reference-comparison-2026-11-15')
+out.mkdir(parents=True, exist_ok=True)
+native = json.loads((source/'native-2/manifest.json').read_text())
+reference = json.loads((source/'reference-work-1/result.json').read_text())
+assert native['engine_exit'] == 0 and not native.get('cleanup_errors')
+assert native['controlled_agent_provider_calls'] == 1
+assert json.loads((source/'reference-execution-1.json').read_text())['exit_code'] == 0
+assert native['source_head'] == 'abb0f87f947fc772b7da1fb5c1403045e46507e3'
+assert len(native['cases']) == len(reference['cases']) == 3
+proof, rawfiles = [], []
+for i, (a, b) in enumerate(zip(native['cases'], reference['cases'], strict=True)):
+    name = a['name']
+    assert b['name'] == name and b['phase'] == 'complete'
+    assert a['error'] is None and b['error'] is None
+    rows = []
+    for index in [2*i+1, 2*i+2]:
+        path = source/'native-2'/f'wire-{index:02d}.jsonl'
+        rawfiles.append({'name': path.name, 'bytes': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+        rows.append([json.loads(line) for line in path.read_text().splitlines()])
+    received = [[r['event'] for r in rr if r['direction'] == 'recv'] for rr in rows]
+    assert [e['transcript'] for e in received[0] if e['type'] == 'conversation.item.input_audio_transcription.completed'] == [a['actual_asr']]
+    text = ''.join(e['delta'] for e in received[1] if e['type'] == 'response.output_text.delta')
+    assert text == a['endpoint_text']
+    assert [e['text'] for e in received[1] if e['type'] == 'response.output_text.done'] == [text]
+    terminal = [e['response'] for e in received[1] if e['type'] == 'response.done']
+    assert len(terminal) == 1 and terminal[0]['status'] == 'completed'
+    pcm = b''.join(base64.b64decode(e['delta'], validate=True) for e in received[1] if e['type'] == 'response.output_audio.delta')
+    assert hashlib.sha256(pcm).hexdigest() == a['output_pcm_sha256']
+    assert len(a['published']) == 1 and a['published'][0]['payload']['text'] == text
+    for label, path, digest in [
+        ('input', source/'native-2'/(name+'-input.wav'), a['input_pcm_sha256']),
+        ('native-output', source/'native-2'/(name+'-output.wav'), a['output_pcm_sha256']),
+        ('reference-output', source/'reference-work-1'/name/'output.wav', b['output_pcm_sha256']),
+    ]:
+        with wave.open(str(path), 'rb') as reader:
+            assert (reader.getnchannels(), reader.getsampwidth(), reader.getframerate()) == (1, 2, 16000 if label == 'input' else 24000)
+            pcm = reader.readframes(reader.getnframes())
+        assert hashlib.sha256(pcm).hexdigest() == digest
+        shutil.copyfile(path, out/(name+'-'+label+'.wav'))
+    shutil.copyfile(source/'reference-work-1'/name/'outputs.npz', out/(name+'-reference-tokens-codes.npz'))
+    proof.append({
+        'name': name, 'native_text': text, 'reference_text': b['text'],
+        'native_semantic_pass': name == 'question', 'reference_semantic_pass': name == 'question',
+        'criterion': 'Receipt only for accepted work; truthful pending follow-up; correct unrelated answer.',
+        'native_response_id': terminal[0]['id'], 'native_pcm_sha256': a['output_pcm_sha256'],
+        'reference_pcm_sha256': b['output_pcm_sha256'],
+    })
+contexts = [TaskContextResponse.model_validate_json(line) for line in (source/'native-2/task-observations.jsonl').read_text().splitlines()]
+assert len(contexts) == 12
+assert all(c.contract == 'converse_task_context.v1' and c.read_only and not c.truncated for c in contexts)
+tasks = [task for context in contexts for task in context.tasks]
+assert len(tasks) == 12 and all(t.state == 'running' and t.objective_revision == 1 and t.program_execution_receipt == 'not_observed' for t in tasks)
+assert any(t.steer_pending for t in tasks)
+for src, dst in [
+    ('plan.json', 'plan.json'), ('plan-addendum-1.json', 'launch-correction.json'),
+    ('template-comparison.json', 'template-comparison.json'),
+    ('native/manifest.json', 'failed-launch-manifest.json'), ('native/engine.log', 'failed-launch.log'),
+    ('native-2/manifest.json', 'native-observations.json'), ('native-2/task-observations.jsonl', 'task-observations.jsonl'),
+    ('reference-work-1/result.json', 'reference-observations.json'), ('reference-inputs/cases.json', 'reference-conditional-inputs.json'),
+    ('native-2.py', 'native-harness.py.txt'), ('reference.py', 'reference-harness.py.txt'),
+    ('run-reference.py', 'reference-runner.py.txt'), ('verification-failure-1.txt', 'verification-failure-1.txt'),
+    ('verify-and-export.py', 'verification-harness.py.txt'),
+]:
+    shutil.copyfile(source/src, out/dst)
+verification = {
+    'scope': 'Public first-output native/full-reference conditional diagnostic. Both fail work/follow-up and pass the separate question. Not a dialogue repair, independent reference Agent run or browser/audio-listening qualification.',
+    'cases': proof, 'raw_wire_files_retained_locally': rawfiles, 'controlled_agent_provider_calls': 1,
+    'task_observations': 12, 'native_engine_exit': 0, 'reference_process_exit': 0,
+    'retained_byte_checks': 'Raw ASR, text deltas/done, completed responses, native publications, original PCM and nine WAVs matched; no inference repeated.',
+    'reference_revision': '21d75123f86c1f7ffb4bef1ea202710c4e7ebe67',
+    'first_failed_launch': 'Exit127 before inference: missing existing ROCm library search path. Original manifest/log retained.',
+    'limitations': [
+        'Reference follow-up is conditioned on actual prior native replies, not its own conversation.',
+        'CPU float32 versus Q4_K_M/Q8, engine and RNG differences prevent numerical-equivalence claims.',
+        'Reference and native first work responses confuse seed/seat; native follow-up ASR discrepancy is retained.',
+        'No forced answer, keyword router, changed prompt, confidence gate, native retry, live owner promotion or semantic reroll.',
+    ],
+}
+(out/'verification.json').write_text(json.dumps(verification, ensure_ascii=False, indent=2)+'\n')
+files = [{'name': p.name, 'bytes': p.stat().st_size, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(out.iterdir()) if p.is_file() and p.name != 'files.json']
+(out/'files.json').write_text(json.dumps(files, indent=2)+'\n')
+print(json.dumps({'files': len(files)+1, 'total_bytes': sum(p['bytes'] for p in files), 'native_pass': 1, 'reference_pass': 1, 'retained_byte_checks': 'passed; no inference repeated'}))

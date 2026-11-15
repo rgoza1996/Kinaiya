@@ -1,0 +1,260 @@
+"""One isolated, public-only native app-path qualification; retain every outcome."""
+import asyncio
+import base64
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import shutil
+import socket
+import subprocess
+import sys
+import time
+import wave
+from uuid import uuid4
+
+import httpx
+import uvicorn
+from websockets.asyncio.client import connect
+
+from core.policy import ToolPolicy
+from packages.agent_adapters.task_context import TaskContextClient
+from packages.contracts.models import AppendRequest, ProviderInfo, SessionRequest, WindowDecision, TaskRequest, SteerRequest
+from packages.providers.realtime_audio import RealtimeAudioProvider
+from packages.providers.text import ScriptedProvider
+from services.agent import AgentRuntime, create_app as agent_app
+from services.common.auth import Auth
+from services.converse.native_audio import NativeAudioOwner, NativeClipRequest
+from services.converse.runtime import ConverseRuntime
+from services.converse.windows import WindowConverseController
+from services.session.store import LocalJournal, Store
+
+ENGINE=Path('/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab')
+BIN=Path(os.environ.get('ISSUE483_ENGINE_BIN',str(ENGINE/'build/bin')))
+MODELS=Path('/home/roggoz/Disks/SN750/models/LiquidAI/LFM3-Omni-2B-GGUF')
+OUT=Path(sys.argv[1])
+CASES=[
+ ('work','Please ask Agent to make a brief welcome plan for an imaginary neighborhood seed exchange.'),
+ ('followup','Include a station for returning empty seed envelopes in that same request.'),
+ ('question','Separately, what does water turn into when it freezes?'),
+]
+class HoldingAgent(ScriptedProvider):
+ def __init__(self):
+  super().__init__([])
+  self.entered=asyncio.Event()
+ async def complete(self,messages):
+  self.calls.append(messages)
+  self.entered.set()
+  await asyncio.Event().wait()
+
+class RecordedTaskContext(TaskContextClient):
+ async def lookup(self,request):
+  result=await super().lookup(request)
+  with (OUT/'task-observations.jsonl').open('a') as file:
+   file.write(result.model_dump_json()+'\n')
+  return result
+
+def digest(data): return hashlib.sha256(data).hexdigest()
+
+def write_json(path, value):
+ path.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
+
+def wav(data,rate):
+ stream=io.BytesIO()
+ with wave.open(stream,'wb') as w:
+  w.setnchannels(1);w.setsampwidth(2);w.setframerate(rate);w.writeframes(data)
+ return stream.getvalue()
+
+def input_audio(name,text):
+ text_path=OUT/(name+'-input.txt');text_path.write_text(text)
+ result=subprocess.run(['ffmpeg','-nostdin','-hide_banner','-loglevel','error','-f','lavfi','-i',f'flite=textfile={text_path}:voice=slt','-ar','16000','-ac','1','-c:a','pcm_s16le','-f','wav','pipe:1'],capture_output=True,timeout=30,check=True)
+ with wave.open(io.BytesIO(result.stdout),'rb') as w:
+  assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(1,2,16000)
+  pcm=w.readframes(w.getnframes())
+ assert 0<len(pcm)<=16000*2*30
+ data=wav(pcm,16000);(OUT/(name+'-input.wav')).write_bytes(data)
+ return data,pcm
+
+class NoText:
+ info=ProviderInfo(provider='compatible',model='issue-483-lfm3-omni',local=True)
+ async def measure_prompt(self,*a,**kw): raise AssertionError('No text-only measurement')
+ async def stream(self,*a,**kw):
+  raise AssertionError('No text or TTS fallback')
+  yield ''
+
+class Wire:
+ def __init__(self,connection,file): self.connection,self.file=connection,file
+ def record(self,direction,raw):
+  assert type(raw) is str and len(raw.encode())<=256*1024
+  self.file.write(json.dumps({'direction':direction,'event':json.loads(raw)},ensure_ascii=False)+'\n');self.file.flush()
+ async def send(self,raw):
+  self.record('send',raw);return await self.connection.send(raw)
+ async def recv(self):
+  raw=await self.connection.recv();self.record('recv',raw);return raw
+ async def close(self):
+  try: return await self.connection.close()
+  finally: self.file.close()
+
+async def protocol_controls(url):
+ bad=[('tools',None),('tools',{}),('tools','[]'),('tools',[{'type':'function','name':'public_fixture'}]),('tool_choice','auto'),('tool_choice','required'),('tool_choice',None),('tool_choice',False),('tool_choice',{})]
+ receipts=[]
+ for field,value in bad:
+  async with asyncio.timeout(20):
+   async with connect(url,proxy=None,compression=None,max_size=256*1024) as connection:
+    created=json.loads(await connection.recv());assert created['type']=='session.created'
+    await connection.send(json.dumps({'type':'session.update','session':{field:value,'instructions':'This invalid update must not apply.'}}))
+    error=json.loads(await connection.recv());assert error['type']=='error'
+    await connection.send(json.dumps({'type':'session.update','session':{'tools':[],'tool_choice':'none'}}))
+    updated=json.loads(await connection.recv());assert updated['type']=='session.updated'
+    assert updated['session']['tools']==[] and updated['session']['tool_choice']=='none'
+    assert updated['session']['instructions']==''
+    receipts.append({'kind':'session','field':field,'value':value,'error':error,'updated':updated})
+    write_json(OUT/'protocol-controls.json',receipts)
+ async with asyncio.timeout(30):
+  async with connect(url,proxy=None,compression=None,max_size=256*1024) as connection:
+   assert json.loads(await connection.recv())['type']=='session.created'
+   await connection.send(json.dumps({'type':'conversation.item.create','item':{'type':'message','role':'user','content':[{'type':'input_text','text':'Public protocol control.'}]}}))
+   assert json.loads(await connection.recv())['type']=='conversation.item.added'
+   assert json.loads(await connection.recv())['type']=='conversation.item.done'
+   for field,value in bad:
+    await connection.send(json.dumps({'type':'response.create','response':{field:value}}))
+    error=json.loads(await connection.recv());assert error['type']=='error'
+    assert 'tools are not supported' in error['error']['message']
+    receipts.append({'kind':'response','field':field,'value':value,'error':error})
+    write_json(OUT/'protocol-controls.json',receipts)
+ return len(receipts)
+
+async def main():
+ assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()=='abb0f87f947fc772b7da1fb5c1403045e46507e3'
+ assert not subprocess.check_output(['git','status','--porcelain'])
+ assert not os.environ.get('ISSUE483_PERSONA_FILE')
+ assert os.environ.get('ISSUE483_PROTOCOL_CONTROLS')!='1'
+ assert BIN==Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-14-engine-overlay/bin')
+ OUT.mkdir(parents=True,exist_ok=False,mode=0o700)
+ shutil.copyfile(__file__,OUT/'qualification.py')
+ manifest={'scope':'public synthetic isolated qualification; actual native Agent acceptance/steer with controlled held Agent provider, no tools/effects; no owner service changes, cloud, microphone or TTS fallback','source_head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'source_diff_sha256':digest(subprocess.check_output(['git','diff','HEAD'])),'engine_source':subprocess.check_output(['git','-C',str(ENGINE),'rev-parse','HEAD'],text=True).strip(),'qualification_sha256':digest(Path(__file__).read_bytes()),'qualification_kind':'paired native Omni / pinned Transformers reference diagnostic; unchanged built-in persona; three predeclared fresh public utterances; first outputs only','semantics_reviewed':False,'audio_listened':False,'browser_delivery_qualified':False,'cases':[]}
+ for path in [BIN/'llama-server',BIN/'libllama-server-impl.so',MODELS/'LFM3-Omni-2B-Q4_K_M.gguf',MODELS/'mmproj-LFM3-Omni-2B-Q8_0.gguf']:
+  h=hashlib.sha256()
+  with path.open('rb') as f:
+   for part in iter(lambda:f.read(1024*1024),b''): h.update(part)
+  manifest.setdefault('artifacts',[]).append({'name':path.name,'bytes':path.stat().st_size,'sha256':h.hexdigest()})
+ manifest['transcription_connection']='session_update'
+ write_json(OUT/'manifest.json',manifest)
+ with socket.socket() as s: s.bind(('127.0.0.1',0));port=s.getsockname()[1]
+ args=[str(BIN/'llama-server'),'-m',str(MODELS/'LFM3-Omni-2B-Q4_K_M.gguf'),'-mm',str(MODELS/'mmproj-LFM3-Omni-2B-Q8_0.gguf'),'--host','127.0.0.1','--port',str(port),'--alias','issue-483-lfm3-omni','--no-webui','-t','8','-tb','8','-ngl','99','-b','8192','-ub','8192','-c','8192','-np','1','--seed','483','--reasoning','off']
+ log=(OUT/'engine.log').open('wb')
+ (OUT/'engine-home').mkdir(mode=0o700)
+ proc_env={'PATH':'/usr/bin:/bin','HOME':str(OUT/'engine-home'),'LC_ALL':'C.UTF-8','LD_LIBRARY_PATH':str(BIN)+':'+str(ENGINE/'build/bin')+':/opt/rocm/core-10.0/lib'}
+ for key in ['HSA_OVERRIDE_GFX_VERSION','HIP_VISIBLE_DEVICES','ROCR_VISIBLE_DEVICES','CUDA_VISIBLE_DEVICES']:
+  if key in os.environ: proc_env[key]=os.environ[key]
+ proc=await asyncio.create_subprocess_exec(*args,stdout=log,stderr=asyncio.subprocess.STDOUT,env=proc_env)
+ manifest['engine_pid']=proc.pid;manifest['engine_args']=args
+ store=runtime=owner=controller=agent=agent_server=agent_job=agent_listener=None
+ try:
+  async with httpx.AsyncClient(base_url=f'http://127.0.0.1:{port}',timeout=2,trust_env=False) as client:
+   async with asyncio.timeout(180):
+    while True:
+     if proc.returncode is not None: raise RuntimeError('Isolated engine exited before readiness')
+     try:
+      response=await client.get('/health')
+      if response.status_code==200: break
+     except httpx.RequestError: pass
+     await asyncio.sleep(.25)
+   props=(await client.get('/props')).json()
+   write_json(OUT/'engine-props.json',props)
+  fd_sockets=set()
+  for p in Path(f'/proc/{proc.pid}/fd').iterdir():
+   try: fd_sockets.add(os.readlink(p))
+   except FileNotFoundError: pass
+  listeners=[row.split() for row in Path('/proc/net/tcp').read_text().splitlines()[1:]]
+  assert any(row[1]==f'0100007F:{port:04X}' and row[3]=='0A' and f'socket:[{row[9]}]' in fd_sockets for row in listeners),'Selected listener is not owned by isolated process'
+  if os.environ.get('ISSUE483_PROTOCOL_CONTROLS')=='1':
+   manifest['protocol_controls_passed']=await protocol_controls(f'ws://127.0.0.1:{port}/v1/realtime?model=issue-483-lfm3-omni')
+   write_json(OUT/'manifest.json',manifest)
+  sequence=0
+  async def recorded_connect(url,**options):
+   nonlocal sequence
+   assert proc.returncode is None
+   connection=await connect(url,**options)
+   sequence+=1
+   return Wire(connection,(OUT/f'wire-{sequence:02d}.jsonl').open('x'))
+  native=RealtimeAudioProvider(f'http://127.0.0.1:{port}','issue-483-lfm3-omni',timeout=90,max_output_tokens=512,connect=recorded_connect,transcription_connection='session_update')
+  store=Store(OUT/'journal.sqlite');session=store.create_session(SessionRequest(channel='converse'))
+  persona_path=os.environ.get('ISSUE483_PERSONA_FILE')
+  persona_options={'personality':Path(persona_path).read_text(),'personality_scope':'public_synthetic'} if persona_path else {}
+  workspace=OUT/'workspace';workspace.mkdir(mode=0o700)
+  agent_provider=HoldingAgent()
+  agent=AgentRuntime(LocalJournal(store,'agent'),agent_provider,workspace,ToolPolicy(workspace))
+  agent_token='public-isolated-converse-'+'x'*32
+  agent_listener=socket.socket();agent_listener.bind(('127.0.0.1',0))
+  agent_port=agent_listener.getsockname()[1]
+  agent_server=uvicorn.Server(uvicorn.Config(agent_app(agent,Auth({'converse':agent_token})),log_level='error',lifespan='off'))
+  agent_job=asyncio.create_task(agent_server.serve(sockets=[agent_listener]))
+  async with asyncio.timeout(5):
+   while not agent_server.started:
+    if agent_job.done(): agent_job.result();raise RuntimeError('Isolated Agent listener failed')
+    await asyncio.sleep(.01)
+  metadata=RecordedTaskContext(f'http://127.0.0.1:{agent_port}',agent_token)
+  runtime=ConverseRuntime(LocalJournal(store,'converse'),NoText(),context_budgeted=True,task_context_client=metadata,**persona_options)
+  owner=NativeAudioOwner(runtime,native,path=OUT/'native-audio.sqlite',workspace=workspace)
+  runtime.native_audio=owner;controller=WindowConverseController(runtime)
+  (OUT/'persona.txt').write_text(runtime.personality)
+  for name,text in CASES:
+   case={'name':name,'input_text':text,'semantic_pass':None,'error':None}
+   manifest['cases'].append(case);write_json(OUT/'manifest.json',manifest)
+   try:
+    data,pcm=input_audio(name,text);case.update(input_pcm_sha256=digest(pcm),input_seconds=len(pcm)/32000)
+    started=time.monotonic()
+    result=await owner.admit(NativeClipRequest(session_id=session.session_id,thread_id=session.thread_id,epoch=session.epoch,utterance_id=str(uuid4()),request_id=str(uuid4()),content_scope='public_synthetic',audio_base64=base64.b64encode(data).decode()),controller)
+    source=store.entry(result['entry']['event_id']);case['actual_asr']=source.payload['text']
+    if name=='work':
+     task=await agent.submit(TaskRequest(session_id=session.session_id,thread_id=session.thread_id,epoch=session.epoch,objective=source.payload['text'],content_scope='public_synthetic',source_event_ids=[source.event_id],idempotency_key='public-controlled-task'))
+     await asyncio.wait_for(agent_provider.entered.wait(),5)
+     case['native_agent_task']=task.model_dump(mode='json')
+    elif name=='followup':
+     original=agent._tasks[task.task_id].task
+     task=await agent.steer(task.task_id,SteerRequest(instruction=source.payload['text'],content_scope='public_synthetic',expected_objective_revision=original.objective_revision,source_event_ids=[source.event_id],idempotency_key='public-controlled-steer'))
+     case['native_agent_task']=task.model_dump(mode='json')
+    decision=store.append(AppendRequest(session_id=session.session_id,thread_id=session.thread_id,epoch=session.epoch,kind='routing.window_decided',causes=[source.event_id],payload=WindowDecision(source_event_id=source.event_id,source_sequence=source.sequence,source_revision=source.payload['revision'],conversation='RESPOND_WITHOUT_INTERRUPTING_USER',agent_route='QUEUE_UNTIL_TASK_DONE' if name!='question' else 'IGNORE_FOR_IMMEDIATE_ROUTING',reason_code='explicit_public_fixture_controlled_native_acceptance').model_dump(mode='json'),idempotency_key='public-qualification:'+source.event_id),'decisions')
+    await controller.process(decision)
+    prepared=controller.pending[session.session_id]
+    await asyncio.wait_for(asyncio.shield(prepared.task),100)
+    await controller.tick()
+    case['elapsed_s']=time.monotonic()-started
+    case['controller_last_error']=controller.last_error
+    reply=prepared.native_audio_reply
+    case['endpoint_text']=None if reply is None else reply.text
+    if reply is not None:
+     output=wav(reply.pcm16,reply.rate);(OUT/(name+'-output.wav')).write_bytes(output)
+     case.update(output_pcm_sha256=digest(reply.pcm16),output_wav_sha256=digest(output),output_rate=reply.rate,output_seconds=len(reply.pcm16)/(2*reply.rate))
+    case['published']=[e.model_dump(mode='json') for e in store.read(kinds=['conversation.converse']) if e.payload.get('window_source_id')==source.event_id]
+    case['messages']=prepared.messages
+   except Exception as e:
+    case['error']=type(e).__name__+': '+str(e)
+   finally:
+    write_json(OUT/'manifest.json',manifest)
+    print(json.dumps({k:case.get(k) for k in ['name','actual_asr','endpoint_text','error','controller_last_error','output_seconds']},ensure_ascii=False),flush=True)
+ except BaseException as e:
+  manifest['run_error']=type(e).__name__+': '+str(e)
+  raise
+ finally:
+  manifest['controlled_agent_provider_calls']=len(agent_provider.calls) if agent is not None else 0
+  for obj in [controller,owner,runtime,agent]:
+   if obj is not None:
+    try: await asyncio.wait_for(obj.close(),15)
+    except Exception as e: manifest.setdefault('cleanup_errors',[]).append(type(e).__name__)
+  if agent_server is not None:
+   agent_server.should_exit=True
+  if agent_job is not None:
+   try: await asyncio.wait_for(agent_job,5)
+   except Exception as e: manifest.setdefault('cleanup_errors',[]).append(type(e).__name__)
+  if agent_listener is not None: agent_listener.close()
+  if store is not None: store.close()
+  if proc.returncode is None:
+   proc.terminate()
+   try: await asyncio.wait_for(proc.wait(),15)
+   except TimeoutError: proc.kill();await proc.wait()
+  manifest['engine_exit']=proc.returncode;write_json(OUT/'manifest.json',manifest);log.close()
+
+asyncio.run(asyncio.wait_for(main(),timeout=600))
