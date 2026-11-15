@@ -108,18 +108,27 @@ def test_real_cli_is_paused_at_first_listener_and_preserves_newer_owner_intent(
     data.mkdir(mode=0o700)
     intent = ConverseIntent(data / "converse-intent.json", initial_enabled=owner_enabled)
     original = intent.path.read_bytes()
-    session_port, converse_port = port(), port()
+    session_port, converse_port, decisions_port = port(), port(), port()
     config = tmp_path / "config.json"
     config.write_text(
         json.dumps(
             {
                 "session_url": f"http://127.0.0.1:{session_port}",
+                "agent_url": "http://127.0.0.1:1",
+                "agent_enabled": False,
+                "distribution": {"agent": False, "converse": True, "decisions": True},
+                "decisions_url": f"http://127.0.0.1:{decisions_port}",
                 "providers": {
                     "converse": {
                         "kind": "compatible",
                         "base_url": f"http://127.0.0.1:{provider.server_port}/v1",
                         "model": "synthetic-no-generation",
-                    }
+                    },
+                    "decisions": {
+                        "kind": "compatible",
+                        "base_url": f"http://127.0.0.1:{provider.server_port}/v1",
+                        "model": "synthetic-no-generation",
+                    },
                 },
                 "resources": {"enabled": False},
             }
@@ -127,7 +136,11 @@ def test_real_cli_is_paused_at_first_listener_and_preserves_newer_owner_intent(
     )
     children, logs = [], []
     try:
-        for service, service_port in (("session", session_port), ("converse", converse_port)):
+        for service, service_port in (
+            ("session", session_port),
+            ("decisions", decisions_port),
+            ("converse", converse_port),
+        ):
             log = (tmp_path / (service + ".log")).open("wb")
             logs.append(log)
             args = [
@@ -188,7 +201,9 @@ def test_real_cli_is_paused_at_first_listener_and_preserves_newer_owner_intent(
                 "owner_enabled": True,
                 "resource_enabled": False,
                 "owner_intent_revision": 1,
+                "decisions": awake.json()["decisions"],
             }
+            assert awake.json()["decisions"]["required"] is True
             refused = http.post(
                 url + "/v1/converse/turns",
                 headers=headers,
@@ -201,6 +216,12 @@ def test_real_cli_is_paused_at_first_listener_and_preserves_newer_owner_intent(
                 },
             )
             assert refused.status_code == 409
+            # A running listener is separate from positive required-runtime
+            # readiness. The real Decisions process must settle its first tick.
+            deadline = time.monotonic() + 3
+            while not http.get(url + "/health").json()["decisions"]["ready"]:
+                assert time.monotonic() < deadline, "Required Decisions did not become ready"
+                time.sleep(0.02)
             # Existing resource control releases only the temporary gate.
             resumed = http.post(
                 url + "/v1/converse/enabled",

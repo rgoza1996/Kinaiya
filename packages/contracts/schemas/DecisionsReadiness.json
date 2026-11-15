@@ -1,0 +1,49 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "service": {
+      "const": "decisions",
+      "title": "Service",
+      "type": "string"
+    },
+    "consumer": {
+      "const": "converse",
+      "title": "Consumer",
+      "type": "string"
+    },
+    "instance_id": {
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "starting",
+        "ready",
+        "unavailable",
+        "stopped"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "ready": {
+      "title": "Ready",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "contract_version",
+    "service",
+    "consumer",
+    "instance_id",
+    "phase",
+    "ready"
+  ],
+  "title": "DecisionsReadiness",
+  "type": "object"
+}

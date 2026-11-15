@@ -69,6 +69,16 @@ def _reserve_api_model(runtime, request):
     preparations.append(preparation)
 
 
+def _off_error(runtime):
+    dependency = runtime.decisions_dependency
+    detail = (
+        "Converse requires an available Decisions runtime"
+        if dependency is not None and not dependency.ready
+        else "Converse is off; direct Agent Chat remains available"
+    )
+    return HTTPException(409, detail)
+
+
 def _cloud_stt_current(runtime, speech, content_scope, validate=None):
     """Capture owner availability before decoding; recheck immediately before export.
 
@@ -550,7 +560,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
     ):
         _reserve_api_model(runtime, request)
         if not runtime.enabled:
-            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+            raise _off_error(runtime)
         if speech is None and not getattr(runtime, "_stt_options_configured", False):
             raise HTTPException(503, "Configure an STT provider in settings")
         try:
@@ -569,7 +579,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
                 if len(data) > 10_000_000:
                     raise HTTPException(413, "Recording exceeds 10 MB temporary limit")
                 if not runtime.enabled:
-                    raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+                    raise _off_error(runtime)
                 # Local host interfaces retain their historical positional API.
                 scoped = current if native is None or native.lease.pin.local is False else None
 
@@ -627,7 +637,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         if window_controller is None:
             raise HTTPException(503, "Streaming conversation control is unavailable")
         if not runtime.enabled:
-            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+            raise _off_error(runtime)
         try:
             entry = await window_controller.ingest(request)
             return {"entry": entry.model_dump(mode="json")}
@@ -644,7 +654,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         if request.stt_model is not None:
             raise HTTPException(400, "STT provenance is captured by native audio admission only")
         if not runtime.enabled:
-            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+            raise _off_error(runtime)
         try:
             data = base64.b64decode(request.audio_base64, validate=True)
         except ValueError as exc:
@@ -763,7 +773,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
 
     async def _verify_stream_session(session_id: str, thread_id: str, epoch: int) -> None:
         if not runtime.enabled:
-            raise HTTPException(409, "Converse is off; direct Agent Chat remains available")
+            raise _off_error(runtime)
         try:
             session = await runtime.journal.session(session_id)
             if session.thread_id != thread_id or session.epoch != epoch:

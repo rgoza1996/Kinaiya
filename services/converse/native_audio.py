@@ -804,6 +804,12 @@ class NativeAudioOwner:
         try:
             await asyncio.shield(clip.task)
         except asyncio.CancelledError:
+            observer = asyncio.current_task()
+            if clip.task.cancelled() and (observer is None or not observer.cancelling()):
+                # A retired original is a native refusal for a live observer.
+                # Its durable state stays intact; cancellation proves no
+                # absence of journal effects and never permits another ASR.
+                raise _error(clip.failure or 409) from None
             raise  # Observer loss never cancels or recreates the original.
         except Exception:
             if clip.state not in {"append_pending", "published"}:
@@ -1015,6 +1021,13 @@ class NativeAudioOwner:
         except BaseException:
             self._cleanup_failed = True
             raise _error(503) from None
+
+    def fence(self):
+        """Retire admitted clips without closing the recoverable native adapter."""
+        for clip in self._clips.values():
+            clip.fenced = True
+            if clip.task is not None and not clip.task.done():
+                clip.task.cancel()
 
     async def close(self):
         self._sealed = True

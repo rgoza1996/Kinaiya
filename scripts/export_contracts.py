@@ -39,6 +39,7 @@ from packages.contracts import (
     standing_work,
     stt_models,
     stt_settlement,
+    subsystem_readiness,
     task_context,
     tool_permissions,
     transcript_scan,
@@ -91,6 +92,7 @@ for name in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    subsystem_readiness.DecisionsReadiness,
     context_usage.ContextCatalogBinding,
     context_usage.ContextModel,
     context_usage.ContextScope,

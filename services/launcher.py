@@ -9,7 +9,7 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -983,6 +983,7 @@ def serve(args):
 
         from packages.agent_adapters.task_context import TaskContextClient
         from services.converse.api import create_app
+        from services.converse.dependencies import RequiredDecisions
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.model_settings import ConverseModelSettings
@@ -1042,6 +1043,9 @@ def serve(args):
             memory_adapters=memory_adapters,
             context_budgeted=True,
             task_context_client=task_context_client,
+            decisions_dependency=RequiredDecisions(
+                config.get("decisions_url", "http://127.0.0.1:8763"), tokens["converse"]
+            ),
             **prompt_options,
         )
         if getattr(args, "start_paused", False):
@@ -1151,23 +1155,31 @@ def serve(args):
                     except httpx.HTTPError:
                         await asyncio.sleep(1)
 
-            observer = asyncio.create_task(observe())
-            window_observer = asyncio.create_task(windows.run()) if windows else None
-            yield
-            observer.cancel()
-            if window_observer:
-                window_observer.cancel()
-            await asyncio.gather(
-                observer, *([window_observer] if window_observer else []), return_exceptions=True
-            )
-            await runtime.close()
-            if runtime.native_audio is not None:
-                await runtime.native_audio.close()
-            if runtime.model_settings is not None:
-                await runtime.model_settings.close()
+            observers = []
+
+            async def stop_observers():
+                for task in observers:
+                    task.cancel()
+                await asyncio.gather(*observers, return_exceptions=True)
+
             from services.converse.stt_operations import retire_converse_shared
 
-            await retire_converse_shared(runtime, journal, speech, windows)
+            async with AsyncExitStack() as cleanup:
+                cleanup.push_async_callback(
+                    retire_converse_shared, runtime, journal, speech, windows
+                )
+                if runtime.model_settings is not None:
+                    cleanup.push_async_callback(runtime.model_settings.close)
+                if runtime.native_audio is not None:
+                    cleanup.push_async_callback(runtime.native_audio.close)
+                cleanup.push_async_callback(runtime.close)
+                cleanup.push_async_callback(stop_observers)
+                cleanup.push_async_callback(runtime.decisions_dependency.close)
+                await runtime.decisions_dependency.start()
+                observers.append(asyncio.create_task(observe()))
+                if windows is not None:
+                    observers.append(asyncio.create_task(windows.run()))
+                yield
 
         app.router.lifespan_context = converse_lifespan
     else:

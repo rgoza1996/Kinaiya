@@ -1858,6 +1858,34 @@ class AppState extends ChangeNotifier {
     return true;
   }
 
+  /// Validate the optional required-runtime part of health/control responses.
+  static bool _requiredDecisionsReady(Map<String, Object?> availability) {
+    // Older health/control responses retain their two-factor invariant.
+    if (!availability.containsKey('decisions')) return true;
+    final dependency = availability['decisions'];
+    if (dependency is! Map ||
+        dependency.length != 3 ||
+        dependency['required'] != true) {
+      throw const FormatException('Invalid required Decisions state');
+    }
+    final ready = dependency['ready'];
+    final phase = dependency['state'];
+    if (ready is! bool ||
+        phase is! String ||
+        !const {
+          'starting',
+          'ready',
+          'unavailable',
+          'stale',
+          'stopped',
+          'cleanup_unavailable',
+        }.contains(phase) ||
+        ready != (phase == 'ready')) {
+      throw const FormatException('Invalid required Decisions state');
+    }
+    return ready;
+  }
+
   /// Apply only a health read already bound to the live client/generation.
   /// Legacy effective-only health cannot establish intentional sleep.
   void applyConverseHealth(
@@ -1883,6 +1911,15 @@ class AppState extends ChangeNotifier {
     if (health['enabled'] is! bool) {
       invalid('Invalid Converse availability');
     }
+    late final bool decisionsReady;
+    try {
+      decisionsReady = _requiredDecisionsReady(health);
+    } on FormatException {
+      invalid('Invalid required Decisions state');
+    }
+    if (!decisionsReady && health['enabled'] == true) {
+      invalid('Invalid Converse dependency availability');
+    }
     if (health.containsKey('owner_enabled') ||
         health.containsKey('owner_intent_revision')) {
       final owner = health['owner_enabled'];
@@ -1890,7 +1927,8 @@ class AppState extends ChangeNotifier {
       if (owner is! bool ||
           revision is! int ||
           health['resource_enabled'] is! bool ||
-          health['enabled'] != (owner && health['resource_enabled'] == true) ||
+          health['enabled'] !=
+              (owner && health['resource_enabled'] == true && decisionsReady) ||
           !_acceptConverseOwner(owner, revision)) {
         invalid('Invalid Converse owner intent');
       }
@@ -1963,13 +2001,15 @@ class AppState extends ChangeNotifier {
   }
 
   void _completeConverseControl(Map<String, Object?> result, bool enabled) {
+    final decisionsReady = _requiredDecisionsReady(result);
     final revision = result['owner_intent_revision'];
     if (result['owner_enabled'] != enabled ||
         revision is! int ||
         revision < 0 ||
         revision > 9007199254740991 ||
         result['resource_enabled'] is! bool ||
-        result['enabled'] != (enabled && result['resource_enabled'] == true)) {
+        result['enabled'] !=
+            (enabled && result['resource_enabled'] == true && decisionsReady)) {
       throw const FormatException('Owner choice was not confirmed');
     }
     final uncertain = converseControlUncertain;

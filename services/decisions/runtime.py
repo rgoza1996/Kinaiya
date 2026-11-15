@@ -385,6 +385,7 @@ class DecisionsWorker:
         self.max_attempts = max_attempts
         self.last_error = None
         self.running = False
+        self.ready = False
         self._pending_refusals = {}
         self._pending_decisions = {}
         self._transport_attempts = {}
@@ -1019,16 +1020,19 @@ class DecisionsWorker:
             while self.running:
                 try:
                     count = await self.tick()
+                    self.ready = True
                     self.last_error = None
                     if not count:
                         await asyncio.sleep(0.05)
                 except (asyncio.CancelledError, KeyboardInterrupt):
                     raise
                 except Exception as exc:
+                    self.ready = False
                     self.last_error = type(exc).__name__
                     await asyncio.sleep(1)
         finally:
             self.running = False
+            self.ready = False
 
 
 class OutcomeWorker:

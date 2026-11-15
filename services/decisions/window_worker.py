@@ -81,6 +81,7 @@ class WindowDecisionsWorker:
         self.last_error = None
         self.agent_available = None
         self.running = False
+        self.ready = False
 
     async def _native(self, operation, *args, **kwargs):
         try:
@@ -567,12 +568,15 @@ class WindowDecisionsWorker:
             while True:
                 try:
                     await self.tick()
+                    self.ready = True
                     await asyncio.sleep(0.05)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
+                    self.ready = False
                     self.last_error = type(exc).__name__
                     await asyncio.sleep(0.2)
         finally:
             self.running = False
+            self.ready = False
             await self.close()
