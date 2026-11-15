@@ -124,6 +124,7 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
         }
     }
     cfg["skills"] = {"enabled": True}
+    cfg["distribution"]["decisions"] = False
     layout.config.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
 
     tokens_path = layout.data / "service-tokens.json"
@@ -153,6 +154,7 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
     assert cfg_after_model["agent_profiles"] == cfg["agent_profiles"]
     assert cfg_after_model["skills"] == {"enabled": True}
     assert cfg_after_model["distribution"]["converse"] is False
+    assert cfg_after_model["distribution"]["decisions"] is False
     assert tokens_path.read_bytes() == original_tokens_bytes
 
     # 2. Reconfigure `converse` section only
@@ -179,6 +181,7 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
 
     cfg_after_converse = json.loads(layout.config.read_text(encoding="utf-8"))
     assert cfg_after_converse["distribution"]["converse"] is True
+    assert cfg_after_converse["distribution"]["decisions"] is True
     assert cfg_after_converse["providers"]["converse"]["model"] == "converse-local-model"
     assert cfg_after_converse["providers"]["decisions"]["kind"] == "native_d1"
     assert cfg_after_converse["providers"]["decisions"]["model"] == "decisions-d1-model"

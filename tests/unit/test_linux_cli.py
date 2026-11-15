@@ -86,8 +86,8 @@ def test_host_services_default_agent_only(monkeypatch, tmp_path):
     assert launcher.host_service_names({"distribution": {"converse": True}}) == [
         "session",
         "agent",
-        "converse",
         "decisions",
+        "converse",
     ]
 
 

@@ -282,6 +282,7 @@ def test_real_tty_collects_independent_role_cloud_and_variable_names(
         assert (role, "credential") in tty.questions
     _assert_agent_defaults(config["providers"]["agent"])
     assert config["distribution"]["converse"] is True
+    assert config["distribution"]["decisions"] is True
     assert "Provider connection is not checked" in tty.getvalue()
     assert "initialize" in native_setup.effects and "tokens" in native_setup.effects
 
@@ -314,6 +315,7 @@ def test_top_level_cli_parses_dispatches_and_saves_independent_profiles(
         _assert_profile(config["providers"][role], vector[role])
     _assert_agent_defaults(config["providers"]["agent"])
     assert config["distribution"]["converse"] is True
+    assert config["distribution"]["decisions"] is True
 
 
 @pytest.mark.parametrize("role", ("converse", "decisions"))
@@ -360,6 +362,7 @@ def test_old_converse_flag_preserves_measured_agent_and_implicit_profile_default
     for role, adapter in (("converse", "lmstudio"), ("decisions", "compatible")):
         _assert_profile(config["providers"][role], _role(adapter, _LOCAL_AGENT, "local-agent"))
     assert config["distribution"]["converse"] is True
+    assert config["distribution"]["decisions"] is True
 
 
 def test_implicit_decisions_rejection_is_pre_effect_and_explicit_retry_works(native_setup, capsys):

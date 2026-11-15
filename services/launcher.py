@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 
 from packages.contracts.models import TaskRequest, new_id  # noqa: E402
 from services.common.auth import Auth, load_or_create_tokens  # noqa: E402
+from services.common.topology import SubsystemTopology  # noqa: E402
 
 PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
 
@@ -516,16 +517,10 @@ def managed_guard_roots():
 
 def host_service_names(config):
     """Managed default has no Converse, Decisions, resources, voice or model work."""
-    dist = config.get("distribution") if isinstance(config.get("distribution"), dict) else {}
-    agent_enabled = dist.get("agent", True) is not False
-    names = ["session"]
-    if agent_enabled:
-        names.append("agent")
-    if dist.get("converse") is True:
-        names += ["converse", "decisions"]
-    if config.get("resources", {}).get("enabled") is True:
-        names.append("resources")
-    return names
+    resources = config.get("resources")
+    return SubsystemTopology.from_config(config).services(
+        resources=isinstance(resources, dict) and resources.get("enabled") is True
+    )
 
 
 def serve(args):
@@ -537,15 +532,18 @@ def serve(args):
 
     config_path = args.config or args.data_dir / "config.json"
     config = load_config(config_path)
+    service = args.service
+    topology = SubsystemTopology.from_config(config, developer_all=service == "all")
+    # Reject invalid explicit role combinations before creating credentials or
+    # starting even a healthy peer. The owner can correct the preserved config.
     tokens = load_or_create_tokens(args.data_dir)
     auth = Auth(tokens, tuple(config.get("origins", [])))
-    service = args.service
     resources_enabled = (
         isinstance(config.get("resources"), dict) and config["resources"].get("enabled") is True
     )
     resource_state = args.data_dir.resolve() / "resources-state.json" if resources_enabled else None
     if service in {"all", "host"}:
-        names = host_service_names(config) if service == "host" else PORTS
+        names = topology.services(resources=resources_enabled)
         commands = {
             name: [
                 sys.executable,

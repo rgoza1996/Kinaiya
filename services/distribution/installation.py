@@ -1154,6 +1154,8 @@ def reconfigure_section(
             dist = config.get("distribution")
             dist_map = dict(dist) if isinstance(dist, dict) else {}
             dist_map["converse"] = enable_converse
+            if enable_converse:
+                dist_map["decisions"] = True
             if not agent:
                 dist_map["agent"] = False
                 config["providers"].pop("agent", None)
@@ -1333,6 +1335,8 @@ def setup(
         config["providers"]["decisions"] = dict(effective_decisions)
 
     dist_map: dict[str, Any] = {"converse": bool(converse or converse_built is not None)}
+    if dist_map["converse"]:
+        dist_map["decisions"] = True
     if not agent:
         dist_map["agent"] = False
     config["distribution"] = dist_map
