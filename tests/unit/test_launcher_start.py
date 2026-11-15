@@ -101,7 +101,11 @@ def _start_health_server(
 ) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            if self.path == "/health" or (service_name == "web" and self.path == "/"):
+            if (
+                self.path == "/health"
+                or (service_name == "decisions" and self.path == "/health/runtime")
+                or (service_name == "web" and self.path == "/")
+            ):
                 payload = {"service": service_name, "status": "ready"}
                 if service_name == "decisions":
                     payload["routing_runtime_ready"] = True

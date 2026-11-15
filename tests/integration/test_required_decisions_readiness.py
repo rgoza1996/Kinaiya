@@ -111,10 +111,17 @@ def test_readiness_checks_configuration_without_a_model_lease_or_probe():
         good = client.get("/v1/decisions/readiness", headers=headers)
         assert good.json()["ready"] is True
         assert good.headers["cache-control"] == "no-store"
+        public = client.get("/health/runtime")
+        assert public.json() == {"service": "decisions", "routing_runtime_ready": True}
+        assert public.headers["cache-control"] == "no-store"
         models.unavailable = True
         bad = client.get("/v1/decisions/readiness", headers=headers)
         assert bad.status_code == 200 and bad.json()["phase"] == "unavailable"
-    assert models.reads == 2 and models.leases == models.probes == 0
+        assert client.get("/health/runtime").json() == {
+            "service": "decisions",
+            "routing_runtime_ready": False,
+        }
+    assert models.reads == 4 and models.leases == models.probes == 0
 
 
 @asynccontextmanager

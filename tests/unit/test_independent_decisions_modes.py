@@ -113,7 +113,7 @@ def test_startup_requires_an_exact_decisions_readiness_boolean(monkeypatch, read
         status = 200
 
         def request(self, method, path):
-            assert (method, path) == ("GET", "/health")
+            assert (method, path) == ("GET", "/health/runtime")
 
         def getresponse(self):
             return self

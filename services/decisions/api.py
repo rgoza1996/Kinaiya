@@ -71,6 +71,14 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
             phase = "ready" if active and configured else "unavailable"
         return phase
 
+    @app.get("/health/runtime")
+    async def runtime_health():
+        # Startup must not enter the broader provider-health lease/probe path.
+        return JSONResponse(
+            {"service": "decisions", "routing_runtime_ready": routing_phase() == "ready"},
+            headers={"Cache-Control": "no-store"},
+        )
+
     @app.get("/v1/decisions/readiness", dependencies=[Depends(auth.require("owner", "converse"))])
     async def routing_readiness():
         phase = routing_phase()
@@ -123,7 +131,6 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
                 readiness = {"ready": False}
         return {
             "service": "decisions",
-            "routing_runtime_ready": routing_phase() == "ready",
             "running": worker.running,
             "enabled": worker.enabled,
             "last_error": worker.last_error,

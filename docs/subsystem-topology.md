@@ -50,12 +50,14 @@ actual child listeners. Selected Decisions participates in port-conflict and
 unavailable-peer checks. Invalid Converse-without-Decisions selections refuse
 before credentials or child creation.
 
-The public Decisions health response adds `routing_runtime_ready`, a boolean
+The public Decisions `GET /health/runtime` returns `routing_runtime_ready`, a boolean
 derived from the same live-worker/configuration observation as the authenticated
 contract below. Startup requires an exact true boolean and matching service
 identity, rather than accepting a generic HTTP listener. This unauthenticated
 diagnostic grants no authority and never substitutes for Converse's owned,
-authenticated dependency monitor. Doctor's service diagnostic remains explicitly
+authenticated dependency monitor. This minimal endpoint cannot enter the model
+lease/provider-health path used by the separate `/health` diagnostics. Doctor's
+service diagnostic remains explicitly
 a loopback TCP observation; it does not claim inference or runtime readiness.
 
 The local six-mode CLI rehearsal starts the actual Session and selected Agent,

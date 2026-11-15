@@ -95,7 +95,11 @@ def _probe_health(
     timeout: float = 0.4,
 ) -> bool:
     """Probe loopback HTTP readiness without sending or logging any credentials."""
-    paths = ("/health", "/") if service == "web" else ("/health",)
+    paths = (
+        ("/health/runtime",)
+        if service == "decisions"
+        else (("/health", "/") if service == "web" else ("/health",))
+    )
     for path in paths:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
         try:
@@ -104,7 +108,7 @@ def _probe_health(
             body = response.read(16384)
             if response.status != 200:
                 continue
-            if path == "/health":
+            if path in {"/health", "/health/runtime"}:
                 try:
                     payload = json.loads(body.decode("utf-8"))
                 except (ValueError, UnicodeDecodeError):
