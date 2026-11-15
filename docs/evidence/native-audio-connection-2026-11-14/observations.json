@@ -1,0 +1,855 @@
+{
+  "scope": "public synthetic isolated qualification; actual native Agent acceptance/steer with controlled held Agent provider, no tools/effects; no owner service changes, cloud, microphone or TTS fallback",
+  "source_head": "3d5724fa9e969f7d8abb77b1959335366bc10cf2",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "qualification_sha256": "b6822ec639b4a47ac0cf2f26ca301f9cecca0576ffe994b0cb9bb2f28804db12",
+  "artifacts": [
+    {
+      "name": "llama-server",
+      "bytes": 17888,
+      "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+    },
+    {
+      "name": "libllama-server-impl.so",
+      "bytes": 8006384,
+      "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+    },
+    {
+      "name": "LFM3-Audio-2B-Q4_K_M.gguf",
+      "bytes": 1099626016,
+      "sha256": "9a773289bd321ed879cd3a76545f6aca506e403851a45fb315420aee45625be2"
+    },
+    {
+      "name": "mmproj-LFM3-Audio-2B-Q8_0.gguf",
+      "bytes": 337862080,
+      "sha256": "26601e904245a85bd8f3cf320a629e897cfc01c1d09369e8b4fd951f13024d3e"
+    }
+  ],
+  "engine_exit": 0,
+  "controlled_agent_provider_calls": 1,
+  "audio_listened": false,
+  "browser_delivery_qualified": false,
+  "transcription_connection": "session_update",
+  "quality_inputs": "reused predeclared setup fixtures; no prior conversational output; not unseen holdout",
+  "semantics_reviewed": true,
+  "cleanup_errors": [],
+  "handoff_behavior_pass": false,
+  "cases": [
+    {
+      "name": "work",
+      "input_text": "Ask Agent to write a short opening checklist for an imaginary community art gallery.",
+      "actual_asr": "Ask cage to write a short opening checklist for an imaginary community art gallery.",
+      "input_pcm_sha256": "5e8987b0cfa2a748bf77b32204f16c549a065f62690a56c8b8d86960bfd69fd6",
+      "input_seconds": 5.425,
+      "elapsed_s": 9.753742381999473,
+      "endpoint_text": "Here is a short opening checklist for an imaginary community art gallery:  \n1. Define the gallery's mission and target audience.  \n2. Choose a suitable location and secure necessary permits.  \n3. Design the gallery space, including layout and lighting.  \n4. Acquire and arrange for artworks, considering diversity and quality.  \n5. Plan for marketing and outreach to attract visitors.  \n6. Establish a budget and secure funding sources.  \n7. Hire and train staff to support operations.  \n8. Create a schedule for opening hours and events.  \n9. Ensure safety and accessibility for all visitors.",
+      "output_pcm_sha256": "0ba99ebf990f956a0691f9e7770d15f2f8c79400ff5d8d863d59a58a35818025",
+      "output_wav_sha256": "25016d7fca12a5c2bc087fc47aaa9dce9edfbd63d0770cc0672b28d3e06b8218",
+      "output_rate": 24000,
+      "output_seconds": 29.44,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T02:28:17.963337+00:00\",\"instance_id\":\"fefc9d09-8070-4d50-9e6e-b345f246ffd2\",\"tasks\":[{\"task_id\":\"ae256e01-4bc0-4e0c-b864-1965a462fb36\",\"session_id\":\"dded552f-8798-4de1-826d-d276da9054ca\",\"thread_id\":\"bfb179b8-ae13-4bc6-805d-ab79e54ceb4c\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":false,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+        },
+        {
+          "role": "user",
+          "content": "Ask cage to write a short opening checklist for an imaginary community art gallery."
+        }
+      ],
+      "published": [
+        {
+          "schema_version": "1.0",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "kind": "conversation.converse",
+          "payload": {
+            "text": "Here is a short opening checklist for an imaginary community art gallery:  \n1. Define the gallery's mission and target audience.  \n2. Choose a suitable location and secure necessary permits.  \n3. Design the gallery space, including layout and lighting.  \n4. Acquire and arrange for artworks, considering diversity and quality.  \n5. Plan for marketing and outreach to attract visitors.  \n6. Establish a budget and secure funding sources.  \n7. Hire and train staff to support operations.  \n8. Create a schedule for opening hours and events.  \n9. Ensure safety and accessibility for all visitors.",
+            "final": true,
+            "revision": 1,
+            "generation_epoch": 1,
+            "runtime_id": "47159627-117f-467f-ade1-d376e2c577e3",
+            "owner_intent_revision": 0,
+            "availability_generation": 0,
+            "chunk_id": "325f02fbe0dcc302488f571b448a10f3",
+            "delivery": "generated",
+            "window_source_id": "d7674dc4-1c1a-4dd1-8740-ad0f34694263",
+            "window_utterance_id": "97ea984a-ee72-42e6-90b6-bcfcfe4d305d",
+            "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "native_audio": true,
+            "native_audio_sha256": "0ba99ebf990f956a0691f9e7770d15f2f8c79400ff5d8d863d59a58a35818025",
+            "content_scope": "local_only"
+          },
+          "causes": [
+            "d7674dc4-1c1a-4dd1-8740-ad0f34694263"
+          ],
+          "task_refs": [],
+          "idempotency_key": "window-reply:d7674dc4-1c1a-4dd1-8740-ad0f34694263:0",
+          "event_id": "7117061e-2dc3-45a5-be10-b591bb3ad5da",
+          "sequence": 6,
+          "origin": "converse",
+          "created_at": "2026-11-15T02:28:25.309583Z"
+        }
+      ],
+      "error": null,
+      "controller_last_error": null,
+      "semantic_pass": false
+    },
+    {
+      "name": "followup",
+      "input_text": "Change the gallery opening time to ten in the morning.",
+      "actual_asr": "Change the gallery opening time to ten in the morning.",
+      "input_pcm_sha256": "cdb1202c1e6a42246463d50dd051a8c9513f2e15d959105181f9af29522e600b",
+      "input_seconds": 3.445,
+      "elapsed_s": 5.4729985630001465,
+      "endpoint_text": "I understand. I will update the gallery opening time to 10 in the morning. However, I do not have the capability to modify the existing content in the conversation. You may need to make this change directly in the original message or through another method. Let me know if there is anything else I can assist with!",
+      "output_pcm_sha256": "a2440c765602fc49be4249b3bd6ab120b7f31246afd1d147c8301748c8e220ea",
+      "output_wav_sha256": "a34323bd8751df22943d1232201219f3de16f0e41f9808a9f6b4d1b07294e5f7",
+      "output_rate": 24000,
+      "output_seconds": 15.68,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T02:28:26.674381+00:00\",\"instance_id\":\"fefc9d09-8070-4d50-9e6e-b345f246ffd2\",\"tasks\":[{\"task_id\":\"ae256e01-4bc0-4e0c-b864-1965a462fb36\",\"session_id\":\"dded552f-8798-4de1-826d-d276da9054ca\",\"thread_id\":\"bfb179b8-ae13-4bc6-805d-ab79e54ceb4c\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":true,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+        },
+        {
+          "role": "system",
+          "content": "Native playback context v1\nThis metadata qualifies only the indexed prior assistant messages. Their text is generated, not proof of heard speech. Receipts are client reports and conservative estimates, not proof of physical audibility or exact heard words. A stop_requested is a server instruction, not proof the client/device stopped; it does not erase a prior played report. Missing evidence means delivery_unknown. Never derive a spoken prefix or work completion from these facts.\n{\"version\":1,\"history\":[{\"history_index\":1,\"latest_status\":\"delivery_unknown\",\"receipts\":[],\"played_report_sequence\":null,\"event_id\":\"7117061e-2dc3-45a5-be10-b591bb3ad5da\",\"chunk_id\":\"325f02fbe0dcc302488f571b448a10f3\",\"runtime_id\":\"47159627-117f-467f-ade1-d376e2c577e3\",\"generation_epoch\":1,\"generation_stop\":{\"sequence\":10,\"next_generation_epoch\":2,\"status\":\"stop_requested\"}}]}"
+        },
+        {
+          "role": "user",
+          "content": "Ask cage to write a short opening checklist for an imaginary community art gallery."
+        },
+        {
+          "role": "assistant",
+          "content": "Here is a short opening checklist for an imaginary community art gallery:  \n1. Define the gallery's mission and target audience.  \n2. Choose a suitable location and secure necessary permits.  \n3. Design the gallery space, including layout and lighting.  \n4. Acquire and arrange for artworks, considering diversity and quality.  \n5. Plan for marketing and outreach to attract visitors.  \n6. Establish a budget and secure funding sources.  \n7. Hire and train staff to support operations.  \n8. Create a schedule for opening hours and events.  \n9. Ensure safety and accessibility for all visitors."
+        },
+        {
+          "role": "user",
+          "content": "Change the gallery opening time to ten in the morning."
+        }
+      ],
+      "published": [
+        {
+          "schema_version": "1.0",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "kind": "conversation.converse",
+          "payload": {
+            "text": "I understand. I will update the gallery opening time to 10 in the morning. However, I do not have the capability to modify the existing content in the conversation. You may need to make this change directly in the original message or through another method. Let me know if there is anything else I can assist with!",
+            "final": true,
+            "revision": 1,
+            "generation_epoch": 3,
+            "runtime_id": "47159627-117f-467f-ade1-d376e2c577e3",
+            "owner_intent_revision": 0,
+            "availability_generation": 0,
+            "chunk_id": "bf7010095e556aa27b9697d95f4b9e90",
+            "delivery": "generated",
+            "window_source_id": "2f8e1b8d-e8a9-4226-b3ad-aab1f2488379",
+            "window_utterance_id": "4d827cc1-2789-4f08-9aca-b999e92b6057",
+            "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "native_audio": true,
+            "native_audio_sha256": "a2440c765602fc49be4249b3bd6ab120b7f31246afd1d147c8301748c8e220ea",
+            "content_scope": "local_only"
+          },
+          "causes": [
+            "2f8e1b8d-e8a9-4226-b3ad-aab1f2488379"
+          ],
+          "task_refs": [],
+          "idempotency_key": "window-reply:2f8e1b8d-e8a9-4226-b3ad-aab1f2488379:0",
+          "event_id": "7f43125c-f830-4ed3-948f-8361cb1090f1",
+          "sequence": 13,
+          "origin": "converse",
+          "created_at": "2026-11-15T02:28:30.860449Z"
+        }
+      ],
+      "error": null,
+      "controller_last_error": null,
+      "semantic_pass": false
+    },
+    {
+      "name": "question",
+      "input_text": "On another topic, how many sides does a rectangle have?",
+      "actual_asr": "On another topic how many sides does rectangle have?",
+      "input_pcm_sha256": "81a98d37b1229caa583fc62ec61630be48bc5d93464a82ab65fdd3d50295529d",
+      "input_seconds": 3.76,
+      "elapsed_s": 3.534212624999782,
+      "endpoint_text": "Rectangle has 4 sides.",
+      "output_pcm_sha256": "0eb7c861cc45a92878a854229895ce9f3d2589dc82aa4386e86ec133d196c952",
+      "output_wav_sha256": "55c4bed323f9d58750a86c5b9523609f51a4dccc8e9054334575f3a12b6d78cf",
+      "output_rate": 24000,
+      "output_seconds": 2.4,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T02:28:32.208916+00:00\",\"instance_id\":\"fefc9d09-8070-4d50-9e6e-b345f246ffd2\",\"tasks\":[{\"task_id\":\"ae256e01-4bc0-4e0c-b864-1965a462fb36\",\"session_id\":\"dded552f-8798-4de1-826d-d276da9054ca\",\"thread_id\":\"bfb179b8-ae13-4bc6-805d-ab79e54ceb4c\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":true,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+        },
+        {
+          "role": "system",
+          "content": "Native playback context v1\nThis metadata qualifies only the indexed prior assistant messages. Their text is generated, not proof of heard speech. Receipts are client reports and conservative estimates, not proof of physical audibility or exact heard words. A stop_requested is a server instruction, not proof the client/device stopped; it does not erase a prior played report. Missing evidence means delivery_unknown. Never derive a spoken prefix or work completion from these facts.\n{\"version\":1,\"history\":[{\"history_index\":1,\"latest_status\":\"delivery_unknown\",\"receipts\":[],\"played_report_sequence\":null,\"event_id\":\"7117061e-2dc3-45a5-be10-b591bb3ad5da\",\"chunk_id\":\"325f02fbe0dcc302488f571b448a10f3\",\"runtime_id\":\"47159627-117f-467f-ade1-d376e2c577e3\",\"generation_epoch\":1,\"generation_stop\":{\"sequence\":16,\"next_generation_epoch\":4,\"status\":\"stop_requested\"}},{\"history_index\":3,\"latest_status\":\"delivery_unknown\",\"receipts\":[],\"played_report_sequence\":null,\"event_id\":\"7f43125c-f830-4ed3-948f-8361cb1090f1\",\"chunk_id\":\"bf7010095e556aa27b9697d95f4b9e90\",\"runtime_id\":\"47159627-117f-467f-ade1-d376e2c577e3\",\"generation_epoch\":3,\"generation_stop\":{\"sequence\":16,\"next_generation_epoch\":4,\"status\":\"stop_requested\"}}]}"
+        },
+        {
+          "role": "user",
+          "content": "Ask cage to write a short opening checklist for an imaginary community art gallery."
+        },
+        {
+          "role": "assistant",
+          "content": "Here is a short opening checklist for an imaginary community art gallery:  \n1. Define the gallery's mission and target audience.  \n2. Choose a suitable location and secure necessary permits.  \n3. Design the gallery space, including layout and lighting.  \n4. Acquire and arrange for artworks, considering diversity and quality.  \n5. Plan for marketing and outreach to attract visitors.  \n6. Establish a budget and secure funding sources.  \n7. Hire and train staff to support operations.  \n8. Create a schedule for opening hours and events.  \n9. Ensure safety and accessibility for all visitors."
+        },
+        {
+          "role": "user",
+          "content": "Change the gallery opening time to ten in the morning."
+        },
+        {
+          "role": "assistant",
+          "content": "I understand. I will update the gallery opening time to 10 in the morning. However, I do not have the capability to modify the existing content in the conversation. You may need to make this change directly in the original message or through another method. Let me know if there is anything else I can assist with!"
+        },
+        {
+          "role": "user",
+          "content": "On another topic how many sides does rectangle have?"
+        }
+      ],
+      "published": [
+        {
+          "schema_version": "1.0",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "kind": "conversation.converse",
+          "payload": {
+            "text": "Rectangle has 4 sides.",
+            "final": true,
+            "revision": 1,
+            "generation_epoch": 5,
+            "runtime_id": "47159627-117f-467f-ade1-d376e2c577e3",
+            "owner_intent_revision": 0,
+            "availability_generation": 0,
+            "chunk_id": "870164d41956863822ed64176548c0ab",
+            "delivery": "generated",
+            "window_source_id": "d62648d0-9e48-4348-b2ca-a5e0d04efec1",
+            "window_utterance_id": "52613269-db85-437b-a3fd-8cd99273ebad",
+            "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "native_audio": true,
+            "native_audio_sha256": "0eb7c861cc45a92878a854229895ce9f3d2589dc82aa4386e86ec133d196c952",
+            "content_scope": "local_only"
+          },
+          "causes": [
+            "d62648d0-9e48-4348-b2ca-a5e0d04efec1"
+          ],
+          "task_refs": [],
+          "idempotency_key": "window-reply:d62648d0-9e48-4348-b2ca-a5e0d04efec1:0",
+          "event_id": "45d7e629-2f3c-48d4-9080-b7478f0413ad",
+          "sequence": 19,
+          "origin": "converse",
+          "created_at": "2026-11-15T02:28:34.474924Z"
+        }
+      ],
+      "error": null,
+      "controller_last_error": null,
+      "semantic_pass": true
+    }
+  ],
+  "native_task_context_responses": [
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d7674dc4-1c1a-4dd1-8740-ad0f34694263",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:17.963337+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d7674dc4-1c1a-4dd1-8740-ad0f34694263",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:17.974416+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d7674dc4-1c1a-4dd1-8740-ad0f34694263",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:18.019966+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d7674dc4-1c1a-4dd1-8740-ad0f34694263",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:25.306796+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2f8e1b8d-e8a9-4226-b3ad-aab1f2488379",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:26.674381+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2f8e1b8d-e8a9-4226-b3ad-aab1f2488379",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:26.686117+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2f8e1b8d-e8a9-4226-b3ad-aab1f2488379",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:26.731121+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2f8e1b8d-e8a9-4226-b3ad-aab1f2488379",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:30.858335+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d62648d0-9e48-4348-b2ca-a5e0d04efec1",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:32.208916+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d62648d0-9e48-4348-b2ca-a5e0d04efec1",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:32.220727+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d62648d0-9e48-4348-b2ca-a5e0d04efec1",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:32.264697+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "d62648d0-9e48-4348-b2ca-a5e0d04efec1",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+        "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+        "epoch": 1
+      },
+      "instance_id": "fefc9d09-8070-4d50-9e6e-b345f246ffd2",
+      "observed_at": "2026-11-15T02:28:34.473365+00:00",
+      "tasks": [
+        {
+          "task_id": "ae256e01-4bc0-4e0c-b864-1965a462fb36",
+          "session_id": "dded552f-8798-4de1-826d-d276da9054ca",
+          "thread_id": "bfb179b8-ae13-4bc6-805d-ab79e54ceb4c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    }
+  ],
+  "steering_note": "The actual native steering receipt remains pending while the original controlled Agent provider is held. Revision stays 1; no tool, revision-2 application, execution or outcome occurred.",
+  "preserved_initial_failure": {
+    "source_head": "17e1fe70f9cc19bbb7f7d0375344a304e52bd340",
+    "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+    "qualification_sha256": "5545e53c499618ed392cdeb282703b9b2c5e399ed81cd32eb8ef95380a611a27",
+    "artifacts": [
+      {
+        "name": "llama-server",
+        "bytes": 17888,
+        "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+      },
+      {
+        "name": "libllama-server-impl.so",
+        "bytes": 8006384,
+        "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+      },
+      {
+        "name": "LFM3-Audio-2B-Q4_K_M.gguf",
+        "bytes": 1099626016,
+        "sha256": "9a773289bd321ed879cd3a76545f6aca506e403851a45fb315420aee45625be2"
+      },
+      {
+        "name": "mmproj-LFM3-Audio-2B-Q8_0.gguf",
+        "bytes": 337862080,
+        "sha256": "26601e904245a85bd8f3cf320a629e897cfc01c1d09369e8b4fd951f13024d3e"
+      }
+    ],
+    "engine_exit": 0,
+    "controlled_agent_provider_calls": 0,
+    "cleanup_errors": [
+      "SpeechProviderError"
+    ],
+    "cases": [
+      {
+        "name": "work",
+        "input_text": "Ask Agent to write a short opening checklist for an imaginary community art gallery.",
+        "semantic_pass": null,
+        "error": "SpeechProviderError: Speech provider request was refused or unavailable",
+        "input_pcm_sha256": "5e8987b0cfa2a748bf77b32204f16c549a065f62690a56c8b8d86960bfd69fd6",
+        "input_seconds": 5.425
+      },
+      {
+        "name": "followup",
+        "input_text": "Change the gallery opening time to ten in the morning.",
+        "semantic_pass": null,
+        "error": "SpeechProviderError: Speech provider request was refused or unavailable",
+        "input_pcm_sha256": "cdb1202c1e6a42246463d50dd051a8c9513f2e15d959105181f9af29522e600b",
+        "input_seconds": 3.445
+      },
+      {
+        "name": "question",
+        "input_text": "On another topic, how many sides does a rectangle have?",
+        "semantic_pass": null,
+        "error": "SpeechProviderError: Speech provider request was refused or unavailable",
+        "input_pcm_sha256": "81a98d37b1229caa583fc62ec61630be48bc5d93464a82ab65fdd3d50295529d",
+        "input_seconds": 3.76
+      }
+    ],
+    "transcription_connection": "intent_url",
+    "native_asr_connections": 1,
+    "conversational_outputs": 0,
+    "first_received_post_input": {
+      "type": "conversation.item.input_audio_transcription.delta",
+      "item_id": "item_dPcWqiO4j49tQIL0qRsz7IUfqSe4wZim",
+      "content_index": 0,
+      "delta": "Ask"
+    },
+    "wire_sha256": "a9a66de213301075416fc6ea59d52f3b3040be58f3b3b876c12690f93b76d0a2"
+  }
+}
