@@ -1,0 +1,160 @@
+{
+  "pid": 2787705,
+  "url": "http://127.0.0.1:37165",
+  "source_head": "f8bbd1fc2a653be68b130a384892eb1c90df0f96",
+  "source_status": "",
+  "source_hashes": {
+    "services/settings/subsystems.py": "9210f10caead046f831bbcb908cea149ccc1ce7c67ccdb265ff1ca6510ec99f3",
+    "services/settings/subsystem_api.py": "2f7e9cc8c625b13d2246547c1b921a0562a8d2b1fc0187d0b2192df890bf5b4b",
+    "packages/contracts/core_subsystems.py": "31e6ad66f98113fb334becbbce051f135d633a9a92d678f418d1aabf42abc0df",
+    "services/common/topology.py": "f6fcb97dc663c42d72860964e7910986fda22d2b1de20b1c8a4198b3779c97fe",
+    "services/session/api.py": "c05fd24f87c1a38dbca57ee94d9b72158f0d8b938769e3bfd7252057f6d161cf",
+    "apps/kinaiya_flutter/lib/api/core_subsystems.dart": "e960c52779bcce4fb21728724de75f0acf033504e415daf6f503aed9014b03d0",
+    "apps/kinaiya_flutter/lib/api/core_subsystems_client.dart": "44518aa7939da92204547ab0506b5ea58530addf388cb15409a0bdfb10ae173d",
+    "apps/kinaiya_flutter/lib/state/core_subsystem_writes.dart": "88c4e71657270caf6f2c95f81db9192deacfb8e2165ffd70b2ddb32e692d582d",
+    "apps/kinaiya_flutter/lib/ui/options_subsystems.dart": "eab2f57dd384d07f4c958bc7048c634bc672a9c56023ae80535e18d42eff86a5",
+    "apps/kinaiya_flutter/lib/ui/options_workspace.dart": "79f595352ad800ebb1e055918543c66697eb1943307c2a65334d0ec56812519c",
+    "apps/kinaiya_flutter/lib/api/client.dart": "88b9436969aa8d5188d073ca5771401fb058f34a390dde781a8eaae6d54eecc8"
+  },
+  "web_main_sha256": "f23b61f86ff9474d61ca7a2bcf3931ede9338bb80a18c3682f90e67d8423af98",
+  "scope": "actual built owner app and native Core API; temporary empty journal; no model, Agent, audio or owner deployment",
+  "source_unchanged": true,
+  "host_config_bytes_unchanged": true,
+  "http_requests": 97,
+  "core_events": [
+    {
+      "method": "POST",
+      "path": "/v1/core/options/subsystem-changes/lookup",
+      "status": 200,
+      "original": {
+        "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+        "authority_generation": 1,
+        "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+        "contract": "core_subsystems.v1",
+        "expected_host_mode": "agent",
+        "expected_revision": 6,
+        "idempotency_key": "core-1f557edf-8690-45b2-b26a-cc34d5524ecf",
+        "selection": {
+          "mode": null,
+          "source": "host"
+        },
+        "state_token": "6ba1950296c61990f65f0fde8c70f39e4325819d7216db29294c12e0b3d0a0fe"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/core/options/subsystems",
+      "status": 200,
+      "original": null
+    },
+    {
+      "method": "POST",
+      "path": "/v1/core/options/subsystems",
+      "status": 200,
+      "original": {
+        "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+        "authority_generation": 2,
+        "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+        "contract": "core_subsystems.v1",
+        "expected_host_mode": "agent",
+        "expected_revision": 6,
+        "idempotency_key": "core-df8185d1-dd17-403b-9051-61dbe393166a",
+        "selection": {
+          "mode": null,
+          "source": "host"
+        },
+        "state_token": "6347c07283409b2b4e89134d8286b22c3a515c090aa22a1f75075f9aceb7e3b0"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/core/options/subsystems",
+      "status": 200,
+      "original": null
+    }
+  ],
+  "core_snapshots": [
+    {
+      "contract": "core_subsystems.v1",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+      "authority_generation": 2,
+      "revision": 6,
+      "state_token": "6347c07283409b2b4e89134d8286b22c3a515c090aa22a1f75075f9aceb7e3b0",
+      "selection": {
+        "source": "saved",
+        "mode": "all"
+      },
+      "host_mode": "agent",
+      "selected_mode": "all",
+      "startup_mode": null,
+      "running_state": "not_observed",
+      "change_boundary": "next_managed_host_launch",
+      "writable": true,
+      "max_changes": 1000
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+      "authority_generation": 2,
+      "revision": 6,
+      "state_token": "6347c07283409b2b4e89134d8286b22c3a515c090aa22a1f75075f9aceb7e3b0",
+      "selection": {
+        "source": "saved",
+        "mode": "all"
+      },
+      "host_mode": "agent",
+      "selected_mode": "all",
+      "startup_mode": null,
+      "running_state": "not_observed",
+      "change_boundary": "next_managed_host_launch",
+      "writable": true,
+      "max_changes": 1000
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+      "authority_generation": 2,
+      "revision": 7,
+      "state_token": "499773ff21abadee13ef88bfa77cd43211524202d83af5fba6589a2e5f50fbad",
+      "selection": {
+        "source": "host",
+        "mode": null
+      },
+      "host_mode": "agent",
+      "selected_mode": "agent",
+      "startup_mode": null,
+      "running_state": "not_observed",
+      "change_boundary": "next_managed_host_launch",
+      "writable": true,
+      "max_changes": 1000
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+      "authority_generation": 2,
+      "revision": 7,
+      "state_token": "499773ff21abadee13ef88bfa77cd43211524202d83af5fba6589a2e5f50fbad",
+      "selection": {
+        "source": "host",
+        "mode": null
+      },
+      "host_mode": "agent",
+      "selected_mode": "agent",
+      "startup_mode": null,
+      "running_state": "not_observed",
+      "change_boundary": "next_managed_host_launch",
+      "writable": true,
+      "max_changes": 1000
+    }
+  ],
+  "original_server_run_returned": true,
+  "received_signals": [],
+  "data_reused_without_reset": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-566-core-options/browser-native-1",
+  "original_watcher_joined": true,
+  "model_calls": 0,
+  "agent_tasks": 0
+}

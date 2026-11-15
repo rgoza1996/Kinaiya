@@ -7,9 +7,9 @@ security and transport, and does not imply activation of every role. A mode
 labelled **Converse only** means Converse + Decisions without Kinaiya Agent.
 
 The draft implements configuration, launcher selection and a required Decisions
-routing-runtime observation for Converse. The CLI/TUI selects every valid mode.
-Independent consumer policies, the Options mode UI and the full qualification
-matrix remain unfinished. The work
+routing-runtime observation for Converse. CLI/TUI and the native Core Options
+selector cover every valid mode. Independent consumer policies and the full
+qualification matrix remain unfinished. The work
 below is part of the same issue, not deferred acceptance or a completion claim.
 
 ## Configured selection
@@ -63,7 +63,9 @@ the local CLI and Session's owner-only `/v1/core/options/subsystems` API. Select
 is either `host` (a pointer to legacy `distribution` defaults, not a copied
 configuration) or `saved` (one exact supported mode). Other settings and
 credentials remain with their existing owners. No process or model is started
-by reading or saving this owner. Options UI integration remains unfinished.
+by reading or saving this owner. The [Options selector](core-subsystem-options.md)
+uses its dedicated Session transport, exact original-request recovery and
+source/next-launch status; it does not depend on Agent availability.
 
 The strict `core_subsystems.v1` contract carries backend identity, monotonic
 controller generation, random epoch, revision and a token of the observed
@@ -254,8 +256,9 @@ complete the broader matrix below or replace full CI of the resulting head.
   and optional Agent use. Shared provider/model resources must not force shared
   prompts, routing policy or lifecycle. A process-selection flag does not claim
   that an Agent consumer adapter exists.
-- Expose the complete mode selection in Options, preserving
-  saved/effective state, protected writes and existing source/receipt semantics.
+- The Core Options selector is implemented and qualified separately above.
+  Its saved next-launch state and declared startup selection remain distinct
+  from actual running-service readiness and the lifecycle matrix.
 - Specify and verify scoped events, native handoff, queue/steer/interrupt,
   external-agent independence (#547), and failure behavior without a dependency
   cycle or a silent Converse bypass.

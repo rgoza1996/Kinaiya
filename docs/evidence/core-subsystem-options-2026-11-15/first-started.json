@@ -1,0 +1,21 @@
+{
+  "pid": 2765878,
+  "url": "http://127.0.0.1:37165",
+  "source_head": "f8bbd1fc2a653be68b130a384892eb1c90df0f96",
+  "source_status": "",
+  "source_hashes": {
+    "services/settings/subsystems.py": "9210f10caead046f831bbcb908cea149ccc1ce7c67ccdb265ff1ca6510ec99f3",
+    "services/settings/subsystem_api.py": "2f7e9cc8c625b13d2246547c1b921a0562a8d2b1fc0187d0b2192df890bf5b4b",
+    "packages/contracts/core_subsystems.py": "31e6ad66f98113fb334becbbce051f135d633a9a92d678f418d1aabf42abc0df",
+    "services/common/topology.py": "f6fcb97dc663c42d72860964e7910986fda22d2b1de20b1c8a4198b3779c97fe",
+    "services/session/api.py": "c05fd24f87c1a38dbca57ee94d9b72158f0d8b938769e3bfd7252057f6d161cf",
+    "apps/kinaiya_flutter/lib/api/core_subsystems.dart": "e960c52779bcce4fb21728724de75f0acf033504e415daf6f503aed9014b03d0",
+    "apps/kinaiya_flutter/lib/api/core_subsystems_client.dart": "44518aa7939da92204547ab0506b5ea58530addf388cb15409a0bdfb10ae173d",
+    "apps/kinaiya_flutter/lib/state/core_subsystem_writes.dart": "88c4e71657270caf6f2c95f81db9192deacfb8e2165ffd70b2ddb32e692d582d",
+    "apps/kinaiya_flutter/lib/ui/options_subsystems.dart": "eab2f57dd384d07f4c958bc7048c634bc672a9c56023ae80535e18d42eff86a5",
+    "apps/kinaiya_flutter/lib/ui/options_workspace.dart": "79f595352ad800ebb1e055918543c66697eb1943307c2a65334d0ec56812519c",
+    "apps/kinaiya_flutter/lib/api/client.dart": "88b9436969aa8d5188d073ca5771401fb058f34a390dde781a8eaae6d54eecc8"
+  },
+  "web_main_sha256": "f23b61f86ff9474d61ca7a2bcf3931ede9338bb80a18c3682f90e67d8423af98",
+  "scope": "actual built owner app and native Core API; temporary empty journal; no model, Agent, audio or owner deployment"
+}

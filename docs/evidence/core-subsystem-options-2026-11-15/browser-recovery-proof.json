@@ -1,0 +1,183 @@
+{
+  "original_request": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+    "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+    "authority_generation": 1,
+    "expected_revision": 6,
+    "state_token": "6ba1950296c61990f65f0fde8c70f39e4325819d7216db29294c12e0b3d0a0fe",
+    "expected_host_mode": "agent",
+    "idempotency_key": "core-1f557edf-8690-45b2-b26a-cc34d5524ecf",
+    "selection": {
+      "source": "host",
+      "mode": null
+    }
+  },
+  "negative_exact_lookup": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+    "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+    "authority_generation": 2,
+    "request_sha256": "15e416fde7f48ae4bc7ce208b10706c3e60d7376c4d454b0f1458323aebfe65c",
+    "outcome": "unobserved",
+    "receipt": null,
+    "mutation_fenced": true
+  },
+  "fresh_request": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+    "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+    "authority_generation": 2,
+    "expected_revision": 6,
+    "state_token": "6347c07283409b2b4e89134d8286b22c3a515c090aa22a1f75075f9aceb7e3b0",
+    "expected_host_mode": "agent",
+    "idempotency_key": "core-df8185d1-dd17-403b-9051-61dbe393166a",
+    "selection": {
+      "source": "host",
+      "mode": null
+    }
+  },
+  "positive_exact_lookup": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+    "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+    "authority_generation": 2,
+    "request_sha256": "c87a051325f93e9fea0576e613a0cfe31240878055da2c4a370ebde76b9746b7",
+    "outcome": "saved",
+    "receipt": {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+      "authority_generation": 2,
+      "revision": 7,
+      "idempotency_key": "core-df8185d1-dd17-403b-9051-61dbe393166a",
+      "selection": {
+        "source": "host",
+        "mode": null
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "agent",
+      "change_boundary": "next_managed_host_launch"
+    },
+    "mutation_fenced": false
+  },
+  "retained_native_receipts": [
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+      "authority_generation": 1,
+      "revision": 1,
+      "idempotency_key": "core-38714504-10e2-45fb-a8ad-d48be0e804a2",
+      "selection": {
+        "source": "saved",
+        "mode": "core"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "core",
+      "change_boundary": "next_managed_host_launch"
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+      "authority_generation": 1,
+      "revision": 2,
+      "idempotency_key": "core-fdc2f849-0773-45e6-9fb1-220f753932e8",
+      "selection": {
+        "source": "saved",
+        "mode": "agent"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "agent",
+      "change_boundary": "next_managed_host_launch"
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+      "authority_generation": 1,
+      "revision": 3,
+      "idempotency_key": "core-46029d5c-0f55-446c-9824-58427a78fddd",
+      "selection": {
+        "source": "saved",
+        "mode": "decisions"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "decisions",
+      "change_boundary": "next_managed_host_launch"
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+      "authority_generation": 1,
+      "revision": 4,
+      "idempotency_key": "core-de1a94a9-6cdb-4707-84bb-f95c23ceb0ce",
+      "selection": {
+        "source": "saved",
+        "mode": "agent-decisions"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "agent-decisions",
+      "change_boundary": "next_managed_host_launch"
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+      "authority_generation": 1,
+      "revision": 5,
+      "idempotency_key": "core-b9f9afe6-fb8f-455b-8b18-c9708a4b24aa",
+      "selection": {
+        "source": "saved",
+        "mode": "converse-decisions"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "converse-decisions",
+      "change_boundary": "next_managed_host_launch"
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "59ce58c6dc749168ae1182d936f87389",
+      "authority_generation": 1,
+      "revision": 6,
+      "idempotency_key": "core-131148fd-2527-4b4d-b89d-1008e5649429",
+      "selection": {
+        "source": "saved",
+        "mode": "all"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "all",
+      "change_boundary": "next_managed_host_launch"
+    },
+    {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "8459f7d7a4531618c071acd7d6a5cc94",
+      "authority_epoch": "e53d30d705006f52b4412e159f4a35c3",
+      "authority_generation": 2,
+      "revision": 7,
+      "idempotency_key": "core-df8185d1-dd17-403b-9051-61dbe393166a",
+      "selection": {
+        "source": "host",
+        "mode": null
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "agent",
+      "change_boundary": "next_managed_host_launch"
+    }
+  ],
+  "readonly_reconciliation": true,
+  "original_request_replayed": false,
+  "current_controller_generation": 2,
+  "committed_changes": 7
+}

@@ -1,0 +1,104 @@
+"""Private temporary native Core + built owner app; no model/Agent services."""
+from pathlib import Path
+import hashlib
+import json
+import os
+import socket
+import subprocess
+import threading
+import time
+
+from fastapi.staticfiles import StaticFiles
+import uvicorn
+
+from services.common.auth import Auth
+from services.common.topology import SubsystemTopology
+from services.session.api import create_app
+from services.session.store import Store
+from services.settings.subsystems import CoreSubsystemSettings
+
+project = Path('/tmp/kinaiya-566-core-subsystems-options')
+run = Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-566-core-options/browser-native-1')
+run.mkdir()
+web = project / 'apps/kinaiya_flutter/build/web'
+config = run / 'host.json'
+config.write_text('{"distribution":{"agent":true,"converse":false,"decisions":false},"public_profile":{"model":"unchanged"}}\n')
+original_config = config.read_bytes()
+source_paths = [
+    'services/settings/subsystems.py', 'services/settings/subsystem_api.py',
+    'packages/contracts/core_subsystems.py', 'services/common/topology.py',
+    'services/session/api.py', 'apps/kinaiya_flutter/lib/api/core_subsystems.dart',
+    'apps/kinaiya_flutter/lib/api/core_subsystems_client.dart',
+    'apps/kinaiya_flutter/lib/state/core_subsystem_writes.dart',
+    'apps/kinaiya_flutter/lib/ui/options_subsystems.dart',
+    'apps/kinaiya_flutter/lib/ui/options_workspace.dart',
+    'apps/kinaiya_flutter/lib/api/client.dart',
+]
+def sources():
+    return {name: hashlib.sha256((project/name).read_bytes()).hexdigest() for name in source_paths}
+before = sources()
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.bind(('127.0.0.1', 0))
+sock.listen(16)
+port = sock.getsockname()[1]
+url = 'http://127.0.0.1:' + str(port)
+native = CoreSubsystemSettings(
+    lambda: SubsystemTopology.from_config(json.loads(config.read_bytes())).mode,
+    path=run/'private/core-subsystems.sqlite', workspace=run/'workspace',
+)
+store = Store(run/'journal.sqlite')
+app = create_app(store, Auth({'owner':'o'*32,'agent':'a'*32},(url,)),
+                 subsystem_settings=native)
+events = []
+observed = []
+total = 0
+@app.middleware('http')
+async def record(request, call_next):
+    global total
+    response = await call_next(request)
+    total += 1
+    if request.url.path.startswith('/v1/core/options/') and len(events) < 128:
+        events.append({'method':request.method,'path':request.url.path,'status':response.status_code})
+        if response.status_code == 200:
+            observed.append(native.snapshot())
+    return response
+app.mount('/', StaticFiles(directory=web, html=True))
+server = uvicorn.Server(uvicorn.Config(app, log_level='error', access_log=False))
+finished = threading.Event()
+def watch():
+    deadline = time.monotonic() + 1200
+    while not finished.wait(0.5):
+        if (run/'stop').exists() or time.monotonic() >= deadline:
+            server.should_exit = True
+            return
+watcher = threading.Thread(target=watch, daemon=True)
+receipt = {
+    'pid':os.getpid(), 'url':url,
+    'source_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=project,text=True).strip(),
+    'source_status':subprocess.check_output(['git','status','--porcelain'],cwd=project,text=True),
+    'source_hashes':before,
+    'web_main_sha256':hashlib.sha256((web/'main.dart.js').read_bytes()).hexdigest(),
+    'scope':'actual built owner app and native Core API; temporary empty journal; no model, Agent, audio or owner deployment',
+}
+(run/'started.json').write_text(json.dumps(receipt,indent=2)+'\n')
+watcher.start()
+print(json.dumps({'url':url,'pid':os.getpid(),'run':str(run)}),flush=True)
+run_returned = False
+try:
+    server.run(sockets=[sock])
+    run_returned = True
+finally:
+    finished.set()
+    watcher.join(timeout=2)
+    sock.close()
+    native.close()
+    store.close()
+    receipt.update({
+        'source_unchanged':sources()==before,
+        'host_config_bytes_unchanged':config.read_bytes()==original_config,
+        'http_requests':total,'core_events':events,'core_snapshots':observed,
+        'original_server_run_returned':run_returned,
+        'original_watcher_joined':not watcher.is_alive(),
+        'model_calls':0,'agent_tasks':0,
+    })
+    (run/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')

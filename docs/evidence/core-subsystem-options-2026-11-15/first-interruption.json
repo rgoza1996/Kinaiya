@@ -1,0 +1,9 @@
+{
+  "original_pid": 2765878,
+  "observed_exit_code": 143,
+  "signal": "SIGTERM",
+  "signal_origin": "unproven",
+  "final_cleanup_receipt_present": false,
+  "original_process_exists": false,
+  "ui_save_outcome": "unconfirmed; exact request retained in original browser; no replay"
+}

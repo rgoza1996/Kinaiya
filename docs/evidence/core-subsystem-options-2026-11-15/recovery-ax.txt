@@ -1,0 +1,42 @@
+Browser tab: 14, Title: "Kinaiya", URL: "http://127.0.0.1:37165/".
+0 AXWebArea Kinaiya, URL: 127.0.0.1:37165/
+	1 container
+		2 container Open navigation Kinaiya Options Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. Connection status: Not connected. Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. Not connected Converse chat Settings Appearance Connection setup Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. SETUP Options navigation Subsystems Refresh options Close options
+			3 container flt-semantic-node-3
+				4 button Open navigation, ID: flt-semantic-node-261
+				5 text Kinaiya
+				6 text Options
+				7 text Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. Connection status: Not connected. Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. Not connected
+				8 button Converse chat, ID: flt-semantic-node-265
+				9 button Settings, ID: flt-semantic-node-266
+				10 button Appearance, ID: flt-semantic-node-267
+				11 button Connection setup, ID: flt-semantic-node-268
+				12 text Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled.
+				13 button SETUP, ID: flt-semantic-node-109
+				14 button Options navigation, ID: flt-semantic-node-269
+				15 text Subsystems
+				16 button Refresh options, ID: flt-semantic-node-74
+				17 button Close options, ID: flt-semantic-node-75
+				18 container flt-semantic-node-76
+					19 button All settings, ID: flt-semantic-node-77
+					20 text ›
+					21 text Core
+					22 text ›
+					23 text Subsystems
+				24 container flt-semantic-node-119
+					25 text Subsystems
+					26 text Choose the subsystems for the next managed host launch. Saving does not start or stop services.
+					27 text Converse always includes Decisions. Agent can run independently.
+					28 text Selection source: Owner saved
+					29 text Selected for next launch: Converse + Decisions + Agent
+					30 text Host defaults: Agent
+					31 text Startup declaration: Unknown
+					32 text Running services: Not observed
+					33 button (collapsed) Next launch selection Host defaults, ID: flt-semantic-node-291, Secondary Actions: Expand
+					34 text Core settings changed while this draft was open. The draft is retained; inspect the latest selection before saving.
+					35 text The original save did not apply and cannot apply. Review the inspected selection before saving again.
+					36 button (disabled) Save for next launch, ID: flt-semantic-node-124
+					37 button Use inspected selection, ID: flt-semantic-node-125
+					38 button Refresh selection, ID: flt-semantic-node-126
+
+The focused UI element is 2 container Open navigation Kinaiya Options Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. Connection status: Not connected. Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. Not connected Converse chat Settings Appearance Connection setup Agent host unreachable — Last check (2026-11-15T18:39:12.666Z): session authenticated. Agent unavailable; Converse optional / not enabled. SETUP Options navigation Subsystems Refresh options Close options

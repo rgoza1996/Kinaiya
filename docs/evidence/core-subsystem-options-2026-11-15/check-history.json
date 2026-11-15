@@ -1,0 +1,130 @@
+{
+  "runtime_head": "f8bbd1fc2a653be68b130a384892eb1c90df0f96",
+  "checks": [
+    {
+      "log": "first-oracles.log",
+      "sha256": "2028403882204c2d465b3bf982341832223c8445bccf8ea804ad8c9f74a05305",
+      "bytes": 30849,
+      "result": "two load failures; new feature absent"
+    },
+    {
+      "log": "initial-implementation.log",
+      "sha256": "129826af916fbac419381bbdee9f985c9bd3dff1c99095960ba94053f92a27f3",
+      "bytes": 2142,
+      "result": "9 passed"
+    },
+    {
+      "log": "shell-and-injection-before.log",
+      "sha256": "4a5def6a3b87aef4e446f86ce934d32fe933c6504a915b0d430ffe3748bd7771",
+      "bytes": 5187,
+      "result": "two load failures; mock facade omitted new factory"
+    },
+    {
+      "log": "shell-and-injection-after-mock.log",
+      "sha256": "0a9fd8049285794b8520ce9430e0634e148ac278ffcffb607fd846e72ccaae16",
+      "bytes": 2888,
+      "result": "3 passed, 1 failed; narrow shell overflow"
+    },
+    {
+      "log": "four-module-after.log",
+      "sha256": "b4c4eddb1eec1b6121c3641ad311a846622111a61d95375f02d564b77849bc09",
+      "bytes": 2462,
+      "result": "13 passed"
+    },
+    {
+      "log": "authority-before.log",
+      "sha256": "5172ab5d8770ba6fc9324a790a02e6c22ed0993ed66259eacba6a6d7187d6934",
+      "bytes": 1461,
+      "result": "1 passed, 2 failed"
+    },
+    {
+      "log": "authority-and-ui-after.log",
+      "sha256": "6e277ea9c0f6a0a64561c62569ab27231ee228d222df4235f6f04dc1f7f4bc0d",
+      "bytes": 3049,
+      "result": "16 passed"
+    },
+    {
+      "log": "live-native-first.log",
+      "sha256": "c98eab53761a1afbdbbbb049c8e225d3b89ff61b6098f67367578e6d51ef0fee",
+      "bytes": 6246,
+      "result": "1 failed in 5.87s; helper used wrong SQLite thread"
+    },
+    {
+      "log": "live-native-after-thread-ownership.log",
+      "sha256": "fd821a942b7c6998db231487a19694daf266cb00eccc7e5c1b87a2d248319b0a",
+      "bytes": 98,
+      "result": "1 passed in 3.09s"
+    },
+    {
+      "log": "long-choice-strict-before.log",
+      "sha256": "cb362eb8a9dda800fd625d13aaa6376c7cfc8bb52830d80a84ce9dfd2a8782f0",
+      "bytes": 4715,
+      "result": "1 failed; missed tap fatal"
+    },
+    {
+      "log": "long-choice-strict-after.log",
+      "sha256": "40eed9718ba976961e924ec877a525e709a40b496dee4e3e768c23f8bb12eb90",
+      "bytes": 4715,
+      "result": "1 failed; intrinsic row height alone did not fix unsettled helper scroll"
+    },
+    {
+      "log": "long-choice-strict-after-settlement.log",
+      "sha256": "132f663967417aedbd66f4784d177c80db90d664614f0fcfec115312c9e97679",
+      "bytes": 217,
+      "result": "1 passed; actual selection asserted"
+    },
+    {
+      "log": "long-choice-contained-before.log",
+      "sha256": "132f663967417aedbd66f4784d177c80db90d664614f0fcfec115312c9e97679",
+      "bytes": 217,
+      "result": "1 passed; selected-label containment asserted"
+    },
+    {
+      "log": "analyze-final.log",
+      "sha256": "ac1f1dcf6081cc5ed26c28944c1186c7a285b2203bec6c9becff8d0cb4d53725",
+      "bytes": 96,
+      "result": "No issues found"
+    },
+    {
+      "log": "full-flutter-final.log",
+      "sha256": "93a7f1237408994d6fa82c9c0fb4ac9ebdab51ec442692eb08f8d2f887138b6e",
+      "bytes": 275603,
+      "result": "1495 passed, 1 live case skipped"
+    },
+    {
+      "log": "web-build.log",
+      "sha256": "5a7e32e4fb8381d7c5070d6df4bd06cee8625a28e6b43c88dc3ab1d01b4dc114",
+      "bytes": 941,
+      "result": "release web build passed; nonfatal font-family warning; Wasm dry run only"
+    }
+  ],
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format": "1054 files already formatted",
+    "schema_export_diff": "passed; bytes unchanged",
+    "git_diff_check": "passed"
+  },
+  "browser": {
+    "committed_changes": 7,
+    "first_process_exit": 143,
+    "first_cleanup_receipt": "unavailable",
+    "original_signal_origin": "unproven",
+    "original_save_replayed": false,
+    "replacement_process_exit": 0,
+    "source_and_host_bytes_unchanged": true,
+    "all_six_modes_and_host_reset": true,
+    "desktop": [
+      1280,
+      720
+    ],
+    "narrow": [
+      320,
+      640
+    ],
+    "viewport_restored": true,
+    "agent_created_tab_closed": true
+  },
+  "model_calls": 0,
+  "agent_tasks": 0,
+  "owner_runtime_promoted": false
+}
