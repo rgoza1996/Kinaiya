@@ -1,0 +1,129 @@
+{
+  "scope": "public synthetic controlled presentation fixture; no owner app change, live inference, actual SAM/translation or task success",
+  "frontend_source": "cb06ce9e2f9c69146cf8cc37d2254ae04e1dd412",
+  "frontend_archive_sha256": "59f878655152880ad649edba35a88bf49ecb8b97b0f27a0d400cb30a223d6435",
+  "backend_source": "cb06ce9e2f9c69146cf8cc37d2254ae04e1dd412",
+  "session": {
+    "schema_version": "1.0",
+    "session_id": "5705951d-d3c6-4593-943a-d460023df465",
+    "thread_id": "5772b98b-2643-48b2-8da9-7624309adeec",
+    "channel": "converse",
+    "epoch": 1,
+    "name": "Kinaiya",
+    "harness_version": null
+  },
+  "task_id": "7da52871-3239-4953-9e4b-bbda2becc455",
+  "asset_id": "media_304deab9e1dd86e70cebfcd4d43994da",
+  "video_sha256": "9eca39fa8485bce863aa4c654d06e7f4c8caf132dbc048ed05c25bee49fb13b2",
+  "ui_origin": "http://127.0.0.1:8824",
+  "service_origin": "http://127.0.0.1:8825",
+  "cleanup_confirmed": true,
+  "frontend_flutter_source_identical_to_main": "4e34f94df9845717eb5896aec61d4ea6f9d24c19",
+  "ui_repair_commit": "049f5f8f57fc0208b128bd3fbef87f1804fad34a",
+  "workflow_run_id": 43660840023,
+  "video_file": "public-test-pattern.mp4",
+  "video_before_explicit_load": 0,
+  "video_after_result_close": 0,
+  "browser": "Codex in-app Chromium browser",
+  "controls_qualified": true,
+  "production_frontend_promoted": false,
+  "microphone_used": false,
+  "live_inference": false,
+  "sam_or_translation_qualified": false,
+  "screenshot_files_exported": false,
+  "viewports": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "player_rect": {
+        "x": 134,
+        "y": 407,
+        "width": 426.65625,
+        "height": 240
+      },
+      "muted": true,
+      "autoplay": false,
+      "controls": true,
+      "initial_paused": true,
+      "initial_time": 0,
+      "duration": 8,
+      "ready_state": 4,
+      "play": {
+        "paused": false,
+        "time": 0.1481
+      },
+      "pause": {
+        "paused": true,
+        "time": 0.1606
+      },
+      "seek": {
+        "paused": true,
+        "time": 3.99314
+      },
+      "visual_controls_inside_pane": true
+    },
+    {
+      "width": 800,
+      "height": 900,
+      "player_rect": {
+        "x": 50,
+        "y": 395,
+        "width": 426.65625,
+        "height": 240
+      },
+      "muted": true,
+      "paused": true,
+      "controls": true,
+      "time": 3.99314,
+      "visual_controls_inside_pane": true
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "player_rect": {
+        "x": 50,
+        "y": 591,
+        "width": 290,
+        "height": 163.125
+      },
+      "muted": true,
+      "autoplay": false,
+      "controls": true,
+      "play": {
+        "paused": false,
+        "time": 4.1568
+      },
+      "pause": {
+        "paused": true,
+        "time": 4.1768
+      },
+      "seek": {
+        "paused": true,
+        "time": 1.723577
+      },
+      "visual_controls_inside_pane": true
+    }
+  ],
+  "setup_runs": [
+    {
+      "run": 1,
+      "agent_channel_wrong_for_converse_stage": true,
+      "cleanup_observer_cancelled": true,
+      "qualified": false
+    },
+    {
+      "run": 2,
+      "converse_channel_but_no_current_named_session_acquired": true,
+      "cleanup_confirmed": true,
+      "qualified": false
+    },
+    {
+      "run": 3,
+      "normal_named_converse_session_and_typed_scripted_reply": true,
+      "cleanup_confirmed": true,
+      "qualified": true
+    }
+  ],
+  "native_artifact_id": "e40fc118-d700-469c-a564-859bbfbdafb7",
+  "build_artifact_id": 14139962594
+}
