@@ -727,6 +727,121 @@ async def test_actual_pending_steer_receipt_is_not_an_applied_task_revision_or_e
             await client.close()
 
 
+async def pending_correction(env):
+    correction = user_source(env.store, env.session, text="Add public fictional rain cover.")
+    await env.runtime.steer(
+        env.task.task_id,
+        SteerRequest(
+            instruction=correction.payload["text"],
+            source_event_ids=[correction.event_id],
+            expected_objective_revision=1,
+            content_scope="public_synthetic",
+            idempotency_key="public-pending-scope",
+        ),
+    )
+    return correction
+
+
+@pytest.mark.parametrize("socket_http", [False, True], ids=["asgi", "socket"])
+async def test_pending_steering_source_is_freshly_scoped_before_cloud_projection(
+    tmp_path, socket_http
+):
+    from services.converse.task_context import prepare
+
+    async with environment(tmp_path, socket_http=socket_http) as env:
+        correction = await pending_correction(env)
+        env.store.append(
+            AppendRequest(
+                session_id=env.session.session_id,
+                thread_id=env.session.thread_id,
+                epoch=env.session.epoch,
+                kind="conversation.revision",
+                payload={
+                    "target_event_id": correction.event_id,
+                    "text": "Public fixture with a newly private source.",
+                    "revision": 2,
+                    "content_scope": "local_only",
+                },
+                idempotency_key="pending-now-local",
+            ),
+            "owner",
+        )
+        query = user_source(env.store, env.session)
+        record = env.runtime._tasks[env.task.task_id]
+        assert record.task.content_scope == "public_synthetic"
+        client = TaskContextClient(env.base, TOKENS["converse"], transport=env.transport)
+        before = env.store.db.total_changes
+        try:
+            observed = (
+                await client.lookup(TaskContextRequest(source=TaskContextSource.of(query)))
+            ).tasks[0]
+            assert observed.content_scope == "local_only"
+            assert observed.steer_pending and observed.objective_revision == 1
+            runtime = SimpleNamespace(
+                _task_context_original_client=client, task_context_client=client
+            )
+            frame = await prepare(runtime, query, DialogueProvider(local=False))
+            assert frame.task_ids == () and '"tasks":[]' in frame.block
+            assert env.task.task_id not in frame.block and "steer_pending" not in frame.block
+            assert record.task.content_scope == "public_synthetic"
+            assert env.store.db.total_changes == before and len(env.provider.calls) == 1
+        finally:
+            await client.close()
+
+
+async def test_pending_steering_replacement_during_scope_reads_refuses_snapshot(
+    tmp_path, monkeypatch
+):
+    async with environment(tmp_path) as env:
+        correction = await pending_correction(env)
+        record = env.runtime._tasks[env.task.task_id]
+        original_pending = record.pending_steer
+        resolve = env.runtime.journal.resolve
+        visited = []
+
+        async def replace_pending(event_id):
+            result = await resolve(event_id)
+            if event_id == correction.event_id:
+                visited.append(event_id)
+                record.pending_steer = None
+            return result
+
+        monkeypatch.setattr(env.runtime.journal, "resolve", replace_pending)
+        client = TaskContextClient(env.base, TOKENS["converse"], transport=env.transport)
+        try:
+            with pytest.raises(TaskContextUnavailable):
+                await client.lookup(proposal(env))
+            assert visited == [correction.event_id]
+            assert record.task.objective_revision == 1 and len(env.provider.calls) == 1
+        finally:
+            record.pending_steer = original_pending
+            await client.close()
+
+
+async def test_pending_steering_sources_share_existing_dependency_bound(tmp_path, monkeypatch):
+    async with environment(tmp_path) as env:
+        correction = await pending_correction(env)
+        record = env.runtime._tasks[env.task.task_id]
+        original_ids = record.pending_steer["source_event_ids"]
+        record.pending_steer["source_event_ids"] = [correction.event_id] * 4097
+        resolve = env.runtime.journal.resolve
+        visited = []
+
+        async def record_read(event_id):
+            visited.append(event_id)
+            return await resolve(event_id)
+
+        monkeypatch.setattr(env.runtime.journal, "resolve", record_read)
+        client = TaskContextClient(env.base, TOKENS["converse"], transport=env.transport)
+        try:
+            with pytest.raises(TaskContextUnavailable):
+                await client.lookup(proposal(env))
+            assert correction.event_id not in visited
+        finally:
+            record.pending_steer["source_event_ids"] = original_ids
+            await client.close()
+
+
 async def test_task_derived_reply_cannot_escape_later_through_unrelated_public_history(tmp_path):
     async with environment(tmp_path) as env:
         for n in range(18):
