@@ -8,6 +8,7 @@ import importlib.util
 import json
 import sqlite3
 import threading
+import time
 from types import SimpleNamespace
 
 import httpx
@@ -1249,8 +1250,13 @@ async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_ro
     hub = env.app.state.standing_owner_operations
     entered, release = threading.Event(), threading.Event()
     original = hub.owner.page
+    started = time.monotonic()
+    entry_times = []
+    entry_lock = threading.Lock()
 
     def blocked_page(**kwargs):
+        with entry_lock:
+            entry_times.append(round(time.monotonic() - started, 4))
         entered.set()
         if not release.wait(5):
             raise AssertionError("Synthetic old native operation was not released")
@@ -1258,6 +1264,28 @@ async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_ro
 
     monkeypatch.setattr(hub.owner, "page", blocked_page)
     old_jobs, scan_job = [], None
+
+    def snapshot():
+        # Public fixture diagnostics only. Do not log bodies, headers or tokens.
+        finished = []
+        for job in old_jobs:
+            if not job.done():
+                finished.append("pending")
+            elif job.cancelled():
+                finished.append("cancelled")
+            elif (error := job.exception()) is not None:
+                finished.append(type(error).__name__)
+            else:
+                finished.append(job.result().status_code)
+        with entry_lock:
+            entries = list(entry_times)
+        return {
+            "elapsed_seconds": round(time.monotonic() - started, 4),
+            "native_active": hub.active_operations,
+            "native_entry_seconds": entries,
+            "old_http_results": finished,
+        }
+
     try:
         old_jobs = [
             asyncio.create_task(
@@ -1265,12 +1293,12 @@ async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_ro
             )
             for _ in range(63)
         ]
-        assert await asyncio.to_thread(entered.wait, 1)
+        assert await asyncio.to_thread(entered.wait, 1), snapshot()
         for _ in range(100):
             if hub.active_operations == 63:
                 break
             await asyncio.sleep(0.005)
-        assert hub.active_operations == 63
+        assert hub.active_operations == 63, snapshot()
         scan_job = asyncio.create_task(
             env.raw.post("/v1/transcript/scan", headers=headers(env), json=body(env.session))
         )
@@ -1278,7 +1306,7 @@ async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_ro
             if hub.active_operations == 64:
                 break
             await asyncio.sleep(0.005)
-        assert hub.active_operations == 64 and not scan_job.done()
+        assert hub.active_operations == 64 and not scan_job.done(), snapshot()
         refused = await env.raw.post(
             "/v1/transcript/scan", headers=headers(env), json=body(env.session)
         )
