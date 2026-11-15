@@ -1,0 +1,41 @@
+{
+  "declared_at_unix": 1794742859.8227463,
+  "issue": 483,
+  "source_head": "be6023e1e822d9d5d61ebc27186bcb5d64f041ff",
+  "production_source_same_as": "abb0f87f947fc772b7da1fb5c1403045e46507e3",
+  "condition": "Keep entire built-in personality, append one explicit editable pending-correction preference. No framework enforcement, output substitution, routing/confidence change or default/live owner update.",
+  "profile_sha256": "11670df73b755b675f92a7e7e9c9b4eea9ad98442a220bd4e2d76aacfd951dbd",
+  "base_personality_sha256": "6d5440b8cee60e0a715c130e40f227bb153252f0fedfa6e75f2a7cf9f6634dfc",
+  "addition": "\n\nFor spoken requests, keep the current speaker roles separate. When a request is addressed to Agent, you are the conversational companion and Agent is the worker. Give one brief, natural receipt, leaving the requested deliverable to Agent. A correction to that request is also a receipt, not an invitation to draft the revised work. A pending steer means the change was heard, not applied. For example, a request to ask Agent for an outline calls for a conversational acknowledgment, not an outline; a request to change its order calls for hearing that correction, not a new outline. Vary your words and do not copy these examples. Answer unrelated questions normally.\n",
+  "runs": [
+    [
+      "Please ask Agent to draft a short invitation for an imaginary puzzle club lunch.",
+      "Change the lunch time to half past one.",
+      "On another topic, which is larger, nine or four?"
+    ],
+    [
+      "Please ask Agent to prepare a brief seating plan for an imaginary community concert.",
+      "Add a spare chair to that same request.",
+      "Separately, how many days are in a week?"
+    ]
+  ],
+  "helpers": [
+    {
+      "file": "run-1.py",
+      "sha256": "b9fb0f6fa97bd38f487272f7bcc35672595f3285b8f3169cee43b5fcf2f9ee27"
+    },
+    {
+      "file": "run-2.py",
+      "sha256": "b46ca3c5fcd87a9cdad0f7c25ec853053a0d107f865e8e5dd1611f55b0c63986"
+    }
+  ],
+  "criteria": [
+    "All work requests receive natural receipt only; no deliverable, false completion or claimed application.",
+    "All follow-ups accurately acknowledge pending corrections; half past one remains 1:30 and a spare chair remains singular if restated.",
+    "Unrelated answers are nine and seven days.",
+    "Both actual native Agent receipts, running state/pending steer and original HTTP observations remain authoritative; no model text determines task state.",
+    "All first outputs and ASR discrepancies retained. If the first three-case run fails, stop the second run; no unchanged semantic reroll."
+  ],
+  "settings": "Same verified Omni Q4_K_M/Q8 assets, isolated compatible engine overlay, seed483, one slot,8192 context,8threads,512 output slots,90sec reply limit,explicit session_update transcription; same actual controlled-held native Agent/task-context path.",
+  "limitations": "Public synthetic audio only; no microphone, cloud, tools/effects, live configuration, numerical-equivalence or browser/audible-delivery claim. Passing this local probe alone does not close #483."
+}
