@@ -1,5 +1,13 @@
 # ADR 0042: bounded negative runtime-state publication guard
 
+Superseded November 15, 2026 by the owner's architecture/model responsibility
+decision in #486 and PR #625. Typed, retained-window and native-media publication
+now preserve model text instead of substituting a semantic fallback. Original
+native audio is retained under its existing identity/custody checks. The design
+below records the historical behavior; its English predicates remain diagnostic
+utilities and have no production publication caller. See
+[generated dialogue fidelity](../converse-output-fidelity.md).
+
 Tracks [#97](https://github.com/rgoza1996/Kinaiya/issues/97).
 
 Status: defense in depth under verification. This is not model qualification,
