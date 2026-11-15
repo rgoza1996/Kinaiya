@@ -1183,12 +1183,14 @@ def serve(args):
             DecisionsModelUnavailable,
             UnavailableDecisionsModels,
         )
+        from services.decisions.prompts import configured_prompt
         from services.decisions.runtime import DecisionsWorker, ModelClassifier
         from services.decisions.window_routing import WindowAgentDispatcher, WindowClassifier
         from services.decisions.window_worker import WindowDecisionsWorker
         from services.settings.provider_catalog import ProviderCatalog
         from services.settings.provider_factory import UnavailableHostProvider
 
+        decision_prompt = configured_prompt(config)
         window_chars = config.get("decisions_window_chars", 36000)
         if type(window_chars) is not int or not 256 <= window_chars <= 36000:
             raise SystemExit("decisions_window_chars must be an integer from 256 to 36000")
@@ -1225,6 +1227,7 @@ def serve(args):
             ModelClassifier(
                 host_provider,
                 window_chars=window_chars,
+                prompt=decision_prompt,
             ),
             enabled=config.get("agent_enabled", True),
             model_settings=decision_models,
@@ -1234,7 +1237,9 @@ def serve(args):
             WindowDecisionsWorker(
                 worker.journal,
                 worker.agent,
-                WindowClassifier(worker.classifier.provider, window_chars=window_chars),
+                WindowClassifier(
+                    worker.classifier.provider, window_chars=window_chars, prompt=decision_prompt
+                ),
                 agent_enabled=worker.enabled,
                 timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
                 model_settings=decision_models,

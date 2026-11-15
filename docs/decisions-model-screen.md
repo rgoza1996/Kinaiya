@@ -4,6 +4,13 @@ This fixed textual screen compares seven hosted Decisions endpoints, the existin
 
 The [machine-readable evidence](../evaluation/evidence/decisions-models-2026-10-31.json) includes literal probabilities/confidence, source/provider identities, request/raw-response hashes and independently recomputable sanitized response hashes. The [frozen fixture](../evaluation/decisions/2026-10-31/README.md) contains the exact pre-inference inputs, references and manifest. Its pending/no-inference creation metadata remains unchanged; current completion/consumption is recorded in the evidence.
 
+The later [editable Decisions preferences](decisions-prompts.md) (#558) change
+the actual instruction-bearing request and typed choice descriptions. These
+October measurements and all their frozen request/response hashes remain
+historical; they do not qualify the new default or an owner override. Native
+source/task projection, action labels and reference mapping are still checked
+against the original fixtures. No inference was repeated for the prompt change.
+
 ## Results and denominators
 
 Each model received the same 48 cases once: 32 streaming-window and 16 finalized turns. Every route has 12 reference cases. Cloud endpoints each received one additional separate BLUE/GREEN protocol probe, giving 343 cloud requests (7 probes + 336 cases); Laya made 48 case requests plus 2 readiness reads. All 343 cloud responses and 48 Laya case responses passed the declared typed contracts with zero protocol/transport errors, observed EOF and confirmed close. No retry, fallback, output repair, reference change or answer chaining occurred.
