@@ -57,16 +57,42 @@ glibc 2.39. All qualification files are private task artifacts under local
   unchanged development lock.
 
 [Local qualification receipts](evidence/python-313-qualification-2026-11-15/local-preflight.json)
-retain artifact/source hashes and distinguish completed probes from the pending
-full/platform results.
+retain artifact/source hashes and distinguish completed probes from unresolved
+full-suite and platform acceptance.
 
 The first full run was stopped deliberately after discovering inherited Conda
 subprocess lookup. It is incomplete and not counted as a pass. The verified
 original pytest process alone received SIGINT; its KeyboardInterrupt/pytest
 teardown KeyError and all 834 unchanged input hashes remain recorded. The
 replacement run asserts that both `python` and `python3` resolve to the isolated
-3.13.18 executable before running the complete non-live suite. Its result is
-pending. No test/resource deadline or expectation changes are involved.
+3.13.18 executable before running the complete non-live suite. It completed with
+14,993 passed, one failed, 49 live deselected and two subtests passed in 3,269.73
+seconds, with no skips. All 834 Python input hashes match before and after. The
+start receipt identifies baseline `548f85d8`; the final receipt identifies the
+metadata-only additive commit `47f43ff6`, with identical Python inputs.
+
+The failure is the initial `/v1/standing/dispatch` GET returning 503 while setting
+up `test_snapshot_keeps_original_context_with_release_only_control`, before its
+target timeout scenario. This matches the observable setup boundary tracked in
+[#639](https://github.com/rgoza1996/Kinaiya/issues/639), previously seen on hosted
+3.14. Its underlying cause remains unproven; it is not a passing qualification.
+
+Hosted run [43758372160](https://github.com/rgoza1996/Kinaiya/actions/runs/43758372160)
+on exact additive head `47f43ff6969c9e6bb834e085401e9629b759c454` has seven other
+standard jobs passing and the added 3.13 lane failing: 14,984 passed, one failed,
+nine skipped, 49 live deselected and two subtests passed in 2,005.37 seconds.
+The positive original-process slot-reuse case refuses `pre_command_mismatch`;
+the same boundary is tracked in [#620](https://github.com/rgoza1996/Kinaiya/issues/620).
+This does not establish the same cause as that issue's earlier JPEG failure.
+Four manual-only jobs were skipped. Both first failure logs are retained.
+
+The SDK-generated analyzer-file change is tracked in
+[#637](https://github.com/rgoza1996/Kinaiya/issues/637). That file and the existing
+GUI recovery test's generated receipt were preserved as post-run artifacts and
+then restored to the original branch bytes. No runtime, test/resource deadline,
+expectation, interpreter pin or qualification source was changed to hide either
+startup failure. The full migration and actual native platform acceptance remain
+pending.
 
 The separately declared VibeVoice derivative remains an isolated CPython 3.12
 x64 worker (`requirements-vibevoice.in`), with an explicitly cp312 Torch wheel.
