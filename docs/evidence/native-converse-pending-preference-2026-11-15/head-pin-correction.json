@@ -1,0 +1,15 @@
+{
+  "time": 1794742889.1161296,
+  "initial_harness_failure": "run-1.log: stale source-head assertion stopped before output directory creation or inference.",
+  "correction": "Pin declared actual head be6023e1 (only evidence/docs changes from production source abb0f87f). Inputs, profile and settings unchanged.",
+  "helpers": [
+    {
+      "file": "run-1.py",
+      "sha256": "36d0fba8ccd98823b00b1f46965409a6db429530eb0eed7b40e49e169f70cde9"
+    },
+    {
+      "file": "run-2.py",
+      "sha256": "98f31f14e33b7401255af7a719f9ab6c74df545b440b5d119160a515a714593c"
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import asyncio
 import fcntl
 import inspect
 import json
+import logging
 import os
 import re
 import secrets
@@ -68,6 +69,35 @@ _BLOCK = 65_536
 _WAIT = 5.0
 _PROC_BYTES = 4096
 _ZOMBIES = {"Z", "X", "x"}
+LOG = logging.getLogger(__name__)
+_BOOTSTRAP_REASONS = frozenset(
+    {
+        "pre_stat_unavailable",
+        "pre_not_live",
+        "pre_parent_mismatch",
+        "pre_group_mismatch",
+        "pre_session_mismatch",
+        "pre_command_mismatch",
+        "pidfd_unavailable",
+        "post_stat_unavailable",
+        "pidfd_binding_mismatch",
+        "post_command_mismatch",
+        "post_not_live",
+        "post_parent_mismatch",
+        "post_group_mismatch",
+        "post_session_mismatch",
+        "post_starttime_mismatch",
+    }
+)
+
+
+def _bootstrap_refused(reason):
+    try:
+        label = reason if type(reason) is str and reason in _BOOTSTRAP_REASONS else "unavailable"
+        LOG.warning("media bootstrap refused: reason=%s", label)
+    except BaseException:
+        # A diagnostic sink cannot change the already selected native refusal.
+        pass
 
 
 class MediaProcessError(ValueError):
@@ -1020,35 +1050,51 @@ class MediaLaunch:
         return owner
 
     def _verify_bootstrap(self, pid, nonce, bootstrap):
+        owner, start, reason = self._bootstrap_identity(pid, nonce, bootstrap)
+        if reason is not None:
+            # The identity helper has already made the original pidfd close
+            # attempt. No process probe or authority operation belongs here.
+            _bootstrap_refused(reason)
+        return owner, start
+
+    def _bootstrap_identity(self, pid, nonce, bootstrap):
         before = self._stat(pid)
-        if (
-            before is None
-            or before[0] in _ZOMBIES
-            or before[1] != os.getpid()
-            or before[2] != pid
-            or before[3] != pid
-            or not self._command(pid, nonce, bootstrap)
-        ):
-            return None, None
+        if before is None:
+            return None, None, "pre_stat_unavailable"
+        if before[0] in _ZOMBIES:
+            return None, None, "pre_not_live"
+        if before[1] != os.getpid():
+            return None, None, "pre_parent_mismatch"
+        if before[2] != pid:
+            return None, None, "pre_group_mismatch"
+        if before[3] != pid:
+            return None, None, "pre_session_mismatch"
+        if not self._command(pid, nonce, bootstrap):
+            return None, None, "pre_command_mismatch"
         owner = self._pidfd(pid)
         if owner is None:
-            return None, None
+            return None, None, "pidfd_unavailable"
         accepted = False
         try:
             after = self._stat(pid)
-            accepted = (
-                after is not None
-                and self._pidfd_pid(owner) == pid
-                and self._command(pid, nonce, bootstrap)
-                and after[0] not in _ZOMBIES
-                and after[1] == os.getpid()
-                and after[2] == pid
-                and after[3] == pid
-                and after[4] == before[4]
-            )
-            if accepted:
-                return owner, before[4]
-            return None, None
+            if after is None:
+                return None, None, "post_stat_unavailable"
+            if self._pidfd_pid(owner) != pid:
+                return None, None, "pidfd_binding_mismatch"
+            if not self._command(pid, nonce, bootstrap):
+                return None, None, "post_command_mismatch"
+            if after[0] in _ZOMBIES:
+                return None, None, "post_not_live"
+            if after[1] != os.getpid():
+                return None, None, "post_parent_mismatch"
+            if after[2] != pid:
+                return None, None, "post_group_mismatch"
+            if after[3] != pid:
+                return None, None, "post_session_mismatch"
+            if after[4] != before[4]:
+                return None, None, "post_starttime_mismatch"
+            accepted = True
+            return owner, before[4], None
         finally:
             if not accepted:
                 self._close(owner)  # Rejected originals never enter signal lists.

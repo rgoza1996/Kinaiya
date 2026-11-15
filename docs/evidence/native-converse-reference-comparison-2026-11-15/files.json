@@ -1,0 +1,142 @@
+[
+  {
+    "name": "README.md",
+    "bytes": 6173,
+    "sha256": "1703e72355d8c53301a3a6c9129f8a9cea697fb3a8396571d2fabc98a12d310c"
+  },
+  {
+    "name": "failed-launch-manifest.json",
+    "bytes": 2335,
+    "sha256": "a944f11fd76e73f96de95da9e98b2f482d42dbfaf1913ada48888454b44b73e7"
+  },
+  {
+    "name": "failed-launch.log",
+    "bytes": 207,
+    "sha256": "a3b6c23030f762b6fa3afa6ef6b53715abf7c083d9ff7b266f2cc98f46028f4a"
+  },
+  {
+    "name": "followup-input.wav",
+    "bytes": 144684,
+    "sha256": "07182e5787a0ee6f4711d2d7ae922cba256299398eb370faa96122a9ef6c5f87"
+  },
+  {
+    "name": "followup-native-output.wav",
+    "bytes": 1513004,
+    "sha256": "d6f3371c87572ac2eb09aca8522e7b9eb73846e6173a7f7c585c8f32c1cbe6eb"
+  },
+  {
+    "name": "followup-reference-output.wav",
+    "bytes": 1436204,
+    "sha256": "f25eb72c41b1c4df86553380254e2579fa80ce2c9a998b39193f0b5c4d018fe4"
+  },
+  {
+    "name": "followup-reference-tokens-codes.npz",
+    "bytes": 13196,
+    "sha256": "9ce9750355e418e28cc2d70734e6d0ce16fd0ec360c227b1baa2a92b6c9d7ae5"
+  },
+  {
+    "name": "launch-correction.json",
+    "bytes": 575,
+    "sha256": "1b618af03ffd3e7c5993d7d7b62246ea088fe0700e9e7ef1965fafb0bb7f7388"
+  },
+  {
+    "name": "native-harness.py.txt",
+    "bytes": 16192,
+    "sha256": "89075f688a6e7f45d34175047507dec3d9f45a42dba3025f29eb93578289a903"
+  },
+  {
+    "name": "native-observations.json",
+    "bytes": 27534,
+    "sha256": "b351664f324dc059729be561a6df9e38b3bfe810972177177a4f40b9f5bdfe71"
+  },
+  {
+    "name": "plan.json",
+    "bytes": 3250,
+    "sha256": "1fc874c25d323e852d16463b82148675dad09e82073ed95dd4f1db9d0f0777b5"
+  },
+  {
+    "name": "question-input.wav",
+    "bytes": 111564,
+    "sha256": "d3ee33e0ca27390826fd64bc79ad858ba038dc28d657a727a81759b74c6a050d"
+  },
+  {
+    "name": "question-native-output.wav",
+    "bytes": 142124,
+    "sha256": "6858efda2290ecacb272b039b0b049fa92034f8b6d070ad8d015c2d6e1857a17"
+  },
+  {
+    "name": "question-reference-output.wav",
+    "bytes": 172844,
+    "sha256": "a0574191647dfa2b3b14eb7efa16e957488cc1c49b2ed3471826698fb0306e85"
+  },
+  {
+    "name": "question-reference-tokens-codes.npz",
+    "bytes": 4844,
+    "sha256": "05106e27a82ba9c9cb9654d5f5d703b8555fcacb5b8bf664b9bf72eb7462d655"
+  },
+  {
+    "name": "reference-conditional-inputs.json",
+    "bytes": 31954,
+    "sha256": "7bea7bf3312e8364a63695b89ce0b7d396a119e19be9d77436bd4c9c06a52529"
+  },
+  {
+    "name": "reference-harness.py.txt",
+    "bytes": 6880,
+    "sha256": "aecc83b35abaa21bb3b9eb0080476b19d6f32742c8403859ed7d879b74e79895"
+  },
+  {
+    "name": "reference-observations.json",
+    "bytes": 31763,
+    "sha256": "e39458cc075ee5bed1b7044bc44501c8dd6bb9c8209c57471ac8a19d5b61949e"
+  },
+  {
+    "name": "reference-runner.py.txt",
+    "bytes": 2688,
+    "sha256": "d0e31a62403f02dfc4f2bd5f30f473f2c074b4de901b0cda151e65fd62b6adfc"
+  },
+  {
+    "name": "task-observations.jsonl",
+    "bytes": 12164,
+    "sha256": "32e374742231e26dd8e8d94c4d2ce8d306fe3f39d06da0b4fd52061f944c1976"
+  },
+  {
+    "name": "template-comparison.json",
+    "bytes": 560,
+    "sha256": "d690a9e2b077b4ff6b43eeac41297a8bd6d36e3ae2c282cf933bb3bce8d8313d"
+  },
+  {
+    "name": "verification-failure-1.txt",
+    "bytes": 215,
+    "sha256": "f5872774a52edb9ba3ac577bb28884410bbd8d0b9494165e5536d2f0b4d9c076"
+  },
+  {
+    "name": "verification-harness.py.txt",
+    "bytes": 6777,
+    "sha256": "4c1abbfe00e81777ad3f71841be81bf95e67e443e1293d4d60c577fb1c69eabd"
+  },
+  {
+    "name": "verification.json",
+    "bytes": 6099,
+    "sha256": "7d50dcfffe4a5b45530736c8ed4cbdd44bdecb6522ceb9a556a05633fb291714"
+  },
+  {
+    "name": "work-input.wav",
+    "bytes": 184524,
+    "sha256": "8a0944e39533a18b0c3bbd47b20541eff27e538e6ff75685bc8e8d84aefeeb06"
+  },
+  {
+    "name": "work-native-output.wav",
+    "bytes": 1413164,
+    "sha256": "667d510eecadb97eefe854bc48d0fbc5a349f5d15366305449927c475c0c5eb2"
+  },
+  {
+    "name": "work-reference-output.wav",
+    "bytes": 1493804,
+    "sha256": "11a226f6dff787bbb19f28a52595a594358eff7bdafd3607d8b464c916442494"
+  },
+  {
+    "name": "work-reference-tokens-codes.npz",
+    "bytes": 12997,
+    "sha256": "6261f95cb12656952b6a36b882d98010cd564f8733e95cf67019e4506dd4eb2c"
+  }
+]

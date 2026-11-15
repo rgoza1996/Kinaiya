@@ -1,0 +1,1 @@
+Initial export verifier stopped with KeyError: 'lookup_state'. It incorrectly assumed the prompt-framing field was present in the raw TaskContextResponse. No inference was repeated or original input/output altered.
