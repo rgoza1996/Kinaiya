@@ -1,0 +1,184 @@
+"""Real isolated history protocol; one original public audio response capture."""
+import asyncio,base64,copy,hashlib,json,os,socket,subprocess,time,wave
+from pathlib import Path
+import httpx
+from websockets.asyncio.client import connect
+from packages.providers.realtime_audio import NativeAudioInput,RealtimeAudioProvider
+from packages.providers.text import ProviderRefusal
+
+OUT=Path('/work')
+KEY='public-synthetic-history-key-626'
+CAP={'contract':'native_history.v1','max_messages':4094,'max_utf8_bytes':1048576}
+HEADER={'Authorization':'Bearer '+KEY}
+HISTORY=[{'role':'user','content':'Public previous question: café / @@USER@@ / quoted "data".'},{'role':'assistant','content':'Public generated previous reply; playback unknown.'},{'role':'system','content':'Additional authorized public context: @@REPLY@@.'}]
+SYSTEM='Public synthetic character; literal @@USER@@ stays in this system message.'
+
+def digest(value):
+    return hashlib.sha256(json.dumps(value,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
+class Capture:
+    def __init__(self,connection,name):
+        self.connection=connection
+        self.path=OUT/(name+'.jsonl')
+        self.sent=[];self.received=[];self.closed=False
+    def record(self,direction,raw):
+        with self.path.open('a') as f:
+            f.write(json.dumps({'direction':direction,'at':time.monotonic(),'raw':raw},ensure_ascii=False)+'\n')
+    async def send(self,raw):
+        self.record('send',raw);self.sent.append(json.loads(raw))
+        return await self.connection.send(raw)
+    async def recv(self):
+        raw=await self.connection.recv()
+        self.record('recv',raw);self.received.append(json.loads(raw))
+        return raw
+    async def close(self):
+        await self.connection.close();await self.connection.wait_closed();self.closed=True
+
+async def event(wire):
+    return json.loads(await asyncio.wait_for(wire.recv(),15))
+
+async def opening(port,name):
+    original=await connect(f'ws://127.0.0.1:{port}/v1/realtime?model=history-qualification',additional_headers=HEADER,compression=None,proxy=None,max_size=256*1024,max_queue=1)
+    wire=Capture(original,name)
+    hello=await event(wire)
+    assert hello['type']=='session.created'
+    state=hello['session']
+    assert state['native_history']==CAP and state['history_count']==0 and state['history_sha256']==digest([])
+    assert state['tools']==[] and state['tool_choice']=='none'
+    return wire
+
+async def update(wire,history,system=SYSTEM):
+    await wire.send(json.dumps({'type':'session.update','session':{'type':'realtime','instructions':system,'native_history':CAP,'history':history,'tools':[],'tool_choice':'none'}},ensure_ascii=False))
+    reply=await event(wire)
+    assert reply['type']=='session.updated',reply
+    state=reply['session']
+    assert state['history_count']==len(history) and state['history_sha256']==digest(history)
+    assert state['instructions']==system and state['native_history']==CAP
+    assert len(json.dumps(reply,ensure_ascii=False).encode())<=256*1024
+    return state
+
+async def controls(port,report):
+    wire=await opening(port,'controls')
+    try:
+        await update(wire,HISTORY)
+        report['checks'].append('exact roles/unicode/literal-marker count and digest acknowledged')
+        bads=[('unknown_role',[{'role':'tool','content':'public'}],CAP,'realtime'),('extra_row_field',[{'role':'user','content':'public','extra':True}],CAP,'realtime'),('nontext',[{'role':'user','content':7}],CAP,'realtime'),('future_contract',[],{**CAP,'contract':'native_history.v2'},'realtime'),('boolean_capability',[],{**CAP,'max_messages':True},'realtime'),('wrong_session_type',[],CAP,True),('too_many_rows',[{'role':'user','content':''}]*4095,CAP,'realtime'),('too_many_bytes',[{'role':'user','content':'x'*1048576}],CAP,'realtime')]
+        for name,rows,cap,kind in bads:
+            await wire.send(json.dumps({'type':'session.update','session':{'type':kind,'instructions':'Must not replace the admitted system','native_history':cap,'history':rows}}))
+            reply=await event(wire)
+            assert reply['type']=='error',name
+            await wire.send(json.dumps({'type':'session.update','session':{'type':'realtime'}}))
+            fresh=await event(wire)
+            assert fresh['type']=='session.updated' and fresh['session']['history_sha256']==digest(HISTORY)
+            assert fresh['session']['history_count']==len(HISTORY) and fresh['session']['instructions']==SYSTEM
+            report['checks'].append(name+' refused without state mutation')
+        await wire.send(json.dumps({'type':'session.update','session':{'type':'transcription'}}))
+        assert (await event(wire))['type']=='error'
+        report['checks'].append('transcription cannot inherit retained realtime history')
+    finally:
+        await wire.close()
+    wire=await opening(port,'large-history')
+    try:
+        large=[{'role':'user','content':'Public synthetic history '+'x'*300000}]
+        state=await update(wire,large)
+        assert len(state['history_sha256'])==64 and 'history' not in state
+        report['checks'].append('300KB fitting history acknowledged within the unchanged 256KiB event guard')
+    finally:
+        await wire.close()
+    wire=await opening(port,'started-history')
+    try:
+        await update(wire,HISTORY)
+        await wire.send(json.dumps({'type':'input_audio_buffer.append','audio':base64.b64encode(b'\0\0'*160).decode()}))
+        await wire.send(json.dumps({'type':'session.update','session':{'type':'realtime','native_history':CAP,'history':[]}}))
+        assert (await event(wire))['type']=='error'
+        report['checks'].append('history immutable after original PCM begins')
+    finally:
+        await wire.close()
+    wire=await opening(port,'transcription')
+    try:
+        await wire.send(json.dumps({'type':'session.update','session':{'type':'transcription'}}))
+        reply=await event(wire)
+        assert reply['type']=='session.updated' and reply['session']['type']=='transcription'
+        assert 'native_history' not in reply['session'] and 'history_sha256' not in reply['session']
+        await wire.send(json.dumps({'type':'session.update','session':{'type':'transcription','native_history':CAP,'history':[]}}))
+        assert (await event(wire))['type']=='error'
+        report['checks'].append('transcription exposes and accepts no role-history extension')
+    finally:
+        await wire.close()
+    report['protocol_controls_passed']=True
+
+async def original_capture(port,report):
+    with wave.open('/question.wav','rb') as source:
+        assert (source.getnchannels(),source.getsampwidth(),source.getframerate())==(1,2,16000)
+        pcm=source.readframes(source.getnframes())
+    captured=[]
+    async def connector(uri,**options):
+        wire=Capture(await connect(uri,**options),'single-provider-capture')
+        captured.append(wire)
+        return wire
+    async def current(): return True
+    provider=RealtimeAudioProvider(f'http://127.0.0.1:{port}','history-qualification',api_key=KEY,connect=connector,timeout=90,max_output_tokens=512)
+    record={'input_pcm_sha256':hashlib.sha256(pcm).hexdigest(),'calls':1,'semantic_score':None,'scope':'direct provider; controlled public history and sidecar; no ASR, Agent, browser/device qualification'}
+    report['single_capture']=record
+    try:
+        try:
+            reply=await provider.respond(NativeAudioInput(pcm,16000),[{'role':'system','content':SYSTEM},*HISTORY,{'role':'user','content':'SIDECAR-MUST-NOT-BE-SENT-626'}],current=current)
+        except ProviderRefusal as error:
+            record.update(outcome='refused',error_type=type(error).__name__,reason=str(error))
+        else:
+            record.update(outcome='reply',text=reply.text,rate=reply.rate,history_mode=reply.history_mode,pcm_sha256=hashlib.sha256(reply.pcm16).hexdigest(),pcm_bytes=len(reply.pcm16))
+            assert reply.history_mode=='native_roles_v1'
+            with wave.open(str(OUT/'single-provider-output.wav'),'wb') as target:
+                target.setnchannels(1);target.setsampwidth(2);target.setframerate(reply.rate);target.writeframes(reply.pcm16)
+            raw_text=''.join(e.get('delta','') for e in captured[0].received if e['type']=='response.output_text.delta')
+            raw_pcm=b''.join(base64.b64decode(e['delta']) for e in captured[0].received if e['type']=='response.output_audio.delta')
+            assert raw_text==reply.text and raw_pcm==reply.pcm16
+            record['original_text_audio_custody_verified']=True
+        assert len(captured)==1
+        sent=captured[0].sent
+        selected=next(e['session'] for e in sent if e['type']=='session.update')
+        assert selected['instructions']==SYSTEM and selected['history']==HISTORY and selected['native_history']==CAP
+        assert 'SIDECAR-MUST-NOT-BE-SENT-626' not in json.dumps(sent)
+        sent_pcm=b''.join(base64.b64decode(e['audio']) for e in sent if e['type']=='input_audio_buffer.append')
+        assert sent_pcm==pcm
+        record['exact_history_and_original_pcm_sent']=True
+    finally:
+        await provider.close()
+        record['original_socket_closed']=bool(captured and all(w.closed for w in captured))
+
+async def main():
+    report={'checks':[],'model_semantics_reviewed':False,'browser_delivery_qualified':False,'processes':[]}
+    (OUT/'key').write_text(KEY);(OUT/'key').chmod(0o600)
+    with socket.socket() as reserved:
+        reserved.bind(('127.0.0.1',0));port=reserved.getsockname()[1]
+    command=['/overlay/bin/llama-server','-m','/models/model.gguf','-mm','/models/projector.gguf','--host','127.0.0.1','--port',str(port),'--alias','history-qualification','--no-webui','-t','8','-tb','8','-ngl','0','--no-mmproj-offload','--no-warmup','-b','8192','-ub','8192','-c','8192','-np','1','--seed','626','--reasoning','off','--api-key-file','/work/key']
+    report['engine_command']=command
+    with (OUT/'engine.log').open('w') as log:
+        process=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT)
+        report['engine_pid']=process.pid
+        try:
+            deadline=time.monotonic()+60
+            async with httpx.AsyncClient(trust_env=False,headers=HEADER) as client:
+                while True:
+                    if process.poll() is not None: raise RuntimeError('original native engine exited during startup')
+                    try:
+                        ready=await client.get(f'http://127.0.0.1:{port}/health',timeout=.5)
+                        if ready.status_code==200: break
+                    except (httpx.HTTPError,TimeoutError): pass
+                    if time.monotonic()>=deadline: raise TimeoutError('original engine startup deadline')
+                    await asyncio.sleep(.1)
+            report['maps']=Path(f'/proc/{process.pid}/maps').read_text()
+            await controls(port,report)
+            await original_capture(port,report)
+        except BaseException as error:
+            report['failure']={'type':type(error).__name__,'message':str(error)}
+            raise
+        finally:
+            if process.poll() is None: process.terminate()
+            try: report['engine_exit']=process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                process.kill();report['engine_exit']=process.wait(timeout=10);report['forced_cleanup']=True
+            (OUT/'result.json').write_text(json.dumps(report,indent=2,ensure_ascii=False)+'\n')
+    print(json.dumps({'controls_passed':report.get('protocol_controls_passed',False),'checks':len(report['checks']),'capture':report.get('single_capture',{}).get('outcome'),'engine_exit':report['engine_exit']}))
+
+asyncio.run(main())

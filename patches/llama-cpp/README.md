@@ -1,4 +1,29 @@
-# Native realtime disabled-tool compatibility candidate
+# Native realtime compatibility candidates
+
+The additional [native history candidate](8ca4060-native-history.patch) addresses
+#483/#626. Apply it **after** the disabled-tool patch below, on the same exact
+base commit. It adds the advertised `native_history.v1` extension, real chat-role
+history, bounded digest acknowledgments and collision-safe turn framing. The
+[protocol and verification](../../docs/native-realtime-history.md) distinguish
+native roles from the explicit limited JSON mode. Neither patch installs or
+promotes an owner engine, changes model defaults, or promises model answer quality.
+
+```sh
+git apply --unidiff-zero --check /path/to/8ca4060-realtime-no-tools.patch
+git apply --unidiff-zero /path/to/8ca4060-realtime-no-tools.patch
+git apply --unidiff-zero --check /path/to/8ca4060-native-history.patch
+git apply --unidiff-zero /path/to/8ca4060-native-history.patch
+```
+
+Ordered application was verified in a separate detached worktree. All six final
+source files match [the source manifest](8ca4060-native-history-source.json)
+byte-for-byte. The added `test-realtime-history` CMake target checks framing,
+history parsing/digests and the original-method negative control; the retained
+qualification also runs it against the pinned official LFM3 template. The
+private engine overlay compiles the changed realtime object and links existing
+other objects/libraries. It does not establish a clean rebuild, platform-wide
+qualification or upstream support. No upstream contribution is made by this
+downstream evaluation candidate.
 
 This is a downstream qualification candidate for llama.cpp source commit
 `8ca4060b7e30e76baaa5670ee1ec1b760b7f8552`, associated with issue #483.

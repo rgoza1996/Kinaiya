@@ -9,7 +9,8 @@ from datetime import UTC, datetime
 from packages.contracts.memory import MemoryBinding
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import combine_scopes, scope_allowed
-from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from packages.providers.realtime_audio import NativeAudioReply
+from packages.providers.text import ProviderCleanupError, ProviderRefusal, owned_http_stream_cleanup
 from services.converse.context_budget import ContextBudgetBuilder
 from services.converse.context_projection import ContextProjection
 from services.converse.delivery_context import window_context_projection
@@ -448,6 +449,7 @@ class WindowConverseController:
                             **(
                                 {
                                     "native_audio": text == prepared.native_audio_reply.text,
+                                    "native_audio_history": prepared.native_audio_reply.history_mode,
                                     **(
                                         {
                                             "native_audio_sha256": hashlib.sha256(
@@ -662,6 +664,12 @@ class WindowConverseController:
                 if await self.current(prepared) is None:
                     self._abandon(prepared)
                     return
+                if (
+                    type(reply) is not NativeAudioReply
+                    or type(reply.history_mode) is not str
+                    or reply.history_mode not in {"system_json", "native_roles_v1"}
+                ):
+                    raise ProviderRefusal("Native audio history representation is unavailable")
                 # Buffered native output is one atomic text/audio unit. Splitting
                 # text with SpeechChunker would break its PCM correspondence.
                 prepared.native_audio_reply = reply

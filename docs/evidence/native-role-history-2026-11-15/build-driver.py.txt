@@ -1,0 +1,44 @@
+"""Build only the private realtime object against pinned existing engine objects."""
+from pathlib import Path
+import hashlib
+import json
+import shlex
+import shutil
+import subprocess
+
+base=Path('/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab')
+source=Path('/tmp/kinaiya-626-native-history-engine')
+out=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2')
+out.mkdir(mode=0o700)
+(out/'bin').mkdir(mode=0o700)
+files=[source/'tools/server/server-realtime.cpp',source/'tools/server/server-realtime-history.h',source/'tools/server/CMakeLists.txt']
+pins={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+build=base/'build/tools/server'
+flags={}
+for line in (build/'CMakeFiles/server-context.dir/flags.make').read_text().splitlines():
+    if line.startswith('CXX_'):
+        key,value=line.split('=',1)
+        flags[key.strip()]=shlex.split(value)
+obj=out/'server-realtime.cpp.o'
+archive=out/'libserver-context.a'
+shutil.copyfile(build/'libserver-context.a',archive)
+commands=[['/usr/bin/c++',*flags['CXX_DEFINES'],*flags['CXX_INCLUDES'],*flags['CXX_FLAGS'],'-o',str(obj),'-c',str(files[0])],['/usr/bin/ar','r',str(archive),str(obj)],['/usr/bin/ranlib',str(archive)]]
+link=shlex.split((build/'CMakeFiles/llama-server-impl.dir/link.txt').read_text())
+link[link.index('-o')+1]=str(out/'bin/libllama-server-impl.so')
+link=[str(archive) if arg=='libserver-context.a' else arg for arg in link]
+link.append(str(base/'build/vendor/hash/libvendor-hash.a'))
+commands.append(link)
+receipt={'base_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=base,text=True).strip(),'base_source_clean':not subprocess.check_output(['git','status','--porcelain'],cwd=base,text=True),'source_files':pins,'commands':commands,'build_kind':'one private object; existing other objects/libraries, not a clean rebuild'}
+try:
+    with (out/'build.log').open('w') as log:
+        for command in commands:
+            print(shlex.join(command),file=log,flush=True)
+            subprocess.run(command,cwd=build,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=300)
+    shutil.copyfile(base/'build/bin/llama-server',out/'bin/llama-server')
+    (out/'bin/llama-server').chmod(0o700)
+    receipt['passed']=True
+finally:
+    receipt['source_unchanged']=pins=={str(p.relative_to(source)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    receipt['files']=[{'path':str(p),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in [obj,archive,out/'bin/libllama-server-impl.so',out/'bin/llama-server'] if p.exists()]
+    (out/'build-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps({'passed':receipt['passed'],'source_unchanged':receipt['source_unchanged']}))
