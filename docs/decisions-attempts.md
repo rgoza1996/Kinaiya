@@ -103,6 +103,15 @@ and task source. Invalid/stale/restricted results are refused without another
 inference. Agent target revision, source permission and dispatch idempotency
 checks continue to apply after recovery.
 
+A native `completed` receipt alone does not make its output usable. Recovery's
+source/session/disclosure currentness check has a 500 ms budget; a late read
+settlement leaves admissibility **unavailable**, while the exact completed
+receipt and charged attempt remain unchanged. This is not missing history or
+permission to enter another provider request. A later explicit observation must
+revalidate the original result before routing; it cannot override an already
+winning refusal or reset native ownership/spend. These are metadata failures
+under the existing bounded fairness policy below, not new inference attempts.
+
 Session serializes finalized result/refusal publication per source. The first
 native outcome wins; append returns that exact stored event. This stops a late
 original result from dispatching after a replacement published uncertainty. The
@@ -135,6 +144,17 @@ commit, late original response and sole close, native CAS/owner completion,
 service authentication, legacy cutover, source-specific storage failures,
 request-hook substitution and pending provider cleanup. LocalJournal and HTTP
 CAS/completion cases exercise the same native owner.
+
+Both the loopback-socket and ASGI/actual-Session classification-before-routing
+crash cases also hold settlement of a genuine Session read inside that unchanged
+currentness budget. Each requires explicit
+uncertainty, the exact original native completion, one provider call and zero
+Agent effects before releasing the test-owned hold. Subsequent bounded explicit
+fresh-worker observations must recover the original result and dispatch exactly
+once. Each unavailable observation checks the unchanged native receipt and
+absence of effects; exhaustion still fails the test. This removes a fixture
+assumption that a loaded native Session always meets a wall-clock deadline,
+without adding runtime retries, sleeps or changing production budgets (#607).
 
 `test_decisions_finalized_refusal_recovery.py` retains HTTP GET inspection
 role/scope coverage and adds native recovery validation/fairness. Existing
