@@ -59,4 +59,10 @@ The independent `native_call_input_selection.test.js` and `native_call_input_tes
 
 ## Verification and limits
 
+[Converse task observations and editable instructions](../converse-task-context.md)
+describe the shared typed/window/native first-system-message framing. Related
+task observations are bounded, authenticated framework data with their own
+disclosure floor. They do not replace native outcome authority, original PCM,
+complete qualified history or the existing no-fallback behavior.
+
 Independent scripted-transport and real Store/runtime/API tests cover original PCM, journal identity, complete history, no-count/no-TTS traps, replay, limits, stale authority, held cleanup and native delivery. Flutter tests cover canonical WAV, HTTP/receipt identity, fast polling, unarmed import playback and retirement. Existing schema hashes remain unchanged. Exact local test and CI outcomes belong in the PR; a scripted transport is not real inference or audible playback proof. The rehearsal must separately record actual external-engine speech input/output and browser playback.

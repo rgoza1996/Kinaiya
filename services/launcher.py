@@ -974,10 +974,12 @@ def serve(args):
     elif service == "converse":
         import sqlite3
 
+        from packages.agent_adapters.task_context import TaskContextClient
         from services.converse.api import create_app
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.model_settings import ConverseModelSettings
+        from services.converse.prompts import configured_prompt
         from services.converse.runtime import ConverseRuntime
         from services.converse.setup import safe_host_setup
         from services.converse.windows import WindowConverseController
@@ -985,6 +987,7 @@ def serve(args):
         from services.settings.provider_catalog import ProviderCatalog
         from services.settings.provider_factory import UnavailableHostProvider
 
+        prompt_options = configured_prompt(config)
         try:
             catalog = ProviderCatalog(
                 args.data_dir.resolve() / "providers.sqlite",
@@ -1020,6 +1023,10 @@ def serve(args):
             )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Converse")
+        try:
+            task_context_client = TaskContextClient(config["agent_url"], tokens["converse"])
+        except (KeyError, TypeError, ValueError):
+            task_context_client = None
         runtime = ConverseRuntime(
             journal,
             host_provider,
@@ -1027,6 +1034,8 @@ def serve(args):
             resources_managed=resources_enabled,
             memory_adapters=memory_adapters,
             context_budgeted=True,
+            task_context_client=task_context_client,
+            **prompt_options,
         )
         if getattr(args, "start_paused", False):
             # A launch-time availability fence, installed before observers or

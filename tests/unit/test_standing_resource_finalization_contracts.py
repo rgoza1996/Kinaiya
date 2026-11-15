@@ -379,6 +379,14 @@ def schema_pin():
         "DecisionsAttempt",
         "DecisionsAttemptState",
     }
+    # #486/#559 have an independent five-file pin; legacy bytes stay fixed.
+    additive |= {
+        "ConversePromptConfig",
+        "TaskContextSource",
+        "TaskContextRequest",
+        "TaskContextObservation",
+        "TaskContextResponse",
+    }
     # The first media intake family is additive too. Exclude only these exact
     # 75 names; test_media_schema_exports separately pins their complete bytes.
     additive |= {
