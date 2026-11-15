@@ -497,8 +497,17 @@ The [worker evidence](../evaluation/evidence/standing-agent-worker-2026-11-01.js
 distinguishes actual SQLite/ASGI/Agent/file work with synthetic measured inference
 from provider-wire MockTransport checks and source review. This internal adapter
 adds no public launch API, running recurrence/producer, standing Stop/steering
-adapter, restart Task hydration, positive settlement, inbox or owner editor.
+adapter, resumable restart Task hydration, positive settlement, inbox or owner editor.
 Those remain required for #228 acceptance.
+
+[#633](https://github.com/rgoza1996/Kinaiya/issues/633) adds bounded terminal
+standing history under `agent.evidence-prefix.v2`, binding the complete native
+initial row and all ordered tool receipts. See
+[bounded outcomes](agent-bounded-outcomes.md) for its unchanged storage/read
+limits and all-or-refuse confirmation. Recovery installs only confirmed
+terminal snapshots as read-only knowledge, with no ordinary submit slot,
+model capture or worker. An incomplete native admission remains unresolved;
+neither history nor retained proof recreates the one-use launch capability.
 
 ## Task-bound Resources registration
 

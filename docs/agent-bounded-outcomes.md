@@ -9,7 +9,8 @@ made the final journal request exceed Session's unchanged 64 KiB entry limit.
 Small outcomes retain the existing inline representation. Before any terminal
 POST, Agent measures the entire encoded `AppendRequest`. An oversized outcome
 replaces both evidence arrays with empty arrays and adds one closed
-`evidence_ref` of contract `agent.evidence-prefix.v1`. The reference binds task,
+`evidence_ref`: `agent.evidence-prefix.v1` for ordinary submission, or
+`agent.evidence-prefix.v2` for standing admission. The reference binds task,
 session, thread, epoch, objective revision, native submit sequence, final tool
 sequence, count, canonical evidence bytes and two SHA-256 commitments. The first
 commits the ordered original Evidence objects; the second additionally commits
@@ -31,12 +32,36 @@ prefix that happened to be available. Failed hydration propagates as unavailable
 so Decisions does not acknowledge the outcome as handled. Legacy inline outcomes
 remain readable.
 
-Legacy inline snapshots, including paused snapshots, keep their exact evidence
-even when old tool rows cannot be indexed by this new contract. A sparse outcome
-still requires every original receipt. Standing-task admission has a different
-native submit proof; its small inline outcomes remain supported, while oversized
-standing outcomes conservatively pause instead of emitting an ordinary-submit
-reference that readers could not authenticate.
+Legacy inline snapshots, including ordinary paused snapshots, keep their exact
+evidence even when old tool rows cannot be indexed by this contract. A sparse
+outcome still requires every original receipt. Small standing outcomes retain
+their original inline shape.
+
+Standing v2 adds exactly one closed `admission` object: `kind`, `origin`,
+`event_id`, and `sha256`. Its family is fixed to `agent.standing-command` from
+`standing-supervisor`. The hash commits the complete original native
+`JournalEntry`, encoded as UTF-8 sorted compact JSON with ASCII escapes and
+nonfinite numbers refused. This includes its native sequence/time/identity and
+all claim, authorization, model, workspace and tool-subset metadata. Native
+authenticated transport establishes provenance; a pure packet/hash grants no
+permission. Readers fetch that exact initial family and validate the entire
+commitment, without relabeling it as ordinary submission. Unknown versions,
+extra reference/admission fields and family downgrades are unavailable.
+
+The standing worker builds its index from the full `StandingInitialProof`
+before its final freshness checks. Hash/proof-validation CPU consumes the
+original launch deadline. The existing one-use direct-created launch latch,
+model/resource capture, file-only tool subset and actual cleanup ownership
+remain authoritative. A retained admission cannot launch a worker.
+
+Restart installs confirmed terminal standing snapshots for historical status
+only. They have no ordinary native submit identity, idempotency reservation,
+standing launch owner, model lease or worker. Incomplete standing admission is
+left to the native admission lookup, rather than installed as a resumable
+ordinary paused task. Recovery does not create an outcome from a missing write
+or turn an ordinary retirement record into standing completion. Converse uses
+the same full hydration; the existing Agent-channel rule still prevents it
+from speaking a standing completion in that channel.
 
 Reconstruction permits at most 2,000 receipts, 128 MiB of canonical Evidence,
 256 pages of at most 200 tool rows and a ten-second announcement read deadline.
@@ -67,7 +92,7 @@ retained owner observations and any administrative reconciliation must describe
 that uncertainty explicitly. The repair does not alter tool execution, retention,
 provider recovery, completion requirements or Session's entry limit.
 
-## Verification
+## Ordinary outcome verification
 
 Qualified on November 4, 2026 using the existing cached Python environment:
 **479 passed, zero failures or skips, in 192.60 seconds**. This includes 56 cases
@@ -94,3 +119,13 @@ old reset-state expectations; only those branches were updated to the new
 confirmed-outcome contract before the final 479-case run. No live service,
 historical task, provider request, private media or device was changed by this
 qualification.
+
+## Standing outcome verification (#633)
+
+The [standing evidence](evidence/standing-bounded-outcomes-2026-11-15/README.md)
+records the frozen failing baseline, native admission/receipt qualification,
+full source pins, test commands and retained limitations. Model inference is
+synthetic and measured; native SQLite, authenticated Session/JournalClient,
+one-use standing admission, file tools, captured model ownership and cleanup
+are real. No model answer or style is an acceptance gate. The original #487
+task's undurable historical failure remains uncertain and is not rewritten.

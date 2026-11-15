@@ -57,6 +57,7 @@ from packages.contracts.agent_outcome import (
     OutcomeEvidenceUnavailable,
     bounded_outcome_request,
     restore_outcome_task,
+    standing_outcome_admission,
 )
 from packages.contracts.agent_submit import (
     AGENT_SUBMIT_ADMISSION_TIMEOUT_S,
@@ -1921,6 +1922,13 @@ class AgentRuntime:
 
     def _check_submit_record(self, rec: _Record, entry: JournalEntry) -> None:
         identity = _payload_hash(entry.model_dump(mode="json"))
+        if rec.standing_initial is not None:
+            if (
+                _payload_hash(rec.standing_initial.journal_entry().model_dump(mode="json"))
+                != identity
+            ):
+                raise AgentSubmitUnavailable
+            return
         if rec.submit_identity is not None:
             if rec.submit_identity != identity:
                 raise AgentSubmitUnavailable
@@ -1973,7 +1981,7 @@ class AgentRuntime:
         )
         return rec
 
-    async def _read_submit_record(self, entry, deadline, *, guard=None) -> _Record:
+    async def _read_submit_record(self, entry, deadline, *, guard=None, standing=False) -> _Record:
         def check():
             self._submit_open(deadline=deadline)
             if guard is not None:
@@ -2001,13 +2009,16 @@ class AgentRuntime:
         rec = _Record(
             task=task,
             recovered=True,
-            native_task_identity=self._native_task_identity(entry),
+            # A standing journal row is history, never an ordinary submit slot.
+            native_task_identity=None if standing else self._native_task_identity(entry),
             submit_sequence=entry.sequence,
             submit_identity=_payload_hash(entry.model_dump(mode="json")),
             legacy_submit_scope="requested_content_scope" not in payload,
             explicit_skill=payload.get("explicit_skill"),
         )
-        rec.outcome_evidence = OutcomeEvidenceIndex(task, entry.sequence)
+        rec.outcome_evidence = OutcomeEvidenceIndex(
+            task, entry.sequence, initial=entry if standing else None
+        )
         recovered_evidence = []
         evidence_index_unavailable = False
         snapshot_seen = False
@@ -2030,6 +2041,8 @@ class AgentRuntime:
                 if (event.session_id, event.thread_id) != (task.session_id, task.thread_id):
                     continue
                 if event.kind == "agent.retirement":
+                    if standing:
+                        continue
                     try:
                         claimed = TaskRetirement.model_validate(event.payload)
                     except ValueError:
@@ -3327,6 +3340,7 @@ class AgentRuntime:
     async def _recover(self) -> list[Task]:
         """Restore status without treating JSON history as native slot authority."""
         submissions: dict[str, JournalEntry] = {}
+        standing_tasks: set[str] = set()
         after = 0
         while True:
             if self._closed:
@@ -3338,12 +3352,20 @@ class AgentRuntime:
                 if event.sequence <= after:
                     raise AgentSubmitUnavailable
                 after = event.sequence
-                if event.kind != "agent.command" or event.payload.get("op") != "submit":
-                    continue
-                try:
-                    entry = submit_entry(event)
-                except ValueError:
-                    continue
+                if event.kind == "agent.standing-command":
+                    try:
+                        standing_outcome_admission(event)
+                    except OutcomeEvidenceUnavailable:
+                        continue
+                    entry = event
+                    standing_tasks.add(entry.payload["task_id"])
+                else:
+                    if event.kind != "agent.command" or event.payload.get("op") != "submit":
+                        continue
+                    try:
+                        entry = submit_entry(event)
+                    except ValueError:
+                        continue
                 task_id = entry.payload["task_id"]
                 previous = submissions.get(task_id)
                 if previous is not None and previous != entry:
@@ -3358,8 +3380,11 @@ class AgentRuntime:
                 continue
             if self._closed:
                 raise AgentSubmitUnavailable
-            session = await self._require_session(entry.session_id)
-            current = (session.thread_id, session.epoch) == (entry.thread_id, entry.epoch)
+            standing = task_id in standing_tasks
+            current = False
+            if not standing:
+                session = await self._require_session(entry.session_id)
+                current = (session.thread_id, session.epoch) == (entry.thread_id, entry.epoch)
             deadline = time.monotonic() + AGENT_SUBMIT_LOOKUP_TIMEOUT_S
             if current:
                 result = await self._lookup_submit(
@@ -3384,7 +3409,9 @@ class AgentRuntime:
                     raise AgentSubmitUnavailable
                 continue
             operation = self._start_submit_operation(
-                lambda entry=entry, deadline=deadline: self._read_submit_record(entry, deadline)
+                lambda entry=entry, deadline=deadline, standing=standing: self._read_submit_record(
+                    entry, deadline, standing=standing
+                )
             )
             try:
                 rec = await self._await_submit_operation(operation, deadline - time.monotonic())
@@ -3392,6 +3419,11 @@ class AgentRuntime:
                 raise
             except Exception:
                 raise AgentSubmitUnavailable from None
+            if standing and rec.task.state not in TERMINAL:
+                # No confirmed terminal snapshot: leave the native admission
+                # unresolved. Installing paused ordinary state could expose
+                # resume/steer paths without this process's one-use launch latch.
+                continue
             rec.submit_confirmed = current
             staged[task_id] = rec
             staged_entries[task_id] = entry
@@ -3819,7 +3851,10 @@ class AgentRuntime:
             if index is None:
                 index = OutcomeEvidenceIndex(rec.task, rec.submit_sequence)
             body = bounded_outcome_request(
-                body, snapshot, index, allow_sparse=rec.standing_initial is None
+                body,
+                snapshot,
+                index,
+                allow_sparse=rec.standing_initial is None or index.is_standing,
             )
             confirmed = await append_completion(
                 self._claim_journal(rec), body, after=rec.submit_sequence

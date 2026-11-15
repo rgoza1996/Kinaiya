@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 from core.policy import PolicyDenied
+from packages.contracts.agent_outcome import OutcomeEvidenceIndex
 from packages.contracts.agent_submit import AgentSubmitUnavailable, AgentSubmitUnconfirmed
 from packages.contracts.agent_tools import NATIVE_TOOL_ORDER, NativeToolSnapshot
 from packages.contracts.models import AgentModelPin, Session, Task, TaskState
@@ -397,6 +398,11 @@ class _Attempt:
             self.resolved = True
             if result.disposition == "retained":
                 return result
+            # Validate and hash the full native initial proof before the final
+            # freshness checks. CPU validation consumes the original deadline.
+            self.record.outcome_evidence = OutcomeEvidenceIndex(
+                self.record.task, result.proof.sequence, initial=result.proof.journal_entry()
+            )
             self.fresh()
             await self.session()
             self.fresh()
