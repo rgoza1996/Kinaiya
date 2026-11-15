@@ -72,10 +72,16 @@ and their count/identities are omitted. An empty visible list is explicitly a
 bounded observation, not a complete task inventory or evidence of Agent absence.
 Unavailable lookup is explicit and ordinary Converse remains independently usable.
 
-The actual augmented prompt is measured on text paths. Native audio retains its
-complete qualified history and original PCM; it invents no text-token count and
-does not fall back to text generation or TTS. No keyword router, confidence
-threshold, forced model answer or mandatory waiting silence is added.
+The actual augmented prompt is measured on text paths. Native audio retains the
+complete qualified history's text, order and role labels plus the original
+current PCM. The current `realtime_v1` adapter encodes prior turns as JSON data
+inside system instructions, rather than native role-bearing conversation items.
+The selected lab engine accepts only user text items, so this does not qualify
+structured multi-turn chat fidelity. [Issue #626](https://github.com/rgoza1996/Kinaiya/issues/626)
+tracks that architectural limitation and explicit capability handling. The
+adapter invents no text-token count and does not fall back to text generation
+or TTS. No keyword router, confidence threshold, forced model answer or mandatory
+waiting silence is added.
 
 Consumed task scopes participate in the complete request's disclosure floor.
 The original client, provider and backend/task identities are retained. A
