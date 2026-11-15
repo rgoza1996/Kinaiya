@@ -1,10 +1,13 @@
 """Integration tests for incremental Whistle STT -> Converse windows -> Decisions (#93, #49)."""
 
+import asyncio
 import base64
 import os
+import select
 import socket
 import tempfile
 import threading
+from contextlib import AsyncExitStack
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -145,60 +148,90 @@ async def converse_incremental_env(tmp_path: Path):
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(str(sock))
     listener.listen(4)
-    server_thread = threading.Thread(
-        target=serve,
-        args=(directory, engine, INCARNATION, "seccomp-network-v1", listener, pid),
-        daemon=True,
-    )
-    server_thread.start()
-    assert await endpoint.probe(None, SimpleNamespace(pid=pid, returncode=None))
+    stop_reader, stop_writer = socket.socketpair()
 
-    manager = _FakeManager(pid)
-    coordinator = _FakeCoordinator(manager)
-    broker = WhistleBroker(coordinator, endpoint, request_timeout_s=5)
-    resources_app = create_resources_app(coordinator, AUTH, whistle=broker)
+    class FixtureStopped(Exception):
+        pass
 
-    store = Store(tmp_path / "journal.db")
-    journal = LocalJournal(store, "converse")
-    session = store.create_session(SessionRequest(channel="converse"))
+    def accept():
+        ready, _, _ = select.select((listener, stop_reader), (), ())
+        if stop_reader in ready:
+            raise FixtureStopped
+        return listener.accept()
 
-    runtime = ConverseRuntime(
-        journal,
-        ScriptedProvider(["Hello!"]),
-    )
-    window_controller = WindowConverseController(runtime)
-    speech = SpeechClient(
-        "http://127.0.0.1:8765",
-        AUTH.tokens["converse"],
-        stt_provider="whistle",
-        stt_url="http://127.0.0.1:8764",
-        stt_transport=httpx.ASGITransport(app=resources_app),
-    )
-    converse_app = create_converse_app(
-        runtime, AUTH, speech=speech, window_controller=window_controller
-    )
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=converse_app),
-        base_url="http://converse.local",
-        headers={"Authorization": "Bearer " + AUTH.tokens["owner"]},
-    ) as client:
+    def run_server():
         try:
-            yield SimpleNamespace(
-                client=client,
-                session=session,
-                journal=journal,
-                store=store,
-                runtime=runtime,
-                window_controller=window_controller,
-                broker=broker,
+            serve(
+                directory,
+                engine,
+                INCARNATION,
+                "seccomp-network-v1",
+                SimpleNamespace(accept=accept),
+                pid,
             )
-        finally:
-            await speech.close()
-            await broker.close()
-            listener.close()
-            if sock.exists():
-                sock.unlink()
-            directory.rmdir()
+        except FixtureStopped:
+            pass
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+
+    async def stop_server():
+        # The broker can unlink its IPC pathname. Use a private wakeup and join
+        # the original server before closing fds, including failed setup (#600).
+        stop_writer.sendall(b"\x00")
+        await asyncio.to_thread(server_thread.join, 1)
+        assert not server_thread.is_alive()
+        stop_reader.close()
+        stop_writer.close()
+        listener.close()
+        if sock.exists():
+            sock.unlink()
+        directory.rmdir()
+
+    async with AsyncExitStack() as cleanup:
+        server_thread.start()
+        cleanup.push_async_callback(stop_server)
+        assert await endpoint.probe(None, SimpleNamespace(pid=pid, returncode=None))
+
+        manager = _FakeManager(pid)
+        coordinator = _FakeCoordinator(manager)
+        broker = WhistleBroker(coordinator, endpoint, request_timeout_s=5)
+        cleanup.push_async_callback(broker.close)
+        resources_app = create_resources_app(coordinator, AUTH, whistle=broker)
+        speech = SpeechClient(
+            "http://127.0.0.1:8765",
+            AUTH.tokens["converse"],
+            stt_provider="whistle",
+            stt_url="http://127.0.0.1:8764",
+            stt_transport=httpx.ASGITransport(app=resources_app),
+        )
+        cleanup.push_async_callback(speech.close)
+        store = Store(tmp_path / "journal.db")
+        cleanup.callback(store.close)
+        journal = LocalJournal(store, "converse")
+        session = store.create_session(SessionRequest(channel="converse"))
+        runtime = ConverseRuntime(journal, ScriptedProvider(["Hello!"]))
+        cleanup.push_async_callback(runtime.close)
+        window_controller = WindowConverseController(runtime)
+        cleanup.push_async_callback(window_controller.close)
+        converse_app = create_converse_app(
+            runtime, AUTH, speech=speech, window_controller=window_controller
+        )
+        client = await cleanup.enter_async_context(
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=converse_app),
+                base_url="http://converse.local",
+                headers={"Authorization": "Bearer " + AUTH.tokens["owner"]},
+            )
+        )
+        yield SimpleNamespace(
+            client=client,
+            session=session,
+            journal=journal,
+            store=store,
+            runtime=runtime,
+            window_controller=window_controller,
+            broker=broker,
+        )
 
 
 async def test_incremental_whistle_persists_windows_and_separates_counters_without_auto_capture_ended(
