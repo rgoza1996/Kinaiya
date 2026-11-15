@@ -1,10 +1,17 @@
 # Native d1 task-status matrix, November 15, 2026
 
-Issue #485 remains **open**. The declared twelve-case comparison produces
+The declared twelve-case comparison produces
 **one accepted routing result matching the plan and eleven low-confidence
 refusals** at the explicit 0.7 floor. This does not establish the requested
 classification quality. All first raw answers, distributions and refusals are
 retained; the floor, prompts and outputs were not adjusted after observation.
+
+Responsibility clarification, November 15: these results are diagnostic model
+observations, not an architectural acceptance, release or issue-closure gate.
+The [input and dispatch contract](../../decisions-task-status-context.md) is
+verified independently. Kinaiya must preserve authorized context and intended
+protocols without compensating for weak model behavior. The original captures,
+plan, probabilities, refusals and measurements below remain unchanged.
 
 The [plan](../../../evaluation/plans/issue-485-native-d1-2026-11-15.json) was
 committed in the clean candidate

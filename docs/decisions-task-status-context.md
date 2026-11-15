@@ -47,7 +47,7 @@ Queue; a valid model selection retains both independent axes and the existing
 source/enrollment/permission checks. The task-status read is an existing Agent
 adapter operation, not a new pagination or transport-ownership contract.
 
-## Verification and remaining gate
+## Architectural verification
 
 `test_decisions_task_status_context.py` uses the actual Store, window worker,
 provider transports and dispatcher with explicitly controlled Agent states and
@@ -64,9 +64,25 @@ An additional candidate oracle found unresolved terminal provenance reaching a
 local model through that fallback. Its first failure is retained, and the new
 projection now omits that unverifiable row.
 
-These controlled checks establish input and dispatch behavior, not model
-accuracy. The [predeclared native d1 matrix](evidence/decisions-task-status-native-2026-11-15/README.md)
-retains one accepted matching result and eleven below-floor refusals. Actual
-routing quality, exact integrated-head CI and final acceptance review remain
-required for #485. The old private rehearsal and separate Agent outcome-durability
+These controlled checks establish the architectural acceptance criteria:
+
+| Requirement | Verification |
+| --- | --- |
+| Active, succeeded and failed status, thanks, new work, correction and cancellation retain both independent axes | Controlled provider choices pass through the actual worker and native dispatcher unchanged |
+| Terminal observations inform the provider without becoming writable targets | Exact request identities and typed target choices; all three terminal states reject invented steer/interrupt before mutation |
+| Native source scope and bounded context determine disclosure and reuse | Hidden identity/text/digest invariance, exact session/thread/epoch, source bounds, overflow retention and fresh/reused-call revocation |
+| Typed providers preserve the new read-only field and reject malformed rows | Actual native d1 HTTP request inspection and strict typed projection checks shared by Laya/Jev/SystemOne |
+
+The [predeclared native d1 matrix](evidence/decisions-task-status-native-2026-11-15/README.md)
+retains one accepted matching result and eleven below-floor refusals. These are
+model diagnostics, not a release or issue-closure gate for this input repair.
+Kinaiya owns faithful authorized context, protocol handling and native dispatch
+safeguards; it does not own classification accuracy. No threshold, model output,
+default or semantic override was changed to compensate for those observations.
+The current-main integration at `bac96b92fbdd21e056f5a3e636fb0b05b4def27c`
+passes 415 related tests in 45.90 seconds across fourteen files. The four changed
+provider/worker modules and the focused test module pass Ruff lint and format;
+schema export leaves existing schema bytes unchanged. The requirement table
+above records the architectural review; exact published-head CI remains required
+before merge. The old private rehearsal and separate Agent outcome-durability
 discrepancy are not rewritten or claimed reconciled by this change.
