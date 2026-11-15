@@ -1,0 +1,56 @@
+{
+  "baseline": "548f85d84874b2b0d3366ffdb36f8c74aa880ae8",
+  "new_copy_cases": 4,
+  "declared_flutter_files": 396,
+  "python313": {
+    "version": "3.13.18",
+    "passed": 39,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 1,
+    "seconds": 23.78,
+    "command": "PATH=<isolated313>:<existingFlutter>:$PATH PYTHONPATH=. python -m pytest -q tests/unit/test_flutter_project_copy.py tests/integration/test_companion_control.py"
+  },
+  "python312": {
+    "version": "3.12.3",
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 1,
+    "seconds": 8.07,
+    "command": "PATH=<existing312>:<existingFlutter>:$PATH PYTHONPATH=. python -m pytest -q tests/unit/test_flutter_project_copy.py tests/integration/test_companion_control.py::test_owner_and_companion_dart_transports_against_live_session_asgi"
+  },
+  "static": {
+    "ruff_check": "passed",
+    "ruff_format": "1042 files already formatted",
+    "git_diff_check": "passed"
+  },
+  "source_sha256": {
+    "tests/flutter_project_helpers.py": "c3cef240b56a3026c142e6b1e911e6b8b44e9fd3e01485c42837f6a51b81bbeb",
+    "tests/unit/test_flutter_project_copy.py": "505b426968897767154a5b55bda1ccfa19164c782b2024107abe56af506ee57f",
+    "tests/integration/test_companion_control.py": "b87cc5272d1ed66211e359ba754b1108008865b23da3c33abf9aaf45e52fa0e3"
+  },
+  "logs": {
+    "issue-637-dart-source-first.log": {
+      "sha256": "9ffba56315f6257ba18db5134506e0ebdbbe0c6a9d97870bb161befa798cf06c",
+      "summary": "1 failed, 1 warning in 8.59s"
+    },
+    "issue-637-copy-first.log": {
+      "sha256": "6d0f6823542dc3c7399eb42595f86a942162b654170cae257d762dcb8dfc7682",
+      "summary": "1 error in 0.11s"
+    },
+    "issue-637-source-isolation-after.log": {
+      "sha256": "aece55960bb03ff331b39f08b3e19845dbd1d35f0e6d5ca4550a4a73fba9c79f",
+      "summary": "37 passed, 1 warning in 28.84s"
+    },
+    "issue-637-source-isolation-final313.log": {
+      "sha256": "dc53f908417dc294c4f493ed039bb281ade93ecd8a1a31c3c8cbf1388f709d90",
+      "summary": "39 passed, 1 warning in 23.78s"
+    },
+    "issue-637-source-isolation-final312.log": {
+      "sha256": "e297d1554744c6a7be6da3eb78e89f740ecbbea92ade68ea44b05897b320f25f",
+      "summary": "5 passed, 1 warning in 8.07s"
+    }
+  },
+  "remaining": "Core Dart/native case in stacked PR #632 still requires the shared helper before complete #637 closure; exact-head CI pending."
+}
