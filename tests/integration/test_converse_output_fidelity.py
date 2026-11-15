@@ -29,7 +29,12 @@ GENERATED = (
 
 
 def assert_no_native_work_claim(store):
-    assert store.read(kinds=["agent.outcome", "agent.task_requested", "routing.queued"]) == []
+    assert [
+        entry
+        for entry in store.read()
+        if entry.kind.startswith("agent.")
+        or (entry.kind.startswith("routing.") and entry.kind != "routing.window_decided")
+    ] == []
     assert store.read(kinds=["converse.safety"]) == []
 
 
