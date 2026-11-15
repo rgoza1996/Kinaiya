@@ -1,0 +1,35 @@
+{
+  "assertion_checks": [
+    {
+      "file": "tests/unit/test_setup_mode_cli.py",
+      "old_assertions": 11,
+      "new_assertions": 12,
+      "all_original_assertion_asts_preserved": true
+    },
+    {
+      "file": "tests/unit/test_setup_mode_transitions.py",
+      "old_assertions": 10,
+      "new_assertions": 11,
+      "all_original_assertion_asts_preserved": true
+    },
+    {
+      "file": "tests/unit/test_setup_subsystem_modes.py",
+      "old_assertions": 28,
+      "new_assertions": 29,
+      "all_original_assertion_asts_preserved": true
+    }
+  ],
+  "existing_schema_files_unchanged": 518,
+  "new_schema_files": [
+    "packages/contracts/schemas/CoreSubsystemChange.json",
+    "packages/contracts/schemas/CoreSubsystemLookup.json",
+    "packages/contracts/schemas/CoreSubsystemReceipt.json",
+    "packages/contracts/schemas/CoreSubsystemSelection.json",
+    "packages/contracts/schemas/CoreSubsystemSnapshot.json"
+  ],
+  "related_tests": {
+    "passed": 239,
+    "seconds": 17.05,
+    "files": 10
+  }
+}
