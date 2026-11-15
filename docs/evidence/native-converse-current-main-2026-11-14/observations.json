@@ -1,0 +1,922 @@
+{
+  "scope": "public synthetic isolated qualification; actual native Agent acceptance/steer with controlled held Agent provider, no tools/effects; no owner service changes, cloud, microphone or TTS fallback",
+  "source_head": "cd47ba3eadc7d4fab7806e62c64d1e34cf487451",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "qualification_sha256": "ce0b4f73c31616eb9870f75cffecd8135aa35cfedf2c5276bd47dabc290c8e99",
+  "qualification_kind": "current-main unchanged built-in persona; three predeclared fresh public utterances; first outputs only",
+  "audio_listened": false,
+  "browser_delivery_qualified": false,
+  "artifacts": [
+    {
+      "name": "llama-server",
+      "bytes": 17888,
+      "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+    },
+    {
+      "name": "libllama-server-impl.so",
+      "bytes": 8006384,
+      "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+    },
+    {
+      "name": "LFM3-Omni-2B-Q4_K_M.gguf",
+      "bytes": 1099630080,
+      "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2"
+    },
+    {
+      "name": "mmproj-LFM3-Omni-2B-Q8_0.gguf",
+      "bytes": 540892768,
+      "sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839"
+    }
+  ],
+  "controlled_agent_provider_calls": 1,
+  "engine_exit": 0,
+  "schema_version": 1,
+  "semantics_reviewed_after_run": true,
+  "review_method": "Human-readable first-output source and text review by the coding agent, independently checked against retained wire/WAV/publication bytes; no audio listening.",
+  "cases": [
+    {
+      "name": "work",
+      "input_text": "Please ask Agent to prepare a short agenda for an imaginary book club meeting.",
+      "actual_asr": "Please ask agent to prepare a short agenda for an imaginary book club meeting.",
+      "endpoint_text": "Here's a short agenda for your imaginary book club meeting:\n\nWelcome and introductions\nDiscussion of the current book\nPersonal reflections\nOpen floor for questions\nNext meeting planning",
+      "publication": {
+        "schema_version": "1.0",
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1,
+        "kind": "conversation.converse",
+        "payload": {
+          "text": "Here's a short agenda for your imaginary book club meeting:\n\nWelcome and introductions\nDiscussion of the current book\nPersonal reflections\nOpen floor for questions\nNext meeting planning",
+          "final": true,
+          "revision": 1,
+          "generation_epoch": 1,
+          "runtime_id": "639080e5-9c6c-4916-b642-dbeef59f8bbe",
+          "owner_intent_revision": 0,
+          "availability_generation": 0,
+          "chunk_id": "c3206dc77c43145ecfec7b90261bf5a8",
+          "delivery": "generated",
+          "window_source_id": "77c0598a-478d-4a56-b640-41947d425285",
+          "window_utterance_id": "9708974f-017c-42d3-b779-a61bd2e62413",
+          "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "native_audio": true,
+          "native_audio_sha256": "21d349b0d28a1cdf6b330949748de923b297d507f8a74fedb13ef3180e41e015",
+          "content_scope": "local_only"
+        },
+        "causes": [
+          "77c0598a-478d-4a56-b640-41947d425285"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-reply:77c0598a-478d-4a56-b640-41947d425285:0",
+        "event_id": "4e1cb44d-e440-476e-8ec6-55e284c29de7",
+        "sequence": 6,
+        "origin": "converse",
+        "created_at": "2026-11-15T05:43:36.222397Z"
+      },
+      "native_agent_receipt": {
+        "schema_version": "1.0",
+        "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1,
+        "objective": "Please ask agent to prepare a short agenda for an imaginary book club meeting.",
+        "content_scope": "public_synthetic",
+        "objective_revision": 1,
+        "state": "accepted",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "77c0598a-478d-4a56-b640-41947d425285"
+        ],
+        "idempotency_key": "public-controlled-task",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "first_system_message": {
+        "role": "system",
+        "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T05:43:31.759497+00:00\",\"instance_id\":\"0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e\",\"tasks\":[{\"task_id\":\"564adae6-619c-47c7-8efe-c014f935f549\",\"session_id\":\"6396d59d-5838-4c90-96ea-1e76688c60fa\",\"thread_id\":\"785f4589-e9c2-48f7-8107-d83a5bad8c6c\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":false,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+      },
+      "elapsed_s": 6.771186854995904,
+      "error": null,
+      "files": [
+        {
+          "name": "work-input.wav",
+          "bytes": 156524,
+          "sha256": "b10aa6eab7e02e4390d466b05a9845c24045cdea42eace2294c5fb2b7a5ddc43",
+          "pcm_sha256": "f1041db36127f828548807c8445303f7473f5a45e9ef52c382a439dcd4daa02b",
+          "rate": 16000,
+          "seconds": 4.89
+        },
+        {
+          "name": "work-output.wav",
+          "bytes": 599084,
+          "sha256": "aa9378b940340a5d0c15fdb64bb10cb9246dee59ae6c9afc6a39e32eb437ff0d",
+          "pcm_sha256": "21d349b0d28a1cdf6b330949748de923b297d507f8a74fedb13ef3180e41e015",
+          "rate": 24000,
+          "seconds": 12.48
+        }
+      ],
+      "semantic_text_pass": false,
+      "semantic_text_review": "Drafts the agenda instead of receipt-only handoff; no verified repair."
+    },
+    {
+      "name": "followup",
+      "input_text": "Add a poetry reading to that same request.",
+      "actual_asr": "And a poetry writing to that same request,",
+      "endpoint_text": "Here's a short agenda for your imaginary book club meeting:\n\nWelcome and introductions\nDiscussion of the current book\nPersonal reflections\nOpen floor for questions",
+      "publication": {
+        "schema_version": "1.0",
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1,
+        "kind": "conversation.converse",
+        "payload": {
+          "text": "Here's a short agenda for your imaginary book club meeting:\n\nWelcome and introductions\nDiscussion of the current book\nPersonal reflections\nOpen floor for questions",
+          "final": true,
+          "revision": 1,
+          "generation_epoch": 3,
+          "runtime_id": "639080e5-9c6c-4916-b642-dbeef59f8bbe",
+          "owner_intent_revision": 0,
+          "availability_generation": 0,
+          "chunk_id": "f7d631799c7dacafc7f6b87a1b0cda0d",
+          "delivery": "generated",
+          "window_source_id": "9ba5e77c-b144-4078-a6c9-571a17de6388",
+          "window_utterance_id": "9414d140-5cfe-4aa4-adb9-a0ee74597607",
+          "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "native_audio": true,
+          "native_audio_sha256": "c11e22c043af745b7a95b3138689c1c206845d9f5e4f00a89baacdf54fa564c0",
+          "content_scope": "local_only"
+        },
+        "causes": [
+          "9ba5e77c-b144-4078-a6c9-571a17de6388"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-reply:9ba5e77c-b144-4078-a6c9-571a17de6388:0",
+        "event_id": "e4e55d68-04bd-47a0-b227-29a25df3000d",
+        "sequence": 13,
+        "origin": "converse",
+        "created_at": "2026-11-15T05:43:40.972662Z"
+      },
+      "native_agent_receipt": {
+        "schema_version": "1.0",
+        "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1,
+        "objective": "Please ask agent to prepare a short agenda for an imaginary book club meeting.",
+        "content_scope": "public_synthetic",
+        "objective_revision": 1,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "77c0598a-478d-4a56-b640-41947d425285"
+        ],
+        "idempotency_key": "public-controlled-task",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "first_system_message": {
+        "role": "system",
+        "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T05:43:37.536528+00:00\",\"instance_id\":\"0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e\",\"tasks\":[{\"task_id\":\"564adae6-619c-47c7-8efe-c014f935f549\",\"session_id\":\"6396d59d-5838-4c90-96ea-1e76688c60fa\",\"thread_id\":\"785f4589-e9c2-48f7-8107-d83a5bad8c6c\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":true,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+      },
+      "elapsed_s": 4.687290175999806,
+      "error": null,
+      "files": [
+        {
+          "name": "followup-input.wav",
+          "bytes": 87884,
+          "sha256": "5109e92a1120b7f7bb88d73a861f011b4e50e80c5d818440b2b42c9b99ac292f",
+          "pcm_sha256": "5468de42c8424ce40ab60a24cf42a08e3fd9ee4a041c3caa6f30073729216faa",
+          "rate": 16000,
+          "seconds": 2.745
+        },
+        {
+          "name": "followup-output.wav",
+          "bytes": 591404,
+          "sha256": "5645c6d56997fbb0ad695095fcad1548db9042a9c2f7612fbbc0fd3d2aa89874",
+          "pcm_sha256": "c11e22c043af745b7a95b3138689c1c206845d9f5e4f00a89baacdf54fa564c0",
+          "rate": 24000,
+          "seconds": 12.32
+        }
+      ],
+      "semantic_text_pass": false,
+      "semantic_text_review": "Drafts the agenda instead of receipt-only handoff; no verified repair."
+    },
+    {
+      "name": "question",
+      "input_text": "On another topic, what is the opposite direction from east?",
+      "actual_asr": "On another topic, what is the opposite direction from east?",
+      "endpoint_text": "West is the opposite direction from east.",
+      "publication": {
+        "schema_version": "1.0",
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1,
+        "kind": "conversation.converse",
+        "payload": {
+          "text": "West is the opposite direction from east.",
+          "final": true,
+          "revision": 1,
+          "generation_epoch": 5,
+          "runtime_id": "639080e5-9c6c-4916-b642-dbeef59f8bbe",
+          "owner_intent_revision": 0,
+          "availability_generation": 0,
+          "chunk_id": "aea551701bbc3a554f646a7b3ebdf854",
+          "delivery": "generated",
+          "window_source_id": "69600103-d7aa-4d5b-8cf6-b2ea3c7ded55",
+          "window_utterance_id": "c6b2a691-2dea-41d0-8f2a-f2a60faa696d",
+          "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "native_audio": true,
+          "native_audio_sha256": "16ff67f0a6be4c738dc0468af683a55b8691098b3c3288c68fd59ddbb43f21ae",
+          "content_scope": "local_only"
+        },
+        "causes": [
+          "69600103-d7aa-4d5b-8cf6-b2ea3c7ded55"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-reply:69600103-d7aa-4d5b-8cf6-b2ea3c7ded55:0",
+        "event_id": "8542b426-694b-49bf-bc6c-d4b795f8dd5b",
+        "sequence": 19,
+        "origin": "converse",
+        "created_at": "2026-11-15T05:43:44.733086Z"
+      },
+      "native_agent_receipt": null,
+      "first_system_message": {
+        "role": "system",
+        "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T05:43:42.306448+00:00\",\"instance_id\":\"0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e\",\"tasks\":[{\"task_id\":\"564adae6-619c-47c7-8efe-c014f935f549\",\"session_id\":\"6396d59d-5838-4c90-96ea-1e76688c60fa\",\"thread_id\":\"785f4589-e9c2-48f7-8107-d83a5bad8c6c\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":true,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+      },
+      "elapsed_s": 3.6745814500027336,
+      "error": null,
+      "files": [
+        {
+          "name": "question-input.wav",
+          "bytes": 117164,
+          "sha256": "c2f2ac8755087fb2647339a760bafb0b2c7b145c27f59ee1ed152113fa146f04",
+          "pcm_sha256": "18374ecc461930534dbb28343ea8dc3a0ebe84ffe6573a9af1e2e20b23184678",
+          "rate": 16000,
+          "seconds": 3.66
+        },
+        {
+          "name": "question-output.wav",
+          "bytes": 172844,
+          "sha256": "7b016b22f320173c1ae7340e4852deea14558cd5e8d47660593cd433678123b0",
+          "pcm_sha256": "16ff67f0a6be4c738dc0468af683a55b8691098b3c3288c68fd59ddbb43f21ae",
+          "rate": 24000,
+          "seconds": 3.6
+        }
+      ],
+      "semantic_text_pass": true,
+      "semantic_text_review": "Answers the unrelated direction question correctly."
+    }
+  ],
+  "task_observations": [
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "77c0598a-478d-4a56-b640-41947d425285",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:31.759497+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "77c0598a-478d-4a56-b640-41947d425285",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:31.770468+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "77c0598a-478d-4a56-b640-41947d425285",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:31.814139+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "77c0598a-478d-4a56-b640-41947d425285",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:36.220166+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "9ba5e77c-b144-4078-a6c9-571a17de6388",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:37.536528+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "9ba5e77c-b144-4078-a6c9-571a17de6388",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:37.549520+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "9ba5e77c-b144-4078-a6c9-571a17de6388",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:37.593563+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "9ba5e77c-b144-4078-a6c9-571a17de6388",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:40.970924+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "69600103-d7aa-4d5b-8cf6-b2ea3c7ded55",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:42.306448+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "69600103-d7aa-4d5b-8cf6-b2ea3c7ded55",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:42.318865+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "69600103-d7aa-4d5b-8cf6-b2ea3c7ded55",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:42.362764+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "69600103-d7aa-4d5b-8cf6-b2ea3c7ded55",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+        "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+        "epoch": 1
+      },
+      "instance_id": "0d04aa6b-bf2a-49f0-9e7d-e165dc58f08e",
+      "observed_at": "2026-11-15T05:43:44.731476+00:00",
+      "tasks": [
+        {
+          "task_id": "564adae6-619c-47c7-8efe-c014f935f549",
+          "session_id": "6396d59d-5838-4c90-96ea-1e76688c60fa",
+          "thread_id": "785f4589-e9c2-48f7-8107-d83a5bad8c6c",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    }
+  ],
+  "raw_receipts": [
+    {
+      "name": "wire-01.jsonl",
+      "bytes": 215021,
+      "sha256": "8d2c092f2a68a33811a82bc7ffe5402def11467149ad54e55915afa892a38abe",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "conversation.item.input_audio_transcription.completed": 1,
+        "conversation.item.input_audio_transcription.delta": 15,
+        "input_audio_buffer.committed": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-02.jsonl",
+      "bytes": 1075403,
+      "sha256": "3d96cbd33c14f234a68ec886d846b3130254c69e5f67556d5dc1b7d4f8ab4c38",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "input_audio_buffer.committed": 1,
+        "response.content_part.added": 2,
+        "response.content_part.done": 2,
+        "response.created": 1,
+        "response.done": 1,
+        "response.output_audio.delta": 157,
+        "response.output_audio.done": 1,
+        "response.output_item.added": 1,
+        "response.output_item.done": 1,
+        "response.output_text.delta": 34,
+        "response.output_text.done": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-03.jsonl",
+      "bytes": 121861,
+      "sha256": "b16ce1f4ff2f6a66592629cdb12123f4a068350a7f913411247beb8c8dc3e937",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "conversation.item.input_audio_transcription.completed": 1,
+        "conversation.item.input_audio_transcription.delta": 9,
+        "input_audio_buffer.committed": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-04.jsonl",
+      "bytes": 974390,
+      "sha256": "04bd2b6a79afc30efbf33596de085156df65360e21a02fe365539a6c6acf13b4",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "input_audio_buffer.committed": 1,
+        "response.content_part.added": 2,
+        "response.content_part.done": 2,
+        "response.created": 1,
+        "response.done": 1,
+        "response.output_audio.delta": 155,
+        "response.output_audio.done": 1,
+        "response.output_item.added": 1,
+        "response.output_item.done": 1,
+        "response.output_text.delta": 30,
+        "response.output_text.done": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-05.jsonl",
+      "bytes": 161717,
+      "sha256": "ffba21d3ed875d849e2f1acfc6a4ace4bbebf5806a8a3174a0b7d011093e0737",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "conversation.item.input_audio_transcription.completed": 1,
+        "conversation.item.input_audio_transcription.delta": 12,
+        "input_audio_buffer.committed": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-06.jsonl",
+      "bytes": 418853,
+      "sha256": "cbf388d91d6bff68a3f8fd2760b7555f3f6ea05ed6394f68f5f26b60770cf0ef",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "input_audio_buffer.committed": 1,
+        "response.content_part.added": 2,
+        "response.content_part.done": 2,
+        "response.created": 1,
+        "response.done": 1,
+        "response.output_audio.delta": 46,
+        "response.output_audio.done": 1,
+        "response.output_item.added": 1,
+        "response.output_item.done": 1,
+        "response.output_text.delta": 8,
+        "response.output_text.done": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    }
+  ],
+  "raw_manifest_sha256": "032186ef03d6a8a2ab3294b5f223abe78302b386c67427842074aa55ef2e5759",
+  "raw_task_observations_sha256": "036bb80649124b63a4f17b7620b91bee56997d9f882b7786cb86415fad826582",
+  "verification": "All six WAV/PCM hashes, three native text/PCM publications, three raw ASRs, three text streams and twelve authenticated task observations matched. No inference repeated."
+}
