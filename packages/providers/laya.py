@@ -83,6 +83,36 @@ def _choice_question(question: str, labels: list) -> dict:
     }
 
 
+def _terminal_task_history(value):
+    if not isinstance(value, list) or len(value) > MAX_TASKS:
+        raise ProviderRefusal("Decisions terminal task observations exceed their bound")
+    rows, seen = [], set()
+    for task in value:
+        if (
+            type(task) is not dict
+            or set(task) - {"task_id", "objective_revision", "state", "description"}
+            or type(task.get("task_id")) is not str
+            or not 1 <= len(task["task_id"]) <= 256
+            or task["task_id"] in seen
+            or type(task.get("objective_revision")) is not int
+            or not 1 <= task["objective_revision"] <= 9_007_199_254_740_991
+            or type(task.get("state")) is not str
+            or task["state"] not in {"succeeded", "failed", "cancelled"}
+            or (
+                "description" in task
+                and (
+                    type(task["description"]) is not str
+                    or not task["description"].strip()
+                    or len(task["description"]) > MAX_TASK_DESCRIPTION_CHARS
+                )
+            )
+        ):
+            raise ProviderRefusal("Decisions terminal task observations are malformed")
+        rows.append(dict(task))
+        seen.add(task["task_id"])
+    return rows
+
+
 def _window_questions(tasks: list) -> dict:
     questions = {
         "conversation": _choice_question(
@@ -391,6 +421,11 @@ class LayaRoutingProvider:
             + json.dumps(state["context"], ensure_ascii=False)
         )
         lines.append("Current Agent tasks (context only): " + json.dumps(state["tasks"]))
+        if state.get("task_history"):
+            lines.append(
+                "Terminal Agent observations (read-only, not writable targets or an inventory): "
+                + json.dumps(state["task_history"])
+            )
         return "\n".join(lines)
 
     def _parse_messages(self, messages) -> tuple:
@@ -511,6 +546,10 @@ class LayaRoutingProvider:
             "latest": trimmed_latest,
             "tasks": trimmed_tasks,
         }
+        if "task_history" in obj:
+            if mode != "window":
+                raise ProviderRefusal("Terminal task observations require a window request")
+            state["task_history"] = _terminal_task_history(obj["task_history"])
         return state, mode
 
     def _map_answers(self, payload: dict, state: dict, mode: str, questions: dict) -> dict:
