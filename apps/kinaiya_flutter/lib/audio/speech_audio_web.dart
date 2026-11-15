@@ -28,6 +28,7 @@ class _WebSpeechAudio
         SpeechAudio,
         WindowSpeechAudio,
         SpeechMouthAudio,
+        SpeechPlaybackAudio,
         AdaptiveVadAudio,
         NativePcmCaptureAudio,
         AudioInputSelection,
@@ -444,6 +445,18 @@ class _WebSpeechAudio
       return SpeechMouthFrame.fromJson(jsonDecode(await _str0('mouthFrame')));
     } catch (_) {
       return SpeechMouthFrame.closed;
+    }
+  }
+
+  @override
+  Future<SpeechPlaybackFrame> playbackFrame() async {
+    if (!_hasMethod('playbackFrame')) return SpeechPlaybackFrame.quiet;
+    try {
+      return SpeechPlaybackFrame.fromJson(
+        jsonDecode(await _str0('playbackFrame')),
+      );
+    } catch (_) {
+      return SpeechPlaybackFrame.quiet;
     }
   }
 
