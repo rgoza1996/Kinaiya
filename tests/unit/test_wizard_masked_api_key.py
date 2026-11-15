@@ -209,11 +209,11 @@ def test_wizard_interactive_key_persists_across_restart_and_cancellation_leaves_
         [
             "",
             "",
+            "no",
             "meta=https://api.meta.ai/v1",
             "muse-spark-1.3-contributor",
             "yes",
             secret_cancelled,
-            "no",
             "no",  # Cancel at final confirmation
         ]
     )
@@ -229,11 +229,11 @@ def test_wizard_interactive_key_persists_across_restart_and_cancellation_leaves_
         [
             "",
             "",
+            "no",
             "meta=https://api.meta.ai/v1",
             "muse-spark-1.3-contributor",
             "yes",
             secret_saved,
-            "no",
             "yes",
         ]
     )
@@ -255,11 +255,11 @@ def test_wizard_interactive_key_persists_across_restart_and_cancellation_leaves_
         [
             "",
             "",
+            "no",
             "meta=https://api.meta.ai/v1",
             "muse-spark-1.3-contributor",
             "yes",
             "",  # Blank Enter keeps existing key
-            "no",
             "yes",
         ]
     )
@@ -272,11 +272,11 @@ def test_wizard_interactive_key_persists_across_restart_and_cancellation_leaves_
         [
             "",
             "",
+            "no",
             "meta=https://api.meta.ai/v1",
             "muse-spark-1.3-contributor",
             "yes",
             "sk-uncommitted-replacement-999",
-            "no",
             "no",
         ]
     )

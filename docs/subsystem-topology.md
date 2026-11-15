@@ -7,8 +7,9 @@ security and transport, and does not imply activation of every role. A mode
 labelled **Converse only** means Converse + Decisions without Kinaiya Agent.
 
 The draft implements configuration, launcher selection and a required Decisions
-routing-runtime observation for Converse. Independent consumer policies, the
-complete mode UI and the full qualification matrix remain unfinished. The work
+routing-runtime observation for Converse. The CLI/TUI selects every valid mode.
+Independent consumer policies, the Options mode UI and the full qualification
+matrix remain unfinished. The work
 below is part of the same issue, not deferred acceptance or a completion claim.
 
 ## Configured selection
@@ -33,8 +34,27 @@ setup/off state, not a ready Converse or Agent execution mode.
 For compatibility, missing `agent` defaults true, missing `converse` false, and
 missing `decisions` follows Converse. Legacy managed Agent-only configuration
 therefore remains Agent-only; legacy Converse-only configuration still requires
-Decisions. Setup that enables Converse explicitly enables Decisions and retains
+Decisions. Legacy setup that enables Converse explicitly enables Decisions and retains
 its separate model/provider configuration.
+
+Standard/Advanced setup chooses the graph before configuring providers. Disabled
+Agent skips model/key discovery, pending credential actions, role-selection
+persistence and connection probes. Converse and Decisions retain their own
+explicit model/endpoint answers when another role changes. The existing
+user-selected reuse shortcut still requires an independent Decisions model.
+Noninteractive `--yes --services` accepts the six names documented in the Linux
+installation guide and requires separate model arguments for selected roles.
+Explicit selection does not activate a disabled role merely because its provider
+declaration exists; legacy profile-implied selection remains compatible when the
+new selector is omitted.
+
+`setup services` edits only the saved graph. It preserves all model declarations,
+credentials and unrelated settings, reports `activation: restart_required`, and
+does not claim to manage or observe running processes. Cancel/EOF writes nothing.
+Full re-setup also retains an existing disabled Agent model, while fresh setup
+does not invent a configured Agent. CLI filesystem ownership and the existing
+protected atomic configuration write remain the authority; no new live Settings
+API or CAS receipt is claimed by this offline setup increment.
 
 `serve host` and `serve all` both respect an existing `distribution` selection.
 The developer `serve all` default without a `distribution` object still selects
@@ -174,7 +194,7 @@ complete the broader matrix below or replace full CI of the resulting head.
   and optional Agent use. Shared provider/model resources must not force shared
   prompts, routing policy or lifecycle. A process-selection flag does not claim
   that an Agent consumer adapter exists.
-- Expose the complete mode selection in installer/TUI and Options, preserving
+- Expose the complete mode selection in Options, preserving
   saved/effective state, protected writes and existing source/receipt semantics.
 - Specify and verify scoped events, native handoff, queue/steer/interrupt,
   external-agent independence (#547), and failure behavior without a dependency

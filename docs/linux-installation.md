@@ -259,15 +259,47 @@ must not be pasted into prompts/arguments; only an environment variable referenc
 is written to config. Load credential values through your protected host secret
 mechanism, not into conversation or shell-history arguments.
 
-Agent-only `serve host` starts **session + Agent**. `setup --converse`, an explicit
-Converse profile, or affirmative wizard selection adds Converse text + Decisions
-on the next `serve host`. A Decisions profile without a Converse profile or
-`--converse` does not enable Converse.
+Agent-only `serve host` starts **session + Agent**. The standard/Advanced wizard
+selects services before asking for the selected roles' models. It offers
+Decisions alone, Agent alone, Agent + Decisions, Converse + Decisions, all three,
+and Core only (all subsystems off). **Converse only** includes Decisions and
+skips Agent model/key prompts. Explicit model reuse remains a separate choice.
+
+Noninteractive setup accepts `--services core|agent|decisions|agent-decisions|converse-decisions|all`
+with `--yes`. Selected Agent requires `--endpoint` and `--model`; selected
+Converse and Decisions require their own endpoint/model arguments. For example:
+
+```sh
+# First setup with Decisions and no Kinaiya Agent or Converse:
+kinaiya setup --yes --services decisions \
+  --decisions-endpoint http://127.0.0.1:1234 \
+  --decisions-model YOUR_DECISIONS_MODEL
+
+# Change only saved service selection, retaining every role's saved settings:
+kinaiya setup services
+# Or choose the saved mode without interactive prompts:
+kinaiya setup services --yes --services agent-decisions
+```
+
+Mode-only edits require an existing configuration and preserve providers,
+credentials, paths, policy and unrelated settings. They report
+`activation: restart_required`, `ready: false` and
+`provider_connection: not_checked`. Restart the host to apply the saved selection;
+the receipt does not observe the running process set. Selecting an unconfigured
+role still requires configuring its model before use.
+
+For compatibility, `setup --converse` or an explicit Converse profile without
+`--services` enables Converse + Decisions. A Decisions profile alone enables
+Decisions, without enabling Converse. An explicit `--services` selection takes
+precedence over unused provider declarations. `distribution.agent` selects the
+Kinaiya Agent process; it does not alter the separate Decisions dispatch policy
+or configure an external Agent adapter.
 No `voice`/`resources` declaration, model/voice download or license consent is
 inferred. Optional model/voice installation is a separate explicit developer path
 with its own license/download-size review; see [Converse setup](converse-setup.md).
-The existing developer `serve all` behavior is unchanged; it is not the
-Agent-only default.
+Both `serve host` and `serve all` respect an existing saved subsystem selection.
+The developer `serve all` default without a distribution selection starts all
+three roles; it is not the Agent-only setup default.
 
 Setup reports `ready: false` and `provider_connection: not_checked`. It does not
 contact a provider or claim the selected model exists/is loaded. Validate the

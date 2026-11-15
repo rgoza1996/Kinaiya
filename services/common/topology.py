@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+SUBSYSTEM_MODES = ("core", "agent", "decisions", "agent-decisions", "converse-decisions", "all")
+
 
 @dataclass(frozen=True)
 class SubsystemTopology:
@@ -14,6 +16,20 @@ class SubsystemTopology:
             raise ValueError("Subsystem selections must be booleans")
         if self.converse and not self.decisions:
             raise ValueError("Converse requires Decisions; enable Decisions or disable Converse")
+
+    @classmethod
+    def from_mode(cls, mode):
+        modes = {
+            "core": (False, False, False),
+            "agent": (True, False, False),
+            "decisions": (False, False, True),
+            "agent-decisions": (True, False, True),
+            "converse-decisions": (False, True, True),
+            "all": (True, True, True),
+        }
+        if type(mode) is not str or mode not in modes:
+            raise ValueError("Unsupported subsystem mode")
+        return cls(*modes[mode])
 
     @classmethod
     def from_config(cls, config, *, developer_all=False):

@@ -385,10 +385,10 @@ def test_wizard_integration_with_stored_profiles_and_discovery(
         [
             "",  # workspace
             "",  # data
+            "no",  # converse
             "1",  # select profile 1 (p01)
             "/deepseek",  # filter models
             "",  # Enter selects sole filtered match deepseek-coder-v2
-            "no",  # converse
             "yes",  # confirm write
         ]
     )
@@ -421,9 +421,9 @@ def test_wizard_integration_with_stored_profiles_and_discovery(
         [
             "",  # workspace
             "",  # data
+            "no",  # converse
             "p01",  # pick persisted profile p01
             "2",  # select model 2 (deepseek-coder-v2)
-            "no",  # converse
             "yes",  # confirm write
         ]
     )
@@ -480,11 +480,11 @@ def test_inline_custom_endpoint_with_v1_correction_in_wizard(tmp_path: Path):
         [
             "",  # workspace
             "",  # data
+            "no",  # converse
             "3",  # provider option 3: Custom OpenAI-compatible
             "http://localhost:11434",  # entered without /v1
             "y",  # accept /v1 hint -> becomes http://localhost:11434/v1
             "my-custom-ollama-model",  # model
-            "no",  # converse
             "yes",  # confirm write
         ]
     )
@@ -531,11 +531,11 @@ def test_remote_cloud_disclosure_and_key_before_model_discovery(
         [
             "",  # workspace
             "",  # data
+            "3",  # topology: Agent only
             "1",  # select profile 1 (p02 cloud)
             "yes",  # cloud disclosure prompt BEFORE discovery (#502)
             ":env MY_TEST_CLOUD_KEY",  # API key prompt BEFORE discovery (#502)
             "meta-llama/Llama-3.3-70B-Instruct",  # select discovered model
-            "3",  # topology: Agent only
             "yes",  # confirm write
         ]
     )
@@ -585,10 +585,10 @@ def test_remote_cloud_denied_disclosure_avoids_network_and_falls_back(
         [
             "",  # workspace
             "",  # data
+            "no",  # converse
             "1",  # select profile 1 (p02 cloud)
             "no",  # cloud disclosure prompt: DENIED (#502)
             "manual-cloud-model",  # manual fallback model ID
-            "no",  # converse
             "yes",  # confirm write
         ]
     )
@@ -624,11 +624,11 @@ def test_pre_setup_config_backup_preserved(tmp_path: Path, monkeypatch: pytest.M
         [
             "",  # workspace
             "",  # data
+            "3",  # topology: option 3 (Agent only)
             "http://127.0.0.1:1234",  # endpoint
             "new-agent-model",  # model
             "no",  # allow_cloud
             "",  # cred env
-            "3",  # topology: option 3 (Agent only)
             "yes",  # confirm write
         ]
     )
@@ -666,12 +666,12 @@ def test_endpoint_agnostic_direct_masked_api_key_for_custom_cloud_and_local_endp
         [
             "",  # workspace
             "",  # data
+            "3",  # Agent only
             "3",  # Custom OpenAI-compatible endpoint
             "https://openrouter.ai/api/v1",  # Custom Base URL
             "y",  # Cloud disclosure consent
             "sk-or-v1-direct-secret-987654",  # Direct masked API key (not an env var name!)
             "",  # Press Enter to select sole discovered model
-            "3",  # Agent only
             "yes",  # Confirm write
         ]
     )
@@ -710,10 +710,10 @@ def test_endpoint_agnostic_direct_masked_api_key_for_custom_cloud_and_local_endp
         [
             "",  # workspace
             "",  # data
+            "3",  # Agent only
             "1",  # LM Studio (local) p01
             "lms-local-token-abc12345",  # Direct masked API key on local endpoint
             "",  # Press Enter to select sole discovered model
-            "3",  # Agent only
             "yes",  # Confirm write
         ]
     )

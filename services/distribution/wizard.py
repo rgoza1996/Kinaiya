@@ -395,7 +395,7 @@ def _offer_custom_api_profile(layout, tty, result, store_factory, read_secret):
 
 
 def run_section_wizard(layout, section: str, *, tty=None):
-    """Run interactive reconfiguration for one section: workspace, model, or converse."""
+    """Reconfigure workspace, model, converse, or saved service selection."""
     return run_wizard(layout, tty=tty, section=section)
 
 

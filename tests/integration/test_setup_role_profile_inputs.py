@@ -103,9 +103,7 @@ class _TTY(io.StringIO):
             return (":env " + credential if credential else "") + "\n"
         if "authorized workspace" in prompt or "private data directory" in prompt:
             return "\n"
-        if "enable" in prompt and "converse" in prompt:
-            if self.converse:
-                self.role = "converse"
+        if prompt.startswith("select services"):
             return "yes\n" if self.converse else "\n"
         if "write" in prompt and ("configuration" in prompt or "tokens" in prompt):
             return "yes\n"

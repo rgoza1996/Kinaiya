@@ -76,7 +76,7 @@ def configure(commands):
     setup_parser.add_argument(
         "section",
         nargs="?",
-        help="Optional section to reconfigure: workspace, model, or converse",
+        help="Optional section to reconfigure: workspace, model, converse, or services",
     )
     setup_parser.add_argument("--yes", action="store_true")
     setup_parser.add_argument("--json", action="store_true")
@@ -97,6 +97,13 @@ def configure(commands):
     setup_parser.add_argument("--credential-env")
     setup_parser.add_argument("--allow-cloud", action="store_true")
     setup_parser.add_argument("--converse", action="store_true")
+    from services.common.topology import SUBSYSTEM_MODES
+
+    setup_parser.add_argument(
+        "--services",
+        choices=SUBSYSTEM_MODES,
+        help="Explicit saved subsystem mode for noninteractive --yes setup; activate by starting/restarting the host",
+    )
     setup_parser.add_argument(
         "--check-connection",
         action="store_true",
@@ -501,6 +508,48 @@ def dispatch(args):
             from services.distribution.wizard_navigation import validate_setup_section
 
             section = validate_setup_section(section)
+        from services.common.topology import SubsystemTopology
+
+        selected_mode = getattr(args, "services", None)
+        topology = SubsystemTopology.from_mode(selected_mode) if selected_mode is not None else None
+        if topology is not None:
+            if not args.yes:
+                raise InstallError("--services requires --yes; omit it for interactive selection")
+            if section not in {None, "services"}:
+                raise InstallError(
+                    "--services is available only for full setup or the services section"
+                )
+            if args.converse and not topology.converse:
+                raise InstallError("Conflicting --services and --converse selections")
+        if section == "services" and args.yes:
+            if topology is None:
+                raise InstallError("Noninteractive service selection requires --services")
+            if any(
+                getattr(args, key, None)
+                for key in (
+                    "endpoint",
+                    "model",
+                    "adapter",
+                    "credential_env",
+                    "allow_cloud",
+                    "converse",
+                    "converse_adapter",
+                    "converse_endpoint",
+                    "converse_model",
+                    "converse_credential_env",
+                    "converse_allow_cloud",
+                    "decisions_adapter",
+                    "decisions_endpoint",
+                    "decisions_model",
+                    "decisions_credential_env",
+                    "decisions_allow_cloud",
+                    "setup_workspace",
+                    "setup_data_dir",
+                )
+            ):
+                raise InstallError(
+                    "Mode-only edits preserve providers, credentials and paths; edit their own section"
+                )
         target_layout = layout
         if getattr(args, "setup_workspace", None) is not None:
             target_layout = replace(
@@ -549,6 +598,14 @@ def dispatch(args):
         if section is not None:
             from services.distribution.installation import reconfigure_section
 
+            if section == "services":
+                return reconfigure_section(
+                    target_layout,
+                    section,
+                    agent=topology.agent,
+                    converse=topology.converse,
+                    decisions=topology.decisions,
+                )
             return reconfigure_section(
                 target_layout,
                 section,
@@ -559,7 +616,7 @@ def dispatch(args):
                 allow_cloud=args.allow_cloud,
                 converse=args.converse,
             )
-        if not args.endpoint or not args.model:
+        if (topology is None or topology.agent) and (not args.endpoint or not args.model):
             raise InstallError("Noninteractive setup requires --yes --endpoint and --model")
         from services.distribution.wizard_summary import sanitize_completion_receipt
 
@@ -613,6 +670,20 @@ def dispatch(args):
             }
             if decisions_adapter is not None:
                 decisions_profile["adapter"] = decisions_adapter
+        if topology is not None:
+            if topology.converse and converse_profile is None:
+                raise InstallError(
+                    "Converse mode requires --converse-endpoint and --converse-model"
+                )
+            if topology.decisions and decisions_profile is None:
+                raise InstallError(
+                    "Decisions mode requires --decisions-endpoint and --decisions-model"
+                )
+        selection_kwargs = (
+            {"agent": topology.agent, "decisions": topology.decisions}
+            if topology is not None
+            else {}
+        )
         raw = setup(
             target_layout,
             endpoint=args.endpoint,
@@ -620,13 +691,25 @@ def dispatch(args):
             adapter=getattr(args, "adapter", None),
             credential_env=args.credential_env,
             allow_cloud=args.allow_cloud,
-            converse=args.converse,
+            converse=topology.converse if topology is not None else args.converse,
             converse_profile=converse_profile,
             decisions_profile=decisions_profile,
+            **selection_kwargs,
         )
         return sanitize_completion_receipt(
             {
                 **(raw if isinstance(raw, dict) else {}),
+                **(
+                    {
+                        "subsystems": {
+                            "agent": topology.agent,
+                            "converse": topology.converse,
+                            "decisions": topology.decisions,
+                        }
+                    }
+                    if topology is not None
+                    else {}
+                ),
                 "install": str(target_layout.install),
                 "launcher": str(target_layout.bin / "kinaiya"),
                 "config": str(target_layout.config),
@@ -637,7 +720,9 @@ def dispatch(args):
                 "model": args.model,
                 "credential_env": args.credential_env,
                 "allow_cloud": args.allow_cloud,
-                "converse": bool(args.converse or converse_profile is not None),
+                "converse": topology.converse
+                if topology is not None
+                else bool(args.converse or converse_profile is not None),
                 "converse_profile": converse_profile,
             }
         )

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from services.common.topology import SubsystemTopology
 from services.distribution.credentials import (
     LocalCredentialsStore,
     MaskedKeyAction,
@@ -53,11 +54,29 @@ from services.distribution.terminal_ui import (
     detect_color_mode,
 )
 
-VALID_SETUP_SECTIONS: tuple[str, ...] = ("workspace", "model", "converse")
+VALID_SETUP_SECTIONS: tuple[str, ...] = ("workspace", "model", "converse", "services")
 BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back", "previous", "prev"})
 CONFIRM_BACK_COMMANDS: frozenset[str] = frozenset({":back", "<", "back", "b", "previous", "prev"})
 CANCEL_COMMANDS: frozenset[str] = frozenset({":cancel", ":q", "cancel", "quit"})
 _PROFILE_ID_RE = re.compile(r"^p([0-9]{2,6})$")
+
+# Keep historical wizard answers/numbered shortcuts while exposing every valid
+# graph. A model declaration never changes this explicit process selection.
+_TOPOLOGY_CHOICES = {
+    "no": SubsystemTopology.from_mode("agent"),
+    "yes": SubsystemTopology.from_mode("all"),
+    "converse_only": SubsystemTopology.from_mode("converse-decisions"),
+    "decisions_only": SubsystemTopology.from_mode("decisions"),
+    "agent_decisions": SubsystemTopology.from_mode("agent-decisions"),
+    "core_only": SubsystemTopology.from_mode("core"),
+}
+
+
+def _selected_topology(value: str) -> SubsystemTopology:
+    try:
+        return _TOPOLOGY_CHOICES[value.strip().lower()]
+    except (KeyError, AttributeError):
+        raise InstallError("Unsupported service topology selection") from None
 
 
 def _is_local_endpoint(endpoint: str) -> bool:
@@ -175,8 +194,14 @@ def load_existing_setup_defaults(layout: Layout) -> dict[str, Any]:
             defaults["workspace"] = dist["workspace"]
         if isinstance(dist.get("data_dir"), str) and dist["data_dir"]:
             defaults["data"] = dist["data_dir"]
-        if isinstance(dist.get("converse"), bool):
-            defaults["converse"] = "yes" if dist["converse"] else "no"
+
+    try:
+        topology = SubsystemTopology.from_config(config)
+    except ValueError as exc:
+        raise InstallError(str(exc)) from None
+    defaults["converse"] = next(
+        key for key, selected in _TOPOLOGY_CHOICES.items() if selected == topology
+    )
 
     providers = config.get("providers")
     if isinstance(providers, dict):
@@ -239,6 +264,7 @@ class _PromptStep:
 _ALL_STEPS: tuple[_PromptStep, ...] = (
     _PromptStep("workspace", "Authorized workspace", "workspace"),
     _PromptStep("data", "Private data directory", "workspace"),
+    _PromptStep("converse", "Select services", "converse"),
     _PromptStep(
         "endpoint",
         "Agent provider endpoint (or adapter=endpoint, e.g. lmstudio=http://127.0.0.1:1234)",
@@ -255,7 +281,6 @@ _ALL_STEPS: tuple[_PromptStep, ...] = (
         "Credential environment variable NAME only; never paste a key",
         "model",
     ),
-    _PromptStep("converse", "Enable optional Converse text services?", "converse"),
     _PromptStep(
         "converse_adapter",
         "Converse provider adapter (lmstudio/compatible/meta)",
@@ -304,6 +329,9 @@ _CONVERSE_DEPENDENT_KEYS: tuple[str, ...] = (
     "decisions_allow_cloud",
     "decisions_credential_env",
 )
+_AGENT_KEYS = frozenset({"endpoint", "model", "allow_cloud", "credential_env"})
+_CONVERSE_KEYS = frozenset(key for key in _CONVERSE_DEPENDENT_KEYS if key.startswith("converse_"))
+_DECISIONS_KEYS = frozenset(key for key in _CONVERSE_DEPENDENT_KEYS if key.startswith("decisions_"))
 
 
 class WizardNavigator:
@@ -348,6 +376,7 @@ class WizardNavigator:
         self.answers: dict[str, str] = {}
         self.key_action: MaskedKeyAction | None = None
         self.selected_agent_model: SelectedModel | None = None
+        self.reuse_agent_roles = False
 
     def _paint(self, text: str, token_fg: str) -> str:
         if self.color_mode == ColorMode.NONE or not token_fg:
@@ -595,9 +624,8 @@ class WizardNavigator:
         )
 
     def _prompt_service_topology(self, default_val: str) -> str:
-        """Prompt for 3-way service topology selection (#513, #505, #517)."""
-        default_bool = default_val.strip().lower() in {"yes", "y", "both", "1"}
-        default_hint = "both" if default_bool else "no"
+        """Choose the configured graph before any role-specific provider prompts."""
+        default_hint = default_val.strip().lower()
 
         if is_curses_available(self.tty):
             items = [
@@ -622,13 +650,37 @@ class WizardNavigator:
                     value="converse_only",
                     description="Run conversational voice/dialogue character with Decisions timing without Agent",
                 ),
+                MenuItem(
+                    label="Decisions only",
+                    value="decisions_only",
+                    description="Run Decisions without Converse or Kinaiya Agent",
+                ),
+                MenuItem(
+                    label="Agent + Decisions",
+                    value="agent_decisions",
+                    description="Run Agent and Decisions without enabling Converse",
+                ),
+                MenuItem(
+                    label="Core only (all subsystems off)",
+                    value="core_only",
+                    description="Keep shared services without starting Agent, Converse or Decisions",
+                ),
             ]
+            if self.section == "services":
+                items[0] = MenuItem(
+                    label="All three (keep saved models)",
+                    value="yes",
+                    description="Run Agent, Converse and Decisions using saved role settings",
+                )
+                del items[1]
             try:
                 selected_idx = curses_radiolist(
                     "Service Topology Selection",
                     items,
-                    default_index=0,
-                    subtitle="Kinaiya supports Both Agent & Converse (default), Agent-only, and Converse-only.",
+                    default_index=next(
+                        i for i, item in enumerate(items) if item.effective_value == default_hint
+                    ),
+                    subtitle="Converse always requires Decisions. Saved selections take effect on host restart.",
                     allow_back=True,
                     tty=self.tty,
                 )
@@ -647,20 +699,29 @@ class WizardNavigator:
             else ">"
         )
         self.tty.write(f"\n{pointer} {c_lbl}Service Topology Selection:{RESET}\n")
-        self.tty.write(
-            f"  [1] Both Agent & Converse (reuse Agent LLM) {c_em}(recommended){RESET}\n"
-        )
-        self.tty.write("  [2] Both Agent & Converse (configure independently)\n")
+        if self.section == "services":
+            self.tty.write("  [1/2] All three (keep saved models)\n")
+        else:
+            self.tty.write(
+                f"  [1] Both Agent & Converse (reuse Agent LLM) {c_em}(recommended){RESET}\n"
+            )
+            self.tty.write("  [2] Both Agent & Converse (configure independently)\n")
         self.tty.write("  [3] Agent only\n")
         self.tty.write("  [4] Converse only\n")
+        self.tty.write("  [5] Decisions only\n")
+        self.tty.write("  [6] Agent + Decisions\n")
+        self.tty.write("  [7] Core only (all subsystems off)\n")
+        self.tty.write(
+            "Converse only includes Decisions. Saved selections take effect on host restart.\n"
+        )
         while True:
             raw = self._raw_prompt(
-                "Enable optional Converse text services? (y/n/reuse/1-4)",
+                "Select services (y/n/reuse/1-7)",
                 default=default_hint,
             )
             cleaned = raw.strip().lower()
             if not cleaned:
-                return "yes" if default_bool else "no"
+                return default_hint
             if is_cancel_command(cleaned) or is_back_command(cleaned, at_confirm=False):
                 return cleaned
             if cleaned in {"1", "reuse", "r"}:
@@ -671,6 +732,12 @@ class WizardNavigator:
                 return "no"
             if cleaned in {"4", "converse", "converse_only"}:
                 return "converse_only"
+            if cleaned in {"5", "decisions", "decisions_only"}:
+                return "decisions_only"
+            if cleaned in {"6", "agent_decisions"}:
+                return "agent_decisions"
+            if cleaned in {"7", "core", "core_only"}:
+                return "core_only"
             self.tty.write("Please enter y or n.\n")
 
     def _apply_role_reuse_shortcut(self, default_val: str) -> None:
@@ -706,12 +773,19 @@ class WizardNavigator:
 
     def _active_steps(self) -> list[_PromptStep]:
         steps: list[_PromptStep] = []
-        converse_val = self.answers.get("converse", self.defaults.get("converse", "no"))
-        converse_enabled = converse_val.strip().lower() in {"yes", "converse_only"}
+        topology = _selected_topology(self.answers.get("converse", self.defaults["converse"]))
         for step in _ALL_STEPS:
+            if self.section == "services":
+                if step.key == "converse":
+                    steps.append(step)
+                continue
             if self.section is not None and step.section != self.section:
                 continue
-            if step.key in _CONVERSE_DEPENDENT_KEYS and not converse_enabled:
+            if self.section is None and step.key in _AGENT_KEYS and not topology.agent:
+                continue
+            if step.key in _CONVERSE_KEYS and not topology.converse:
+                continue
+            if step.key in _DECISIONS_KEYS and not topology.decisions:
                 continue
             steps.append(step)
         return steps
@@ -720,50 +794,44 @@ class WizardNavigator:
         if key in self.answers:
             return self.answers[key]
         if key == "converse_endpoint":
+            if self.defaults.get("converse_endpoint"):
+                return self.defaults["converse_endpoint"]
             if "endpoint" in self.answers:
                 _, ep = parse_endpoint_input(self.answers["endpoint"])
                 return ep
-            if self.defaults.get("converse_endpoint"):
-                return self.defaults["converse_endpoint"]
             _, ep = parse_endpoint_input(self.defaults["endpoint"])
             return ep
         if key == "converse_model":
-            if "model" in self.answers:
-                return self.answers["model"]
             if self.defaults.get("converse_model"):
                 return self.defaults["converse_model"]
+            if "model" in self.answers:
+                return self.answers["model"]
             return self.defaults["model"]
         if key == "decisions_endpoint":
-            if "converse_endpoint" in self.answers:
-                return self.answers["converse_endpoint"]
             if self.defaults.get("decisions_endpoint"):
                 return self.defaults["decisions_endpoint"]
+            if "converse_endpoint" in self.answers:
+                return self.answers["converse_endpoint"]
             return self._default_for("converse_endpoint")
         if key == "decisions_model":
-            if "converse_model" in self.answers:
-                return self.answers["converse_model"]
             if self.defaults.get("decisions_model"):
                 return self.defaults["decisions_model"]
+            if "converse_model" in self.answers:
+                return self.answers["converse_model"]
             return self._default_for("converse_model")
         return str(self.defaults.get(key, ""))
 
     def _record_answer(self, key: str, value: str) -> None:
-        previous = self.answers.get(key)
         self.answers[key] = value
-        if key == "converse" and value.strip().lower() not in {"yes", "converse_only"}:
-            # Discard any stale Converse/Decisions answers when Converse is disabled.
-            for dep in _CONVERSE_DEPENDENT_KEYS:
-                self.answers.pop(dep, None)
-        elif key == "endpoint" and previous is not None and previous != value:
-            self.answers.pop("converse_endpoint", None)
-            self.answers.pop("decisions_endpoint", None)
-        elif key == "model" and previous is not None and previous != value:
-            self.answers.pop("converse_model", None)
-            self.answers.pop("decisions_model", None)
-        elif key == "converse_endpoint" and previous is not None and previous != value:
-            self.answers.pop("decisions_endpoint", None)
-        elif key == "converse_model" and previous is not None and previous != value:
-            self.answers.pop("decisions_model", None)
+        if key == "converse":
+            topology = _selected_topology(value)
+            for keys, enabled in (
+                (_CONVERSE_KEYS, topology.converse),
+                (_DECISIONS_KEYS, topology.decisions),
+            ):
+                if not enabled:
+                    for dep in keys:
+                        self.answers.pop(dep, None)
 
     def _prompt_reasoning_effort(self, *, adapter_kind: str, default: str = "none") -> str:
         """Prompt for reasoning effort level ('none', 'low', 'medium', 'high') (#502)."""
@@ -1060,17 +1128,27 @@ class WizardNavigator:
                         steps = self._active_steps()
                         continue
                     if raw == "reuse":
-                        try:
-                            self._apply_role_reuse_shortcut(default)
-                        except MenuGoBack:
-                            steps = self._active_steps()
-                            continue
-                        steps = self._active_steps()
-                        index += len(_CONVERSE_DEPENDENT_KEYS) + 1
-                        continue
+                        raw = "yes"
+                        self.reuse_agent_roles = self.section != "services"
+                    else:
+                        self.reuse_agent_roles = False
                     self._record_answer(step.key, raw)
                     steps = self._active_steps()
                     index += 1
+                    continue
+
+                if step.key == "converse_adapter" and self.reuse_agent_roles:
+                    try:
+                        self._apply_role_reuse_shortcut(default)
+                    except MenuGoBack:
+                        steps = self._active_steps()
+                        index = next(
+                            i for i, active in enumerate(steps) if active.key == "converse"
+                        )
+                        continue
+                    self.reuse_agent_roles = False
+                    steps = self._active_steps()
+                    index += len(_CONVERSE_DEPENDENT_KEYS)
                     continue
 
                 if step.key == "credential_env":
@@ -1398,9 +1476,19 @@ class WizardNavigator:
             self.answers.get("credential_env", self.defaults["credential_env"]).strip() or None
         )
         converse_raw = self.answers.get("converse", self.defaults["converse"]).strip().lower()
-        is_converse_only = converse_raw == "converse_only"
-        converse = converse_raw in {"yes", "converse_only"}
-        agent_enabled = not is_converse_only
+        topology = _selected_topology(converse_raw)
+        converse = topology.converse
+        agent_enabled = topology.agent
+        subsystems = {
+            "agent": topology.agent,
+            "converse": topology.converse,
+            "decisions": topology.decisions,
+        }
+        if self.section == "services":
+            receipt = self.reconfigure_fn(chosen, "services", **subsystems)
+            self.tty.write("Service selection saved. Restart the host to apply it.\n")
+            self.tty.flush()
+            return receipt
         converse_profile: dict[str, Any] | None = None
         decisions_profile: dict[str, Any] | None = None
         if converse:
@@ -1430,6 +1518,7 @@ class WizardNavigator:
                 "allow_cloud": converse_cloud,
                 "credential_env": converse_cred,
             }
+        if topology.decisions:
             decisions_adapter = self.answers.get(
                 "decisions_adapter", self.defaults["decisions_adapter"]
             )
@@ -1470,6 +1559,7 @@ class WizardNavigator:
                 credential_env=credential_env,
                 converse=converse,
                 agent=agent_enabled,
+                decisions=topology.decisions,
                 converse_profile=converse_profile,
                 decisions_profile=decisions_profile,
             )
@@ -1502,6 +1592,7 @@ class WizardNavigator:
             "credential_env": agent_credential_env,
             "converse": converse,
             "agent": agent_enabled,
+            "decisions": topology.decisions,
         }
         if adapter is not None:
             setup_kwargs["adapter"] = adapter
@@ -1519,7 +1610,8 @@ class WizardNavigator:
         result = self.setup_fn(chosen, **setup_kwargs)
         env_path = default_providers_env_path(chosen)
         if (
-            self.key_action is not None
+            agent_enabled
+            and self.key_action is not None
             and self.key_action.action in {"set", "remove", "keep"}
             and (self.key_action.action == "set" or env_path.exists())
         ):
@@ -1529,10 +1621,10 @@ class WizardNavigator:
                 base_url=endpoint,
                 selected_model=model,
             )
-        if self.selected_agent_model is not None and chosen.config.exists():
+        if agent_enabled and self.selected_agent_model is not None and chosen.config.exists():
             save_role_model_selection(chosen, self.selected_agent_model)
         probe_dict: dict[str, Any] = {}
-        if self.check_connection:
+        if self.check_connection and agent_enabled:
             from services.distribution.connection_probe import run_interactive_connection_check
 
             probe_res = run_interactive_connection_check(
@@ -1582,6 +1674,7 @@ class WizardNavigator:
                 "credential_env": agent_credential_env,
                 "credential_saved": credential_saved,
                 "converse": converse,
+                "subsystems": subsystems,
                 "converse_profile": converse_profile,
                 **probe_dict,
             }

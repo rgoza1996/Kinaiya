@@ -58,7 +58,7 @@ def test_active_wizard_reprompts_boolean_answers_without_changing_default_permis
     answers = (
         ["", "local-model", "maybe", "n", "maybe", "n", "maybe", "Y"]
         if mode == "quick"
-        else ["", "", "", "local-model", "maybe", "n", "", "maybe", "n", "maybe", "Y"]
+        else ["", "", "maybe", "n", "", "local-model", "maybe", "n", "", "maybe", "Y"]
     )
     tty = Terminal(answers)
     calls = []
@@ -90,7 +90,7 @@ def test_active_wizard_eof_after_invalid_consent_never_calls_setup(tmp_path, mod
     answers = (
         ["", "local-model", "n", "n", "maybe"]
         if mode == "quick"
-        else ["", "", "", "local-model", "n", "", "n", "maybe"]
+        else ["", "", "n", "", "local-model", "n", "", "maybe"]
     )
     coordinator = wizard_flow.WizardFlowCoordinator(
         layout,
