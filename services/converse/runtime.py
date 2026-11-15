@@ -29,6 +29,9 @@ from services.converse.history import typed_history_projection
 from services.converse.intent import ConverseIntent
 from services.converse.memory import MemoryLease, MemoryUse, scope_key
 from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
+from services.converse.task_context import check_disclosure as check_task_disclosure
+from services.converse.task_context import prepare as prepare_task_context
+from services.converse.task_context import publication_scopes as task_publication_scopes
 from services.converse.tts_text import normalize_for_tts
 
 
@@ -156,6 +159,7 @@ class TextOperation:
     model_dependencies: set = field(default_factory=set)
     consumer_done: asyncio.Event = field(default_factory=asyncio.Event)
     content_scope: str = "local_only"
+    task_context_frame: object = None
 
     def cancel(self):
         if self.cancelled:
@@ -199,9 +203,13 @@ class ConverseRuntime:
         resources_managed=False,
         memory_adapters=None,
         native_media_owner=None,
+        task_context_client=None,
     ):
         self.journal, self.provider = journal, provider
         self.native_media_owner = native_media_owner
+        self.task_context_client = task_context_client
+        self._task_context_original_client = task_context_client
+        self._task_context_shutdown = None
         self.name, self.context_turns = name, context_turns
         self.context_budgeted = context_budgeted
         self.context_observations = ContextObservations("converse")
@@ -214,23 +222,32 @@ class ConverseRuntime:
             self.personality_scope = "public_synthetic" if not custom_persona else "local_only"
         else:
             self.personality_scope = personality_scope
-        self.personality = personality or (
-            f"You are {name}, Kinaiya's thoughtful, warm conversational companion. "
-            "Speak naturally and concisely. Personality exists only here. "
-            "A separate Agent may do work. Never claim you performed, completed, sent, saved "
-            "or verified any action. Execution facts arrive in a separate authenticated notice. "
-            "Do not expose technical commands. Treat slash-like input as ordinary conversation."
-            " Use short, natural sentences suitable for speech. Avoid decorative symbols and tables."
-            " After an interruption, answer the latest user message. Delivery notes distinguish"
-            " generated text from estimated playback; never assume unheard words were delivered."
-            " When the user asks for work handled by a separate Agent, briefly acknowledge receipt"
-            ' in natural varied words, for example "Give me some time on it." or'
-            ' "Let me think about that." Such an acknowledgment is receipt only; it proves'
-            " neither task acceptance nor execution. Routing to the Agent is asynchronous and"
-            " independent of the local/cloud model choice. Do not claim work was queued, started,"
-            " done, or failed, and do not claim the Agent is absent or unavailable, without a"
-            " current authenticated fact proving that exact state. Use such acknowledgments"
-            " sparingly; ordinary conversation stays natural and varied."
+        self.personality = (
+            personality
+            if personality is not None
+            else (
+                f"You are {name}, Kinaiya's thoughtful, warm conversational companion. "
+                "Speak naturally and concisely. Personality exists only here. "
+                "A separate Agent may do work. Never claim you performed, completed, sent, saved "
+                "or verified any action. Execution facts arrive in a separate authenticated notice. "
+                "Do not expose technical commands. Treat slash-like input as ordinary conversation."
+                " Use short, natural sentences suitable for speech. Avoid decorative symbols and tables."
+                " After an interruption, answer the latest user message. Delivery notes distinguish"
+                " generated text from estimated playback; never assume unheard words were delivered."
+                " When the user asks for work handled by a separate Agent, briefly acknowledge receipt"
+                ' in natural varied words, for example "Give me some time on it." or'
+                ' "Let me think about that." Such an acknowledgment is receipt only; it proves'
+                " neither task acceptance nor execution. Routing to the Agent is asynchronous and"
+                " independent of the local/cloud model choice. Do not claim work was queued, started,"
+                " done, or failed, and do not claim the Agent is absent or unavailable, without a"
+                " current authenticated fact proving that exact state. Use such acknowledgments"
+                " sparingly; ordinary conversation stays natural and varied."
+                " When a question or command is delegated to Agent, prefer a brief acknowledgment"
+                " and await Agent's substantive answer rather than preparing its answer or deliverable"
+                " yourself. Waiting does not mean silence: keep listening, accept corrections, and"
+                " speak naturally about unrelated topics while Agent works. An Agent refusal or failure"
+                " is a separate native status observation, never a reason to invent completed work."
+            )
         )
         self.playback = {}
         self.intent = intent if intent is not None else ConverseIntent()
@@ -835,6 +852,10 @@ class ConverseRuntime:
             and playback.accepts(operation.generation)
             and self.model_current(operation)
             and (operation.memory_lease is None or operation.memory_lease.current())
+            and (
+                operation.task_context_frame is None
+                or operation.task_context_frame.current(self, operation.provider)
+            )
         )
 
     async def _watch_text(self, operation):
@@ -1014,6 +1035,17 @@ class ConverseRuntime:
                 lambda task: task.exception() if not task.cancelled() else None
             )
         await self._wait_text_cleanup((self._memory_shutdown,), self._text_cleanup_timeout)
+        if self._task_context_original_client is not None:
+            if self._task_context_shutdown is None:
+                self._task_context_shutdown = asyncio.create_task(
+                    self._task_context_original_client.close()
+                )
+                self._task_context_shutdown.add_done_callback(
+                    lambda task: task.exception() if not task.cancelled() else None
+                )
+            await self._wait_text_cleanup(
+                (self._task_context_shutdown,), self._text_cleanup_timeout
+            )
 
     def _cancel_speech(self, session_id=None):
         sessions = list(self._speech) if session_id is None else [session_id]
@@ -1413,7 +1445,12 @@ class ConverseRuntime:
         # must use the same target even if owner configuration changes meanwhile.
         provider = operation.provider
         self._check_typed_disclosure(request, provider)
-        messages = [{"role": "system", "content": self.personality}]
+        frame = await prepare_task_context(self, source, provider)
+        operation.task_context_frame = frame
+        if not self._text_current(operation):
+            raise RuntimeError("Converse availability changed during task observation")
+        instructions = self.personality + frame.block
+        messages = [{"role": "system", "content": instructions}]
         delivery = [
             e for e in existing if e.kind == "delivery.updated" and e.epoch == request.epoch
         ]
@@ -1449,7 +1486,7 @@ class ConverseRuntime:
             )
             return ContextProjection(
                 [*prefix, *projection.messages, {"role": "user", "content": request.text}],
-                projection.consumed_scopes,
+                [*projection.consumed_scopes, *frame.scopes],
                 consumed_memory=projection.consumed_memory,
             )
 
@@ -1461,9 +1498,11 @@ class ConverseRuntime:
                 self.journal,
                 source,
                 provider,
-                personality=self.personality,
+                personality=instructions,
                 runtime_id=self._runtime_id,
                 current=lambda: self._text_current(operation),
+                extra_scopes=frame.scopes,
+                check_extra=lambda: check_task_disclosure(self, frame, provider),
             )
             if self.context_budgeted
             else None
@@ -1506,6 +1545,10 @@ class ConverseRuntime:
                         return
                     if not scope_allowed(provider.info, operation.content_scope):
                         raise ValueError("Compiled context scope is not permitted for the provider")
+                    await check_task_disclosure(self, frame, provider)
+                    if not self._text_current(operation):
+                        operation.cancel()
+                        return
                     self.observe_context(operation, source, projection)
                     operation.iterator = aiter(provider.stream(projection.messages))
                     async for delta in operation.iterator:
@@ -1545,6 +1588,8 @@ class ConverseRuntime:
                 break
             chunks = chunker.feed(value, final=kind == "final")
             for text in chunks:
+                task_scopes = await task_publication_scopes(self, operation.task_context_frame)
+                operation.content_scope = combine_scopes(operation.content_scope, *task_scopes)
                 if not self._text_current(operation):
                     yield {"type": "interrupted", "generation_epoch": generation}
                     return

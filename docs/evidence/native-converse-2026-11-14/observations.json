@@ -1,0 +1,321 @@
+{
+  "issue": 483,
+  "scope": "Fresh public synthetic native app-path qualification, not a repair or general quality claim. No actual Agent dispatch, browser playback, microphone, cloud, or live service change.",
+  "app_head": "4e34f94df9845717eb5896aec61d4ea6f9d24c19",
+  "engine_source_commit": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "cases": [
+    {
+      "name": "work",
+      "input_text": "Please ask Agent to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "actual_asr": "Please ask agent to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "input_pcm_sha256": "481df1ca491f916cfa29a1bb4e1385e10d231ee463f6fe73709f544bd556ecb0",
+      "input_seconds": 6.255,
+      "endpoint_text": "Here is a checklist for your fictional neighborhood picnic:\n\nFood:\n- Sandwiches\n- Fruit salad\n- chips\n- Water\n- Ice\n\nGames:\n- Frisbee\n- Ball\n- Cornhole\n- Jenga\n\nRain plan:\n- Tents\n- Umbrellas\n- Cozy blankets",
+      "output_pcm_sha256": "e5f81015be9bb6b1b970d358776d2e8c6699295cc0ed6587688949101c0154e4",
+      "output_wav_sha256": "6ebbaa1ad02cb2fddc827a15f23685241d776ec9bc8541f1fa8db17f230ef731",
+      "output_rate": 24000,
+      "output_seconds": 24.32,
+      "elapsed_s": 7.511544207000043,
+      "profile": "baseline",
+      "output_file": "baseline-work-output.wav",
+      "published_text": "Here is a checklist for your fictional neighborhood picnic:\n\nFood:\n- Sandwiches\n- Fruit salad\n- chips\n- Water\n- Ice\n\nGames:\n- Frisbee\n- Ball\n- Cornhole\n- Jenga\n\nRain plan:\n- Tents\n- Umbrellas\n- Cozy blankets",
+      "published_native_audio": true,
+      "text_similarity": 0.01274,
+      "semantic_assessment": "Does not satisfy receipt-only delegated-work behavior across both turns.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "followup",
+      "input_text": "While that is in progress, make the food options vegetarian.",
+      "actual_asr": "Well that is in progress, make the food options vegetarian.",
+      "input_pcm_sha256": "a409761e96f030dc7214e0aa1be0ec43d0ba397136799d521120300b6db11216",
+      "input_seconds": 3.875,
+      "endpoint_text": "Here are the vegetarian food options:\n\n- Veggie sandwiches\n- Fruit salad\n- Chips\n- Water\n",
+      "output_pcm_sha256": "caa055754357ad25d8936cf52db22b5bc3cb07f2d6869764f9a9db5436e05a49",
+      "output_wav_sha256": "e41a2dc7b37651f79e530c9d4059feea3b2c06b3aee6084186f51e5819a52252",
+      "output_rate": 24000,
+      "output_seconds": 10.16,
+      "elapsed_s": 3.946685394999804,
+      "profile": "baseline",
+      "output_file": "baseline-followup-output.wav",
+      "published_text": "Here are the vegetarian food options:\n\n- Veggie sandwiches\n- Fruit salad\n- Chips\n- Water\n",
+      "published_native_audio": true,
+      "text_similarity": 0.40541,
+      "semantic_assessment": "Does not satisfy receipt-only delegated-work behavior across both turns.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "question",
+      "input_text": "On a different topic, how many sides does a triangle have?",
+      "actual_asr": "On a different topic, how many sides does the triangle have?",
+      "input_pcm_sha256": "8a96c1c0437d34d37963b994bbee0745dd7ac86110942e86cd25c1c195a6305e",
+      "input_seconds": 3.79,
+      "endpoint_text": "A triangle has three sides.",
+      "output_pcm_sha256": "b0c102f23a2ded3fd6cbb8ccb0128490ef5a18a688a1b788cfa6f890ee708470",
+      "output_wav_sha256": "d8471e44fb74935d8ccc3be6f6253fccb24c32df3f63708dc06c0c6c17055b56",
+      "output_rate": 24000,
+      "output_seconds": 2.96,
+      "elapsed_s": 3.031865075001406,
+      "profile": "baseline",
+      "output_file": "baseline-question-output.wav",
+      "published_text": "A triangle has three sides.",
+      "published_native_audio": true,
+      "text_similarity": 0.32184,
+      "semantic_assessment": "Correct textual triangle answer; spoken words and delivery unqualified.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "work",
+      "input_text": "Please ask Agent to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "actual_asr": "Please ask agent to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "input_pcm_sha256": "481df1ca491f916cfa29a1bb4e1385e10d231ee463f6fe73709f544bd556ecb0",
+      "input_seconds": 6.255,
+      "endpoint_text": "Here is a checklist for your fictional neighborhood picnic:\n\nFood:\n- Sandwiches\n- Fruit salad\n- Salad\n- Water\n- Chips\n- Ice cream\n\nGames:\n- Frisbee\n- Ball\n- Cornhole\n- Jenga\n- Scavenger hunt\n\nRain plan:\n- Tents\n- Umbrellas\n- Raincoats\n- Indoor games\n- Movie night",
+      "output_pcm_sha256": "250ea81cb0ba546193c92367a4091f2a7a2bb75d0d67dcbd0078e7848f5aabeb",
+      "output_wav_sha256": "49d572fb34b883c13678a34d9243e573642570eb30aefe4c7a971a269b159386",
+      "output_rate": 24000,
+      "output_seconds": 33.92,
+      "elapsed_s": 9.08825957299996,
+      "profile": "append-preference",
+      "output_file": "append-preference-work-output.wav",
+      "published_text": "Here is a checklist for your fictional neighborhood picnic:\n\nFood:\n- Sandwiches\n- Fruit salad\n- Salad\n- Water\n- Chips\n- Ice cream\n\nGames:\n- Frisbee\n- Ball\n- Cornhole\n- Jenga\n- Scavenger hunt\n\nRain plan:\n- Tents\n- Umbrellas\n- Raincoats\n- Indoor games\n- Movie night",
+      "published_native_audio": true,
+      "text_similarity": 0.02162,
+      "semantic_assessment": "Does not satisfy receipt-only delegated-work behavior across both turns.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "followup",
+      "input_text": "While that is in progress, make the food options vegetarian.",
+      "actual_asr": "Well that is in progress, make the food options vegetarian.",
+      "input_pcm_sha256": "a409761e96f030dc7214e0aa1be0ec43d0ba397136799d521120300b6db11216",
+      "input_seconds": 3.875,
+      "endpoint_text": "Here are the vegetarian food options:\n\n- Veggie sandwiches\n- Fruit salad\n- Salad\n- Water\n- Chips\n- Ice cream\n\nThe games and rain plan remain the same.",
+      "output_pcm_sha256": "8b1f6481ab5ea9739a2495466f423faa3d7127a6173622f3313181d030321138",
+      "output_wav_sha256": "9bebee691748eec12d9aab1b86c8b33a38eca54037e1181e898f5d0250fb55c5",
+      "output_rate": 24000,
+      "output_seconds": 15.76,
+      "elapsed_s": 4.719085570999596,
+      "profile": "append-preference",
+      "output_file": "append-preference-followup-output.wav",
+      "published_text": "Here are the vegetarian food options:\n\n- Veggie sandwiches\n- Fruit salad\n- Salad\n- Water\n- Chips\n- Ice cream\n\nThe games and rain plan remain the same.",
+      "published_native_audio": true,
+      "text_similarity": 0.29665,
+      "semantic_assessment": "Does not satisfy receipt-only delegated-work behavior across both turns.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "question",
+      "input_text": "On a different topic, how many sides does a triangle have?",
+      "actual_asr": "On a different topic, how many sides does the triangle have?",
+      "input_pcm_sha256": "8a96c1c0437d34d37963b994bbee0745dd7ac86110942e86cd25c1c195a6305e",
+      "input_seconds": 3.79,
+      "endpoint_text": "A triangle has three sides.",
+      "output_pcm_sha256": "fe8a47be66b1e692c91333e2d7db229d70f6e6c4a5765eed069b14361b24a40a",
+      "output_wav_sha256": "9547737b84fb2eddb7d91d23aa70ef79c0fe771d4dd6323b84102bbfa2b15018",
+      "output_rate": 24000,
+      "output_seconds": 2.8,
+      "elapsed_s": 3.045188527999926,
+      "profile": "append-preference",
+      "output_file": "append-preference-question-output.wav",
+      "published_text": "A triangle has three sides.",
+      "published_native_audio": true,
+      "text_similarity": 0.32184,
+      "semantic_assessment": "Correct textual triangle answer; spoken words and delivery unqualified.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "work",
+      "input_text": "Please ask Agent to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "actual_asr": "Please ask agent to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "input_pcm_sha256": "481df1ca491f916cfa29a1bb4e1385e10d231ee463f6fe73709f544bd556ecb0",
+      "input_seconds": 6.255,
+      "endpoint_text": "I heard you'd like me to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "output_pcm_sha256": "4ff200893495a585a05127822a9cb4f026972b2c1340c919c941a70517aaa6d7",
+      "output_wav_sha256": "0fbb319691af3221662191ca7593a652120cb69e84935f637b73d784b043c9ce",
+      "output_rate": 24000,
+      "output_seconds": 6.64,
+      "elapsed_s": 5.46870925300027,
+      "profile": "concise-persona",
+      "output_file": "concise-persona-work-output.wav",
+      "published_text": "I heard you'd like me to plan a fictional neighborhood picnic with a checklist for food, games, and a rain plan.",
+      "published_native_audio": true,
+      "text_similarity": 0.87671,
+      "semantic_assessment": "Does not satisfy receipt-only delegated-work behavior across both turns.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "followup",
+      "input_text": "While that is in progress, make the food options vegetarian.",
+      "actual_asr": "Well that is in progress, make the food options vegetarian.",
+      "input_pcm_sha256": "a409761e96f030dc7214e0aa1be0ec43d0ba397136799d521120300b6db11216",
+      "input_seconds": 3.875,
+      "endpoint_text": "I've updated the food options to vegetarian. Here's the revised picnic checklist:\n\n**Food Options (Vegetarian):**\n- Caprese salad\n- Marinated olives\n- Fresh mozzarella\n- Tomato wedges\n- Basil pesto\n- Vegan veggie skewers\n- Quinoa salad with roasted vegetables\n- Fruit skewers\n- Hummus and veggie wraps\n\n**Games:**\n- Frisbee\n- Cornhole\n- Giant Jenga\n- Water balloon toss\n- Paddle ball\n- Scavenger hunt\n\n**Rain Plan:**\n- Pop-up canopy\n- Waterproof blanket\n- Portable charger\n- Umbrella\n- Rain ponchos\n- Hot cocoa and spiced tea station",
+      "output_pcm_sha256": "bc618cac8e521c8359d99b441a2d5c8956e6dd91d4c3aa1afbcf3c320ecf3310",
+      "output_wav_sha256": "81363f52d828c0bdd74c83c5789b3792697c3556580fcfd591fadd5f9b68140d",
+      "output_rate": 24000,
+      "output_seconds": 26.88,
+      "elapsed_s": 6.474530479999885,
+      "profile": "concise-persona",
+      "output_file": "concise-persona-followup-output.wav",
+      "published_text": "I've updated the food options to vegetarian. Here's the revised picnic checklist:\n\n**Food Options (Vegetarian):**\n- Caprese salad\n- Marinated olives\n- Fresh mozzarella\n- Tomato wedges\n- Basil pesto\n- Vegan veggie skewers\n- Quinoa salad with roasted vegetables\n- Fruit skewers\n- Hummus and veggie wraps\n\n**Games:**\n- Frisbee\n- Cornhole\n- Giant Jenga\n- Water balloon toss\n- Paddle ball\n- Scavenger hunt\n\n**Rain Plan:**\n- Pop-up canopy\n- Waterproof blanket\n- Portable charger\n- Umbrella\n- Rain ponchos\n- Hot cocoa and spiced tea station",
+      "published_native_audio": true,
+      "text_similarity": 0.0473,
+      "semantic_assessment": "Does not satisfy receipt-only delegated-work behavior across both turns.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    },
+    {
+      "name": "question",
+      "input_text": "On a different topic, how many sides does a triangle have?",
+      "actual_asr": "On a different topic, how many sides does the triangle have?",
+      "input_pcm_sha256": "8a96c1c0437d34d37963b994bbee0745dd7ac86110942e86cd25c1c195a6305e",
+      "input_seconds": 3.79,
+      "endpoint_text": "The triangle has three sides.",
+      "output_pcm_sha256": "dc846c01c1dcd25d05373e2fe5f7cef2f46d26d189d6f8f7e804272de836e350",
+      "output_wav_sha256": "cac9026e04808267c2a88c17c39303929e23c5f74e7b19ff0c02adb246000ebc",
+      "output_rate": 24000,
+      "output_seconds": 2.8,
+      "elapsed_s": 2.9831205800001044,
+      "profile": "concise-persona",
+      "output_file": "concise-persona-question-output.wav",
+      "published_text": "The triangle has three sides.",
+      "published_native_audio": true,
+      "text_similarity": 0.35955,
+      "semantic_assessment": "Correct textual triangle answer; spoken words and delivery unqualified.",
+      "audio_listened": false,
+      "browser_delivery_qualified": false
+    }
+  ],
+  "profiles": [
+    {
+      "id": "baseline",
+      "persona": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied.",
+      "qualification_sha256": "860a72b28c42b376439c1c06a44b0578f1564b83b1358b320ee161614c1f5423",
+      "engine_exit": 0,
+      "cleanup_errors": [],
+      "artifacts": [
+        {
+          "name": "llama-server",
+          "bytes": 17888,
+          "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+        },
+        {
+          "name": "libllama-server-impl.so",
+          "bytes": 8006384,
+          "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+        },
+        {
+          "name": "LFM3-Omni-2B-Q4_K_M.gguf",
+          "bytes": 1099630080,
+          "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2"
+        },
+        {
+          "name": "mmproj-LFM3-Omni-2B-Q8_0.gguf",
+          "bytes": 540892768,
+          "sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839"
+        }
+      ]
+    },
+    {
+      "id": "append-preference",
+      "persona": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. For a request directed to Agent, prefer a brief acknowledgment and wait for Agent's substantive answer. Keep unrelated conversation natural while Agent works.",
+      "qualification_sha256": "b75c54e631467b387bf7e66e074d5fe2ffe87a23c27b0589baaf9d218f348f00",
+      "engine_exit": 0,
+      "cleanup_errors": [],
+      "artifacts": [
+        {
+          "name": "llama-server",
+          "bytes": 17888,
+          "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+        },
+        {
+          "name": "libllama-server-impl.so",
+          "bytes": 8006384,
+          "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+        },
+        {
+          "name": "LFM3-Omni-2B-Q4_K_M.gguf",
+          "bytes": 1099630080,
+          "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2"
+        },
+        {
+          "name": "mmproj-LFM3-Omni-2B-Q8_0.gguf",
+          "bytes": 540892768,
+          "sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839"
+        }
+      ]
+    },
+    {
+      "id": "concise-persona",
+      "persona": "You are Kinaiya, a warm conversational companion. A separate Agent handles the user's delegated work and questions. For requests addressed to Agent, acknowledge that you heard the request, and leave the substantive answer or deliverable to Agent. Briefly acknowledge corrections; do not carry out the task yourself. Keep ordinary conversation natural while Agent works. Never claim Agent accepted, started, completed, or failed unless an authenticated notice proves that exact state. You cannot grant permissions or verify actions. Speak briefly and naturally.",
+      "qualification_sha256": "b75c54e631467b387bf7e66e074d5fe2ffe87a23c27b0589baaf9d218f348f00",
+      "engine_exit": 0,
+      "cleanup_errors": [],
+      "artifacts": [
+        {
+          "name": "llama-server",
+          "bytes": 17888,
+          "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+        },
+        {
+          "name": "libllama-server-impl.so",
+          "bytes": 8006384,
+          "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+        },
+        {
+          "name": "LFM3-Omni-2B-Q4_K_M.gguf",
+          "bytes": 1099630080,
+          "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2"
+        },
+        {
+          "name": "mmproj-LFM3-Omni-2B-Q8_0.gguf",
+          "bytes": 540892768,
+          "sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839"
+        }
+      ]
+    }
+  ],
+  "protocol_controls": {
+    "passed": 18,
+    "description": "Nine malformed/enabled tool configurations rejected for session.update and response.create; valid empty tools/none acknowledged and failed session updates do not mutate instructions."
+  },
+  "initial_failures": [
+    {
+      "stage": "setup",
+      "description": "Group-writable temporary output parent refused before ASR or generation. Isolated engine exit 0."
+    },
+    {
+      "stage": "original-engine",
+      "description": "Three ASRs completed; all three conversational handshakes refused before input PCM because tools/tool_choice acknowledgments were omitted. No assistant reply."
+    },
+    {
+      "stage": "first-overlay-launch",
+      "description": "Private launcher initially omitted inherited library search paths; exited 127 before readiness or inference. A new run preserved inherited paths; installed/source files were never modified."
+    }
+  ],
+  "template_comparison": {
+    "source": "https://huggingface.co/LiquidAI/LFM3-Omni-2B/blob/main/chat_template.jinja",
+    "engine_sha256": "4e295a038af980438912483abe76a81c36b2451c87ccc1e62051529a6a0fb7f5",
+    "reference_sha256": "ea74cc1d14319ed436dc0f37632893004d436913113e7605267f2b01694d65e4",
+    "difference": "Only the final newline; no other template differences.",
+    "text_temperature": 0.0,
+    "top_k": 1,
+    "forced_mode": "interleaved, documented mixed_start opening token"
+  },
+  "compatibility_patch": {
+    "path": "patches/llama-cpp/8ca4060-realtime-no-tools.patch",
+    "sha256": "ba9cfd543a767070bfb62cb635bce346ac52b93c76a0e783cdd4be582dcb2b1d",
+    "base_source_sha256": "e96e14d01ef7ba5f14393a27d6c130dabdfa731a9837f7db87a4ef5a33e601b8",
+    "compiled_source_sha256": "0b8c8d476d0689e5069b1ce12d50d466a54339de3531c722cc98d3a3abb6e288",
+    "zero_context_application_matches_compiled_source": true,
+    "installed_engine_changed": false
+  }
+}

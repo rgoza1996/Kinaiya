@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "text": {
+      "maxLength": 65536,
+      "title": "Text",
+      "type": "string"
+    },
+    "content_scope": {
+      "default": "local_only",
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "ConversePromptConfig",
+  "type": "object"
+}

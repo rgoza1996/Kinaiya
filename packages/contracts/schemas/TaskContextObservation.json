@@ -1,0 +1,126 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "session_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "objective_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    },
+    "state": {
+      "enum": [
+        "accepted",
+        "queued",
+        "running",
+        "verifying",
+        "awaiting_approval",
+        "blocked",
+        "succeeded",
+        "failed",
+        "cancel_requested",
+        "cancelled",
+        "paused",
+        "unknown"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "submission_confirmed": {
+      "title": "Submission Confirmed",
+      "type": "boolean"
+    },
+    "steer_pending": {
+      "title": "Steer Pending",
+      "type": "boolean"
+    },
+    "completion_publication_pending": {
+      "title": "Completion Publication Pending",
+      "type": "boolean"
+    },
+    "content_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "evidence_counts": {
+      "additionalProperties": {
+        "maximum": 9007199254740991,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxProperties": 9,
+      "minProperties": 9,
+      "title": "Evidence Counts",
+      "type": "object"
+    },
+    "required_work_count": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Required Work Count",
+      "type": "integer"
+    },
+    "program_execution_receipt": {
+      "enum": [
+        "observed",
+        "not_observed",
+        "unavailable"
+      ],
+      "title": "Program Execution Receipt",
+      "type": "string"
+    },
+    "semantic_verification": {
+      "const": "not_assessed",
+      "title": "Semantic Verification",
+      "type": "string"
+    },
+    "observation_basis": {
+      "const": "native_runtime_snapshot",
+      "title": "Observation Basis",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "session_id",
+    "thread_id",
+    "epoch",
+    "objective_revision",
+    "state",
+    "submission_confirmed",
+    "steer_pending",
+    "completion_publication_pending",
+    "content_scope",
+    "evidence_counts",
+    "required_work_count",
+    "program_execution_receipt",
+    "semantic_verification",
+    "observation_basis"
+  ],
+  "title": "TaskContextObservation",
+  "type": "object"
+}

@@ -61,9 +61,13 @@ class ContextBudgetBuilder:
         runtime_id: str,
         current: Callable[[], bool],
         native=None,
+        extra_scopes=(),
+        check_extra=None,
     ):
         self.journal, self.source, self.provider = journal, source, provider
         self.personality, self.runtime_id = personality, runtime_id
+        self.extra_scopes = tuple(extra_scopes)
+        self.check_extra = check_extra
         self.current = current
         self.native = native or self._journal_call
         self.deadline = time.monotonic() + self.timeout_s
@@ -236,7 +240,12 @@ class ContextBudgetBuilder:
             messages.append({"role": "system", "content": projection.delivery})
         messages.extend(projection.messages)
         messages.append({"role": "user", "content": self.source.payload["text"]})
-        return replace(projection, messages=messages, history_messages=len(projection.messages))
+        return replace(
+            projection,
+            messages=messages,
+            history_messages=len(projection.messages),
+            consumed_scopes=[*projection.consumed_scopes, *self.extra_scopes],
+        )
 
     def _selection(self, projection, pin, recall):
         # Counts describe only eligible messages in the native pages examined.
@@ -263,6 +272,8 @@ class ContextBudgetBuilder:
         )
 
     async def _measure(self, projection):
+        if self.check_extra is not None:
+            await self._await(self.check_extra())
         self._check()
         measure = getattr(self.provider, "measure_prompt", None)
         if not callable(measure) or self.measurements >= self.max_measurements:
@@ -272,6 +283,8 @@ class ContextBudgetBuilder:
         stamp = json.dumps(messages, sort_keys=True, ensure_ascii=False, allow_nan=False)
         try:
             count = await self._await(measure(messages))
+            if self.check_extra is not None:
+                await self._await(self.check_extra())
         except (PromptCountUnavailable, ProviderError) as exc:
             if isinstance(
                 exc, (ProviderCleanupError, ContextBudgetStale, ContextHistoryUnavailable)
@@ -330,6 +343,8 @@ class ContextBudgetBuilder:
         """
         while not self.exhausted:
             await self._page()
+        if self.check_extra is not None:
+            await self._await(self.check_extra())
         self._check()
         return replace(
             self._compile([entry for page in self.pages for entry in page], None, None),
