@@ -1,0 +1,576 @@
+{
+  "snapshot": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "revision": 0,
+    "state_token": "a600bd7e25a1dc850273c28b8360ec0c55c90f0004070374f245f91c77f89fcd",
+    "selection": {
+      "source": "host",
+      "mode": null
+    },
+    "host_mode": "agent",
+    "selected_mode": "agent",
+    "startup_mode": "agent",
+    "running_state": "not_observed",
+    "change_boundary": "next_managed_host_launch",
+    "writable": true,
+    "max_changes": 1000
+  },
+  "request": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "expected_revision": 0,
+    "state_token": "a600bd7e25a1dc850273c28b8360ec0c55c90f0004070374f245f91c77f89fcd",
+    "expected_host_mode": "agent",
+    "idempotency_key": "public-core-options",
+    "selection": {
+      "source": "saved",
+      "mode": "converse-decisions"
+    }
+  },
+  "lookup_before": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "request_sha256": "9293b54364efb72b30e1c1212f324e507f2ca81b832d60f78beee6c7665d6bcc",
+    "outcome": "unobserved",
+    "receipt": null,
+    "mutation_fenced": false
+  },
+  "receipt": {
+    "contract": "core_subsystems.v1",
+    "status": "saved",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "revision": 1,
+    "idempotency_key": "public-core-options",
+    "selection": {
+      "source": "saved",
+      "mode": "converse-decisions"
+    },
+    "host_mode_observed": "agent",
+    "selected_mode_observed": "converse-decisions",
+    "change_boundary": "next_managed_host_launch"
+  },
+  "lookup_saved": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "request_sha256": "9293b54364efb72b30e1c1212f324e507f2ca81b832d60f78beee6c7665d6bcc",
+    "outcome": "saved",
+    "receipt": {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+      "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+      "authority_generation": 1,
+      "revision": 1,
+      "idempotency_key": "public-core-options",
+      "selection": {
+        "source": "saved",
+        "mode": "converse-decisions"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "converse-decisions",
+      "change_boundary": "next_managed_host_launch"
+    },
+    "mutation_fenced": false
+  },
+  "snapshot_after": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "revision": 1,
+    "state_token": "408a417653158360ec197ffa30ddeabd15f8720f8dcdf21f6ed5510f5c1b5444",
+    "selection": {
+      "source": "saved",
+      "mode": "converse-decisions"
+    },
+    "host_mode": "agent",
+    "selected_mode": "converse-decisions",
+    "startup_mode": "agent",
+    "running_state": "not_observed",
+    "change_boundary": "next_managed_host_launch",
+    "writable": true,
+    "max_changes": 1000
+  },
+  "unobserved_request": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "expected_revision": 1,
+    "state_token": "408a417653158360ec197ffa30ddeabd15f8720f8dcdf21f6ed5510f5c1b5444",
+    "expected_host_mode": "agent",
+    "idempotency_key": "public-unobserved",
+    "selection": {
+      "source": "saved",
+      "mode": "decisions"
+    }
+  },
+  "lookup_fenced": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+    "authority_generation": 1,
+    "request_sha256": "42e0667e80d4cdac7735d08d08d3ab838933079111794ad797166e88590e6afe",
+    "outcome": "unobserved",
+    "receipt": null,
+    "mutation_fenced": true
+  },
+  "modes": [
+    {
+      "snapshot": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 2,
+        "state_token": "4cfdca23d63a7ab15052f17c0a4769d58542544d5b02452b82f3da2d167dd3ce",
+        "selection": {
+          "source": "saved",
+          "mode": "all"
+        },
+        "host_mode": "agent",
+        "selected_mode": "all",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      },
+      "request": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "expected_revision": 2,
+        "state_token": "4cfdca23d63a7ab15052f17c0a4769d58542544d5b02452b82f3da2d167dd3ce",
+        "expected_host_mode": "agent",
+        "idempotency_key": "public-mode-core",
+        "selection": {
+          "source": "saved",
+          "mode": "core"
+        }
+      },
+      "receipt": {
+        "contract": "core_subsystems.v1",
+        "status": "saved",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 3,
+        "idempotency_key": "public-mode-core",
+        "selection": {
+          "source": "saved",
+          "mode": "core"
+        },
+        "host_mode_observed": "agent",
+        "selected_mode_observed": "core",
+        "change_boundary": "next_managed_host_launch"
+      },
+      "after": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 3,
+        "state_token": "27e2c3ea13b9638f2b4263e7b12b5da390fd15ee9a6149a8647612400fcc9910",
+        "selection": {
+          "source": "saved",
+          "mode": "core"
+        },
+        "host_mode": "agent",
+        "selected_mode": "core",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      }
+    },
+    {
+      "snapshot": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 3,
+        "state_token": "27e2c3ea13b9638f2b4263e7b12b5da390fd15ee9a6149a8647612400fcc9910",
+        "selection": {
+          "source": "saved",
+          "mode": "core"
+        },
+        "host_mode": "agent",
+        "selected_mode": "core",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      },
+      "request": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "expected_revision": 3,
+        "state_token": "27e2c3ea13b9638f2b4263e7b12b5da390fd15ee9a6149a8647612400fcc9910",
+        "expected_host_mode": "agent",
+        "idempotency_key": "public-mode-agent",
+        "selection": {
+          "source": "saved",
+          "mode": "agent"
+        }
+      },
+      "receipt": {
+        "contract": "core_subsystems.v1",
+        "status": "saved",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 4,
+        "idempotency_key": "public-mode-agent",
+        "selection": {
+          "source": "saved",
+          "mode": "agent"
+        },
+        "host_mode_observed": "agent",
+        "selected_mode_observed": "agent",
+        "change_boundary": "next_managed_host_launch"
+      },
+      "after": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 4,
+        "state_token": "ad3ff1bd26052dece8d801ff243d4399c97ced7ac94733e23b56f3bdc1a8c44f",
+        "selection": {
+          "source": "saved",
+          "mode": "agent"
+        },
+        "host_mode": "agent",
+        "selected_mode": "agent",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      }
+    },
+    {
+      "snapshot": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 4,
+        "state_token": "ad3ff1bd26052dece8d801ff243d4399c97ced7ac94733e23b56f3bdc1a8c44f",
+        "selection": {
+          "source": "saved",
+          "mode": "agent"
+        },
+        "host_mode": "agent",
+        "selected_mode": "agent",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      },
+      "request": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "expected_revision": 4,
+        "state_token": "ad3ff1bd26052dece8d801ff243d4399c97ced7ac94733e23b56f3bdc1a8c44f",
+        "expected_host_mode": "agent",
+        "idempotency_key": "public-mode-decisions",
+        "selection": {
+          "source": "saved",
+          "mode": "decisions"
+        }
+      },
+      "receipt": {
+        "contract": "core_subsystems.v1",
+        "status": "saved",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 5,
+        "idempotency_key": "public-mode-decisions",
+        "selection": {
+          "source": "saved",
+          "mode": "decisions"
+        },
+        "host_mode_observed": "agent",
+        "selected_mode_observed": "decisions",
+        "change_boundary": "next_managed_host_launch"
+      },
+      "after": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 5,
+        "state_token": "5162a06543a585841022291298eca61781d49dff1c0ce3e5be398fd014cbeca2",
+        "selection": {
+          "source": "saved",
+          "mode": "decisions"
+        },
+        "host_mode": "agent",
+        "selected_mode": "decisions",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      }
+    },
+    {
+      "snapshot": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 5,
+        "state_token": "5162a06543a585841022291298eca61781d49dff1c0ce3e5be398fd014cbeca2",
+        "selection": {
+          "source": "saved",
+          "mode": "decisions"
+        },
+        "host_mode": "agent",
+        "selected_mode": "decisions",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      },
+      "request": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "expected_revision": 5,
+        "state_token": "5162a06543a585841022291298eca61781d49dff1c0ce3e5be398fd014cbeca2",
+        "expected_host_mode": "agent",
+        "idempotency_key": "public-mode-agent-decisions",
+        "selection": {
+          "source": "saved",
+          "mode": "agent-decisions"
+        }
+      },
+      "receipt": {
+        "contract": "core_subsystems.v1",
+        "status": "saved",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 6,
+        "idempotency_key": "public-mode-agent-decisions",
+        "selection": {
+          "source": "saved",
+          "mode": "agent-decisions"
+        },
+        "host_mode_observed": "agent",
+        "selected_mode_observed": "agent-decisions",
+        "change_boundary": "next_managed_host_launch"
+      },
+      "after": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 6,
+        "state_token": "6d6a3d82c28195857c71a9c40c4162d8c31ed2d396d5fc93e088ff9a0e0341c8",
+        "selection": {
+          "source": "saved",
+          "mode": "agent-decisions"
+        },
+        "host_mode": "agent",
+        "selected_mode": "agent-decisions",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      }
+    },
+    {
+      "snapshot": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 6,
+        "state_token": "6d6a3d82c28195857c71a9c40c4162d8c31ed2d396d5fc93e088ff9a0e0341c8",
+        "selection": {
+          "source": "saved",
+          "mode": "agent-decisions"
+        },
+        "host_mode": "agent",
+        "selected_mode": "agent-decisions",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      },
+      "request": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "expected_revision": 6,
+        "state_token": "6d6a3d82c28195857c71a9c40c4162d8c31ed2d396d5fc93e088ff9a0e0341c8",
+        "expected_host_mode": "agent",
+        "idempotency_key": "public-mode-converse-decisions",
+        "selection": {
+          "source": "saved",
+          "mode": "converse-decisions"
+        }
+      },
+      "receipt": {
+        "contract": "core_subsystems.v1",
+        "status": "saved",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 7,
+        "idempotency_key": "public-mode-converse-decisions",
+        "selection": {
+          "source": "saved",
+          "mode": "converse-decisions"
+        },
+        "host_mode_observed": "agent",
+        "selected_mode_observed": "converse-decisions",
+        "change_boundary": "next_managed_host_launch"
+      },
+      "after": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 7,
+        "state_token": "9fd0017b258011a590e4b15d86df3aec7e4cfef74b74d53cdcbaf0775ad2a2b7",
+        "selection": {
+          "source": "saved",
+          "mode": "converse-decisions"
+        },
+        "host_mode": "agent",
+        "selected_mode": "converse-decisions",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      }
+    },
+    {
+      "snapshot": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 7,
+        "state_token": "9fd0017b258011a590e4b15d86df3aec7e4cfef74b74d53cdcbaf0775ad2a2b7",
+        "selection": {
+          "source": "saved",
+          "mode": "converse-decisions"
+        },
+        "host_mode": "agent",
+        "selected_mode": "converse-decisions",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      },
+      "request": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "expected_revision": 7,
+        "state_token": "9fd0017b258011a590e4b15d86df3aec7e4cfef74b74d53cdcbaf0775ad2a2b7",
+        "expected_host_mode": "agent",
+        "idempotency_key": "public-mode-all",
+        "selection": {
+          "source": "saved",
+          "mode": "all"
+        }
+      },
+      "receipt": {
+        "contract": "core_subsystems.v1",
+        "status": "saved",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 8,
+        "idempotency_key": "public-mode-all",
+        "selection": {
+          "source": "saved",
+          "mode": "all"
+        },
+        "host_mode_observed": "agent",
+        "selected_mode_observed": "all",
+        "change_boundary": "next_managed_host_launch"
+      },
+      "after": {
+        "contract": "core_subsystems.v1",
+        "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+        "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+        "authority_generation": 1,
+        "revision": 8,
+        "state_token": "31621d611c120309f921248f27e81f649b17d3fdadac1c32016987dfbff3e6c3",
+        "selection": {
+          "source": "saved",
+          "mode": "all"
+        },
+        "host_mode": "agent",
+        "selected_mode": "all",
+        "startup_mode": "agent",
+        "running_state": "not_observed",
+        "change_boundary": "next_managed_host_launch",
+        "writable": true,
+        "max_changes": 1000
+      }
+    }
+  ],
+  "lookup_saved_after_replacement": {
+    "contract": "core_subsystems.v1",
+    "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+    "authority_epoch": "6a96d74c95de821f0d492ce2af9747f4",
+    "authority_generation": 2,
+    "request_sha256": "9293b54364efb72b30e1c1212f324e507f2ca81b832d60f78beee6c7665d6bcc",
+    "outcome": "saved",
+    "receipt": {
+      "contract": "core_subsystems.v1",
+      "status": "saved",
+      "backend_id": "4c7e5b82dc0fc090f9abd2a0cfb844f8",
+      "authority_epoch": "a9657f542f2559e4e77ec6f7d1ef9c8d",
+      "authority_generation": 1,
+      "revision": 1,
+      "idempotency_key": "public-core-options",
+      "selection": {
+        "source": "saved",
+        "mode": "converse-decisions"
+      },
+      "host_mode_observed": "agent",
+      "selected_mode_observed": "converse-decisions",
+      "change_boundary": "next_managed_host_launch"
+    },
+    "mutation_fenced": false
+  }
+}

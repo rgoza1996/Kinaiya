@@ -269,6 +269,9 @@ jobs:
         run: >-
           python -m pytest -q
           tests/integration/test_companion_control.py::test_owner_and_companion_dart_transports_against_live_session_asgi
+      - name: Qualify Core selection with actual Dart and Session owners
+        working-directory: .
+        run: python -m pytest -q tests/integration/test_core_subsystem_dart.py
       - run: node --test web/audio_bridge.test.js
       - run: flutter build web --release --no-web-resources-cdn
       - name: Build foreground companion
