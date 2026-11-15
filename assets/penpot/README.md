@@ -132,6 +132,7 @@ sprite animation or a demonstration of live TTS synchronization.
 | **10 · Mascot interaction** | Tell listening and Call listening, thinking, and speaking states using close-up character references. | Static reference boards; labeled preview controls step through selected Call states. |
 | **11 · Agent intelligent UI** | Market watcher, solar system, Las Vegas map, spreadsheet and graph, and database comparison shown inside Agent chat, with generated mockups alongside. | Editable concepts; example sessions and database comparison are linked. |
 | **12 · Converse intelligent UI** | The same five examples with a transcript mockup above Kinaiya’s corner portrait, plus normal conversation and database comparison states. | Editable concepts; the example selector, database comparison, and return to conversation are linked. |
+| **13 · Native work & companions** | 34 paired desktop/mobile boards: task receipts, pending steering, partial results, publication/execution/semantic distinctions, unavailable observations, editable instructions, buffered native audio, readiness, component topology, creations and mobile pairing/catch-up/voice. | Illustrative concepts and draft-backed host configuration. Planned interfaces remain labelled; native model quality and Penpot import are unqualified. |
 
 ## Prototype notes
 
@@ -156,9 +157,47 @@ Additional responsive layouts, error and permission states, interaction links,
 and refined character animation remain design work. Keep sample labels and
 status indicators distinguishable from the behavior of the running product.
 
-## Reviewed native Options and November 2 UI/UX synchronization
+## Native work and optional companions · November 14
 
-The current Git LFS archive is the same **Kinaiya — Master design** file, revision
+The current editable archive extends the same **Kinaiya — Master design** with
+**13 · Native work & companions**. It has 15 pages and 403 real boards. The 14
+source pages, all 369 original boards, and every original archive member remain
+byte-exact. The new page has 34 boards, 744 editable native text shapes and 136
+prototype links, split into motion-on (220ms dissolve) and instant motion-off.
+
+Archive: **245,700,807 bytes**; SHA-256:
+`580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb`.
+The LFS object was uploaded and its complete remote download verified before
+the tracked pointer was changed. No credentials or signed download URLs are
+retained in the review record.
+
+The designs separate generated acknowledgment, native acceptance, pending
+steering, applied task revision, partial file/consultation evidence, UI
+publication, program execution and semantic verification. An unavailable status
+does not claim Agent absence; a visible artifact or successful process does not
+prove the task's meaning was fulfilled. The examples contain only public
+synthetic content.
+
+Converse instructions show the owner-editable handoff preference implemented
+in [draft PR #589](https://github.com/rgoza1996/Kinaiya/pull/589). The visual
+instruction editor, Decisions instructions, external Agent/Pi bridge, mobile
+transport/foreground voice and creations organization are explicitly proposed
+interfaces, not claims of shipped runtime behavior. Buffered original-audio
+turns remain distinct from planned duplex adapters. #483's actual LFM3 handoff
+quality remains unqualified.
+
+Selected SVG previews, rendered from the same native text/vector data, were
+checked in a browser. This checks their presentation; it is not a native Penpot
+import test or application acceptance. The master source revision metadata is
+preserved; no cloud Penpot file/revision was changed. See the
+[review record](native-work-sync-review.json) and
+[scope/verification notes](../../docs/penpot-native-work-sync.md).
+
+![Pending task steering design](previews/native-work/pending-on.svg)
+
+## Earlier native Options and November 2 UI/UX synchronization
+
+The source archive is the same **Kinaiya — Master design** file, revision
 63, modified `2026-11-08T10:00:00.000000Z`. It contains fourteen pages and 369
 real top-level boards (291 on the current page), excluding root sentinels.
 Archive size: **244,662,707 bytes**; SHA-256:

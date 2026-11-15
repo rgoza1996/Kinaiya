@@ -1,0 +1,277 @@
+{
+  "source_sha256": "1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c",
+  "source_bytes": 244662707,
+  "result_sha256": "580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb",
+  "result_bytes": 245700807,
+  "master_file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+  "added_page_id": "3d154fd3-c631-5f34-bf0e-4efa76283a20",
+  "added_page_name": "13 · Native work & companions",
+  "original_members_unchanged": 49093,
+  "original_pages_byte_exact": 14,
+  "new_members": 1222,
+  "added_boards": 34,
+  "editable_text_shapes": 744,
+  "prototype_links_resolve": 136,
+  "media_and_object_paths_byte_exact": 696,
+  "cloud_import_verified": false,
+  "runtime_acceptance_claimed": false,
+  "boards": [
+    {
+      "id": "3b75d980-212c-5ebd-9515-a0690da3c8ad",
+      "name": "Native work / Native work & optional companions · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "bfd13b0b-ddd1-5b9a-8b3d-2802e6c87641",
+      "name": "Native work / A reply is not a task receipt · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "b08f00c1-1600-5382-80a5-a39431ac871c",
+      "name": "Native work / Agent working · follow-up pending · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "22900f4b-7d4a-57a7-a630-2a5d078d1868",
+      "name": "Native work / Partial work · task failed · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "ab2c7442-a4f4-5c10-a485-c8f4d7e3e463",
+      "name": "Native work / UI publication only · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "8fe728c0-0cf1-5afb-ac21-12ee09f56845",
+      "name": "Native work / Program ran · meaning unassessed · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "bb3e88c2-fb98-5d37-8f02-2b15ed3799eb",
+      "name": "Native work / Agent result received · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "e2c02029-2ae9-547f-93a7-1fd4c69b8747",
+      "name": "Native work / Task observations unavailable · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "117a938c-6eb1-5439-acd8-53a089ce0163",
+      "name": "Native work / Converse instructions · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "7fa40d54-b848-5b05-8b81-14321b672a1f",
+      "name": "Native work / Decisions instructions · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "cc3a31f8-7934-5cd7-b8bb-0b729e9750fe",
+      "name": "Native work / Native audio · whole utterances · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "48a590c6-027f-5e41-8feb-6299f4f76ddb",
+      "name": "Native work / Component readiness · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "ea613ac0-1fac-57a9-a182-70777b6c98c0",
+      "name": "Native work / Choose independent components · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "a6be72ae-ac06-59ae-80a6-a78e4aa65376",
+      "name": "Native work / Saved creations · motion on",
+      "width": 1536,
+      "height": 1024,
+      "motion": "on"
+    },
+    {
+      "id": "d07c96ad-2dfa-58d7-af1e-d55ad779bb90",
+      "name": "Native work / Pair a companion device · motion on",
+      "width": 420,
+      "height": 900,
+      "motion": "on"
+    },
+    {
+      "id": "19a75d2b-3b9e-526f-bc1f-2d36d47022ba",
+      "name": "Native work / Offline transcript catch-up · motion on",
+      "width": 420,
+      "height": 900,
+      "motion": "on"
+    },
+    {
+      "id": "c2fa95d8-54b4-5317-b326-3bc1a15f0592",
+      "name": "Native work / Foreground voice control · motion on",
+      "width": 420,
+      "height": 900,
+      "motion": "on"
+    },
+    {
+      "id": "194b8efd-74dd-5a96-951f-00d0877779dd",
+      "name": "Native work / Native work & optional companions · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "3acbfe36-5b5b-5af8-adbe-d4381ab484f0",
+      "name": "Native work / A reply is not a task receipt · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "76192408-7931-522a-b18f-3165d82aaa64",
+      "name": "Native work / Agent working · follow-up pending · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "42dbf718-13f6-5c39-99e1-8b56c378fa3a",
+      "name": "Native work / Partial work · task failed · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "f3f827a6-b00c-587b-a41d-6f50299339c6",
+      "name": "Native work / UI publication only · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "da65d057-d5f4-5242-b4bc-dcbff318373a",
+      "name": "Native work / Program ran · meaning unassessed · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "66a4df03-d199-5f29-8cfe-234dcdf9b189",
+      "name": "Native work / Agent result received · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "76309348-8cd2-55e1-8f88-76eb6b1ba89d",
+      "name": "Native work / Task observations unavailable · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "c521ff34-58c4-5226-99da-73190f3ace13",
+      "name": "Native work / Converse instructions · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "a434c90b-5e8f-5134-8a59-539224fef822",
+      "name": "Native work / Decisions instructions · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "29483428-40e3-5e24-b226-b1de1f5f4229",
+      "name": "Native work / Native audio · whole utterances · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "0f38e2c6-9944-54fc-9a3a-c657a5bb5ca4",
+      "name": "Native work / Component readiness · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "fd32ac28-1b25-5407-8d3e-caf4ee243306",
+      "name": "Native work / Choose independent components · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "4da1a56a-6b70-5db8-8626-eaa8f29d422f",
+      "name": "Native work / Saved creations · motion off",
+      "width": 1536,
+      "height": 1024,
+      "motion": "off"
+    },
+    {
+      "id": "c730e89d-6e7b-58bc-9ca1-af19f9db1123",
+      "name": "Native work / Pair a companion device · motion off",
+      "width": 420,
+      "height": 900,
+      "motion": "off"
+    },
+    {
+      "id": "48bac390-3275-55e9-9380-28afd4ad828b",
+      "name": "Native work / Offline transcript catch-up · motion off",
+      "width": 420,
+      "height": 900,
+      "motion": "off"
+    },
+    {
+      "id": "0a0e87bb-4f71-5401-9be5-97e6c95465b9",
+      "name": "Native work / Foreground voice control · motion off",
+      "width": 420,
+      "height": 900,
+      "motion": "off"
+    }
+  ],
+  "lfs_publication": {
+    "state": "uploaded_and_full_download_verified",
+    "bytes": 245700807,
+    "sha256": "580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb",
+    "ref": "refs/heads/codex/483-native-converse",
+    "credential_or_signed_url_retained": false
+  },
+  "browser_preview_review": {
+    "kind": "SVGs rendered from the same native vector/text data; not native Penpot import",
+    "boards": [
+      "Native work & optional companions · motion on",
+      "Agent working · follow-up pending · motion on",
+      "Converse instructions · motion on",
+      "Offline transcript catch-up · motion off"
+    ],
+    "selected_views_readable": true,
+    "font_note": "Browser preview can use system font fallback; native Penpot text remains Inter.",
+    "cloud_import_verified": false
+  }
+}
