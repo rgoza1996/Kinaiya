@@ -50,7 +50,7 @@ def test_cli_confirmation_uses_a_nonseekable_controlling_terminal(tmp_path):
 
 
 def test_setup_wizard_works_on_a_real_controlling_terminal(tmp_path):
-    answers = "\n".join(["", "", "", "tty-no-inference", "no", "", "no", "yes"]) + "\n"
+    answers = "\n".join(["", "", "no", "", "tty-no-inference", "no", "", "yes"]) + "\n"
     output = run_tty(
         "from services.distribution.cli import main; main(['setup', '--no-start'])",
         answers,
@@ -90,7 +90,7 @@ def test_standalone_bootstrap_reads_real_terminal_consent(tmp_path):
 
 
 def test_setup_wizard_accepts_short_y_n_on_real_controlling_terminal(tmp_path):
-    answers = "\n".join(["", "", "", "tty-short-yn", "n", "", "n", "y"]) + "\n"
+    answers = "\n".join(["", "", "n", "", "tty-short-yn", "n", "", "y"]) + "\n"
     output = run_tty(
         "from services.distribution.cli import main; main(['setup', '--no-start'])",
         answers,
