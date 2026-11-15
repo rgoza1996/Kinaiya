@@ -145,14 +145,15 @@ service authentication, legacy cutover, source-specific storage failures,
 request-hook substitution and pending provider cleanup. LocalJournal and HTTP
 CAS/completion cases exercise the same native owner.
 
-The classification-before-routing crash case also holds settlement of a genuine
-Session read inside that unchanged currentness budget. It requires explicit
+Both the loopback-socket and ASGI/actual-Session classification-before-routing
+crash cases also hold settlement of a genuine Session read inside that unchanged
+currentness budget. Each requires explicit
 uncertainty, the exact original native completion, one provider call and zero
 Agent effects before releasing the test-owned hold. Subsequent bounded explicit
 fresh-worker observations must recover the original result and dispatch exactly
 once. Each unavailable observation checks the unchanged native receipt and
 absence of effects; exhaustion still fails the test. This removes a fixture
-assumption that a loaded loopback server always meets a wall-clock deadline,
+assumption that a loaded native Session always meets a wall-clock deadline,
 without adding runtime retries, sleeps or changing production budgets (#607).
 
 `test_decisions_finalized_refusal_recovery.py` retains HTTP GET inspection

@@ -1,5 +1,7 @@
 """Issue #371: Durable finalized Decisions retry & recovery over HTTP JournalClient."""
 
+import asyncio
+import contextvars
 import json
 import uuid
 from contextlib import asynccontextmanager
@@ -11,6 +13,7 @@ from packages.contracts.client import JournalClient
 from packages.contracts.decisions_attempts import (
     DecisionsAttemptAdmit,
     DecisionsAttemptFinish,
+    DecisionsAttemptLookup,
     DecisionsSource,
     digest,
 )
@@ -23,6 +26,7 @@ from packages.contracts.models import (
 )
 from packages.providers.decision_capture import (
     CaptureNativeUnavailable,
+    DecisionCapture,
     capture_request,
     capture_response,
 )
@@ -182,6 +186,58 @@ async def finish_native(client, attempt, *, status="completed", raw=None, output
     )
 
 
+async def native_attempt_state(client, source):
+    return await client.decisions_attempt_lookup(
+        DecisionsAttemptLookup(source=DecisionsSource.of(source))
+    )
+
+
+@asynccontextmanager
+async def held_recovery_currentness(client, monkeypatch):
+    """Hold settlement of a genuine native read, retaining its original data."""
+    inside = contextvars.ContextVar("recovery_currentness", default=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+    check_current, session_read = DecisionCapture.check_current, client.session
+
+    async def observed_check(capture, provider):
+        token = inside.set(True)
+        try:
+            return await check_current(capture, provider)
+        finally:
+            inside.reset(token)
+
+    async def held_session(*args, **kwargs):
+        result = await session_read(*args, **kwargs)
+        if inside.get():
+            entered.set()
+            await release.wait()
+        return result
+
+    with monkeypatch.context() as patch:
+        patch.setattr(DecisionCapture, "check_current", observed_check)
+        patch.setattr(client, "session", held_session)
+        try:
+            yield entered
+        finally:
+            release.set()
+
+
+async def recover_completed_with_observers(client, agent, provider, assert_retained_unknown):
+    # A loaded runner need not settle each read within the unchanged 500 ms
+    # budget (#607). Every explicit fresh observer must preserve native proof
+    # and produce no effects while currentness is unavailable. Exhaustion fails.
+    for observation in range(3):
+        worker = DecisionsWorker(client, agent, ModelClassifier(provider))
+        try:
+            await worker.tick()
+        except CaptureNativeUnavailable:
+            await assert_retained_unknown(client)
+            if observation == 2:
+                raise
+        else:
+            return worker
+
+
 @pytest.mark.asyncio
 async def test_http_decisions_calls_endpoint_enforces_roles_and_scope(tmp_path):
     async with session_http_env(tmp_path) as (store, session, _app, make_client):
@@ -281,8 +337,11 @@ async def test_http_journal_client_retry_budget_persists_across_worker_restarts(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("hold_currentness", [False, True])
 async def test_http_journal_client_recovers_completed_call_after_crash_without_second_inference(
     tmp_path,
+    monkeypatch,
+    hold_currentness,
 ):
     async with session_http_env(tmp_path) as (store, session, app, make_client):
         source = append_user_source(store, session, idem="recover-completed")
@@ -321,11 +380,28 @@ async def test_http_journal_client_recovers_completed_call_after_crash_without_s
         assert store.read(kinds=["routing.decided"]) == []
         assert store.cursor("decisions", worker_1.consumer) == 0
 
+        client = make_client("decisions")
+        original = await native_attempt_state(client, source)
+        assert (original.state, original.charged_attempts) == ("completed", 1)
+
+        async def assert_retained_unknown(active_client):
+            state = await native_attempt_state(active_client, source)
+            assert (state.state, state.charged_attempts) == ("completed", 1)
+            assert state.last_attempt == original.last_attempt
+            assert calls == 1
+            assert not agent.submitted and not agent.steered and not agent.interrupted
+            assert not store.read(
+                kinds=["routing.decided", "routing.dispatch", "routing.classification_refused"]
+            )
+            assert store.cursor("decisions", worker_1.consumer) == 0
+
         # New worker with fresh JournalClient recovers the completed call without re-invoking provider.
-        worker_2 = DecisionsWorker(
-            make_client("decisions"), agent, ModelClassifier(CompletingProvider())
-        )
-        persisted = await worker_2._persisted_call_state(source)
+        for _observation in range(3):
+            worker_2 = DecisionsWorker(client, agent, ModelClassifier(CompletingProvider()))
+            persisted = await worker_2._persisted_call_state(source)
+            if persisted.state != "unavailable":
+                break
+            await assert_retained_unknown(client)
         assert persisted.state == "completed"
         assert persisted.prior_attempts == 1
         assert persisted.output == {
@@ -334,12 +410,25 @@ async def test_http_journal_client_recovers_completed_call_after_crash_without_s
             "confidence": 0.95,
         }
 
-        await worker_2.tick()
+        if hold_currentness:
+            async with held_recovery_currentness(client, monkeypatch) as entered_read:
+                with pytest.raises(CaptureNativeUnavailable):
+                    await DecisionsWorker(
+                        client, agent, ModelClassifier(CompletingProvider())
+                    ).tick()
+                assert entered_read.is_set()
+                await assert_retained_unknown(client)
+
+        worker_2 = await recover_completed_with_observers(
+            client, agent, CompletingProvider(), assert_retained_unknown
+        )
+        await DecisionsWorker(client, agent, ModelClassifier(CompletingProvider())).tick()
         assert calls == 1
         decided = store.read(kinds=["routing.decided"])
         assert len(decided) == 1
         assert decided[0].payload["route"] == "queue"
         assert len(agent.submitted) == 1
+        assert len(store.read(kinds=["routing.dispatch"])) == 1
         assert store.cursor("decisions", worker_2.consumer) >= source.sequence
 
 
