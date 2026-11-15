@@ -7,8 +7,8 @@ It supports the issue #476–#587 work while preserving the earlier designs.
 
 Source: 244,662,707 bytes, SHA-256
 `1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c`.
-Result: 245,700,807 bytes, SHA-256
-`580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb`.
+Result: 245,700,930 bytes, SHA-256
+`039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7`.
 Master file ID remains `aed0c863-4a2a-8195-8008-defdd82e75a3`.
 New page ID: `3d154fd3-c631-5f34-bf0e-4efa76283a20`.
 
@@ -51,6 +51,17 @@ retains board identities, archive comparison counts and the bounded publication
 receipt. It contains no credentials or signed URLs. The earlier
 [Options synchronization record](penpot-options-sync-plan.md) remains historical
 evidence for the unchanged 14-page source.
+
+The first native-work candidate used `type` for its 68 new animated transitions.
+An audit against the exact producer version's
+[Penpot 2.18.5-RC1 animation schema](https://github.com/penpot/penpot/blob/f44566963daf61fce4d8608e7c5e8c27c5853a88/common/src/app/common/types/shape/interactions.cljc#L75)
+found that the required discriminator is `animationType` (#598), as in the
+original master. The current archive corrects only those 68 added shape
+members. Every original member and all static previews remain unchanged.
+The review record retains the first candidate's failed grammar check, digest
+and publication receipt alongside the corrected candidate's full download
+verification. These pinned field/value checks do not execute Penpot's complete
+schema or qualify native import, text layout or actual prototype playback.
 
 ## Remaining acceptance
 

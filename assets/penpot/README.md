@@ -165,8 +165,8 @@ source pages, all 369 original boards, and every original archive member remain
 byte-exact. The new page has 34 boards, 744 editable native text shapes and 136
 prototype links, split into motion-on (220ms dissolve) and instant motion-off.
 
-Archive: **245,700,807 bytes**; SHA-256:
-`580076fff0334d507f8b657deb60b7a6b0f3ce6f38efccd5eb0d91a4793a73eb`.
+Archive: **245,700,930 bytes**; SHA-256:
+`039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7`.
 The LFS object was uploaded and its complete remote download verified before
 the tracked pointer was changed. No credentials or signed download URLs are
 retained in the review record.
