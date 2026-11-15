@@ -1,0 +1,49 @@
+{
+  "parent": "6c726cbc1040188846cb52fe7885c97ca144c13e",
+  "shared_source_commit": "2915b6281d1019b24043aafac92d1768eb3c6f04",
+  "declared_flutter_inputs": 407,
+  "warm_source_oracle": "1 passed / 3.00s; no tracked mutation with --no-pub",
+  "cold_copy_first": "1 failed / 1.36s; existing --no-pub requires pre-generated configuration",
+  "python312": {
+    "passed": 40,
+    "seconds": 35.53,
+    "warnings": 1
+  },
+  "python313_focused": {
+    "passed": 6,
+    "seconds": 16.23,
+    "warnings": 1
+  },
+  "original_process_timeout_s": 90,
+  "native_assertions_preserved": true,
+  "original_source_and_copied_lock_unchanged": true,
+  "python_sha256": {
+    "tests/flutter_project_helpers.py": "c3cef240b56a3026c142e6b1e911e6b8b44e9fd3e01485c42837f6a51b81bbeb",
+    "tests/unit/test_flutter_project_copy.py": "505b426968897767154a5b55bda1ccfa19164c782b2024107abe56af506ee57f",
+    "tests/integration/test_companion_control.py": "b87cc5272d1ed66211e359ba754b1108008865b23da3c33abf9aaf45e52fa0e3",
+    "tests/integration/test_core_subsystem_dart.py": "5e61b938374812263d2b382c9da1d581252975919960882bccd0941db4c7ae47"
+  },
+  "raw_logs": {
+    "issue-637-core-source-first.log": {
+      "sha256": "66bba16cb8034f86f397ca937761e58d5bc804f4959e889ca9c27e18e7525571",
+      "summary": "1 passed in 3.00s"
+    },
+    "issue-637-core-cold-first.log": {
+      "sha256": "8d9401e16da6706c596f8ac8d7d17acfacb0df788cdd60f93ce687e64c842b74",
+      "summary": "1 failed in 1.36s"
+    },
+    "issue-637-core-isolation-final312.log": {
+      "sha256": "47ecdf9d60cc22c5c4ece747d9be4d91b98c913bd3bb480f13ed5856287a4772",
+      "summary": "40 passed, 1 warning in 35.53s"
+    },
+    "issue-637-core-isolation-final313.log": {
+      "sha256": "862ef4a6fc8f0f53a85b1d740412057725960fb4711db1753170d823070f18ec",
+      "summary": "6 passed, 1 warning in 16.23s"
+    },
+    "issue-632-python314-first-failure.log": {
+      "sha256": "daad13b3d9c62b28bcc7844e0d038a15816e6f684bae9ff47c86ef4f9b4dc925",
+      "summary": "2026-11-15T20:43:43.9383516Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+    }
+  },
+  "unresolved_ci": "#639 Python 3.14 setup 503; cause not proven; not claimed repaired by isolation"
+}

@@ -89,3 +89,32 @@ environment (one case, 2.86 seconds) and in the normal environment (one case,
 2.66 seconds). No product or SDK behavior changed. Full exact-head CI has not
 yet completed for this follow-up. Raw first/final logs remain under the local
 `output/issue-566-core-options/` evidence directory.
+
+## Isolated SDK fixtures (#637)
+
+The common copy helper and companion case are the same source as PR #638,
+`2915b6281d1019b24043aafac92d1768eb3c6f04`. Core's independent input-hash
+oracle first passes with the existing warm source cache (one case / 3.00s);
+its `--no-pub` invocation does not reproduce the companion's analyzer migration.
+The first genuinely fresh copy then fails (one case / 1.36s), because that flag
+assumed an already generated package configuration. Normal Flutter preparation
+now runs in the copy within the unchanged 90-second process budget. The copy
+contains only current declared inputs; its lock and all 407 original Flutter
+files must remain unchanged.
+
+Python 3.12.3 passes all four helper cases, the complete 35-case companion
+module, and the actual Core case: **40 passed / 35.53s**. Python 3.13.18 passes
+the four helper cases and both actual native SDK cases: **6 passed / 16.23s**.
+The focused cases overlap the full group and are not added to its total. All
+native save/replay/lookup/403/409, host-byte and original-owner/thread-close
+assertions remain. One existing Starlette deprecation warning is retained.
+See [fixture receipts](fixture-isolation.json) for first/final log hashes and
+source pins. No SDK, dependency, runtime or authority change is made.
+
+The earlier exact-head run `43754636981` passed Python 3.11/3.12 (15,208 cases,
+10 skipped, 49 live deselected and two subtests each) plus four non-Python jobs.
+Python 3.14 failed one standing-authority setup before its target test:
+15,207 passed, one failed, 10 skipped, 49 deselected and two subtests.
+[#639](https://github.com/rgoza1996/Kinaiya/issues/639) preserves that observation;
+its underlying cause remains unproven. Source isolation does not claim to fix
+it. The resulting head requires fresh CI and full #566/#567 remain unfinished.

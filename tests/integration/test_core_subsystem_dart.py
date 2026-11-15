@@ -1,5 +1,6 @@
 """Real bounded Dart client against native Session/Core, without model services."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -12,6 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 import uvicorn
+from flutter_project_helpers import isolated_flutter_project
 
 from services.common.auth import Auth
 from services.common.topology import SubsystemTopology
@@ -101,12 +103,22 @@ def test_actual_dart_core_subsystem_transport(tmp_path):
                 time.sleep(0.02)
         else:
             pytest.fail("Original temporary Session/Core did not become ready")
-        project = Path(__file__).resolve().parents[2] / "apps/kinaiya_flutter"
+        root = Path(__file__).resolve().parents[2]
+        names = (
+            subprocess.check_output(
+                ["git", "ls-files", "-z", "--", "apps/kinaiya_flutter"], cwd=root
+            )
+            .decode()
+            .split("\0")
+        )
+        original_inputs = {
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in names if name
+        }
+        project = isolated_flutter_project(root, tmp_path / "flutter-project")
         process = subprocess.run(
             [
                 flutter,
                 "test",
-                "--no-pub",
                 "--reporter",
                 "expanded",
                 "test/core_subsystems_live_test.dart",
@@ -120,6 +132,13 @@ def test_actual_dart_core_subsystem_transport(tmp_path):
         )
         assert process.returncode == 0, process.stdout + process.stderr
         assert "All tests passed!" in process.stdout
+        assert (
+            hashlib.sha256((project / "pubspec.lock").read_bytes()).hexdigest()
+            == original_inputs["apps/kinaiya_flutter/pubspec.lock"]
+        ), "Actual Core Dart fixture changed its declared dependency lock"
+        assert {
+            name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in original_inputs
+        } == original_inputs, "Actual Core Dart fixture changed declared application source"
         assert host_config.read_bytes() == original_bytes
         allowed = {"/v1/core/options/subsystems", "/v1/core/options/subsystem-changes/lookup"}
         assert all(path in allowed for _, path, _ in requests)

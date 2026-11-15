@@ -63,6 +63,19 @@ unchanged-host and joined-owner assertion. The original CI failure and a local
 CI-environment reproduction are retained. The corrected case passes under both
 normal and GitHub Actions environment selection; exact-head CI remains required.
 
+The SDK/native fixtures now use isolated copies of declared application input
+files (#637), preserving source and dependency-lock hashes. Core's original
+`--no-pub` case passes with a warm source cache, but fails in a genuinely fresh
+copy. Normal SDK preparation now runs inside that copy within the original
+90-second process budget. The actual save/replay/lookup/authorization and
+original-thread retirement assertions remain unchanged. The first cold-copy
+failure and final cross-interpreter results are retained in the evidence.
+
+The first corrected-reporter CI passes six standard jobs; its Python 3.14 run
+has a standing-authority setup 503 tracked separately as #639. That cause is
+not established or claimed repaired by source isolation. New exact-head CI is
+required before merge.
+
 The built app saves all six modes and a fresh host-default reset through the
 native API at desktop and narrow widths. A real SIGTERM interruption leaves
 its exact original unconfirmed. A replacement controller on the same private
