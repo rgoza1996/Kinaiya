@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from native_startup_observers import observe_standing_read
 from test_standing_dispatch_api import AUTH, headers, rows
 
 from packages.contracts.agent_control import AgentModeChange
@@ -139,9 +140,10 @@ async def env(factory):
 
 
 async def original(env):
-    state = checked(
-        await env.client.get("/v1/standing/dispatch", headers=headers()), 200, StandingDispatchState
-    )
+    with observe_standing_read(env.operations) as failures:
+        reply = await env.client.get("/v1/standing/dispatch", headers=headers())
+    assert reply.status_code == 200, (reply.status_code, reply.text, failures)
+    state = checked(reply, 200, StandingDispatchState)
     grant = StandingChange.model_validate(
         {
             "schema_version": "1.0",
