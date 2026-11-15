@@ -394,6 +394,73 @@ test('mouth follows played PCM volume, closes in silence, and never opens the mi
   api.dispose();
 });
 
+test('speech visualizer measures played PCM independently of visemes and future audio', async () => {
+  const {api, seen} = makeFakes();
+  const quiet = {rms: 0, active: false};
+  assert.deepEqual(JSON.parse(api.playbackFrame()), quiet);
+  assert.equal(seen.context, undefined, 'reading never creates/resumes audio');
+  await api.queuePcm(pcmLevels([[60, 0], [60, 0.035], [60, 0.20]]), 1000);
+  await api.queuePcmWithVisemes(pcmLevels([[60, 0.25]]), 1000,
+    [{start_ms: 0, end_ms: 60, viseme: 'PP'}]);
+  function at(time) {
+    seen.context.currentTime = time;
+    return JSON.parse(api.playbackFrame());
+  }
+  assert.deepEqual(at(100.01), {rms: 0, active: true});
+  const soft = at(100.07);
+  const loud = at(100.13);
+  assert.ok(Math.abs(soft.rms - 0.035) < 0.0001);
+  assert.ok(Math.abs(loud.rms - 0.20) < 0.0001);
+  assert.ok(loud.rms > soft.rms * 5);
+  assert.ok(Math.abs(at(100.19).rms - 0.25) < 0.0001,
+    'closed provider mouth cue cannot replace real PCM amplitude');
+  assert.equal(JSON.parse(api.mouthFrame()).openness, 0);
+  assert.deepEqual(at(100.25), quiet, 'clock end quiets even before onended');
+  assert.equal(seen.constraints, undefined, 'output metering never opens a microphone');
+  api.dispose();
+});
+
+test('speech levels quiet on pause, invalid clock, stop and stale source completion', async () => {
+  const {api, seen, sources} = makeFakes();
+  const quiet = {rms: 0, active: false};
+  await api.queuePcm(pcmLevels([[200, 0.20]]), 1000);
+  const original = sources[0];
+  seen.context.currentTime = 100.05;
+  assert.ok(JSON.parse(api.playbackFrame()).rms > 0);
+  seen.context.state = 'suspended';
+  assert.deepEqual(JSON.parse(api.playbackFrame()), quiet);
+  seen.context.state = 'running';
+  seen.context.currentTime = NaN;
+  assert.deepEqual(JSON.parse(api.playbackFrame()), quiet);
+  seen.context.currentTime = 100.05;
+  api.stopAudio();
+  assert.deepEqual(JSON.parse(api.playbackFrame()), quiet);
+  await api.queuePcm(pcmLevels([[200, 0.10]]), 1000);
+  original.onended();
+  assert.ok(Math.abs(JSON.parse(api.playbackFrame()).rms - 0.10) < 0.0001);
+  api.dispose();
+  assert.deepEqual(JSON.parse(api.playbackFrame()), quiet);
+});
+
+test('reading ended PCM does not acknowledge playback or retain extra envelopes', async () => {
+  const {api, seen, sources} = makeFakes({trackEnvelopes: true});
+  await api.queuePcm(pcmLevels([[40000, 0.10]]), 1000);
+  let ended = false;
+  const waiter = api.awaitPlayback().then(() => { ended = true; });
+  const sizes = [...seen.envelopeSizes];
+  for (let i = 0; i < 100; i++) api.playbackFrame();
+  assert.deepEqual(seen.envelopeSizes, sizes, 'sampling reuses the bounded PCM envelope');
+  assert.ok(sizes.every(size => size <= 1000));
+  seen.context.currentTime = 141;
+  assert.deepEqual(JSON.parse(api.playbackFrame()), {rms: 0, active: false});
+  await Promise.resolve();
+  assert.equal(ended, false, 'presentation has no delivery authority');
+  sources[0].onended();
+  await waiter;
+  assert.equal(ended, true);
+  api.dispose();
+});
+
 test('queued future chunks and suspended context cannot animate ahead of played audio', async () => {
   const {api, seen} = makeFakes();
   await api.queuePcm(pcmLevels([[200, 0]]), 1000);
