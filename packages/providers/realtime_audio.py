@@ -266,7 +266,11 @@ class _Operation:
         self.deadline = asyncio.get_running_loop().time() + owner._timeout
         self.connector = owner._connect
         self.tokens = owner._tokens
-        self.url = owner._url + ("&intent=transcription" if instructions is None else "")
+        self.url = owner._url + (
+            "&intent=transcription"
+            if instructions is None and owner._transcription_connection == "intent_url"
+            else ""
+        )
         self.options = {
             "proxy": None,
             "compression": None,
@@ -629,7 +633,15 @@ class _Operation:
 
 class RealtimeAudioProvider:
     def __init__(
-        self, base_url, model, *, api_key="", max_output_tokens=512, timeout=90.0, connect=None
+        self,
+        base_url,
+        model,
+        *,
+        api_key="",
+        max_output_tokens=512,
+        timeout=90.0,
+        transcription_connection="intent_url",
+        connect=None,
     ):
         try:
             _require(type(base_url) is str and len(base_url) <= 64)
@@ -641,6 +653,10 @@ class RealtimeAudioProvider:
             _require(all(33 <= ord(char) <= 126 for char in api_key))
             _require(type(max_output_tokens) is int and 16 <= max_output_tokens <= 4096)
             _require(type(timeout) in {int, float} and 0 < timeout <= 90 and math.isfinite(timeout))
+            _require(
+                type(transcription_connection) is str
+                and transcription_connection in {"intent_url", "session_update"}
+            )
             _require(connect is None or callable(connect))
         except ProviderRefusal:
             raise ValueError("Native audio configuration is invalid") from None
@@ -648,6 +664,7 @@ class RealtimeAudioProvider:
             "ws://127.0.0.1:" + str(int(match[1])) + "/v1/realtime?model=" + quote(model, safe="")
         )
         self._key, self._tokens, self._timeout = api_key, max_output_tokens, float(timeout)
+        self._transcription_connection = transcription_connection
         self._connect = _default_connect if connect is None else connect
         self._active = None
         self._sealed = self._cleanup_failed = False
@@ -661,6 +678,7 @@ class RealtimeAudioProvider:
             self._timeout,
             hashlib.sha256(self._key.encode("ascii")).hexdigest(),
             id(self._connect),
+            self._transcription_connection,
         )
 
     def transport_available(self) -> bool:

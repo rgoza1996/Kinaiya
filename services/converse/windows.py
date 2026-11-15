@@ -16,6 +16,9 @@ from services.converse.context_projection import ContextProjection
 from services.converse.delivery_context import window_context_projection
 from services.converse.runtime import SpeechChunker
 from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
+from services.converse.task_context import check_disclosure as check_task_disclosure
+from services.converse.task_context import prepare as prepare_task_context
+from services.converse.task_context import publication_scopes as task_publication_scopes
 
 
 class NativeJournalUnavailable(Exception):
@@ -86,6 +89,7 @@ class PreparedReply:
     memory_lease: object = None
     messages: object = None
     native_audio_reply: object = None
+    task_context_frame: object = None
 
 
 class WindowConverseController:
@@ -146,6 +150,10 @@ class WindowConverseController:
         ):
             return False
         if prepared.memory_lease is not None and not prepared.memory_lease.current():
+            return False
+        if prepared.task_context_frame is not None and not prepared.task_context_frame.current(
+            self.runtime, prepared.provider
+        ):
             return False
         epoch = self.runtime.playback.get(prepared.source.session_id)
         expected = (
@@ -427,6 +435,13 @@ class WindowConverseController:
                     return False
                 index = prepared.published
                 text = prepared.chunks[index]
+                if prepared.reply_request is None:
+                    task_scopes = await task_publication_scopes(
+                        self.runtime, prepared.task_context_frame
+                    )
+                    prepared.content_scope = combine_scopes(prepared.content_scope, *task_scopes)
+                    if await self.current(prepared) is None:
+                        return False
                 positive_hit = unverified_work_claim(
                     text, prepared.decision.payload["agent_route"] != "IGNORE_FOR_IMMEDIATE_ROUTING"
                 )
@@ -520,6 +535,15 @@ class WindowConverseController:
             return None
         if prepared.messages is not None:
             return prepared.messages
+        if prepared.task_context_frame is None:
+            prepared.task_context_frame = await prepare_task_context(
+                self.runtime, source, prepared.provider
+            )
+            if await self.current(prepared) is None:
+                self._abandon(prepared)
+                return None
+        frame = prepared.task_context_frame
+        instructions = self.runtime.personality + frame.block
         if prepared.prepare_request is None:
             prepared.prepare_request = self._state_request(
                 source,
@@ -538,10 +562,12 @@ class WindowConverseController:
                 self.journal,
                 source,
                 prepared.provider,
-                personality=self.runtime.personality,
+                personality=instructions,
                 runtime_id=self.runtime._runtime_id,
                 current=lambda: self._local_current(prepared),
                 native=self._native,
+                extra_scopes=frame.scopes,
+                check_extra=lambda: check_task_disclosure(self.runtime, frame, prepared.provider),
             )
             projection = await builder.complete_unmeasured()
             native_audio.clip_for(source)
@@ -566,10 +592,12 @@ class WindowConverseController:
                 self.journal,
                 source,
                 prepared.provider,
-                personality=self.runtime.personality,
+                personality=instructions,
                 runtime_id=self.runtime._runtime_id,
                 current=lambda: self._local_current(prepared),
                 native=self._native,
+                extra_scopes=frame.scopes,
+                check_extra=lambda: check_task_disclosure(self.runtime, frame, prepared.provider),
             )
             if self.runtime.context_budgeted
             else None
@@ -585,7 +613,7 @@ class WindowConverseController:
             )
             return ContextProjection(
                 [
-                    {"role": "system", "content": self.runtime.personality},
+                    {"role": "system", "content": instructions},
                     *(
                         [{"role": "system", "content": projection.delivery}]
                         if projection.delivery is not None
@@ -594,7 +622,7 @@ class WindowConverseController:
                     *projection.messages,
                     {"role": "user", "content": w.text},
                 ],
-                projection.consumed_scopes,
+                [*projection.consumed_scopes, *frame.scopes],
                 consumed_memory=projection.consumed_memory,
             )
 
@@ -650,6 +678,12 @@ class WindowConverseController:
                 self._abandon(prepared)
                 return
             native_audio = getattr(self.runtime, "native_audio", None)
+            await check_task_disclosure(
+                self.runtime, prepared.task_context_frame, prepared.provider
+            )
+            if not self._local_current(prepared):
+                self._abandon(prepared)
+                return
             if native_audio is not None:
                 self.runtime._active[source.session_id] = prepared.task
                 prepared.provider_started = True

@@ -10,6 +10,20 @@ This first host-only mode refuses resource-managed or independently selected cat
 
 A transcription-intent connection may initially announce a valid realtime session before applying the explicit transcription update. Both initial transcription and initial realtime PCM envelopes are validated. In either case, the matching transcription acknowledgement is mandatory before any input audio is sent; the URL intent alone grants no release.
 
+Issue #595 adds an explicit host `native_audio.transcription_connection` choice:
+`intent_url` (the unchanged default) appends `intent=transcription` for ASR;
+`session_update` opens the original realtime URL and selects transcription with
+the mandatory `session.update`. Some chat-capable engines use the URL intent
+to select a separate live-ASR protocol that has no committed input identity at
+final flush. That protocol remains refused by this buffered adapter. The owner
+must qualify the selected connection path; no model-name inference, automatic
+retry or transport fallback chooses the other mode. Both choices preserve the
+same session-ID/rate/ACK checks before original PCM and require the committed
+input identity before accepting ASR output. The choice is captured in the native
+provider binding, so changing it invalidates an admitted clip. Native dialogue
+still opens the original realtime URL and sends the same complete instructions
+and original PCM; no text/TTS substitution is added.
+
 The authenticated `POST /v1/converse/native-audio/clips` accepts strict session/thread/epoch, utterance/request UUIDs, disclosure scope and base64 WAV. Only canonical 44-byte-header PCM16 mono16000 Hz WAV, nonempty and at most30 seconds, is accepted. A bounded raw-body gate precedes JSON validation and never reflects invalid audio. Original decoded PCM is transcribed through the same captured endpoint with transcription intent. The authoritative authenticated-user `conversation.window` retains its audio digest, scope and native identities for Decisions and the normal transcript. Native conversational generation receives that same original PCM, not a text replacement of its transcription.
 
 ## Ownership and replay
@@ -58,6 +72,12 @@ Voice options use the configured native mode even before Call starts or while ca
 The independent `native_call_input_selection.test.js` and `native_call_input_test.dart` fixtures cover canonical PCM and whole-utterance bounds, explicit device ownership, held operations, interruption, unknown acknowledgements, currentness fences and no legacy fallback. They provide controlled browser/widget evidence; actual private-input capture, external-engine speech and audible playback still require a separate rehearsal.
 
 ## Verification and limits
+
+[Converse task observations and editable instructions](../converse-task-context.md)
+describe the shared typed/window/native first-system-message framing. Related
+task observations are bounded, authenticated framework data with their own
+disclosure floor. They do not replace native outcome authority, original PCM,
+complete qualified history or the existing no-fallback behavior.
 
 Independent scripted-transport and real Store/runtime/API tests cover original PCM, journal identity, complete history, no-count/no-TTS traps, replay, limits, stale authority, held cleanup and native delivery. Flutter tests cover canonical WAV, HTTP/receipt identity, fast polling, unarmed import playback and retirement. Existing schema hashes remain unchanged. Exact local test and CI outcomes belong in the PR; a scripted transport is not real inference or audible playback proof. The rehearsal must separately record actual external-engine speech input/output and browser playback.
 

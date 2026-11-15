@@ -29,8 +29,9 @@ from packages.contracts.models import (
     WindowDecision,
     new_id,
 )
-from packages.providers.decision_capture import _capture, capture_sources
+from packages.providers.decision_capture import _capture, capture_prompt_scope, capture_sources
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
+from services.decisions.prompts import DEFAULT_PROMPT, instructions, prompt_stamp
 
 CONVERSATION_LABELS = (
     "IGNORE",
@@ -100,7 +101,7 @@ _ALLOWED_SCOPES_LOCAL = {"local_only", "public_synthetic", "private_cloud_author
 OVERFLOW_TASKS = 5
 # Bump when the provider-visible window request shape or instructions change so
 # RAM cache entries from an older request contract can never be reused.
-WINDOW_REQUEST_CONTRACT = "window-request-v2"
+WINDOW_REQUEST_CONTRACT = "window-request-v3"
 
 
 class WindowDisclosureRefused(ValueError):
@@ -346,6 +347,7 @@ def admissible_window_projection(
     agent_enabled: bool = True,
     agent_available: bool = True,
     model_stamp: str | None = None,
+    instructions_stamp: str | None = None,
 ) -> WindowProjection:
     """Project the exact classifier request and its canonical reuse digest.
 
@@ -400,6 +402,7 @@ def admissible_window_projection(
         ),
         "allowed_scopes": sorted(_allowed_scopes(provider_info)),
         "model_stamp": model_stamp,
+        "instructions_stamp": instructions_stamp,
         "window_chars": window_chars,
     }
     digest = hashlib.sha256(
@@ -419,9 +422,10 @@ class WindowClassifier:
     never silently replaced with a fabricated classification.
     """
 
-    def __init__(self, provider, window_chars: int = 36000):
+    def __init__(self, provider, window_chars: int = 36000, *, prompt=None):
         self.provider = provider
         self.window_chars = window_chars
+        self.prompt = DEFAULT_PROMPT if prompt is None else prompt
 
     def _build(self, source: JournalEntry, context: list[JournalEntry], tasks: list):
         return build_window_request(
@@ -441,6 +445,9 @@ class WindowClassifier:
         context: list[JournalEntry],
         tasks: list,
     ) -> dict:
+        prompt = self.prompt
+        prompt_stamp(prompt, "window", self.provider.info)
+        capture_prompt_scope(prompt.content_scope)
         if source.kind != "conversation.window":
             raise ValueError(f"WindowClassifier needs a conversation.window, got {source.kind!r}")
         window = SpeechWindow.model_validate(source.payload)
@@ -450,27 +457,7 @@ class WindowClassifier:
             for t in tasks
         ):
             tasks = await resolve_scoped_tasks(capture.journal, tasks)
-        instructions = (
-            "Decide how a live transcript window affects conversation timing and, "
-            "separately, Agent work. Return ONLY JSON with exactly these keys: "
-            '{"conversation":"IGNORE|WAIT_FOR_NEXT_WINDOW|RESPOND_INTERRUPT_USER|'
-            'RESPOND_WITHOUT_INTERRUPTING_USER",'
-            '"agent_route":"IGNORE_FOR_IMMEDIATE_ROUTING|STEER_CURRENT_TASK|'
-            'INTERRUPT_CURRENT_TASK|QUEUE_UNTIL_TASK_DONE",'
-            '"target_task_id":null,"expected_objective_revision":null,'
-            '"reason_code":"short_label"}. '
-            "Judge from successive window contents and context, not fixed silence: "
-            "user_speaking/capture_ended are hints only. A trailing fragment such as "
-            "'Korina, could you... actually...' waits; a backchannel 'Mm-hmm' during "
-            "an explanation is ignored on both channels; 'Also include the documentation.' "
-            "during a task responds without interrupting and steers the current task; "
-            "'Stop, don't delete that!' during execution responds by interrupting and "
-            "interrupts the current task; 'Once that finishes, check the changelog.' "
-            "responds and queues until the task is done. target_task_id and "
-            "expected_objective_revision must copy the supplied task list entries; "
-            "invent nothing. No personality, no instructions, no commentary."
-            " A request to stop only the companion's speech uses WAIT_FOR_NEXT_WINDOW and ignores Agent routing."
-        )
+        system_instructions = instructions(prompt, "window")
         started = time.monotonic()
         request = self._build(source, context, tasks)
         body = request.body
@@ -481,7 +468,7 @@ class WindowClassifier:
         capture_sources(source, [*request.context, *task_sources])
         raw = await self.provider.complete(
             [
-                {"role": "system", "content": instructions},
+                {"role": "system", "content": system_instructions},
                 {"role": "user", "content": body},
             ]
         )
@@ -531,7 +518,7 @@ class WindowClassifier:
             classifier_ms=classifier_ms,
         )
         return {
-            "prompt_chars": len(instructions) + len(body),
+            "prompt_chars": len(system_instructions) + len(body),
             "history_chars": sum(len(e["text"]) for e in context_used),
             "context_entries": len(context_used),
             "conversation": decision.conversation,

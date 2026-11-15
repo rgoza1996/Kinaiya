@@ -21,6 +21,7 @@ from packages.providers.decision_capture import (
 )
 from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
+from services.decisions.prompts import prompt_stamp
 from services.decisions.window_routing import (
     _project_tasks_with_sources,
     admissible_window_projection,
@@ -292,6 +293,10 @@ class WindowDecisionsWorker:
         key = (source.session_id, source.epoch, window.utterance_id)
         model_stamp = self.model_settings.cache_stamp() if self.model_settings is not None else None
         provider_info = self._active_provider_info()
+        prompt = getattr(self.classifier, "prompt", None)
+        instructions_stamp = (
+            prompt_stamp(prompt, "window", provider_info) if prompt is not None else None
+        )
         window_chars = getattr(self.classifier, "window_chars", 36000)
         projection = admissible_window_projection(
             source,
@@ -302,6 +307,7 @@ class WindowDecisionsWorker:
             agent_enabled=self.agent_enabled,
             agent_available=available,
             model_stamp=model_stamp,
+            instructions_stamp=instructions_stamp,
         )
         # One authorization-first builder defines both the reuse identity and
         # the classifier input: the classifier receives exactly the projected
@@ -381,7 +387,9 @@ class WindowDecisionsWorker:
 
                 async with self.model_settings.operation() as lease:
                     classifier = WindowClassifier(
-                        lease.provider, window_chars=self.classifier.window_chars
+                        lease.provider,
+                        window_chars=self.classifier.window_chars,
+                        prompt=getattr(self.classifier, "prompt", None),
                     )
                     async with decision_attempt(
                         self.journal,

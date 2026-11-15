@@ -142,7 +142,15 @@ def converse_native_audio(config, runtime, data_dir, workspace):
     if (
         type(declared) is not dict
         or set(declared)
-        - {"kind", "base_url", "model", "api_key_env", "max_output_tokens", "timeout"}
+        - {
+            "kind",
+            "base_url",
+            "model",
+            "api_key_env",
+            "max_output_tokens",
+            "timeout",
+            "transcription_connection",
+        }
         or declared.get("kind") != "realtime_v1"
         or config.get("resources", {}).get("enabled") is True
     ):
@@ -179,6 +187,7 @@ def converse_native_audio(config, runtime, data_dir, workspace):
         api_key=os.environ.get(reference, "") if reference is not None else "",
         max_output_tokens=declared.get("max_output_tokens", 512),
         timeout=declared.get("timeout", 90),
+        transcription_connection=declared.get("transcription_connection", "intent_url"),
     )
     return NativeAudioOwner(
         runtime, adapter, path=data_dir / "native-audio.sqlite", workspace=workspace
@@ -974,10 +983,12 @@ def serve(args):
     elif service == "converse":
         import sqlite3
 
+        from packages.agent_adapters.task_context import TaskContextClient
         from services.converse.api import create_app
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.model_settings import ConverseModelSettings
+        from services.converse.prompts import configured_prompt
         from services.converse.runtime import ConverseRuntime
         from services.converse.setup import safe_host_setup
         from services.converse.windows import WindowConverseController
@@ -985,6 +996,7 @@ def serve(args):
         from services.settings.provider_catalog import ProviderCatalog
         from services.settings.provider_factory import UnavailableHostProvider
 
+        prompt_options = configured_prompt(config)
         try:
             catalog = ProviderCatalog(
                 args.data_dir.resolve() / "providers.sqlite",
@@ -1020,6 +1032,10 @@ def serve(args):
             )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Converse")
+        try:
+            task_context_client = TaskContextClient(config["agent_url"], tokens["converse"])
+        except (KeyError, TypeError, ValueError):
+            task_context_client = None
         runtime = ConverseRuntime(
             journal,
             host_provider,
@@ -1027,6 +1043,8 @@ def serve(args):
             resources_managed=resources_enabled,
             memory_adapters=memory_adapters,
             context_budgeted=True,
+            task_context_client=task_context_client,
+            **prompt_options,
         )
         if getattr(args, "start_paused", False):
             # A launch-time availability fence, installed before observers or
@@ -1165,12 +1183,14 @@ def serve(args):
             DecisionsModelUnavailable,
             UnavailableDecisionsModels,
         )
+        from services.decisions.prompts import configured_prompt
         from services.decisions.runtime import DecisionsWorker, ModelClassifier
         from services.decisions.window_routing import WindowAgentDispatcher, WindowClassifier
         from services.decisions.window_worker import WindowDecisionsWorker
         from services.settings.provider_catalog import ProviderCatalog
         from services.settings.provider_factory import UnavailableHostProvider
 
+        decision_prompt = configured_prompt(config)
         window_chars = config.get("decisions_window_chars", 36000)
         if type(window_chars) is not int or not 256 <= window_chars <= 36000:
             raise SystemExit("decisions_window_chars must be an integer from 256 to 36000")
@@ -1207,6 +1227,7 @@ def serve(args):
             ModelClassifier(
                 host_provider,
                 window_chars=window_chars,
+                prompt=decision_prompt,
             ),
             enabled=config.get("agent_enabled", True),
             model_settings=decision_models,
@@ -1216,7 +1237,9 @@ def serve(args):
             WindowDecisionsWorker(
                 worker.journal,
                 worker.agent,
-                WindowClassifier(worker.classifier.provider, window_chars=window_chars),
+                WindowClassifier(
+                    worker.classifier.provider, window_chars=window_chars, prompt=decision_prompt
+                ),
                 agent_enabled=worker.enabled,
                 timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
                 model_settings=decision_models,

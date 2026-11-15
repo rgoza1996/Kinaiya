@@ -141,7 +141,9 @@ async def test_exact_native_wire_projection_and_unknown_health_without_probe(mod
             task.pop("objective", None)
         expected = {
             "model": MODEL,
-            "state": LayaRoutingProvider._render_state(projected),
+            "state": LayaRoutingProvider._render_state(
+                projected, system_instructions=source[0]["content"]
+            ),
             "questions": (_window_questions if mode == "window" else _finalized_questions)(
                 projected["tasks"]
             ),
@@ -520,5 +522,49 @@ async def test_non_onehot_probability_at_floor_and_safe_usage_max_are_valid(mode
         assert result["target_task_id"] == "task-beta"
         if mode == "finalized":
             assert result["confidence"] == 0.7
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.parametrize("mode", ["window", "finalized"])
+@pytest.mark.parametrize("text", ["", "Public custom preference Ω", "Ω" * 4096])
+async def test_selected_instructions_reach_actual_typed_request(mode, text):
+    from services.decisions.prompts import configured_prompt, instructions
+
+    prompt = configured_prompt(
+        {
+            "decisions_prompt": {
+                "finalized": text,
+                "window": text,
+                "content_scope": "public_synthetic",
+            }
+        }
+    )
+    source = messages(mode)
+    source[0]["content"] = instructions(prompt, mode)
+    wire = Wire(payload(mode))
+    adapter = provider(wire)
+    try:
+        await adapter.complete(source)
+        assert len(wire.requests) == 1
+        body = json.loads(wire.requests[0].content)
+        assert body["state"].startswith(
+            "Classifier system instructions:\n" + source[0]["content"] + "\nLatest transcript"
+        )
+        assert "genuine user questions and commands" not in json.dumps(body)
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.parametrize("text", ["x" * 16385, "\x00", "\ud800"])
+async def test_invalid_system_instructions_refuse_before_typed_transport(text):
+    source = messages()
+    source[0]["content"] = text
+    wire = Wire(payload())
+    adapter = provider(wire)
+    try:
+        with pytest.raises(ProviderRefusal):
+            await adapter.complete(source)
+        assert wire.requests == []
     finally:
         await adapter.close()

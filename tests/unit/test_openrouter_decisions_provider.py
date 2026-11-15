@@ -163,7 +163,9 @@ async def test_all_catalog_models_send_pinned_provider_preferences_and_parse_res
         spec = OPENROUTER_DECISIONS_MODELS[model_name]
         expected = {
             "model": model_name,
-            "state": LayaRoutingProvider._render_state(projected),
+            "state": LayaRoutingProvider._render_state(
+                projected, system_instructions=source[0]["content"]
+            ),
             "questions": (_window_questions if mode == "window" else _finalized_questions)(
                 projected["tasks"]
             ),
@@ -236,3 +238,47 @@ async def test_confidence_floor_and_response_identity_fences():
             await wrong_provider.complete(messages("finalized"))
     finally:
         await wrong_provider.close()
+
+
+@pytest.mark.parametrize("mode", ["window", "finalized"])
+@pytest.mark.parametrize("text", ["", "Public custom preference Ω", "Ω" * 4096])
+async def test_selected_instructions_reach_actual_typed_request(mode, text):
+    from services.decisions.prompts import configured_prompt, instructions
+
+    prompt = configured_prompt(
+        {
+            "decisions_prompt": {
+                "finalized": text,
+                "window": text,
+                "content_scope": "public_synthetic",
+            }
+        }
+    )
+    source = messages(mode)
+    source[0]["content"] = instructions(prompt, mode)
+    wire = Wire(payload(mode))
+    adapter = provider(wire)
+    try:
+        await adapter.complete(source)
+        assert len(wire.requests) == 1
+        body = json.loads(wire.requests[0].content)
+        assert body["state"].startswith(
+            "Classifier system instructions:\n" + source[0]["content"] + "\nLatest transcript"
+        )
+        assert "genuine user questions and commands" not in json.dumps(body)
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.parametrize("text", ["x" * 16385, "\x00", "\ud800"])
+async def test_invalid_system_instructions_refuse_before_typed_transport(text):
+    source = messages()
+    source[0]["content"] = text
+    wire = Wire(payload())
+    adapter = provider(wire)
+    try:
+        with pytest.raises(ProviderRefusal):
+            await adapter.complete(source)
+        assert wire.requests == []
+    finally:
+        await adapter.close()
