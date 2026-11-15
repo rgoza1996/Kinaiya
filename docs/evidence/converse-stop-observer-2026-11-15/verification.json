@@ -1,0 +1,51 @@
+{
+  "parent": "e749c02bce5fe69e3434cab37f184675a15348c4",
+  "issue": 640,
+  "native_budget_s": 1.0,
+  "hanging_fault_s": 0.02,
+  "hanging_observer_s": 0.3,
+  "healthy_observer": "2 * original_native_budget + original_0.3_watchdog_margin",
+  "controlled_healthy_delays_s": [
+    0,
+    0.05,
+    0.4
+  ],
+  "first_controlled": {
+    "failed": 2,
+    "passed": 4,
+    "deselected": 156,
+    "seconds": 3.11
+  },
+  "python312_full_module": {
+    "passed": 162,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 90.93
+  },
+  "python314_focused": {
+    "passed": 6,
+    "failed": 0,
+    "deselected": 156,
+    "seconds": 4.45
+  },
+  "production_sources_unchanged": true,
+  "test_sha256": "ffd0d0d54c1a92b514e8585f74aa6464cbd472f2f8f7d402ca0763e700eead11",
+  "logs": {
+    "issue-635-python312-first-failure.log": {
+      "sha256": "8339b2d1a0c0e61306a8828d269ca39b2d32e36ef72d0ec62f9404d7eeb73fd0",
+      "summary": "2026-11-15T20:52:53.6385344Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+    },
+    "issue-640-stop-observer-first.log": {
+      "sha256": "5d7f2ba2c7da0349995bef662bb53118cf3f3d910c3413709b131479b39fe2d7",
+      "summary": "2 failed, 4 passed, 156 deselected in 3.11s"
+    },
+    "issue-640-stop-observer-final312.log": {
+      "sha256": "437de27045e7e81b701786157a602f4a09b3887e5f4a75dcef953b1fd4115db0",
+      "summary": "162 passed in 90.93s (0:01:30)"
+    },
+    "issue-640-stop-observer-final314.log": {
+      "sha256": "9210c01fa2210bc2fe8f173a86cb73057b72e02863db1113dd4c530aa7438ca4",
+      "summary": "6 passed, 156 deselected in 4.45s"
+    }
+  }
+}

@@ -18,6 +18,14 @@ command and manifest hashes. Contract export is unchanged; Ruff check, format
 check (1,042 files) and diff checks pass. Targeted runs overlap this total and
 are not added to it. Remote exact-head CI remains required before merge.
 
+The first CI run exposed a separate old Converse test-observer mismatch,
+tracked before repair as #640. The
+[controlled reproduction and correction](../converse-stop-observer-2026-11-15/README.md)
+retain the original native budgets and strengthen the legal-delay coverage.
+Its complete 162-case recovery module passes; the standing runtime source and
+the earlier outcome qualification remain unchanged. Exact-head CI is pending
+for the composed follow-up.
+
 ## Actual boundaries exercised
 
 The integration fixture uses real Session/SQLite, authenticated JournalClient

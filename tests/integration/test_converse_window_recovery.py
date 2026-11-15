@@ -744,7 +744,11 @@ async def test_late_old_abandon_cannot_fence_reused_generation_after_reset(env):
     await settle(env)
 
 
-@pytest.mark.parametrize("ordinary_delay_s", [0, 0.05], ids=["ordinary-io", "delayed-ordinary-io"])
+@pytest.mark.parametrize(
+    "ordinary_delay_s",
+    [0, 0.05, 0.4],
+    ids=["ordinary-io", "delayed-ordinary-io", "within-native-budget"],
+)
 async def test_stop_tick_budget_rotates_past_a_hanging_session(env, ordinary_delay_s):
     sessions = [env.session] + [
         env.store.create_session(SessionRequest(channel="converse")) for _ in range(4)
@@ -754,6 +758,7 @@ async def test_stop_tick_budget_rotates_past_a_hanging_session(env, ordinary_del
         env.runtime.fence_playback(session.session_id)
     env.controller._stop_batch_size = 2
     ordinary_budget_s = env.controller._journal_timeout_s
+    assert ordinary_delay_s < ordinary_budget_s
     env.controller._journal_timeout_s = 0.02
     original = env.journal.session
     calls = []
@@ -784,7 +789,10 @@ async def test_stop_tick_budget_rotates_past_a_hanging_session(env, ordinary_del
         # next batch uses the native budget for genuine healthy journal I/O.
         env.controller._journal_timeout_s = ordinary_budget_s
         healthy_tick = asyncio.create_task(env.controller.tick())
-        await asyncio.wait_for(healthy_tick, 0.3)
+        # Observe the existing stop-batch budget and its following healthy
+        # transcript read, plus the original short watchdog margin. This
+        # caller must not cancel legal native I/O before either budget ends.
+        await asyncio.wait_for(healthy_tick, 2 * ordinary_budget_s + 0.3)
         stops = env.store.read(kinds=["delivery.updated"])
         assert [e.session_id for e in stops] == [s.session_id for s in sessions[1:3]]
         assert len(calls) == 5
