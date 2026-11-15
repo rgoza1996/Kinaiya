@@ -1,0 +1,923 @@
+{
+  "scope": "public synthetic isolated qualification; actual native Agent acceptance/steer with controlled held Agent provider, no tools/effects; no owner service changes, cloud, microphone or TTS fallback",
+  "source_head": "199c91624f91920a47683f3b8a506acc79cecd2c",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "qualification_sha256": "c53760c2e918ec857f19dc2e10867ed0bacddbc46b5f30e6c336e102bd602f35",
+  "qualification_kind": "current-main Audio comparison after explicit session_update connection repair; unchanged built-in persona; three predeclared fresh public utterances; first outputs only",
+  "transcription_connection": "session_update",
+  "audio_listened": false,
+  "browser_delivery_qualified": false,
+  "artifacts": [
+    {
+      "name": "llama-server",
+      "bytes": 17888,
+      "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+    },
+    {
+      "name": "libllama-server-impl.so",
+      "bytes": 8006384,
+      "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+    },
+    {
+      "name": "LFM3-Audio-2B-Q4_K_M.gguf",
+      "bytes": 1099626016,
+      "sha256": "9a773289bd321ed879cd3a76545f6aca506e403851a45fb315420aee45625be2"
+    },
+    {
+      "name": "mmproj-LFM3-Audio-2B-Q8_0.gguf",
+      "bytes": 337862080,
+      "sha256": "26601e904245a85bd8f3cf320a629e897cfc01c1d09369e8b4fd951f13024d3e"
+    }
+  ],
+  "controlled_agent_provider_calls": 1,
+  "engine_exit": 0,
+  "schema_version": 1,
+  "semantics_reviewed_after_run": true,
+  "review_method": "First-output source and text review by the coding agent, independently checked against retained wire/WAV/publication bytes; no audio listening.",
+  "cases": [
+    {
+      "name": "work",
+      "input_text": "Please ask Agent to make a brief equipment checklist for an imaginary astronomy club night.",
+      "actual_asr": "Please ask agent to make a brief equipment checklist for an imaginary astronomy club night.",
+      "endpoint_text": "I will ask the agent to create a brief equipment checklist for an imaginary astronomy club night.",
+      "publication": {
+        "schema_version": "1.0",
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1,
+        "kind": "conversation.converse",
+        "payload": {
+          "text": "I will ask the agent to create a brief equipment checklist for an imaginary astronomy club night.",
+          "final": true,
+          "revision": 1,
+          "generation_epoch": 1,
+          "runtime_id": "78b8231d-0261-476f-8d78-c4528c0646cb",
+          "owner_intent_revision": 0,
+          "availability_generation": 0,
+          "chunk_id": "645de98083981b2719a7fea2d687cbcb",
+          "delivery": "generated",
+          "window_source_id": "5c7e22fe-2839-4abf-ac62-2116478cd750",
+          "window_utterance_id": "e5dddb5c-15ee-4120-a771-54d7f45c2a4f",
+          "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "native_audio": true,
+          "native_audio_sha256": "60311309c266e1b2deaacf152e1faa054fa2eddc49497f12c0f2405b8d847642",
+          "content_scope": "local_only"
+        },
+        "causes": [
+          "5c7e22fe-2839-4abf-ac62-2116478cd750"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-reply:5c7e22fe-2839-4abf-ac62-2116478cd750:0",
+        "event_id": "1a74b402-af7c-4e11-a359-05aa9bb3633d",
+        "sequence": 6,
+        "origin": "converse",
+        "created_at": "2026-11-15T08:06:54.156388Z"
+      },
+      "native_agent_receipt": {
+        "schema_version": "1.0",
+        "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1,
+        "objective": "Please ask agent to make a brief equipment checklist for an imaginary astronomy club night.",
+        "content_scope": "public_synthetic",
+        "objective_revision": 1,
+        "state": "accepted",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "5c7e22fe-2839-4abf-ac62-2116478cd750"
+        ],
+        "idempotency_key": "public-controlled-task",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "first_system_message": {
+        "role": "system",
+        "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T08:06:50.886445+00:00\",\"instance_id\":\"b19c8223-c668-451e-b958-e47eccd5507d\",\"tasks\":[{\"task_id\":\"177f0187-389c-4aca-af38-8bc0971bd92c\",\"session_id\":\"e2c75dfa-410d-4b3d-8697-e90af02db7cc\",\"thread_id\":\"2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":false,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+      },
+      "elapsed_s": 5.529206617000455,
+      "error": null,
+      "files": [
+        {
+          "name": "work-input.wav",
+          "bytes": 172524,
+          "sha256": "0852aeb1fafcf5862e881805b5702a10f7225299330bebf1e2901fca4334883e",
+          "pcm_sha256": "7521e02a3352ba16af84062838e1dd0e754ee6c44db67a22ff545b149b714e37",
+          "rate": 16000,
+          "seconds": 5.39
+        },
+        {
+          "name": "work-output.wav",
+          "bytes": 211244,
+          "sha256": "e130bd45a7c4cd65540eb2683149a9b84dea6016ae6815aa396f5de7a96a0e81",
+          "pcm_sha256": "60311309c266e1b2deaacf152e1faa054fa2eddc49497f12c0f2405b8d847642",
+          "rate": 24000,
+          "seconds": 4.4
+        }
+      ],
+      "semantic_text_pass": true,
+      "semantic_text_review": "Receipt-only future Agent handoff; no drafted checklist or completed-work claim. This does not prove successful execution."
+    },
+    {
+      "name": "followup",
+      "input_text": "Add a spare flashlight to that same request.",
+      "actual_asr": "Add a spare flashlight to that same request,",
+      "endpoint_text": "I will add a pair of flashlights to the equipment checklist for the astronomy club night.",
+      "publication": {
+        "schema_version": "1.0",
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1,
+        "kind": "conversation.converse",
+        "payload": {
+          "text": "I will add a pair of flashlights to the equipment checklist for the astronomy club night.",
+          "final": true,
+          "revision": 1,
+          "generation_epoch": 3,
+          "runtime_id": "78b8231d-0261-476f-8d78-c4528c0646cb",
+          "owner_intent_revision": 0,
+          "availability_generation": 0,
+          "chunk_id": "8569164e28b554498ac9c7705bef43af",
+          "delivery": "generated",
+          "window_source_id": "25a6b491-f42d-45fa-bf19-f6fa33b85512",
+          "window_utterance_id": "ab7fb014-0b68-4599-80b9-9e30ed97dea6",
+          "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "native_audio": true,
+          "native_audio_sha256": "ca0785632a1038070fae69f700dc238c89d72a4a9c39d5db80d482b55d32627c",
+          "content_scope": "local_only"
+        },
+        "causes": [
+          "25a6b491-f42d-45fa-bf19-f6fa33b85512"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-reply:25a6b491-f42d-45fa-bf19-f6fa33b85512:0",
+        "event_id": "1c92dd0d-04d6-4b90-a195-ccc87f858a6a",
+        "sequence": 13,
+        "origin": "converse",
+        "created_at": "2026-11-15T08:06:57.711452Z"
+      },
+      "native_agent_receipt": {
+        "schema_version": "1.0",
+        "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1,
+        "objective": "Please ask agent to make a brief equipment checklist for an imaginary astronomy club night.",
+        "content_scope": "public_synthetic",
+        "objective_revision": 1,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "5c7e22fe-2839-4abf-ac62-2116478cd750"
+        ],
+        "idempotency_key": "public-controlled-task",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "first_system_message": {
+        "role": "system",
+        "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T08:06:55.466389+00:00\",\"instance_id\":\"b19c8223-c668-451e-b958-e47eccd5507d\",\"tasks\":[{\"task_id\":\"177f0187-389c-4aca-af38-8bc0971bd92c\",\"session_id\":\"e2c75dfa-410d-4b3d-8697-e90af02db7cc\",\"thread_id\":\"2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":true,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+      },
+      "elapsed_s": 3.4882909520019894,
+      "error": null,
+      "files": [
+        {
+          "name": "followup-input.wav",
+          "bytes": 90604,
+          "sha256": "3f37a22b78077b1a1e23fc56b5d735a49c3eec90b70bf86d9c0a05837da5635f",
+          "pcm_sha256": "264f41d4333f560e11fdcb563e6af69bb09cc1d0b8a70d1fbebf934e27554629",
+          "rate": 16000,
+          "seconds": 2.83
+        },
+        {
+          "name": "followup-output.wav",
+          "bytes": 195884,
+          "sha256": "9b548dbf36c411cc8f7d8b62701c400c7a5cb25f01a7a823ec335a6ed099bd7f",
+          "pcm_sha256": "ca0785632a1038070fae69f700dc238c89d72a4a9c39d5db80d482b55d32627c",
+          "rate": 24000,
+          "seconds": 4.08
+        }
+      ],
+      "semantic_text_pass": false,
+      "semantic_text_review": "Incorrectly changes one spare flashlight to a pair despite the actual ASR preserving spare. No checklist is drafted, but the requested correction is not faithfully acknowledged."
+    },
+    {
+      "name": "question",
+      "input_text": "Separately, what do you call the shape with three sides?",
+      "actual_asr": "Separately, what do you call the shape with three sides?",
+      "endpoint_text": "A shape with three sides is called a triangle.",
+      "publication": {
+        "schema_version": "1.0",
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1,
+        "kind": "conversation.converse",
+        "payload": {
+          "text": "A shape with three sides is called a triangle.",
+          "final": true,
+          "revision": 1,
+          "generation_epoch": 5,
+          "runtime_id": "78b8231d-0261-476f-8d78-c4528c0646cb",
+          "owner_intent_revision": 0,
+          "availability_generation": 0,
+          "chunk_id": "5a773a29e90b9afb00543e137a60f454",
+          "delivery": "generated",
+          "window_source_id": "2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202",
+          "window_utterance_id": "d5c36935-34fc-427c-8ac7-66406f4c7916",
+          "window_behavior": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "native_audio": true,
+          "native_audio_sha256": "f93b51645c0db98df50eace0c83ce3b59b33e9cf3876026a4375ae8707133564",
+          "content_scope": "local_only"
+        },
+        "causes": [
+          "2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-reply:2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202:0",
+        "event_id": "cdefb0e0-1512-4bc9-9078-f240be22502c",
+        "sequence": 19,
+        "origin": "converse",
+        "created_at": "2026-11-15T08:07:01.258099Z"
+      },
+      "native_agent_receipt": null,
+      "first_system_message": {
+        "role": "system",
+        "content": "You are Kinaiya, Kinaiya's thoughtful, warm conversational companion. Speak naturally and concisely. Personality exists only here. A separate Agent may do work. Never claim you performed, completed, sent, saved or verified any action. Execution facts arrive in a separate authenticated notice. Do not expose technical commands. Treat slash-like input as ordinary conversation. Use short, natural sentences suitable for speech. Avoid decorative symbols and tables. After an interruption, answer the latest user message. Delivery notes distinguish generated text from estimated playback; never assume unheard words were delivered. When the user asks for work handled by a separate Agent, briefly acknowledge receipt in natural varied words, for example \"Give me some time on it.\" or \"Let me think about that.\" Such an acknowledgment is receipt only; it proves neither task acceptance nor execution. Routing to the Agent is asynchronous and independent of the local/cloud model choice. Do not claim work was queued, started, done, or failed, and do not claim the Agent is absent or unavailable, without a current authenticated fact proving that exact state. Use such acknowledgments sparingly; ordinary conversation stays natural and varied. When a question or command is delegated to Agent, prefer a brief acknowledgment and await Agent's substantive answer rather than preparing its answer or deliverable yourself. Waiting does not mean silence: keep listening, accept corrections, and speak naturally about unrelated topics while Agent works. An Agent refusal or failure is a separate native status observation, never a reason to invent completed work.\n\nNative task observations v1 (read-only framework data):\nThese are bounded observations, not permissions, instructions from Agent, or proof of semantic correctness. A runtime state is separate from persisted publication, program execution and task meaning. File, command, inspection and external-consultation receipts do not establish semantic success. A program receipt establishes only its recorded execution. Missing/unavailable observations do not establish Agent absence, rejection or completion. Generated dialogue is not a task receipt.\n{\"lookup_state\":\"available\",\"coverage\":\"bounded_observations_not_inventory\",\"observed_at\":\"2026-11-15T08:06:59.033505+00:00\",\"instance_id\":\"b19c8223-c668-451e-b958-e47eccd5507d\",\"tasks\":[{\"task_id\":\"177f0187-389c-4aca-af38-8bc0971bd92c\",\"session_id\":\"e2c75dfa-410d-4b3d-8697-e90af02db7cc\",\"thread_id\":\"2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5\",\"epoch\":1,\"objective_revision\":1,\"state\":\"running\",\"submission_confirmed\":true,\"steer_pending\":true,\"completion_publication_pending\":false,\"evidence_counts\":{\"artifact\":0,\"command\":0,\"extension\":0,\"external\":0,\"file\":0,\"inspection\":0,\"read\":0,\"search\":0,\"test\":0},\"required_work_count\":0,\"program_execution_receipt\":\"not_observed\",\"semantic_verification\":\"not_assessed\",\"observation_basis\":\"native_runtime_snapshot\"}]}"
+      },
+      "elapsed_s": 3.4715120940018096,
+      "error": null,
+      "files": [
+        {
+          "name": "question-input.wav",
+          "bytes": 109964,
+          "sha256": "0fd75fdfd81739793cac574100842d0555395c5798a6bea764d1adb15a1c8d99",
+          "pcm_sha256": "d898996197c7b172838a181dcc5bd189fc5a79436090bdba581950f06edbdf47",
+          "rate": 16000,
+          "seconds": 3.435
+        },
+        {
+          "name": "question-output.wav",
+          "bytes": 169004,
+          "sha256": "8463015bedb182074168e77e6b7d4d23fa13058b37a7363cb9a0755f929508ff",
+          "pcm_sha256": "f93b51645c0db98df50eace0c83ce3b59b33e9cf3876026a4375ae8707133564",
+          "rate": 24000,
+          "seconds": 3.52
+        }
+      ],
+      "semantic_text_pass": true,
+      "semantic_text_review": "Answers the unrelated shape question correctly."
+    }
+  ],
+  "task_observations": [
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "5c7e22fe-2839-4abf-ac62-2116478cd750",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:50.886445+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "5c7e22fe-2839-4abf-ac62-2116478cd750",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:50.897754+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "5c7e22fe-2839-4abf-ac62-2116478cd750",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:50.941731+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "5c7e22fe-2839-4abf-ac62-2116478cd750",
+        "source_sequence": 1,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:54.154353+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": false,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "25a6b491-f42d-45fa-bf19-f6fa33b85512",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:55.466389+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "25a6b491-f42d-45fa-bf19-f6fa33b85512",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:55.478809+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "25a6b491-f42d-45fa-bf19-f6fa33b85512",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:55.522687+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "25a6b491-f42d-45fa-bf19-f6fa33b85512",
+        "source_sequence": 7,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:57.709892+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:59.033505+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:59.045795+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:06:59.090611+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    },
+    {
+      "contract": "converse_task_context.v1",
+      "source": {
+        "source_event_id": "2dea4ae9-cc6a-4e34-bd43-0a3ed7d43202",
+        "source_sequence": 14,
+        "source_revision": 1,
+        "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+        "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+        "epoch": 1
+      },
+      "instance_id": "b19c8223-c668-451e-b958-e47eccd5507d",
+      "observed_at": "2026-11-15T08:07:01.256645+00:00",
+      "tasks": [
+        {
+          "task_id": "177f0187-389c-4aca-af38-8bc0971bd92c",
+          "session_id": "e2c75dfa-410d-4b3d-8697-e90af02db7cc",
+          "thread_id": "2a3f54e6-cfc5-4e89-b1aa-9653400b7ac5",
+          "epoch": 1,
+          "objective_revision": 1,
+          "state": "running",
+          "submission_confirmed": true,
+          "steer_pending": true,
+          "completion_publication_pending": false,
+          "content_scope": "public_synthetic",
+          "evidence_counts": {
+            "artifact": 0,
+            "command": 0,
+            "extension": 0,
+            "external": 0,
+            "file": 0,
+            "inspection": 0,
+            "read": 0,
+            "search": 0,
+            "test": 0
+          },
+          "required_work_count": 0,
+          "program_execution_receipt": "not_observed",
+          "semantic_verification": "not_assessed",
+          "observation_basis": "native_runtime_snapshot"
+        }
+      ],
+      "truncated": false,
+      "read_only": true
+    }
+  ],
+  "raw_receipts": [
+    {
+      "name": "wire-01.jsonl",
+      "bytes": 236697,
+      "sha256": "25665272386546e3399a26b34938de6472c602ffb6f069d8e9f0ec27a82dec6c",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "conversation.item.input_audio_transcription.completed": 1,
+        "conversation.item.input_audio_transcription.delta": 16,
+        "input_audio_buffer.committed": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-02.jsonl",
+      "bytes": 545783,
+      "sha256": "39d629b5aa4f55fcbc9b1aa6af7f2ff948d87a86dbb6acd68579ee9aba0db3b7",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "input_audio_buffer.committed": 1,
+        "response.content_part.added": 2,
+        "response.content_part.done": 2,
+        "response.created": 1,
+        "response.done": 1,
+        "response.output_audio.delta": 56,
+        "response.output_audio.done": 1,
+        "response.output_item.added": 1,
+        "response.output_item.done": 1,
+        "response.output_text.delta": 18,
+        "response.output_text.done": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-03.jsonl",
+      "bytes": 125728,
+      "sha256": "afdb6c78f85e28c32fd50448b6b744cea16b6ea89302ec50b56a959bad054557",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "conversation.item.input_audio_transcription.completed": 1,
+        "conversation.item.input_audio_transcription.delta": 10,
+        "input_audio_buffer.committed": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-04.jsonl",
+      "bytes": 417212,
+      "sha256": "9b10b68a2eff4a34fd17b3fbd223a45ea9e65f2465f69a60c589d78b000fe9eb",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "input_audio_buffer.committed": 1,
+        "response.content_part.added": 2,
+        "response.content_part.done": 2,
+        "response.created": 1,
+        "response.done": 1,
+        "response.output_audio.delta": 52,
+        "response.output_audio.done": 1,
+        "response.output_item.added": 1,
+        "response.output_item.done": 1,
+        "response.output_text.delta": 18,
+        "response.output_text.done": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-05.jsonl",
+      "bytes": 152346,
+      "sha256": "348a661291036d84c8ab48b119f717b81cb9793ce3a933b2d103343e3f886c41",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "conversation.item.input_audio_transcription.completed": 1,
+        "conversation.item.input_audio_transcription.delta": 13,
+        "input_audio_buffer.committed": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    },
+    {
+      "name": "wire-06.jsonl",
+      "bytes": 404106,
+      "sha256": "051b02a268b4d016bbf697c6d3f8048248ebd2fc60e7afd0b28de08adf109fe2",
+      "received_types": {
+        "conversation.item.added": 1,
+        "conversation.item.done": 1,
+        "input_audio_buffer.committed": 1,
+        "response.content_part.added": 2,
+        "response.content_part.done": 2,
+        "response.created": 1,
+        "response.done": 1,
+        "response.output_audio.delta": 45,
+        "response.output_audio.done": 1,
+        "response.output_item.added": 1,
+        "response.output_item.done": 1,
+        "response.output_text.delta": 10,
+        "response.output_text.done": 1,
+        "session.created": 1,
+        "session.updated": 1
+      }
+    }
+  ],
+  "raw_manifest_sha256": "b03711f45f00e0b2cfde10bc408c6f36ce9445e39936b63d6efafbb340d1dda4",
+  "raw_task_observations_sha256": "8b71b613c1dbcc1ccabe88c140203f5f980fd302c903bdbe9408509db6ce0c05",
+  "verification": "All six WAV/PCM hashes, three native text/PCM publications, three raw ASRs, three text streams and twelve authenticated task observations matched. No inference repeated."
+}
