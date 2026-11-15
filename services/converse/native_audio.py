@@ -846,6 +846,9 @@ class NativeAudioOwner:
             or type(payload.get("window_source_id")) is not str
             or type(payload.get("chunk_id")) is not str
             or payload.get("content_scope", "local_only") not in _SCOPES
+            or type(payload.get("native_audio_history", "system_json")) is not str
+            or payload.get("native_audio_history", "system_json")
+            not in {"system_json", "native_roles_v1"}
         ):
             raise _error(409)
         return (
@@ -861,6 +864,7 @@ class NativeAudioOwner:
             payload["native_audio"],
             payload.get("native_audio_sha256"),
             payload.get("content_scope", "local_only"),
+            payload.get("native_audio_history", "system_json"),
         )
 
     def cache_reply(self, prepared, event, reply, *, text_unchanged: bool):
@@ -871,6 +875,8 @@ class NativeAudioOwner:
                 or type(reply.text) is not str
                 or type(reply.pcm16) is not bytes
                 or type(reply.rate) is not int
+                or type(reply.history_mode) is not str
+                or reply.history_mode not in {"system_json", "native_roles_v1"}
             ):
                 raise _error(503)
             if (
@@ -890,6 +896,7 @@ class NativeAudioOwner:
                 or prepared.generation != event.payload["generation_epoch"]
                 or getattr(prepared, "native_audio_reply", None) is not reply
                 or type(text_unchanged) is not bool
+                or event.payload.get("native_audio_history", "system_json") != reply.history_mode
             ):
                 raise _error(409)
             keep = (

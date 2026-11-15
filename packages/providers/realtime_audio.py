@@ -40,6 +40,7 @@ class NativeAudioReply:
     text: str
     pcm16: bytes
     rate: int
+    history_mode: str = "system_json"
 
 
 def _require(condition, message=_REFUSED):
@@ -125,6 +126,51 @@ def _instructions(messages):
     )
     _require(len(result.encode("utf-8")) <= _INSTRUCTIONS)
     return result
+
+
+def _prepared_messages(messages):
+    """Freeze caller-owned containers before any connector or authority hook."""
+    _require(type(messages) is list and 2 <= len(messages) <= 4096)
+    snapshot = []
+    count = len(messages)
+    try:
+        for index in range(count):
+            item = messages[index]
+            _require(type(item) is dict and len(item) == 2)
+            snapshot.append(item.copy())
+    except IndexError:
+        raise ProviderRefusal(_REFUSED) from None
+    _require(len(messages) == count)
+    legacy = _instructions(snapshot)
+    return (
+        legacy,
+        snapshot[0]["content"],
+        tuple((item["role"], item["content"]) for item in snapshot[1:-1]),
+    )
+
+
+def _history_capabilities(session):
+    if "native_history" not in session:
+        return None
+    value = session["native_history"]
+    _require(type(value) is dict and set(value) == {"contract", "max_messages", "max_utf8_bytes"})
+    _require(value["contract"] == "native_history.v1")
+    _require(type(value["max_messages"]) is int and 0 <= value["max_messages"] <= 4094)
+    _require(type(value["max_utf8_bytes"]) is int and 1 <= value["max_utf8_bytes"] <= _INSTRUCTIONS)
+    return dict(value)
+
+
+def _history_digest(history):
+    encoded = json.dumps(
+        history, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _history_acknowledged(session, history):
+    _require(type(session.get("history_count")) is int)
+    _require(session["history_count"] == len(history))
+    _require(session.get("history_sha256") == _history_digest(history))
 
 
 def _event(raw):
@@ -257,8 +303,10 @@ async def _default_connect(url, **options):
 class _Operation:
     """Original acquisition, transport futures and retirement survive observers."""
 
-    def __init__(self, owner, audio, instructions, current):
+    def __init__(self, owner, audio, instructions, current, *, system=None, history=()):
         self.owner, self.instructions, self.current = owner, instructions, current
+        self.system, self.history = system, history
+        self.history_mode = "system_json"
         # Copy fields, not the caller's frozen-dataclass object: its owner can
         # still replace fields using object.__setattr__ during a foreign hook.
         self.audio = NativeAudioInput(audio.pcm16, audio.rate)
@@ -439,6 +487,23 @@ class _Operation:
                 "audio": {"input": {"format": {"type": "audio/pcm", "rate": self.audio.rate}}},
             }
             if self.instructions is not None:
+                capability = _history_capabilities(created["session"])
+                history = None
+                if capability is not None:
+                    _history_acknowledged(created["session"], [])
+                    history = [{"role": role, "content": content} for role, content in self.history]
+                    _require(len(history) <= capability["max_messages"])
+                    _require(type(self.system) is str)
+                    encoded = json.dumps(
+                        history, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+                    )
+                    _require(
+                        len(self.system.encode("utf-8")) + len(encoded.encode("utf-8"))
+                        <= capability["max_utf8_bytes"]
+                    )
+                    self.instructions = self.system
+                    self.history_mode = "native_roles_v1"
+                    selected.update(native_history=capability, history=history)
                 selected.update(
                     instructions=self.instructions,
                     output_modalities=["text", "audio"],
@@ -458,6 +523,10 @@ class _Operation:
                 instructions=self.instructions,
                 tokens=self.tokens,
             )
+            if self.instructions is not None:
+                _require(_history_capabilities(updated["session"]) == capability)
+                if capability is not None:
+                    _history_acknowledged(updated["session"], history)
             for offset in range(0, len(self.audio.pcm16), 32768):
                 await self.send(
                     {
@@ -542,7 +611,7 @@ class _Operation:
                 _require(bool(text) and bool(pcm))
                 _final_message(output[0], item_id, text)
                 self.completed = True
-                return NativeAudioReply(text, bytes(pcm), rate)
+                return NativeAudioReply(text, bytes(pcm), rate, self.history_mode)
             _require(event.get("response_id") == self.response_id)
             if kind == "response.output_item.added":
                 _require(
@@ -718,13 +787,13 @@ class RealtimeAudioProvider:
         if interrupted:
             raise asyncio.CancelledError
 
-    async def _invoke(self, audio, instructions, current):
+    async def _invoke(self, audio, instructions, current, *, system=None, history=()):
         if self._cleanup_failed:
             raise ProviderCleanupError(_CLEANUP)
         _require(not self._sealed, "Native audio provider is closed")
         _require(self._active is None, "Native audio provider is busy")
         _require(callable(current), _STALE)
-        operation = _Operation(self, audio, instructions, current)
+        operation = _Operation(self, audio, instructions, current, system=system, history=history)
         self._active = operation
         try:
             operation.task = _spawn(operation.protocol())
@@ -784,7 +853,8 @@ class RealtimeAudioProvider:
         self, audio: NativeAudioInput, messages: list[dict[str, str]], *, current
     ) -> NativeAudioReply:
         audio = _audio(audio)
-        return await self._invoke(audio, _instructions(messages), current)
+        legacy, system, history = _prepared_messages(messages)
+        return await self._invoke(audio, legacy, current, system=system, history=history)
 
     async def close(self):
         self._sealed = True
