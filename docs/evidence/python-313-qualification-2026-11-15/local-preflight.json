@@ -1,0 +1,139 @@
+{
+  "baseline": "548f85d84874b2b0d3366ffdb36f8c74aa880ae8",
+  "stage": "additive 3.13 qualification; 3.11 retirement not implemented",
+  "official": {
+    "release": "https://github.com/actions/python-versions/releases/tag/3.13.18-40336726450",
+    "manifest_blob": "8468b3406cb309a299b2ead4109d0a2b2467153b",
+    "release_id": 424354990,
+    "hashes_file_sha256": "9011ff8e558cd9c5373a3b814778e67b920ab8c1317a170fe1ce4161361aab1a",
+    "arm64_archive_sha256": "8336b5b058474b8967155a24a5dd164cd6fa14866c009cce599f751e878dfc71",
+    "x64_archive_sha256": "683005a1465d94d40045f6a1a6eb316885b5f08d3360f7922b44ef58a14a9eed",
+    "x64_archive_download_verified": true,
+    "arm64_archive_executed": false
+  },
+  "local": {
+    "native": {
+      "python": "3.13.18 (main, Oct 26 2026, 14:20:56) [GCC 13.3.0]",
+      "executable": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-624-python313/cpython-3.13.18/bin/python3.13",
+      "architecture": "x86_64",
+      "soabi": "cpython-313-x86_64-linux-gnu",
+      "gil_disabled": 0,
+      "openssl": "OpenSSL 3.0.13 30 Jan 2024",
+      "sqlite": "3.45.1",
+      "empty_environment_imports": true,
+      "kernel_seals_enforced": true,
+      "patched_executable_sha256": "3332ebd605e668146a009f4a4aa4670bcb987bb3c27abce4a7135546e42d55ac"
+    },
+    "packaging": {
+      "wheel": "kinaiya-0.1.0.dev0-py3-none-any.whl",
+      "sha256": "2630880b5ab0e265dfa3dd784f3fd3e518fc0b4b0ad48a74f8a3e2640850dd40",
+      "size_bytes": 1510340,
+      "record_files_verified": 364,
+      "requires_python": [
+        "Requires-Python: >=3.11"
+      ],
+      "runtime_only_install": "passed; exact runtime closure, package import and CLI outside checkout"
+    },
+    "installed_import": {
+      "python": "3.13.18 (main, Oct 26 2026, 14:20:56) [GCC 13.3.0]",
+      "package_version": "0.1.0.dev0",
+      "services_file": "/tmp/kinaiya-624-python313-runtime-venv/lib/python3.13/site-packages/services/__init__.py",
+      "runtime_only_wheel_import": true,
+      "cwd": "/tmp"
+    },
+    "bootstrap": "stdlib venv; bundled pip 26.2.2; local uv not used",
+    "development_hash_install": "passed",
+    "runtime_only_hash_install": "passed",
+    "pip_check": "passed for development and runtime-only environments",
+    "native_bubblewrap_seccomp": "passed, exit 0",
+    "runtime_and_supertonic_binary_wheel_resolution": "passed, dry-run only",
+    "schema_export": "unchanged",
+    "ruff": "check and format passed, 1040 files",
+    "audit": "No known vulnerabilities found",
+    "first_full_run": "incomplete; SIGINT for inherited Conda subprocess lookup; pytest KeyboardInterrupt/teardown KeyError retained, no completed result counted",
+    "pinned_full_run": "in progress; exact python/python3 resolution asserted; result pending"
+  },
+  "preserved_sha256": {
+    "scripts/ci/runner_job_policy.py": "23035f4d43344ea565f0f1beea745f1c552d9569ff7c45842f3afc4e1713d693",
+    "scripts/ci/prepare-host.sh": "1db0854e493c5b4e4e3956c071c38297ec3125e2dc59856c77f1725404b06383",
+    "scripts/ci/python-env.sh": "029e394b8ff9433ae70b2c2b99d98ca22da2aa41ec0229605868492da67560b8",
+    "requirements-dev.lock": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "requirements-runtime.lock": "75ac9da4ae40fd46d241c12d2523f7b5d7b661befa12b4c3e2dc7b27fbc220d1",
+    "requirements-supertonic.lock": "8ecf40ae6a1e9d755f303a7ac74e78d629c6c0d9e894cdefde5c90531c54b1ae",
+    "requirements-vibevoice.lock": "dc68011eac9f046e02a8281c0408cf86b84b829d4ca63188a7f2cda096ca9407",
+    "requirements-whistle.lock": "6d22464de9f0ff308deee728f9dee3ff7acb14c7f3bd36c1fb0c9304602de613",
+    "requirements-meta-speech.lock": "be8cd8060c8f2f33d39b3b194218a0c66e7e9b73cd26f597545da1ef44c40677",
+    "pyproject.toml": "d7854964ae228637f88e175a6941670e153e6f367a46fadbbd6d31fb05893961",
+    "install.sh": "cedf00b3ef06ccd9fe075d04a2d73d466f3548f5f30a12b9257dff0bbf241d81"
+  },
+  "raw_local_artifacts": {
+    "native-local-probe.json": {
+      "sha256": "7f933f929f0d013c2e2c1c3b90ed0f831fe1b479d5c0f1f733fd591d0405356b",
+      "size_bytes": 505
+    },
+    "hashed-lock-install-first.log": {
+      "sha256": "e5ed31ba37a9060a7abb9e162ee1e4651a33a3c9be8dd5e2391ade97ef700c60",
+      "size_bytes": 11785
+    },
+    "editable-install-first.log": {
+      "sha256": "3deaf2eb201c5302ca4302c00ebeae53efc95ca0e3ee4aa8d7b6ed17dfef7e80",
+      "size_bytes": 1296
+    },
+    "audit-first.log": {
+      "sha256": "15950a68a7ed99c59779717acefdceb3f69cfd31bde67d2c954f2a3cea4d7955",
+      "size_bytes": 31
+    },
+    "runtime-wheel-resolution.json": {
+      "sha256": "e68127f8fa205703fb7572a0aa0399169b9cceebda8e6d5dff8ba710834cec75",
+      "size_bytes": 285339
+    },
+    "supertonic-wheel-resolution.json": {
+      "sha256": "ff0764a2d8ca701aaea01a97971951f06fa8b7b2f96ef1652d82ffab92403b52",
+      "size_bytes": 611871
+    },
+    "package-wheel-first.log": {
+      "sha256": "30a15dd5e9bf99696a4fb4a7b626e50a5ffff1b6253fa737501a6307ae132909",
+      "size_bytes": 992
+    },
+    "wheel-metadata-receipt.json": {
+      "sha256": "42a473a4e4af06155b5cfeafedcacbb08ca1e17ee97efca6fa803fe281325fab",
+      "size_bytes": 339
+    },
+    "runtime-only-install-first.log": {
+      "sha256": "d28f38a100735892c9522a6b699d8b471d15e073a199cedf37d466e40ca5fa89",
+      "size_bytes": 3402
+    },
+    "runtime-only-package-import-v2.json": {
+      "sha256": "2119245e3263b46a633b5d9111c39551950fc42376a54f603d8d7b0e33edea5a",
+      "size_bytes": 270
+    },
+    "installed-wheel-cli-isolated-help.log": {
+      "sha256": "86172966a11883dff3d299fb58ed5d2bd7602d646539aa7648526e47f608ce46",
+      "size_bytes": 1971
+    },
+    "first-run-interruption.json": {
+      "sha256": "5c161b0dcbd74bf2971902d0ea462c6edbb68fa1730dca804c42789b5e580f26",
+      "size_bytes": 457
+    },
+    "full-non-live-first.log": {
+      "sha256": "ed8333fbc918cc72515aaa502305b8308aa676905bd6104ea87e21174670c433",
+      "size_bytes": 6538
+    },
+    "full-non-live-first-receipt.json": {
+      "sha256": "379b991f9f25bd006433b0811f9993ab86eb9044ac3135f28db4797ebe6277ea",
+      "size_bytes": 192943
+    },
+    "full-non-live-pinned-start.json": {
+      "sha256": "33bb02284fa12032b6d91fb1e95d917c49a78dab87152a14381c8e1fd7c2a02a",
+      "size_bytes": 476
+    }
+  },
+  "raw_root": "local output/issue-624-python313/",
+  "remaining": [
+    "Complete current local full non-live run",
+    "Exact-head hosted CI including added 3.13 lane",
+    "Actual ARM64 and Dell 3.13 qualification under existing main-only policy",
+    "Meaningful 3.12 Ubuntu 24.04 and 3.14 baselines and applicable native blockers",
+    "Separate minimum/installer/Doctor/docs/fixture support migration after qualification"
+  ]
+}
