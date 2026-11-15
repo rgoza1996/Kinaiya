@@ -7,6 +7,7 @@ import pytest
 from services.common.topology import SubsystemTopology
 from services.distribution import installation, wizard_navigation
 from services.distribution.credentials import MaskedKeyAction
+from services.settings.subsystems import effective_config
 
 MODES = [
     ("3", True, False, False),
@@ -99,8 +100,10 @@ def test_mode_only_edit_preserves_models_credentials_and_unrelated_settings(
     tokens = (layout.data / "service-tokens.json").read_bytes()
     credentials = layout.config.parent / "providers.env"
     credentials.write_bytes(b"# private synthetic credential fixture\n")
+    original_bytes = layout.config.read_bytes()
     receipt = navigator(layout, Terminal([choice, "yes"]), section="services").run()
-    saved = json.loads(layout.config.read_text())
+    assert layout.config.read_bytes() == original_bytes
+    saved = effective_config(json.loads(layout.config.read_text()), layout.data, layout.workspace)
     expected = {"agent": agent, "converse": converse, "decisions": decisions}
     assert {k: saved["distribution"][k] for k in expected} == expected
     original["distribution"].update(expected)

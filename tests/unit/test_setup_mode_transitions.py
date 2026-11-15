@@ -6,6 +6,7 @@ import pytest
 
 from services.common.topology import SubsystemTopology
 from services.distribution import installation
+from services.settings.subsystems import effective_config
 
 MODES = [
     (False, False, False),
@@ -57,11 +58,13 @@ def test_mode_only_transition_preserves_saved_role_declarations(
     original["distribution"] = dict(zip(("agent", "converse", "decisions"), old_mode, strict=True))
     original["distribution"]["saved_extension"] = ["keep"]
     layout.config.write_text(json.dumps(original))
+    original_bytes = layout.config.read_bytes()
     tokens = (layout.data / "service-tokens.json").read_bytes()
     installation.reconfigure_section(
         layout, "services", **dict(zip(("agent", "converse", "decisions"), new_mode, strict=True))
     )
-    saved = json.loads(layout.config.read_text())
+    assert layout.config.read_bytes() == original_bytes
+    saved = effective_config(json.loads(layout.config.read_text()), layout.data, layout.workspace)
     assert SubsystemTopology.from_config(saved) == SubsystemTopology(*new_mode)
     assert saved["providers"] == original["providers"]
     assert saved["distribution"]["saved_extension"] == ["keep"]

@@ -7,6 +7,7 @@ import pytest
 from services import launcher
 from services.common.topology import SubsystemTopology
 from services.distribution import cli, installation
+from services.settings.subsystems import effective_config
 
 MODES = [
     ("core", False, False, False),
@@ -58,9 +59,11 @@ def test_headless_mode_only_edit_needs_no_provider_arguments_or_token_rotation(
 ):
     installation.setup(layout, endpoint="http://127.0.0.1:1234", model="synthetic-retained")
     original = json.loads(layout.config.read_text())
+    original_bytes = layout.config.read_bytes()
     tokens = (layout.data / "service-tokens.json").read_bytes()
     receipt = dispatch(["setup", "services", "--yes", "--services", mode])
-    saved = json.loads(layout.config.read_text())
+    assert layout.config.read_bytes() == original_bytes
+    saved = effective_config(json.loads(layout.config.read_text()), layout.data, layout.workspace)
     assert SubsystemTopology.from_config(saved) == SubsystemTopology(agent, converse, decisions)
     assert saved["providers"] == original["providers"]
     assert (layout.data / "service-tokens.json").read_bytes() == tokens

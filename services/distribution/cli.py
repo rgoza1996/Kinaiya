@@ -105,6 +105,11 @@ def configure(commands):
         help="Explicit saved subsystem mode for noninteractive --yes setup; activate by starting/restarting the host",
     )
     setup_parser.add_argument(
+        "--lookup-service-change",
+        metavar="KEY",
+        help="Read the original saved-mode receipt without retrying or changing service selection",
+    )
+    setup_parser.add_argument(
         "--check-connection",
         action="store_true",
         help="Offer an opt-in bounded provider connection check after configuration is saved",
@@ -508,6 +513,52 @@ def dispatch(args):
             from services.distribution.wizard_navigation import validate_setup_section
 
             section = validate_setup_section(section)
+        lookup_key = getattr(args, "lookup_service_change", None)
+        if lookup_key is not None:
+            if section != "services" or any(
+                getattr(args, key, None)
+                for key in (
+                    "yes",
+                    "services",
+                    "quick",
+                    "advanced",
+                    "check_connection",
+                    "endpoint",
+                    "model",
+                    "adapter",
+                    "credential_env",
+                    "allow_cloud",
+                    "converse",
+                    "converse_adapter",
+                    "converse_endpoint",
+                    "converse_model",
+                    "converse_credential_env",
+                    "converse_allow_cloud",
+                    "decisions_adapter",
+                    "decisions_endpoint",
+                    "decisions_model",
+                    "decisions_credential_env",
+                    "decisions_allow_cloud",
+                    "setup_workspace",
+                    "setup_data_dir",
+                )
+            ):
+                raise InstallError(
+                    "Service-change lookup is read-only and requires only setup services and the original key"
+                )
+            from services.settings.subsystems import (
+                CoreSubsystemConflict,
+                CoreSubsystemUnavailable,
+                lookup_local_mode,
+            )
+
+            layout.validate()
+            try:
+                return lookup_local_mode(layout.data, layout.workspace, lookup_key)
+            except CoreSubsystemConflict:
+                raise InstallError("Original Core service-change request conflicts") from None
+            except (CoreSubsystemUnavailable, OSError, ValueError):
+                raise InstallError("Original Core service-change receipt is unavailable") from None
         from services.common.topology import SubsystemTopology
 
         selected_mode = getattr(args, "services", None)

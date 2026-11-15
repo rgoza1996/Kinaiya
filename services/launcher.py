@@ -533,7 +533,19 @@ def serve(args):
     config_path = args.config or args.data_dir / "config.json"
     config = load_config(config_path)
     service = args.service
+    startup_mode = getattr(args, "startup_subsystem_mode", None)
+    if service in {"all", "host"} or startup_mode is not None:
+        from services.settings.subsystems import effective_config
+
+        config = effective_config(
+            config,
+            args.data_dir,
+            args.workspace,
+            developer_all=service == "all",
+            startup_mode=startup_mode,
+        )
     topology = SubsystemTopology.from_config(config, developer_all=service == "all")
+    subsystem_settings = None
     resources = config.get("resources")
     resources_enabled = isinstance(resources, dict) and resources.get("enabled") is True
     from services.distribution.start_supervisor import _service_port
@@ -568,6 +580,8 @@ def serve(args):
                 name,
                 "--port",
                 str(selected_ports[name]),
+                "--startup-subsystem-mode",
+                topology.mode,
             ]
             for name in names
             if name != "resources" or resources_enabled
@@ -587,16 +601,28 @@ def serve(args):
     elif service == "session":
         from services.session.api import create_app
         from services.session.store import Store
+        from services.settings.subsystems import CoreSubsystemSettings, host_mode_reader
 
-        app = create_app(
-            Store(
-                args.data_dir / "journal.sqlite",
-                decisions_max_attempts=config.get("decisions_max_attempts", 2),
-            ),
-            auth,
-            converse_memory=getattr(args, "converse_memory", False),
-            agent_enabled=config.get("agent_enabled"),
+        subsystem_settings = CoreSubsystemSettings(
+            host_mode_reader(config_path, args.workspace),
+            path=args.data_dir / "core-subsystems.sqlite",
+            workspace=args.workspace,
+            startup_mode=startup_mode,
         )
+        try:
+            app = create_app(
+                Store(
+                    args.data_dir / "journal.sqlite",
+                    decisions_max_attempts=config.get("decisions_max_attempts", 2),
+                ),
+                auth,
+                converse_memory=getattr(args, "converse_memory", False),
+                agent_enabled=config.get("agent_enabled"),
+                subsystem_settings=subsystem_settings,
+            )
+        except BaseException:
+            subsystem_settings.close()
+            raise
     elif service == "agent":
         from core.policy import ToolPolicy
         from packages.commands import Registry
@@ -1305,9 +1331,13 @@ def serve(args):
                     catalog.close()
 
         app.router.lifespan_context = catalog_lifespan
-    uvicorn.run(
-        app, host="127.0.0.1", port=args.port or selected_ports[service], log_level="warning"
-    )
+    try:
+        uvicorn.run(
+            app, host="127.0.0.1", port=args.port or selected_ports[service], log_level="warning"
+        )
+    finally:
+        if subsystem_settings is not None:
+            subsystem_settings.close()
 
 
 def owner_login(args):
@@ -1419,6 +1449,9 @@ def build_parser():
     server = commands.add_parser("serve")
     server.add_argument("service", choices=[*PORTS, "all", "host"])
     server.add_argument("--port", type=int)
+    from services.common.topology import SUBSYSTEM_MODES
+
+    server.add_argument("--startup-subsystem-mode", choices=SUBSYSTEM_MODES, help=argparse.SUPPRESS)
     server.add_argument(
         "--start-paused",
         action="store_true",

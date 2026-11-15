@@ -196,9 +196,11 @@ def load_existing_setup_defaults(layout: Layout) -> dict[str, Any]:
             defaults["data"] = dist["data_dir"]
 
     try:
-        topology = SubsystemTopology.from_config(config)
-    except ValueError as exc:
-        raise InstallError(str(exc)) from None
+        from services.settings.subsystems import CoreSubsystemUnavailable, resolve_topology
+
+        topology = resolve_topology(config, layout.data, layout.workspace)
+    except (CoreSubsystemUnavailable, ValueError, OSError):
+        raise InstallError("Core subsystem selection is invalid or unavailable") from None
     defaults["converse"] = next(
         key for key, selected in _TOPOLOGY_CHOICES.items() if selected == topology
     )

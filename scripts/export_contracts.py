@@ -19,6 +19,7 @@ from packages.contracts import (
     converse_models,
     converse_prompts,
     converse_setup,
+    core_subsystems,
     decisions,
     decisions_attempts,
     decisions_models,
@@ -93,6 +94,11 @@ for name in (
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
     subsystem_readiness.DecisionsReadiness,
+    core_subsystems.CoreSubsystemSelection,
+    core_subsystems.CoreSubsystemChange,
+    core_subsystems.CoreSubsystemSnapshot,
+    core_subsystems.CoreSubsystemReceipt,
+    core_subsystems.CoreSubsystemLookup,
     context_usage.ContextCatalogBinding,
     context_usage.ContextModel,
     context_usage.ContextScope,

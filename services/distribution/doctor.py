@@ -697,8 +697,29 @@ def _check_layout_and_config(layout: Layout) -> tuple[dict[str, Any], dict[str, 
             None,
         )
 
+    from services.settings.subsystems import CoreSubsystemUnavailable, effective_config
+
+    try:
+        config_data = effective_config(config_data, layout.data, layout.workspace)
+        topology = SubsystemTopology.from_config(config_data)
+    except (CoreSubsystemUnavailable, ValueError, OSError):
+        return (
+            {
+                "status": "fail",
+                "summary": "Core subsystem selection is invalid or unavailable.",
+                "remediation": "Inspect Core service selection and preserved host defaults.",
+                "next_step": "kinaiya setup services",
+                "config_state": "invalid_schema",
+                "config_exists": True,
+                "layout_valid": True,
+            },
+            None,
+        )
+
     providers = config_data.get("providers")
-    if not isinstance(providers, dict) or not isinstance(providers.get("agent"), dict):
+    if not isinstance(providers, dict) or (
+        topology.agent and not isinstance(providers.get("agent"), dict)
+    ):
         return (
             {
                 "status": "fail",
@@ -712,11 +733,11 @@ def _check_layout_and_config(layout: Layout) -> tuple[dict[str, Any], dict[str, 
             None,
         )
 
-    agent_prof = providers["agent"]
+    agent_prof = providers.get("agent", {}) if topology.agent else {}
     agent_kind = agent_prof.get("kind") or agent_prof.get("adapter")
     agent_url = agent_prof.get("base_url") or agent_prof.get("endpoint")
     agent_model = agent_prof.get("model")
-    if (
+    if topology.agent and (
         not isinstance(agent_kind, str)
         or not agent_kind.strip()
         or not isinstance(agent_url, str)

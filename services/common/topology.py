@@ -60,3 +60,7 @@ class SubsystemTopology:
         if self.converse:
             names.append("converse")
         return names
+
+    @property
+    def mode(self):
+        return next(mode for mode in SUBSYSTEM_MODES if self == self.from_mode(mode))

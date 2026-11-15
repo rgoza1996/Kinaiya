@@ -246,7 +246,13 @@ def build_start_commands(
             str(layout.workspace),
         ]
     commands = {
-        "host": [*prefix, "serve", "host"],
+        "host": [
+            *prefix,
+            "serve",
+            "host",
+            "--startup-subsystem-mode",
+            SubsystemTopology.from_config(config).mode,
+        ],
         "web": [*prefix, "web", "--port", str(web_port)],
     }
     _assert_no_secrets_in_commands(commands, config)
@@ -340,6 +346,12 @@ def start_local(
     config = read_json(layout.config)
     if not isinstance(config, Mapping):
         raise InstallError("Configuration file must contain a JSON object")
+    from services.settings.subsystems import CoreSubsystemUnavailable, effective_config
+
+    try:
+        config = effective_config(config, layout.data, layout.workspace)
+    except (CoreSubsystemUnavailable, ValueError, OSError):
+        raise InstallError("Core subsystem selection is invalid or unavailable") from None
 
     # Verify matching-release Flutter web assets before spawning any processes.
     web_bundle_dir(layout, fallback_source=fallback_source)

@@ -48,13 +48,64 @@ Explicit selection does not activate a disabled role merely because its provider
 declaration exists; legacy profile-implied selection remains compatible when the
 new selector is omitted.
 
-`setup services` edits only the saved graph. It preserves all model declarations,
-credentials and unrelated settings, reports `activation: restart_required`, and
-does not claim to manage or observe running processes. Cancel/EOF writes nothing.
-Full re-setup also retains an existing disabled Agent model, while fresh setup
-does not invent a configured Agent. CLI filesystem ownership and the existing
-protected atomic configuration write remain the authority; no new live Settings
-API or CAS receipt is claimed by this offline setup increment.
+`setup services` now saves the next-launch graph in the protected Core selector,
+preserving the original host configuration bytes, model declarations, credentials
+and unrelated settings. It reports `activation: restart_required` and does not
+manage or observe running processes. Cancel/EOF writes nothing. Full re-setup
+retains an existing disabled Agent model, while fresh setup does not invent a
+configured Agent. A conflicting saved Core selection refuses before a full
+setup or Converse-section configuration write; change selection explicitly first.
+
+## Core selection owner (draft)
+
+`<data_dir>/core-subsystems.sqlite` is the single native mode override shared by
+the local CLI and Session's owner-only `/v1/core/options/subsystems` API. Selection
+is either `host` (a pointer to legacy `distribution` defaults, not a copied
+configuration) or `saved` (one exact supported mode). Other settings and
+credentials remain with their existing owners. No process or model is started
+by reading or saving this owner. Options UI integration remains unfinished.
+
+The strict `core_subsystems.v1` contract carries backend identity, monotonic
+controller generation, random epoch, revision and a token of the observed
+selection/host mode. A save compares those observations and retains its exact
+request key and receipt in one SQLite commit. A local CLI peer joins the current
+generation; a replacement Session controller advances it and fences old writes.
+Original positive receipts remain historical observations. Exact lookup is
+available at `/v1/core/options/subsystem-changes/lookup`. An unobserved request
+is fenced only by a later native revision/generation/epoch; a host-file token
+change alone cannot prove retirement because the host mode can change back.
+
+The CLI persists its exact private request before attempting the save. If commit
+acknowledgment is uncertain, reconcile it without retrying:
+
+```sh
+kinaiya setup services --lookup-service-change ORIGINAL_KEY --json
+```
+
+Lookup does not register a new controller, create or repair a store, or retry a
+write. The owner retains at most 1,000 changes and refuses further writes at that
+declared bound. Corrupt, aliased, replaced or insecure storage refuses without a
+default/reset. Invalid or unavailable host defaults remain explicitly unknown;
+an authorized saved selection can repair the selector without rewriting them.
+
+Official start, managed `serve host`/`serve all`, Doctor and setup defaults read
+the same source. Managed launch captures one graph before token/process entry
+and passes that captured mode to every child. Later saves affect the next
+managed launch; a child must not adopt a different graph midway through launch.
+`startup_mode` reports the parent's declared capture, not a readiness observation;
+standalone Session reports it unknown. `running_state` is always `not_observed`.
+Session owns the original settings connection through its lifespan and retires
+it even when another owner's shutdown raises.
+
+The current focused/integration union passes 239 tests across ten files,
+including six captured launch modes, exact lookup, native writer races,
+uncertain commits, controller replacement, storage guards, Session cleanup,
+Doctor, wizard and all 36 saved-mode transitions. The three mode-only test
+families now inspect the official resolved selection and additionally assert
+unchanged host bytes. Their previous 41 failures are retained as the planned
+JSON-to-Core ownership contract migration, not hidden by changing runtime guards.
+
+## Earlier setup qualification
 
 The complete setup increment passes **406 related tests** across 20 files,
 including every wizard caller and all 36 saved-mode transitions. The actual private CLI rehearsal passes
@@ -65,7 +116,7 @@ define its setup-only scope; it does not complete the running-service matrix.
 The compatibility follow-up retains the original compact first Agent-only
 configuration shape and every assertion in eleven existing test files.
 
-`serve host` and `serve all` both respect an existing `distribution` selection.
+Without a saved Core override, `serve host` and `serve all` respect an existing `distribution` selection.
 The developer `serve all` default without a `distribution` object still selects
 all three roles. Core Session/resources are ordered before consumers, and
 Decisions before Converse. Ordering is not proof that a required dependency is

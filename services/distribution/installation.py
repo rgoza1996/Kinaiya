@@ -1048,6 +1048,26 @@ def reconfigure_section(
             raise InstallError(str(exc)) from None
         if not layout.config.exists():
             raise InstallError("Existing configuration required; run full setup first")
+        from services.settings.subsystems import (
+            CoreSubsystemConflict,
+            CoreSubsystemUnavailable,
+            CoreSubsystemUnavailableWithRequest,
+            save_local_mode,
+        )
+
+        try:
+            return save_local_mode(layout.config, layout.data, layout.workspace, topology.mode)
+        except CoreSubsystemUnavailableWithRequest as exc:
+            raise InstallError(
+                "Core subsystem save is unconfirmed; reconcile with "
+                f"kinaiya setup services --lookup-service-change {exc.key}"
+            ) from None
+        except CoreSubsystemConflict:
+            raise InstallError(
+                "Core subsystem authority changed; inspect the original selection"
+            ) from None
+        except (CoreSubsystemUnavailable, OSError, ValueError):
+            raise InstallError("Core subsystem selection authority is unavailable") from None
 
     if not os.path.lexists(layout.config):
         if target_section == "model":
@@ -1122,16 +1142,6 @@ def reconfigure_section(
             providers_map = dict(providers) if isinstance(providers, dict) else {}
             providers_map["agent"] = dict(agent_built)
             config["providers"] = providers_map
-        elif target_section == "services":
-            distribution = config.get("distribution", {})
-            if not isinstance(distribution, dict):
-                raise InstallError("Subsystem distribution selection must be an object")
-            config["distribution"] = {
-                **distribution,
-                "agent": topology.agent,
-                "converse": topology.converse,
-                "decisions": topology.decisions,
-            }
         elif target_section == "converse":
             providers = config.get("providers")
             providers_map = dict(providers) if isinstance(providers, dict) else {}
@@ -1192,6 +1202,8 @@ def reconfigure_section(
                 dist_map["agent"] = False
             config["distribution"] = dist_map
 
+        if target_section == "converse":
+            _preserve_core_selection(layout, SubsystemTopology.from_config(config))
         atomic_json(layout.config, config)
         if target_section == "workspace" and layout_marker.exists():
             atomic_json(
@@ -1215,16 +1227,20 @@ def reconfigure_section(
         "section": target_section,
         "next": "kinaiya serve host",
     }
-    if target_section == "services":
-        result.update(
-            subsystems={
-                "agent": topology.agent,
-                "converse": topology.converse,
-                "decisions": topology.decisions,
-            },
-            activation="restart_required",
-        )
     return result
+
+
+def _preserve_core_selection(layout, topology):
+    from services.settings.subsystems import CoreSubsystemUnavailable, read_selection
+
+    try:
+        selection = read_selection(layout.data, layout.workspace)
+    except (CoreSubsystemUnavailable, ValueError, OSError):
+        raise InstallError("Core subsystem selection is invalid or unavailable") from None
+    if selection is not None and selection.source == "saved" and selection.mode != topology.mode:
+        raise InstallError(
+            "Core subsystem selection differs; change it explicitly in Core Options or setup services first"
+        )
 
 
 def setup(
@@ -1304,6 +1320,8 @@ def setup(
         )
     except ValueError as exc:
         raise InstallError(str(exc)) from None
+
+    _preserve_core_selection(layout, topology)
 
     if "agent" in role_map:
         agent_built = _build_role_from_mapping("agent", role_map["agent"])

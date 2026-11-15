@@ -71,6 +71,7 @@ def create_app(
     standing_clock=None,
     standing_monotonic_ms=None,
     media_owner=None,
+    subsystem_settings=None,
 ) -> FastAPI:
     if auth is None or not hasattr(auth, "require"):
         raise RuntimeError("Session control requires configured authentication")
@@ -162,7 +163,7 @@ def create_app(
     media_operations = None
 
     @asynccontextmanager
-    async def lifespan(_app):
+    async def journal_lifespan(_app):
         try:
             yield
         finally:
@@ -257,7 +258,25 @@ def create_app(
             if interrupted:
                 raise asyncio.CancelledError
 
+    @asynccontextmanager
+    async def lifespan(_app):
+        try:
+            async with journal_lifespan(_app):
+                yield
+        finally:
+            if subsystem_settings is not None:
+                try:
+                    subsystem_settings.close()
+                except BaseException:
+                    _app.state.core_subsystems_shutdown_unconfirmed = True
+                    raise
+
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
+    from services.settings.subsystem_api import router as subsystem_router
+
+    app.include_router(subsystem_router(subsystem_settings, auth))
+    app.state.core_subsystem_settings = subsystem_settings
+    app.state.core_subsystems_shutdown_unconfirmed = False
     app.state.agent_control = control
     app.state.agent_control_shutdown_unconfirmed = False
     app.state.media_owner = media_owner
