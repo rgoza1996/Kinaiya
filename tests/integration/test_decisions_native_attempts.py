@@ -1,6 +1,7 @@
 """Issue #371: native admission, real HTTP restart and original-owner oracles."""
 
 import asyncio
+import contextvars
 import json
 import socket
 from contextlib import asynccontextmanager
@@ -25,7 +26,7 @@ from packages.contracts.decisions_attempts import (
     DecisionsSource,
 )
 from packages.contracts.models import SessionRequest
-from packages.providers.decision_capture import CaptureNativeUnavailable
+from packages.providers.decision_capture import CaptureNativeUnavailable, DecisionCapture
 from packages.providers.prompt_budget import PromptCountUnavailable
 from packages.providers.text import CompatibleTextProvider, ProviderError
 from services.common.auth import Auth
@@ -154,8 +155,11 @@ async def test_real_socket_restarts_freeze_policy_despite_capture_outage_and_mod
         store.close()
 
 
+@pytest.mark.parametrize("hold_currentness", [False, True])
 async def test_real_socket_completed_result_survives_missing_capture_and_publication_crash(
     tmp_path,
+    monkeypatch,
+    hold_currentness,
 ):
     store = Store(tmp_path / "journal.sqlite")
     session = store.create_session(SessionRequest(channel="converse"))
@@ -176,16 +180,71 @@ async def test_real_socket_completed_result_survives_missing_capture_and_publica
             try:
                 with pytest.raises(httpx.HTTPStatusError):
                     await DecisionsWorker(client, agent, ModelClassifier(provider)).tick()
-                assert (await state_of(client, source)).state == "completed"
+                original = await state_of(client, source)
+                assert original.state == "completed"
             finally:
                 await client.close()
         assert not store.decisions.calls(source.event_id)
         assert not store.read(kinds=["routing.decided"])
+
+        async def assert_retained_unknown(client):
+            state = await state_of(client, source)
+            assert (state.state, state.charged_attempts) == ("completed", 1)
+            assert state.last_attempt == original.last_attempt
+            assert len(entered) == 1
+            assert not agent.submitted
+            assert not store.read(kinds=["routing.decided", "routing.dispatch"])
+
         async with loopback(create_app(store, Auth(dict(TOKENS)))) as root:
             client = JournalClient(root, TOKENS["decisions"])
             try:
-                worker = DecisionsWorker(client, agent, ModelClassifier(provider))
-                await worker.tick()
+                if hold_currentness:
+                    # Hold settlement of a genuine native read, not its data.
+                    # The production 500 ms currentness deadline must refuse
+                    # before dispatch, retaining the original completed call.
+                    inside = contextvars.ContextVar("recovery_currentness", default=False)
+                    entered_read, release = asyncio.Event(), asyncio.Event()
+                    check_current, session_read = DecisionCapture.check_current, client.session
+
+                    async def observed_check(capture, active_provider):
+                        token = inside.set(True)
+                        try:
+                            return await check_current(capture, active_provider)
+                        finally:
+                            inside.reset(token)
+
+                    async def held_session(*args, **kwargs):
+                        result = await session_read(*args, **kwargs)
+                        if inside.get():
+                            entered_read.set()
+                            await release.wait()
+                        return result
+
+                    with monkeypatch.context() as patch:
+                        patch.setattr(DecisionCapture, "check_current", observed_check)
+                        patch.setattr(client, "session", held_session)
+                        try:
+                            with pytest.raises(CaptureNativeUnavailable):
+                                await DecisionsWorker(
+                                    client, agent, ModelClassifier(provider)
+                                ).tick()
+                            assert entered_read.is_set()
+                            await assert_retained_unknown(client)
+                        finally:
+                            release.set()
+
+                # Real loopback availability does not promise that a loaded
+                # runner settles every read inside a production deadline (#607).
+                # Each explicit observer keeps the native attempt and checks
+                # that unavailable currentness granted no provider/Agent work.
+                for observation in range(3):
+                    try:
+                        await DecisionsWorker(client, agent, ModelClassifier(provider)).tick()
+                        break
+                    except CaptureNativeUnavailable:
+                        await assert_retained_unknown(client)
+                        if observation == 2:
+                            raise
                 await DecisionsWorker(client, agent, ModelClassifier(provider)).tick()
             finally:
                 await client.close()
