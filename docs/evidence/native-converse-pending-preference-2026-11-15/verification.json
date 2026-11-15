@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "name": "work",
+      "text": "Here's a short invitation for the imaginary puzzle club lunch:\n\nYou're invited to a puzzle club lunch on Saturday at 2 PM. Bring your favorite brain teasers and a snack. We'll share clues and enjoy good company. Please RSVP by Friday.",
+      "semantic_pass": false,
+      "wire_text_pcm_publication_verified": true
+    },
+    {
+      "name": "followup",
+      "text": "Here's the updated invitation: You're invited to a puzzle club lunch on Saturday at 1:30 PM. Bring your favorite brain teasers and a snack. We'll share clues and enjoy good company. Please RSVP by Friday.",
+      "semantic_pass": false,
+      "wire_text_pcm_publication_verified": true
+    },
+    {
+      "name": "question",
+      "text": "Nine is larger.",
+      "semantic_pass": true,
+      "wire_text_pcm_publication_verified": true
+    }
+  ],
+  "first_session_semantic_pass": false,
+  "second_session_run": false,
+  "stop_condition_followed": true,
+  "engine_exit": 0,
+  "inference_repeated_for_verification": false,
+  "live_or_default_profile_changed": false
+}

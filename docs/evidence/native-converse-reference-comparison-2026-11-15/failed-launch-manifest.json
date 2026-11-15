@@ -1,0 +1,71 @@
+{
+  "scope": "public synthetic isolated qualification; actual native Agent acceptance/steer with controlled held Agent provider, no tools/effects; no owner service changes, cloud, microphone or TTS fallback",
+  "source_head": "abb0f87f947fc772b7da1fb5c1403045e46507e3",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "qualification_sha256": "7b93065ddb31d4817d3aebd976a68f180f72cc8733924b9aa91db43ddafc5665",
+  "qualification_kind": "paired native Omni / pinned Transformers reference diagnostic; unchanged built-in persona; three predeclared fresh public utterances; first outputs only",
+  "semantics_reviewed": false,
+  "audio_listened": false,
+  "browser_delivery_qualified": false,
+  "cases": [],
+  "artifacts": [
+    {
+      "name": "llama-server",
+      "bytes": 17888,
+      "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+    },
+    {
+      "name": "libllama-server-impl.so",
+      "bytes": 8006384,
+      "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+    },
+    {
+      "name": "LFM3-Omni-2B-Q4_K_M.gguf",
+      "bytes": 1099630080,
+      "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2"
+    },
+    {
+      "name": "mmproj-LFM3-Omni-2B-Q8_0.gguf",
+      "bytes": 540892768,
+      "sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839"
+    }
+  ],
+  "transcription_connection": "session_update",
+  "engine_pid": 1879809,
+  "engine_args": [
+    "/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-14-engine-overlay/bin/llama-server",
+    "-m",
+    "/home/roggoz/Disks/SN750/models/LiquidAI/LFM3-Omni-2B-GGUF/LFM3-Omni-2B-Q4_K_M.gguf",
+    "-mm",
+    "/home/roggoz/Disks/SN750/models/LiquidAI/LFM3-Omni-2B-GGUF/mmproj-LFM3-Omni-2B-Q8_0.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "59203",
+    "--alias",
+    "issue-483-lfm3-omni",
+    "--no-webui",
+    "-t",
+    "8",
+    "-tb",
+    "8",
+    "-ngl",
+    "99",
+    "-b",
+    "8192",
+    "-ub",
+    "8192",
+    "-c",
+    "8192",
+    "-np",
+    "1",
+    "--seed",
+    "483",
+    "--reasoning",
+    "off"
+  ],
+  "run_error": "RuntimeError: Isolated engine exited before readiness",
+  "controlled_agent_provider_calls": 0,
+  "engine_exit": 127
+}

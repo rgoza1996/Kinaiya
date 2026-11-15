@@ -1,0 +1,77 @@
+[
+  {
+    "name": "README.md",
+    "bytes": 2549,
+    "sha256": "c7f59fabc2790a8dce483f66e2cf0aae9f899a246c7bae952e08baf77c9c0175"
+  },
+  {
+    "name": "followup-input.wav",
+    "bytes": 79884,
+    "sha256": "5b602ca4c75e8918a7097974b50f6a1a0af9532e50e61b1ba2776db5f9177bb2"
+  },
+  {
+    "name": "followup-output.wav",
+    "bytes": 706604,
+    "sha256": "78cbc25886243d2dd2a62ffc0970c246a52e5fadbc31b42c8bfbafbc69b54396"
+  },
+  {
+    "name": "harness.py.txt",
+    "bytes": 16193,
+    "sha256": "36d0fba8ccd98823b00b1f46965409a6db429530eb0eed7b40e49e169f70cde9"
+  },
+  {
+    "name": "head-pin-correction.json",
+    "bytes": 577,
+    "sha256": "10d9849f6cb9982f34baec524d62b40931d17ababa4fb05afc1cd20b93bc533f"
+  },
+  {
+    "name": "initial-head-pin-failure.log",
+    "bytes": 1124,
+    "sha256": "090aba8ac65136995a671202f6e28a8f13a22ffeb4ef34d4400da89f4028b3e5"
+  },
+  {
+    "name": "observations.json",
+    "bytes": 26772,
+    "sha256": "db7e55b1ba5fdbaabdb78862cf85775e98881eb0807134c1fd48c5b457240081"
+  },
+  {
+    "name": "personality.txt",
+    "bytes": 2322,
+    "sha256": "11670df73b755b675f92a7e7e9c9b4eea9ad98442a220bd4e2d76aacfd951dbd"
+  },
+  {
+    "name": "plan.json",
+    "bytes": 3086,
+    "sha256": "fe4b87cfce8100ac98321f759003b12a58594bb4e611f1b77c9189213da14a97"
+  },
+  {
+    "name": "question-input.wav",
+    "bytes": 115084,
+    "sha256": "b88277fd49fbd4fb569361eb6d223a42332abeb4c0449099e3ed97fbc1531b23"
+  },
+  {
+    "name": "question-output.wav",
+    "bytes": 142124,
+    "sha256": "85938de63f4bd2041a0cae1f972a135e1da74dded098f8aabe47095200909baf"
+  },
+  {
+    "name": "task-observations.jsonl",
+    "bytes": 12164,
+    "sha256": "35e319c84e076ab7e8746e47fe026501e64b7ff3f795f56f5002f5212dbc1191"
+  },
+  {
+    "name": "verification.json",
+    "bytes": 1096,
+    "sha256": "e04dba17860a7bdd9927b4a26beb73ba03e45af9be24731b0e0e3017df4e20e4"
+  },
+  {
+    "name": "work-input.wav",
+    "bytes": 169324,
+    "sha256": "c62f8e48707a59aa77023a78db77ab1c4592e8590c4adae8c6f0a79eda1a44ca"
+  },
+  {
+    "name": "work-output.wav",
+    "bytes": 791084,
+    "sha256": "e82316a415fad9ad9fae63ee7c92d79d659c0684a23536e24de36c66578585a1"
+  }
+]

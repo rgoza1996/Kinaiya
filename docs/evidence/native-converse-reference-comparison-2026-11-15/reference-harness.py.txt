@@ -1,0 +1,110 @@
+"""One pinned offline conditional comparison. Run only in the declared bwrap."""
+import hashlib
+import importlib.metadata
+import json
+from pathlib import Path
+import time
+import traceback
+import wave
+
+import numpy as np
+import torch
+import transformers
+from transformers import AutoModelForMultimodalLM, AutoProcessor
+
+
+def write(path, value):
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=lambda v: sorted(v) if isinstance(v, set) else str(v)) + '\n')
+
+
+torch.set_num_threads(8)
+assert transformers.__version__ == '5.20.2' and not torch.cuda.is_available()
+started = time.monotonic()
+result = {
+    'scope': 'Offline full-reference diagnostic conditioned on exact native instructions and original public PCM; no independent Agent/browser/playback qualification.',
+    'versions': {n: importlib.metadata.version(n) for n in ['torch', 'transformers', 'huggingface-hub', 'tokenizers']},
+    'device': 'cpu', 'dtype': 'float32', 'attention': 'eager', 'seed_per_case': 483,
+    'cases': [],
+}
+write(Path('/work/result.json'), result)
+model, info = AutoModelForMultimodalLM.from_pretrained(
+    '/checkpoint', dtype=torch.float32, device_map='cpu', trust_remote_code=True,
+    local_files_only=True, use_safetensors=True, attn_implementation='eager', output_loading_info=True,
+)
+model.eval()
+for key in ['missing_keys', 'unexpected_keys', 'mismatched_keys', 'error_msgs']:
+    assert not info.get(key), (key, info.get(key))
+processor = AutoProcessor.from_pretrained('/checkpoint', trust_remote_code=True, local_files_only=True)
+codec, codec_info = type(processor.audio_tokenizer).from_pretrained(
+    '/checkpoint', subfolder='audio_tokenizer', dtype=torch.float32, device_map='cpu',
+    local_files_only=True, use_safetensors=True, attn_implementation='eager', output_loading_info=True,
+)
+codec.eval()
+for key in ['missing_keys', 'unexpected_keys', 'mismatched_keys', 'error_msgs']:
+    assert not codec_info.get(key), (key, codec_info.get(key))
+processor.audio_tokenizer = codec
+result.update(model_loading_info=info, codec_loading_info=codec_info, load_seconds=time.monotonic()-started)
+write(Path('/work/result.json'), result)
+for original in json.loads(Path('/inputs/cases.json').read_text()):
+    name = original['name']
+    assert name in {'work', 'followup', 'question'}
+    out = Path('/work') / name
+    out.mkdir()
+    case = {'name': name, 'phase': 'preparing', 'error': None, 'semantic_pass': None}
+    result['cases'].append(case)
+    write(Path('/work/result.json'), result)
+    case_start = time.monotonic()
+    try:
+        with wave.open(str(Path('/inputs') / original['wav']), 'rb') as reader:
+            assert (reader.getnchannels(), reader.getsampwidth(), reader.getframerate()) == (1, 2, 16000)
+            pcm = reader.readframes(reader.getnframes())
+        assert hashlib.sha256(pcm).hexdigest() == original['input_pcm_sha256']
+        samples = np.frombuffer(pcm, dtype='<i2').astype(np.float32) / 32768.0
+        conversation = [
+            {'role': 'system', 'content': original['instructions']},
+            {'role': 'user', 'content': [{'type': 'audio', 'audio': 'public-original.wav'}]},
+        ]
+        # Render without loading a path, then process the verified original PCM
+        # array directly. No torchcodec, file decoder or resampling substitution.
+        rendered = processor.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False, enable_thinking=False)
+        (out / 'rendered-template.txt').write_text(rendered)
+        inputs = processor(text=rendered, audio=[samples], sampling_rate=16000, return_tensors='pt')
+        write(out / 'inputs.json', {'keys': list(inputs), 'shapes': {k:list(v.shape) for k,v in inputs.items()}, 'input_ids':inputs['input_ids'].tolist(), 'input_pcm_sha256':original['input_pcm_sha256'], 'instructions_sha256':hashlib.sha256(original['instructions'].encode()).hexdigest()})
+        np.savez_compressed(out / 'features.npz', **{k:v.cpu().numpy() for k,v in inputs.items()})
+        prompt_length = inputs['input_ids'].shape[1]
+        case.update(phase='generation_started', prompt_tokens=prompt_length, input_pcm_sha256=original['input_pcm_sha256'])
+        write(Path('/work/result.json'), result)
+        torch.manual_seed(483)
+        with torch.inference_mode():
+            output = model.generate(
+                **inputs, max_new_tokens=512, generation_mode='interleaved',
+                do_sample=False, temperature=0.0, top_k=1, repetition_penalty=1.0,
+                audio_temperature=0.4, audio_top_k=None, audio_repetition_penalty=1.2,
+                audio_repetition_window=64, return_dict_in_generate=True,
+            )
+        length = int(output.sequence_lengths[0])
+        audio_length = int(output.audio_lengths[0])
+        tokens = output.sequences[0, prompt_length:length]
+        text = processor.decode(tokens, skip_special_tokens=True)
+        case.update(phase='generated', text=text, generated_slots=length-prompt_length, audio_frames=audio_length, token_ids=tokens.tolist(), raw_text=processor.decode(tokens, skip_special_tokens=False))
+        np.savez_compressed(out / 'outputs.npz', sequences=output.sequences.cpu().numpy(), sequence_lengths=output.sequence_lengths.cpu().numpy(), audio_codes=output.audio_codes.cpu().numpy(), audio_lengths=output.audio_lengths.cpu().numpy())
+        write(Path('/work/result.json'), result)
+        assert audio_length > 0 and output.audio_codes.shape[1] == 12
+        with torch.inference_mode():
+            values = codec.decode(output.audio_codes[:1, :, :audio_length]).audio_values[0].squeeze(0).float().cpu().numpy()
+        assert values.ndim == 1 and np.isfinite(values).all()
+        np.save(out / 'waveform-float32.npy', values)
+        peak = float(np.max(np.abs(values)))
+        clipped = int(np.count_nonzero(np.abs(values)>1))
+        encoded = np.rint(np.clip(values, -1, 1)*32767).astype('<i2').tobytes()
+        with wave.open(str(out/'output.wav'), 'wb') as writer:
+            writer.setnchannels(1);writer.setsampwidth(2);writer.setframerate(24000);writer.writeframes(encoded)
+        case.update(phase='complete', output_rate=24000, output_seconds=len(values)/24000, float_peak=peak, clipped_samples=clipped, output_pcm_sha256=hashlib.sha256(encoded).hexdigest(), elapsed_seconds=time.monotonic()-case_start)
+        write(Path('/work/result.json'), result)
+        print(json.dumps({k:case.get(k) for k in ['name','phase','text','generated_slots','audio_frames','output_seconds','elapsed_seconds']},ensure_ascii=False),flush=True)
+    except BaseException as exc:
+        case.update(error=type(exc).__name__+': '+str(exc), traceback=traceback.format_exc(), elapsed_seconds=time.monotonic()-case_start)
+        write(Path('/work/result.json'), result)
+        raise
+result['elapsed_seconds'] = time.monotonic()-started
+write(Path('/work/result.json'), result)

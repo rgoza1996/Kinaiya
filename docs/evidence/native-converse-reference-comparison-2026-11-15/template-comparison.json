@@ -1,0 +1,15 @@
+{
+  "file": "/home/roggoz/Disks/SN750/models/LiquidAI/LFM3-Omni-2B-GGUF/LFM3-Omni-2B-Q4_K_M.gguf",
+  "gguf_version": 3,
+  "tensors": 287,
+  "metadata_fields": 43,
+  "metadata_end": 8232159,
+  "selected": {
+    "general.architecture": "lfm3",
+    "tokenizer.ggml.bos_token_id": 124894,
+    "tokenizer.ggml.eos_token_id": 124900
+  },
+  "native_template_sha256": "ea74cc1d14319ed436dc0f37632893004d436913113e7605267f2b01694d65e4",
+  "reference_template_sha256": "ea74cc1d14319ed436dc0f37632893004d436913113e7605267f2b01694d65e4",
+  "templates_byte_equal": true
+}

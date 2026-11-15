@@ -1,0 +1,9 @@
+{
+  "time": 1794741647.455393,
+  "original_plan_sha256": "1fc874c25d323e852d16463b82148675dad09e82073ed95dd4f1db9d0f0777b5",
+  "prior_attempt": "native/manifest.json; engine_exit=127; cases=[]; missing libhipblas.so.3",
+  "change": "Add the resolved existing ROCm library directory to the private engine child LD_LIBRARY_PATH only. Original cases, model/persona, app code, seed and sampling remain as declared.",
+  "existing_rocm_lib": "/opt/rocm/core-10.0/lib",
+  "helper_sha256": "89075f688a6e7f45d34175047507dec3d9f45a42dba3025f29eb93578289a903",
+  "output": "native-2"
+}
