@@ -341,9 +341,9 @@ void main() {
     },
   );
 
-  test(
+  testWidgets(
     'lookup display timeout retains ownership without auto polling or mutation',
-    () async {
+    (WidgetTester tester) async {
       final writes = AgentModeWrites(
         displayDeadline: const Duration(milliseconds: 2),
       );
@@ -354,25 +354,54 @@ void main() {
           sends++;
           return response.future;
         }),
-        timeoutMs: 25,
+        // Keep real acquisition out of this display/ownership control (#602).
+        // Virtual time crosses both deadlines without a wall-clock race.
+        timeoutMs: 10000,
       );
       final scope = writes.open(api, controlState())!;
       final operation = writes.begin(scope, api, scopedModeRequest(scope))!;
       final result = writes.lookup(operation, api, scope.snapshot);
-      await Future<void>.delayed(const Duration(milliseconds: 8));
-      expect(operation.notice, contains('Still waiting for save status'));
-      expect(operation.uncertain, isTrue);
-      expect(operation.lookupOwners, 1);
-      expect(writes.canLookup(operation, api, scope.snapshot), isFalse);
-      await result;
-      expect(operation.lookupOwners, 1);
-      expect(scope.pending, same(operation));
-      expect(sends, 1);
-      response.complete(modelResponse(modeLookupJson(operation.request.body)));
-      await modeOwners(operation, 0, 0);
-      expect(scope.pending, same(operation));
-      await api.close();
-      writes.dispose();
+      try {
+        await tester.pump();
+        expect(sends, 1);
+        expect(operation.notice, contains('Checking the exact original'));
+        await tester.pump(const Duration(milliseconds: 8));
+        expect(operation.notice, contains('Still waiting for save status'));
+        expect(operation.uncertain, isTrue);
+        expect(operation.lookupOwners, 1);
+        expect(writes.canLookup(operation, api, scope.snapshot), isFalse);
+        await tester.pump(const Duration(seconds: 10));
+        expect(await result, isNull);
+        expect(operation.notice, contains('No settled result is confirmed'));
+        expect(operation.lookupOwners, 1);
+        expect(scope.pending, same(operation));
+        await tester.pump(const Duration(seconds: 30));
+        expect(operation.lookupOwners, 1);
+        expect(writes.canLookup(operation, api, scope.snapshot), isFalse);
+        expect(scope.pending, same(operation));
+        expect(sends, 1);
+        response.complete(
+          modelResponse(modeLookupJson(operation.request.body)),
+        );
+        await tester.pump();
+        expect(operation.lookupOwners, 0);
+        expect(operation.mutationOwners, 0);
+        expect(scope.pending, same(operation));
+        expect(operation.complete, isFalse);
+        expect(operation.uncertain, isTrue);
+        expect(operation.notice, contains('No settled result is confirmed'));
+        expect(writes.canLookup(operation, api, scope.snapshot), isTrue);
+        expect(sends, 1);
+      } finally {
+        if (!response.isCompleted) {
+          response.complete(
+            modelResponse(modeLookupJson(operation.request.body)),
+          );
+        }
+        await tester.pump();
+        await api.close();
+        writes.dispose();
+      }
     },
   );
 
