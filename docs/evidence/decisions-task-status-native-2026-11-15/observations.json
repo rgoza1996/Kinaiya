@@ -1,0 +1,1215 @@
+{
+  "scope": "Fresh public synthetic text windows; actual native d1 with controlled task-state inputs; no Agent execution, microphone, cloud, paid helper or owner configuration change.",
+  "source_head": "dfee04ed56c98f7c324b964ddec7cd1f123c7b0c",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "plan_sha256": "81569097adeb38c30cb847798c2232769e5c8901f2767029c755d2a25a75d5dc",
+  "qualification_sha256": "09c438764be0e487c47242c1423f95464b2b805d8e200a782e2c65dc1adb20b3",
+  "artifacts": [
+    {
+      "name": "llama-server",
+      "bytes": 17888,
+      "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+    },
+    {
+      "name": "libllama-server-impl.so",
+      "bytes": 8006384,
+      "sha256": "2eeda9b854fa69359130365a0d3a2de364b958652ed3a804ab6cf12ac33e0ca3"
+    },
+    {
+      "name": "d1-2B-BF16.gguf",
+      "bytes": 3466628416,
+      "sha256": "f785c92583aa83ad2ecccd88d222a5b6b81ba1e66cb1465e7747eb9f857c67c2"
+    }
+  ],
+  "min_confidence": 0.7,
+  "provider_timeout_s": 5,
+  "classification_timeout_s": 5,
+  "task_states": "Controlled typed Agent status fixtures, not actual Agent execution",
+  "request_captures": 12,
+  "raw_responses_retained": 12,
+  "engine_exit": 0,
+  "schema_version": 1,
+  "passes": 1,
+  "refusals": 11,
+  "native_agent_dispatches": 0,
+  "cases": [
+    {
+      "id": "active-progress",
+      "expected": {
+        "id": "active-progress",
+        "task_state": "running",
+        "objective": "Prepare the imaginary club report",
+        "text": "How is Agent getting on with the club report?",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.7026746199990157,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "05dd7f62-0041-4846-83dc-b68bd000c572",
+        "thread_id": "89cfb0c9-fa69-43dc-b00a-c77218621abf",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "05dd7f62-0041-4846-83dc-b68bd000c572",
+          "thread_id": "89cfb0c9-fa69-43dc-b00a-c77218621abf",
+          "epoch": 1,
+          "utterance_id": "active-progress",
+          "window_index": 0,
+          "revision": 1,
+          "text": "How is Agent getting on with the club report?",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-active-progress",
+        "event_id": "22b42557-aadd-44bf-b490-7b5fb188bdd1",
+        "sequence": 3,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:07.224743Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-active-progress",
+        "session_id": "05dd7f62-0041-4846-83dc-b68bd000c572",
+        "thread_id": "89cfb0c9-fa69-43dc-b00a-c77218621abf",
+        "epoch": 1,
+        "objective": "Prepare the imaginary club report",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "948216f1-d5d2-411b-a480-4cd5da732da2"
+        ],
+        "idempotency_key": "fixture-active-progress",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "active-progress-inspection.json",
+      "inspection_sha256": "ca3218a8336d0896ec578c7c7bfb25a6373acb5e1e1804a82455d33c38f73a97",
+      "raw_choices": {
+        "conversation": {
+          "choice": "backchannel",
+          "confidence": 0.49170744797123117,
+          "probabilities": {
+            "backchannel": 0.49170744797123117,
+            "unfinished": 0.1588122346883984,
+            "urgent": 0.03641724265193403,
+            "ready": 0.31306307468843647
+          }
+        },
+        "agent_route": {
+          "choice": "conversation",
+          "confidence": 0.6499305662487269,
+          "probabilities": {
+            "conversation": 0.6499305662487269,
+            "correction": 0.05492992142041368,
+            "cancellation": 0.025552137799122788,
+            "new_task": 0.2695873745317366
+          }
+        },
+        "target": {
+          "choice": "NONE",
+          "confidence": 0.8702628378957312,
+          "probabilities": {
+            "NONE": 0.8702628378957312,
+            "t0": 0.12973716210426867
+          }
+        }
+      }
+    },
+    {
+      "id": "succeeded-result",
+      "expected": {
+        "id": "succeeded-result",
+        "task_state": "succeeded",
+        "objective": "Prepare the imaginary garden report",
+        "text": "What did Agent finish for the garden report?",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.10943311699520564,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "ef76bb02-9a33-49d8-8dc6-83423f1362e3",
+        "thread_id": "aff8ab68-e829-48cd-abbd-c41af819ef0f",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "ef76bb02-9a33-49d8-8dc6-83423f1362e3",
+          "thread_id": "aff8ab68-e829-48cd-abbd-c41af819ef0f",
+          "epoch": 1,
+          "utterance_id": "succeeded-result",
+          "window_index": 0,
+          "revision": 1,
+          "text": "What did Agent finish for the garden report?",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-succeeded-result",
+        "event_id": "bae1746c-6542-4b96-9119-5e2f0e465356",
+        "sequence": 7,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:07.976802Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-succeeded-result",
+        "session_id": "ef76bb02-9a33-49d8-8dc6-83423f1362e3",
+        "thread_id": "aff8ab68-e829-48cd-abbd-c41af819ef0f",
+        "epoch": 1,
+        "objective": "Prepare the imaginary garden report",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "succeeded",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "f5859d98-edeb-43fa-bf98-5852eea44f10"
+        ],
+        "idempotency_key": "fixture-succeeded-result",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "succeeded-result-inspection.json",
+      "inspection_sha256": "5035061104a85026056476f8f8fa6bd7ec47e22169fd199bcc5b8894bd751cea",
+      "raw_choices": {
+        "conversation": {
+          "choice": "ready",
+          "confidence": 0.46170632892195373,
+          "probabilities": {
+            "backchannel": 0.23860918454347033,
+            "unfinished": 0.23092137645758018,
+            "urgent": 0.06876311007699565,
+            "ready": 0.46170632892195373
+          }
+        },
+        "agent_route": {
+          "choice": "conversation",
+          "confidence": 0.3284053165559834,
+          "probabilities": {
+            "conversation": 0.3284053165559834,
+            "correction": 0.13980493918586603,
+            "cancellation": 0.26484759534844543,
+            "new_task": 0.266942148909705
+          }
+        }
+      }
+    },
+    {
+      "id": "failed-explanation",
+      "expected": {
+        "id": "failed-explanation",
+        "task_state": "failed",
+        "objective": "Prepare the imaginary library report",
+        "text": "Why did the library report fail?",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.103761870006565,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "c710b5e9-2721-4122-a282-be334e165753",
+        "thread_id": "a0d1ea92-e641-4d38-8e66-4bc6431dba5e",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "c710b5e9-2721-4122-a282-be334e165753",
+          "thread_id": "a0d1ea92-e641-4d38-8e66-4bc6431dba5e",
+          "epoch": 1,
+          "utterance_id": "failed-explanation",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Why did the library report fail?",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-failed-explanation",
+        "event_id": "5b381ee1-7cbd-4f82-9a07-200941fc11e0",
+        "sequence": 11,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:08.140284Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-failed-explanation",
+        "session_id": "c710b5e9-2721-4122-a282-be334e165753",
+        "thread_id": "a0d1ea92-e641-4d38-8e66-4bc6431dba5e",
+        "epoch": 1,
+        "objective": "Prepare the imaginary library report",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "failed",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "bd7e473c-277b-4d12-8c38-529520c4f8c4"
+        ],
+        "idempotency_key": "fixture-failed-explanation",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "failed-explanation-inspection.json",
+      "inspection_sha256": "99a7fce6947c08cda881352b9c00b15cf784ac2a278cf3d77a7349fb1131ff4d",
+      "raw_choices": {
+        "conversation": {
+          "choice": "backchannel",
+          "confidence": 0.3491244210481362,
+          "probabilities": {
+            "backchannel": 0.3491244210481362,
+            "unfinished": 0.20575614409323872,
+            "urgent": 0.1140481496349204,
+            "ready": 0.33107128522370477
+          }
+        },
+        "agent_route": {
+          "choice": "new_task",
+          "confidence": 0.33739465601091745,
+          "probabilities": {
+            "conversation": 0.24801944700944664,
+            "correction": 0.18981205986753125,
+            "cancellation": 0.22477383711210472,
+            "new_task": 0.33739465601091745
+          }
+        }
+      }
+    },
+    {
+      "id": "cancelled-status",
+      "expected": {
+        "id": "cancelled-status",
+        "task_state": "cancelled",
+        "objective": "Prepare the imaginary atlas task",
+        "text": "Is that cancelled atlas task still running?",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.09777117000339786,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "6bfd43b5-6e7b-40db-b65e-ad8567a4a419",
+        "thread_id": "092f0359-58f8-4514-a2a5-27b7c191d156",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "6bfd43b5-6e7b-40db-b65e-ad8567a4a419",
+          "thread_id": "092f0359-58f8-4514-a2a5-27b7c191d156",
+          "epoch": 1,
+          "utterance_id": "cancelled-status",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Is that cancelled atlas task still running?",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-cancelled-status",
+        "event_id": "dc2932d9-384b-4d15-9865-df3c81b1df0f",
+        "sequence": 15,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:08.288028Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-cancelled-status",
+        "session_id": "6bfd43b5-6e7b-40db-b65e-ad8567a4a419",
+        "thread_id": "092f0359-58f8-4514-a2a5-27b7c191d156",
+        "epoch": 1,
+        "objective": "Prepare the imaginary atlas task",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "cancelled",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "d9cc0f4e-f47a-41f1-96e6-73dbf4cf59be"
+        ],
+        "idempotency_key": "fixture-cancelled-status",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "cancelled-status-inspection.json",
+      "inspection_sha256": "7560d5e739b5d632326008d653fc6009fb7737414cf09be94fd01f504a803351",
+      "raw_choices": {
+        "conversation": {
+          "choice": "ready",
+          "confidence": 0.4347241344115056,
+          "probabilities": {
+            "backchannel": 0.27787384259658165,
+            "unfinished": 0.23775120198188748,
+            "urgent": 0.049650821010025256,
+            "ready": 0.4347241344115056
+          }
+        },
+        "agent_route": {
+          "choice": "new_task",
+          "confidence": 0.6651556626361288,
+          "probabilities": {
+            "conversation": 0.2673331562958778,
+            "correction": 0.05126213586401834,
+            "cancellation": 0.01624904520397511,
+            "new_task": 0.6651556626361288
+          }
+        }
+      }
+    },
+    {
+      "id": "ordinary-thanks",
+      "expected": {
+        "id": "ordinary-thanks",
+        "task_state": "succeeded",
+        "objective": "Prepare the imaginary garden report",
+        "text": "Thanks, that is helpful.",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "expected_conversation": [
+          "IGNORE",
+          "RESPOND_WITHOUT_INTERRUPTING_USER"
+        ]
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.1000976669965894,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "9334a95e-580a-4031-8731-6d5d419eab37",
+        "thread_id": "a19dd2e9-c363-4e8f-9ee3-148fb79457b5",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "9334a95e-580a-4031-8731-6d5d419eab37",
+          "thread_id": "a19dd2e9-c363-4e8f-9ee3-148fb79457b5",
+          "epoch": 1,
+          "utterance_id": "ordinary-thanks",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Thanks, that is helpful.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-ordinary-thanks",
+        "event_id": "a268d861-63db-4c47-bf5c-2c7136889bfb",
+        "sequence": 19,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:08.427398Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-ordinary-thanks",
+        "session_id": "9334a95e-580a-4031-8731-6d5d419eab37",
+        "thread_id": "a19dd2e9-c363-4e8f-9ee3-148fb79457b5",
+        "epoch": 1,
+        "objective": "Prepare the imaginary garden report",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "succeeded",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "cc098120-2e20-4fed-bd58-9c3caa94d09a"
+        ],
+        "idempotency_key": "fixture-ordinary-thanks",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "ordinary-thanks-inspection.json",
+      "inspection_sha256": "a9cd17fcac2dce8f82fab29c0403181eb9e5c073ea10664411c8003fe86855a0",
+      "raw_choices": {
+        "conversation": {
+          "choice": "backchannel",
+          "confidence": 0.6011132198295067,
+          "probabilities": {
+            "backchannel": 0.6011132198295067,
+            "unfinished": 0.03881884969286549,
+            "urgent": 0.017083572458823804,
+            "ready": 0.342984358018804
+          }
+        },
+        "agent_route": {
+          "choice": "conversation",
+          "confidence": 0.5007250318761467,
+          "probabilities": {
+            "conversation": 0.5007250318761467,
+            "correction": 0.12848397963856176,
+            "cancellation": 0.14925638206112507,
+            "new_task": 0.2215346064241666
+          }
+        }
+      }
+    },
+    {
+      "id": "active-correction",
+      "expected": {
+        "id": "active-correction",
+        "task_state": "running",
+        "objective": "Prepare the imaginary current poster",
+        "text": "Use centimeters instead of inches in the current poster.",
+        "expected_route": "STEER_CURRENT_TASK"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.13129399599711178,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "55f15352-c21c-43b2-b892-1f1a156f441a",
+        "thread_id": "898071c2-be5f-4213-b439-ad8e3d163edc",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "55f15352-c21c-43b2-b892-1f1a156f441a",
+          "thread_id": "898071c2-be5f-4213-b439-ad8e3d163edc",
+          "epoch": 1,
+          "utterance_id": "active-correction",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Use centimeters instead of inches in the current poster.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-active-correction",
+        "event_id": "a14b0ad1-11bf-49b3-8af1-d952ad3fb33b",
+        "sequence": 23,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:08.569141Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-active-correction",
+        "session_id": "55f15352-c21c-43b2-b892-1f1a156f441a",
+        "thread_id": "898071c2-be5f-4213-b439-ad8e3d163edc",
+        "epoch": 1,
+        "objective": "Prepare the imaginary current poster",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "b9eedca9-db30-4395-8ccd-7306af4bab5a"
+        ],
+        "idempotency_key": "fixture-active-correction",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "active-correction-inspection.json",
+      "inspection_sha256": "680ff379625406279066b230411d95afbd2fdbcc74bd7dc723573f5533a90620",
+      "raw_choices": {
+        "conversation": {
+          "choice": "backchannel",
+          "confidence": 0.5220756126365116,
+          "probabilities": {
+            "backchannel": 0.5220756126365116,
+            "unfinished": 0.07083527151402037,
+            "urgent": 0.11174959544076167,
+            "ready": 0.2953395204087064
+          }
+        },
+        "agent_route": {
+          "choice": "correction",
+          "confidence": 0.8457450564227066,
+          "probabilities": {
+            "conversation": 0.08788918385591828,
+            "correction": 0.8457450564227066,
+            "cancellation": 0.03538588387045013,
+            "new_task": 0.03097987585092501
+          }
+        },
+        "target": {
+          "choice": "t0",
+          "confidence": 0.7907134002992711,
+          "probabilities": {
+            "NONE": 0.20928659970072896,
+            "t0": 0.7907134002992711
+          }
+        }
+      }
+    },
+    {
+      "id": "active-cancellation",
+      "expected": {
+        "id": "active-cancellation",
+        "task_state": "running",
+        "objective": "Prepare the imaginary current poster",
+        "text": "Stop the current poster task now.",
+        "expected_route": "INTERRUPT_CURRENT_TASK",
+        "expected_conversation": [
+          "RESPOND_INTERRUPT_USER"
+        ]
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.13832058999832952,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "e5ecf397-3b9c-44e0-9cb0-45b00063a69a",
+        "thread_id": "c4bb4cc5-fbef-4923-9d55-a388e222a934",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "e5ecf397-3b9c-44e0-9cb0-45b00063a69a",
+          "thread_id": "c4bb4cc5-fbef-4923-9d55-a388e222a934",
+          "epoch": 1,
+          "utterance_id": "active-cancellation",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Stop the current poster task now.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-active-cancellation",
+        "event_id": "6cc35feb-6a37-48e3-81b4-0f912f23994c",
+        "sequence": 27,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:08.750773Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-active-cancellation",
+        "session_id": "e5ecf397-3b9c-44e0-9cb0-45b00063a69a",
+        "thread_id": "c4bb4cc5-fbef-4923-9d55-a388e222a934",
+        "epoch": 1,
+        "objective": "Prepare the imaginary current poster",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "d197868d-ff7f-4506-a8e4-5afe1a249ce0"
+        ],
+        "idempotency_key": "fixture-active-cancellation",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "active-cancellation-inspection.json",
+      "inspection_sha256": "bccf036133fd936b32e3f4e2dbcbacc55052200f74f37ab5f1878f5a270003ce",
+      "raw_choices": {
+        "conversation": {
+          "choice": "unfinished",
+          "confidence": 0.3268823065461161,
+          "probabilities": {
+            "backchannel": 0.2118502259303251,
+            "unfinished": 0.3268823065461161,
+            "urgent": 0.26079640853825753,
+            "ready": 0.20047105898530126
+          }
+        },
+        "agent_route": {
+          "choice": "cancellation",
+          "confidence": 0.5509592878664807,
+          "probabilities": {
+            "conversation": 0.28674073979553255,
+            "correction": 0.04254174386857125,
+            "cancellation": 0.5509592878664807,
+            "new_task": 0.11975822846941549
+          }
+        },
+        "target": {
+          "choice": "NONE",
+          "confidence": 0.7400209735815076,
+          "probabilities": {
+            "NONE": 0.7400209735815076,
+            "t0": 0.25997902641849246
+          }
+        }
+      }
+    },
+    {
+      "id": "new-work-after-failure",
+      "expected": {
+        "id": "new-work-after-failure",
+        "task_state": "failed",
+        "objective": "Prepare the imaginary old park draft",
+        "text": "Create a fresh summary for the imaginary park guide.",
+        "expected_route": "QUEUE_UNTIL_TASK_DONE"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.10607089700351935,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "bb38c5ee-d9c2-4802-9d79-a8f888b1ecd6",
+        "thread_id": "4bda1b70-0ea6-4848-b5dc-bf4ee9fa2ab0",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "bb38c5ee-d9c2-4802-9d79-a8f888b1ecd6",
+          "thread_id": "4bda1b70-0ea6-4848-b5dc-bf4ee9fa2ab0",
+          "epoch": 1,
+          "utterance_id": "new-work-after-failure",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Create a fresh summary for the imaginary park guide.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-new-work-after-failure",
+        "event_id": "e595e910-a04e-430c-8690-7dba81306c64",
+        "sequence": 31,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:08.943961Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-new-work-after-failure",
+        "session_id": "bb38c5ee-d9c2-4802-9d79-a8f888b1ecd6",
+        "thread_id": "4bda1b70-0ea6-4848-b5dc-bf4ee9fa2ab0",
+        "epoch": 1,
+        "objective": "Prepare the imaginary old park draft",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "failed",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "12e3e892-43bb-45a6-9545-d4e2931d92b8"
+        ],
+        "idempotency_key": "fixture-new-work-after-failure",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "new-work-after-failure-inspection.json",
+      "inspection_sha256": "9e9d5cf57413cd355ec689ceb09dc6fdb51f46acfa47652e49d2bd6c235f2f94",
+      "raw_choices": {
+        "conversation": {
+          "choice": "backchannel",
+          "confidence": 0.46055758657273743,
+          "probabilities": {
+            "backchannel": 0.46055758657273743,
+            "unfinished": 0.11463741218819347,
+            "urgent": 0.05423300101749145,
+            "ready": 0.3705720002215776
+          }
+        },
+        "agent_route": {
+          "choice": "conversation",
+          "confidence": 0.41924424890229733,
+          "probabilities": {
+            "conversation": 0.41924424890229733,
+            "correction": 0.11634707668643356,
+            "cancellation": 0.14438694561730736,
+            "new_task": 0.32002172879396173
+          }
+        }
+      }
+    },
+    {
+      "id": "status-plus-new-work",
+      "expected": {
+        "id": "status-plus-new-work",
+        "task_state": "failed",
+        "objective": "Prepare the imaginary fair draft",
+        "text": "What happened to the draft? Start a new draft for the arts fair.",
+        "expected_route": "QUEUE_UNTIL_TASK_DONE"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.0990334640009678,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "54757d2b-c902-4bdc-91ef-312828745bdd",
+        "thread_id": "18f51355-3db5-4cb0-99b6-e342bffef4b5",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "54757d2b-c902-4bdc-91ef-312828745bdd",
+          "thread_id": "18f51355-3db5-4cb0-99b6-e342bffef4b5",
+          "epoch": 1,
+          "utterance_id": "status-plus-new-work",
+          "window_index": 0,
+          "revision": 1,
+          "text": "What happened to the draft? Start a new draft for the arts fair.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-status-plus-new-work",
+        "event_id": "280583c4-22bc-4de7-802d-aa8280c193e4",
+        "sequence": 35,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:09.097097Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-status-plus-new-work",
+        "session_id": "54757d2b-c902-4bdc-91ef-312828745bdd",
+        "thread_id": "18f51355-3db5-4cb0-99b6-e342bffef4b5",
+        "epoch": 1,
+        "objective": "Prepare the imaginary fair draft",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "failed",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "281d7a7e-eb5c-42d4-a7a2-7164f939af93"
+        ],
+        "idempotency_key": "fixture-status-plus-new-work",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "status-plus-new-work-inspection.json",
+      "inspection_sha256": "f06fd71a82daa964e7f32f75a151c3f84c54bc855820781ef2f80365c702416f",
+      "raw_choices": {
+        "conversation": {
+          "choice": "ready",
+          "confidence": 0.3206710035120178,
+          "probabilities": {
+            "backchannel": 0.2550923163776749,
+            "unfinished": 0.159495458731053,
+            "urgent": 0.26474122137925427,
+            "ready": 0.3206710035120178
+          }
+        },
+        "agent_route": {
+          "choice": "cancellation",
+          "confidence": 0.3786295572430109,
+          "probabilities": {
+            "conversation": 0.14703021042440997,
+            "correction": 0.30900620128590434,
+            "cancellation": 0.3786295572430109,
+            "new_task": 0.1653340310466748
+          }
+        }
+      }
+    },
+    {
+      "id": "unrelated-conversation",
+      "expected": {
+        "id": "unrelated-conversation",
+        "task_state": "running",
+        "objective": "Prepare the imaginary current poster",
+        "text": "The stars look lovely tonight.",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "expected_conversation": [
+          "IGNORE",
+          "RESPOND_WITHOUT_INTERRUPTING_USER"
+        ]
+      },
+      "error": null,
+      "quality_pass": true,
+      "elapsed_s": 0.15643434400408296,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "88656481-0a3e-460a-af4b-b58574615d57",
+        "thread_id": "0db142ca-9f70-497a-833e-8142accb10db",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "88656481-0a3e-460a-af4b-b58574615d57",
+          "thread_id": "0db142ca-9f70-497a-833e-8142accb10db",
+          "epoch": 1,
+          "utterance_id": "unrelated-conversation",
+          "window_index": 0,
+          "revision": 1,
+          "text": "The stars look lovely tonight.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-unrelated-conversation",
+        "event_id": "fa78f31c-8c72-4e46-9636-4b0e7b04d3ec",
+        "sequence": 39,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:09.238888Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-unrelated-conversation",
+        "session_id": "88656481-0a3e-460a-af4b-b58574615d57",
+        "thread_id": "0db142ca-9f70-497a-833e-8142accb10db",
+        "epoch": 1,
+        "objective": "Prepare the imaginary current poster",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "c0e9260c-23a2-4127-bbf9-4fa69b8e684f"
+        ],
+        "idempotency_key": "fixture-unrelated-conversation",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": {
+        "schema_version": "1.0",
+        "session_id": "88656481-0a3e-460a-af4b-b58574615d57",
+        "thread_id": "0db142ca-9f70-497a-833e-8142accb10db",
+        "epoch": 1,
+        "kind": "routing.window_decided",
+        "payload": {
+          "schema_version": "1.0",
+          "decision_id": "window-9016c4298dd39cb8ff0f4e77a1e47846",
+          "prompt_chars": 2851,
+          "history_chars": 79,
+          "context_entries": 2,
+          "classification_reused": false,
+          "source_event_id": "fa78f31c-8c72-4e46-9636-4b0e7b04d3ec",
+          "source_sequence": 39,
+          "source_revision": 1,
+          "conversation": "RESPOND_WITHOUT_INTERRUPTING_USER",
+          "agent_route": "IGNORE_FOR_IMMEDIATE_ROUTING",
+          "target_task_id": null,
+          "expected_objective_revision": null,
+          "reason_code": "native_d1_typed_choices",
+          "classifier_ms": 128.6073339942959
+        },
+        "causes": [
+          "fa78f31c-8c72-4e46-9636-4b0e7b04d3ec"
+        ],
+        "task_refs": [],
+        "idempotency_key": "window-decision:fa78f31c-8c72-4e46-9636-4b0e7b04d3ec",
+        "event_id": "dd87027c-a380-43f9-bb48-edbe0800e323",
+        "sequence": 41,
+        "origin": "decisions",
+        "created_at": "2026-11-15T08:45:09.393061Z"
+      },
+      "agent_effects": 0,
+      "inspection_file": "unrelated-conversation-inspection.json",
+      "inspection_sha256": "d3f2d89d95efda5cbb8f10924fb54390070b73da02e05b29f58e80158a079815",
+      "raw_choices": {
+        "conversation": {
+          "choice": "ready",
+          "confidence": 0.7492305596467891,
+          "probabilities": {
+            "backchannel": 0.22234854530574966,
+            "unfinished": 0.01583861729784535,
+            "urgent": 0.012582277749615987,
+            "ready": 0.7492305596467891
+          }
+        },
+        "agent_route": {
+          "choice": "conversation",
+          "confidence": 0.7754428453589352,
+          "probabilities": {
+            "conversation": 0.7754428453589352,
+            "correction": 0.032073831457606373,
+            "cancellation": 0.036484698287719886,
+            "new_task": 0.15599862489573868
+          }
+        },
+        "target": {
+          "choice": "NONE",
+          "confidence": 0.8345230455046,
+          "probabilities": {
+            "NONE": 0.8345230455046,
+            "t0": 0.16547695449539998
+          }
+        }
+      }
+    },
+    {
+      "id": "active-publication-status",
+      "expected": {
+        "id": "active-publication-status",
+        "task_state": "running",
+        "objective": "Prepare the imaginary current poster",
+        "text": "Has the current poster been saved yet?",
+        "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.13972437600023113,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "0d2537df-b3aa-43a0-9781-8a75b41b6fde",
+        "thread_id": "93961ddd-28c4-4212-97bb-0906c6464873",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "0d2537df-b3aa-43a0-9781-8a75b41b6fde",
+          "thread_id": "93961ddd-28c4-4212-97bb-0906c6464873",
+          "epoch": 1,
+          "utterance_id": "active-publication-status",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Has the current poster been saved yet?",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-active-publication-status",
+        "event_id": "e2f3a271-f72a-428c-852e-4d7d8ba8f5a6",
+        "sequence": 45,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:09.447144Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-active-publication-status",
+        "session_id": "0d2537df-b3aa-43a0-9781-8a75b41b6fde",
+        "thread_id": "93961ddd-28c4-4212-97bb-0906c6464873",
+        "epoch": 1,
+        "objective": "Prepare the imaginary current poster",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "running",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "599d0f26-b52d-4406-9343-e9671676c7a1"
+        ],
+        "idempotency_key": "fixture-active-publication-status",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "active-publication-status-inspection.json",
+      "inspection_sha256": "52b1d51b6004c513e486778fc45a833ab20cc6c1cf35040058d7b9a9c399ea00",
+      "raw_choices": {
+        "conversation": {
+          "choice": "ready",
+          "confidence": 0.40960997416995204,
+          "probabilities": {
+            "backchannel": 0.35174236110136803,
+            "unfinished": 0.16309791708340074,
+            "urgent": 0.07554974764527919,
+            "ready": 0.40960997416995204
+          }
+        },
+        "agent_route": {
+          "choice": "conversation",
+          "confidence": 0.5055348709535031,
+          "probabilities": {
+            "conversation": 0.5055348709535031,
+            "correction": 0.07370239635926305,
+            "cancellation": 0.03325496915840083,
+            "new_task": 0.387507763528833
+          }
+        },
+        "target": {
+          "choice": "NONE",
+          "confidence": 0.6001667694475132,
+          "probabilities": {
+            "NONE": 0.6001667694475132,
+            "t0": 0.39983323055248676
+          }
+        }
+      }
+    },
+    {
+      "id": "new-followup-after-completion",
+      "expected": {
+        "id": "new-followup-after-completion",
+        "task_state": "succeeded",
+        "objective": "Prepare the imaginary history report",
+        "text": "Please add an appendix to the finished history report.",
+        "expected_route": "QUEUE_UNTIL_TASK_DONE"
+      },
+      "error": "LowConfidenceRefusal: Native d1 answer was below the owner confidence floor",
+      "quality_pass": false,
+      "elapsed_s": 0.0990896139992401,
+      "source": {
+        "schema_version": "1.0",
+        "session_id": "e7baadf6-0c52-449f-ad7f-f542966d590c",
+        "thread_id": "57c2b3b9-66b5-480e-bb2d-870aa94220f1",
+        "epoch": 1,
+        "kind": "conversation.window",
+        "payload": {
+          "schema_version": "1.0",
+          "session_id": "e7baadf6-0c52-449f-ad7f-f542966d590c",
+          "thread_id": "57c2b3b9-66b5-480e-bb2d-870aa94220f1",
+          "epoch": 1,
+          "utterance_id": "new-followup-after-completion",
+          "window_index": 0,
+          "revision": 1,
+          "text": "Please add an appendix to the finished history report.",
+          "start_ms": 0,
+          "end_ms": 1000,
+          "user_speaking": false,
+          "capture_ended": true,
+          "audio_sha256": null,
+          "content_scope": "public_synthetic"
+        },
+        "causes": [],
+        "task_refs": [],
+        "idempotency_key": "window-new-followup-after-completion",
+        "event_id": "1d5097d3-14a4-4c60-ae80-e600e5dcfee9",
+        "sequence": 49,
+        "origin": "authenticated-user",
+        "created_at": "2026-11-15T08:45:09.642222Z"
+      },
+      "controlled_task": {
+        "schema_version": "1.0",
+        "task_id": "fixture-new-followup-after-completion",
+        "session_id": "e7baadf6-0c52-449f-ad7f-f542966d590c",
+        "thread_id": "57c2b3b9-66b5-480e-bb2d-870aa94220f1",
+        "epoch": 1,
+        "objective": "Prepare the imaginary history report",
+        "content_scope": "public_synthetic",
+        "objective_revision": 3,
+        "state": "succeeded",
+        "summary": "",
+        "evidence": [],
+        "remaining_required_work": [],
+        "source_event_ids": [
+          "3f64f939-6610-4967-b99c-54f15811465d"
+        ],
+        "idempotency_key": "fixture-new-followup-after-completion",
+        "harness_version": "seed-v1",
+        "model_pin": null,
+        "auxiliary_models": {},
+        "error": null
+      },
+      "decision": null,
+      "agent_effects": 0,
+      "inspection_file": "new-followup-after-completion-inspection.json",
+      "inspection_sha256": "cf6df2dfc6b9cb8f4d1df53f68f0a3be2f9afcba651eb41bacf0ae9646f32a43",
+      "raw_choices": {
+        "conversation": {
+          "choice": "backchannel",
+          "confidence": 0.4704267566951254,
+          "probabilities": {
+            "backchannel": 0.4704267566951254,
+            "unfinished": 0.11251294086926525,
+            "urgent": 0.11763752235750949,
+            "ready": 0.2994227800780998
+          }
+        },
+        "agent_route": {
+          "choice": "correction",
+          "confidence": 0.6646827849816371,
+          "probabilities": {
+            "conversation": 0.13054104349753026,
+            "correction": 0.6646827849816371,
+            "cancellation": 0.13046306035246202,
+            "new_task": 0.07431311116837061
+          }
+        }
+      }
+    }
+  ],
+  "verification": "All twelve native inspection request/raw-response/source bindings and hashes match. Terminal rows never supply typed target questions. Eleven refusals publish no decisions; no Agent dispatch. No inference repeated.",
+  "raw_manifest_sha256": "062f82dee5dd06b2137d68855f783de07f25012bb5764da76a62bf32aee9729f"
+}

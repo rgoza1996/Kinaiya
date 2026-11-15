@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "issue": 485,
+  "status": "declared_before_inference",
+  "scope": "Fresh public synthetic text windows; actual native d1 with controlled task-state inputs; no Agent execution, microphone, cloud, paid helper or owner configuration change.",
+  "model_file": "d1-2B-BF16.gguf",
+  "engine_source": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "min_confidence": 0.7,
+  "provider_timeout_s": 5,
+  "classification_timeout_s": 5,
+  "maximum_original_calls_per_case": 1,
+  "rerolls": false,
+  "prompt": "Unchanged owner-editable default Decisions preference with v4 native read-only history contract.",
+  "expected_conversation_default": ["RESPOND_WITHOUT_INTERRUPTING_USER"],
+  "target_rule": "Steer/interrupt must bind the exact supplied active task ID and revision 3. Other routes have no target. Terminal task history never supplies typed targets.",
+  "qualification_limit": "A small declared matrix is not a statistical accuracy or confidence-calibration claim. Preserve all first answers, probabilities, refusals, errors and native captures.",
+  "cases": [
+    {"id": "active-progress", "task_state": "running", "objective": "Prepare the imaginary club report", "text": "How is Agent getting on with the club report?", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"},
+    {"id": "succeeded-result", "task_state": "succeeded", "objective": "Prepare the imaginary garden report", "text": "What did Agent finish for the garden report?", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"},
+    {"id": "failed-explanation", "task_state": "failed", "objective": "Prepare the imaginary library report", "text": "Why did the library report fail?", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"},
+    {"id": "cancelled-status", "task_state": "cancelled", "objective": "Prepare the imaginary atlas task", "text": "Is that cancelled atlas task still running?", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"},
+    {"id": "ordinary-thanks", "task_state": "succeeded", "objective": "Prepare the imaginary garden report", "text": "Thanks, that is helpful.", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING", "expected_conversation": ["IGNORE", "RESPOND_WITHOUT_INTERRUPTING_USER"]},
+    {"id": "active-correction", "task_state": "running", "objective": "Prepare the imaginary current poster", "text": "Use centimeters instead of inches in the current poster.", "expected_route": "STEER_CURRENT_TASK"},
+    {"id": "active-cancellation", "task_state": "running", "objective": "Prepare the imaginary current poster", "text": "Stop the current poster task now.", "expected_route": "INTERRUPT_CURRENT_TASK", "expected_conversation": ["RESPOND_INTERRUPT_USER"]},
+    {"id": "new-work-after-failure", "task_state": "failed", "objective": "Prepare the imaginary old park draft", "text": "Create a fresh summary for the imaginary park guide.", "expected_route": "QUEUE_UNTIL_TASK_DONE"},
+    {"id": "status-plus-new-work", "task_state": "failed", "objective": "Prepare the imaginary fair draft", "text": "What happened to the draft? Start a new draft for the arts fair.", "expected_route": "QUEUE_UNTIL_TASK_DONE"},
+    {"id": "unrelated-conversation", "task_state": "running", "objective": "Prepare the imaginary current poster", "text": "The stars look lovely tonight.", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING", "expected_conversation": ["IGNORE", "RESPOND_WITHOUT_INTERRUPTING_USER"]},
+    {"id": "active-publication-status", "task_state": "running", "objective": "Prepare the imaginary current poster", "text": "Has the current poster been saved yet?", "expected_route": "IGNORE_FOR_IMMEDIATE_ROUTING"},
+    {"id": "new-followup-after-completion", "task_state": "succeeded", "objective": "Prepare the imaginary history report", "text": "Please add an appendix to the finished history report.", "expected_route": "QUEUE_UNTIL_TASK_DONE"}
+  ]
+}

@@ -11,9 +11,11 @@ for the selected model to interpret.
 
 A status question is distinguished from a request for new work. The default
 asks the model not to restart or duplicate a task merely to report its status.
-This instruction does **not** repair the separate informational-task selection
-and projection defect in [#485](https://github.com/rgoza1996/Kinaiya/issues/485),
-or guarantee that a particular model classifies status questions correctly.
+The separate [terminal-task context contract](decisions-task-status-context.md)
+adds bounded read-only observations for #485. Neither the preference nor that
+projection guarantees that a particular model classifies status questions
+correctly. Model behavior remains diagnostic; architecture acceptance verifies
+faithful context, protocol handling and native dispatch safeguards.
 
 ## Host configuration
 
