@@ -4,6 +4,7 @@
 library;
 
 export 'speech_mouth.dart';
+export 'speech_playback.dart';
 export 'vad_settings.dart';
 
 import 'vad_settings.dart';

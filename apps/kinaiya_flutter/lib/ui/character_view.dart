@@ -349,7 +349,115 @@ class _CharacterViewState extends State<CharacterView> {
   Timer? _mouthTimer;
   int _mouthGeneration = 0;
   bool _mouthReadPending = false;
-  bool _mouthVisible = false;
+  bool _speechVisible = false;
+  static const _quietSpeechLevels = <double>[
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+  ];
+  final _speechLevels = ValueNotifier<List<double>>(_quietSpeechLevels);
+  Timer? _speechLevelTimer;
+  int _speechLevelGeneration = 0;
+  bool _speechLevelReadPending = false;
+  Object? _speechLevelOwner;
+
+  Object get _speechLevelIdentity => (
+    _s.client,
+    _s.connectionGeneration,
+    _s.converseSession?.sessionId,
+    _s.converseSession?.threadId,
+    _s.converseSession?.epoch,
+    _s.turnNonce,
+    _s.speechEpoch,
+    _s.nativeAudioSourceGeneration,
+  );
+
+  bool get _canSampleSpeechLevels =>
+      _speaking &&
+      _speechLevelOwner == _speechLevelIdentity &&
+      _speechVisible &&
+      widget.animateTransitions &&
+      widget.surface == CharacterSurface.interaction &&
+      _audio is SpeechPlaybackAudio;
+
+  void _setSpeechLevels(List<double> levels) {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      final generation = _speechLevelGeneration;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && generation == _speechLevelGeneration) {
+          _speechLevels.value = levels;
+        }
+      });
+    } else {
+      _speechLevels.value = levels;
+    }
+  }
+
+  void _clearSpeechLevels() {
+    _speechLevelGeneration++;
+    _speechLevelTimer?.cancel();
+    _speechLevelTimer = null;
+    _setSpeechLevels(_quietSpeechLevels);
+  }
+
+  void _syncSpeechLevels() {
+    if (!_canSampleSpeechLevels) {
+      _clearSpeechLevels();
+      return;
+    }
+    _speechLevelTimer ??= Timer.periodic(
+      const Duration(milliseconds: 33),
+      (_) => unawaited(_sampleSpeechLevels()),
+    );
+  }
+
+  Future<void> _sampleSpeechLevels() async {
+    if (!_canSampleSpeechLevels) {
+      _clearSpeechLevels();
+      return;
+    }
+    if (_speechLevelReadPending) return;
+    final generation = _speechLevelGeneration;
+    final nonce = _s.turnNonce;
+    final epoch = _s.speechEpoch;
+    _speechLevelReadPending = true;
+    // Timeout quiets the display, but the original read retains its one slot.
+    final read = Future<SpeechPlaybackFrame>.sync(
+      () => (_audio as SpeechPlaybackAudio).playbackFrame(),
+    ).whenComplete(() => _speechLevelReadPending = false);
+    bool current() =>
+        mounted &&
+        generation == _speechLevelGeneration &&
+        nonce == _s.turnNonce &&
+        epoch == _s.speechEpoch &&
+        _canSampleSpeechLevels;
+    try {
+      final frame = await read.timeout(
+        const Duration(milliseconds: 100),
+        onTimeout: () => SpeechPlaybackFrame.quiet,
+      );
+      if (!current()) return;
+      final rms = frame.rms;
+      _setSpeechLevels(
+        !frame.active || !rms.isFinite || rms <= 0 || rms > 1
+            ? _quietSpeechLevels
+            : List<double>.unmodifiable([..._speechLevels.value.skip(1), rms]),
+      );
+    } catch (_) {
+      if (current()) _setSpeechLevels(_quietSpeechLevels);
+    }
+  }
 
   void _setMouthFrame(SpeechMouthFrame frame) {
     // Preferences and connection ownership can change during a parent build.
@@ -369,7 +477,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   bool get _canAnimateMouth =>
       _speaking &&
-      _mouthVisible &&
+      _speechVisible &&
       widget.speechMouthMotion &&
       widget.showCharacter &&
       widget.character?.packageJson == null &&
@@ -429,6 +537,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _stopLocalPlayback() {
+    _clearSpeechLevels();
     _mouthGeneration++;
     _mouthTimer?.cancel();
     _mouthTimer = null;
@@ -437,6 +546,7 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   void _publishVoiceActivity() {
+    _syncSpeechLevels();
     _syncMouthSampling();
     if (_voiceReportScheduled || widget.onActivityChanged == null) return;
     _voiceReportScheduled = true;
@@ -988,18 +1098,24 @@ class _CharacterViewState extends State<CharacterView> {
       unawaited(_stopLocalPlayback());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _syncMouthSampling();
+      if (mounted) {
+        _syncMouthSampling();
+        _syncSpeechLevels();
+      }
     });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _mouthVisible =
+    _speechVisible =
         TickerMode.valuesOf(context).enabled &&
         !MediaQuery.of(context).disableAnimations;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _syncMouthSampling();
+      if (mounted) {
+        _syncMouthSampling();
+        _syncSpeechLevels();
+      }
     });
   }
 
@@ -1011,6 +1127,8 @@ class _CharacterViewState extends State<CharacterView> {
     _audioOutputTimer?.cancel();
     _mouthTimer?.cancel();
     _mouthGeneration++;
+    _speechLevelTimer?.cancel();
+    _speechLevelGeneration++;
     _noticeSubscription?.cancel();
     _windowSubscription?.cancel();
     _resourceSubscription?.cancel();
@@ -1029,6 +1147,7 @@ class _CharacterViewState extends State<CharacterView> {
     unawaited(_audio.stopPlayback());
     unawaited(_audio.dispose());
     _mouthFrame.dispose();
+    _speechLevels.dispose();
     _voiceOptionsUpdates.dispose();
     _input.dispose();
     super.dispose();
@@ -1488,6 +1607,9 @@ class _CharacterViewState extends State<CharacterView> {
     int nonce,
     Set<String> playedAcked,
   ) async {
+    // Keep the identity that requested this PCM across capability/queue awaits;
+    // a late playing check must not adopt a replacement source or session.
+    final speechLevelOwner = _speechLevelIdentity;
     final nativeOutput = entry.payload['native_audio'] == true;
     final nativeOwner = _nativeClipOwner;
     bool nativeCurrent() =>
@@ -1564,7 +1686,10 @@ class _CharacterViewState extends State<CharacterView> {
           startedAt = DateTime.now();
           if (_s.audioIsLive(nonce, epoch) && await _audio.isPlaying) {
             if (mounted && _s.audioIsLive(nonce, epoch)) {
-              setState(() => _speaking = true);
+              setState(() {
+                _speechLevelOwner = speechLevelOwner;
+                _speaking = true;
+              });
               _publishVoiceActivity();
             }
             try {
@@ -4092,7 +4217,8 @@ class _CharacterViewState extends State<CharacterView> {
                     showConverseMemoryDialog(context: context, state: _s),
                 onCompanions: () =>
                     showConverseCompanionsDialog(context: context, state: _s),
-                activeVoice: _armed || _recording || _speaking,
+                activeVoice: _canSampleSpeechLevels,
+                speechLevels: _speechLevels,
               ),
         ),
       ),

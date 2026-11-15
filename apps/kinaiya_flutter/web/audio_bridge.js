@@ -4,7 +4,7 @@
  *
  * Calling semantics (important for the Dart JS-interop layer):
  * - Sync string returns: capabilities, cancelMic, stopAudio, playbackActive,
- *   pollEvents, playbackInfo, mouthFrame, vadSample, vadConfigure, dispose.
+ *   pollEvents, playbackInfo, mouthFrame, playbackFrame, vadSample, vadConfigure, dispose.
  * - Async (Promise) returns: startMic, stopMic, queuePcm, queuePcmWithVisemes, awaitPlayback,
  *   startArmed, stopArmed, beginClip, finishClip.
  * The Dart `_str` helper normalizes both shapes; see
@@ -829,6 +829,28 @@
     return { openness: mouth.openness, viseme: viseme, active: true };
   }
 
+  function readPlaybackFrame() {
+    var quiet = { rms: 0, active: false };
+    var ctx = state.ctx;
+    if (!ctx || ctx.state !== 'running' || !Number.isFinite(ctx.currentTime) ||
+        state.output.pending || state.output.failed || !outputMatches(ctx)) return quiet;
+    var now = ctx.currentTime;
+    pruneMouth(now);
+    // Use only PCM at the current playback clock. Provider visemes and future
+    // queued chunks cannot substitute for measured output amplitude.
+    for (var i = 0; i < state.mouthRecords.length; i++) {
+      var record = state.mouthRecords[i];
+      if (now >= record.start && now < record.end) {
+        var index = Math.min(record.levels.length - 1,
+          Math.floor((now - record.start) / record.step));
+        var rms = record.levels[index];
+        if (!Number.isFinite(rms) || rms < 0 || rms > 1) return quiet;
+        return { rms: rms, active: true };
+      }
+    }
+    return quiet;
+  }
+
   function startRecorderOnStream() {
     state.chunks = [];
     state.mime = supportedMime();
@@ -1187,6 +1209,10 @@
 
     mouthFrame: function () {
       return JSON.stringify(readMouthFrame());
+    },
+
+    playbackFrame: function () {
+      return JSON.stringify(readPlaybackFrame());
     },
 
     awaitPlayback: function () {

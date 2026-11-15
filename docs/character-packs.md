@@ -58,6 +58,11 @@ their declared speaking animation and do not receive this mouth overlay. The
 [playback contract](adr/0064-speech-mouth-playback.md) describes the bounded cue
 format and current provider limitations.
 
+The Converse [speech visualizer](converse-speech-visualizer.md) separately shows
+recent played PCM amplitude. It remains independent of mouth motion and the
+character visibility preference; reduced motion leaves the textual playback
+state in place.
+
 Colors follow explicit owner overrides, selected pack colors when enabled, then Kinaiya's exact default `#141091` / `#FFFFFF`. Light/dark foregrounds and containers adapt for readability. **Clear color overrides** restores the selected pack/default precedence. **Reduce motion** freezes decorative animation and skips transitions; the device's reduced-motion setting also applies. **Show character** can be turned off without removing transcript or task controls. Captions remain available and the non-character fallback always retains text.
 
 Web preferences and an optional imported package use one transactional `kinaiya-presentation-v1` IndexedDB snapshot for that browser origin. Restored data is validated again. Writes are serialized, and late restores cannot overwrite newer actions. Quota/denial errors preserve session state and remain visible alongside action results. Storage is not encrypted, synchronized across devices or guaranteed to survive browser data clearing. Cross-tab coordination is not claimed. Backend credentials and conversation/task data are never included.

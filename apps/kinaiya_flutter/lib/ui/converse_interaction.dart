@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 
 import 'design_tokens.dart';
 
@@ -38,6 +39,7 @@ class ConverseInteraction extends StatelessWidget {
     required this.onMemory,
     this.onCompanions,
     this.activeVoice = false,
+    this.speechLevels,
   });
 
   final Widget character, transcript, composer, modelSummary;
@@ -46,6 +48,10 @@ class ConverseInteraction extends StatelessWidget {
   final VoidCallback? onCall, onMicrophone, onCompanions;
   final VoidCallback onModelSettings, onHistory, onVoiceOptions, onMemory;
   final bool activeVoice;
+
+  /// Bounded recent PCM RMS measurements supplied by the playback owner.
+  /// Missing measurements never produce a decorative fallback waveform.
+  final ValueListenable<List<double>>? speechLevels;
 
   static const _cameraHint = 'Camera input is not supported by this host';
 
@@ -272,7 +278,10 @@ class ConverseInteraction extends StatelessWidget {
           ),
           SizedBox(
             height: _waveformGap(wide),
-            child: activeVoice
+            child:
+                activeVoice &&
+                    speechLevels != null &&
+                    !MediaQuery.disableAnimationsOf(context)
                 ? Center(child: _waveform(context, wide: wide))
                 : null,
           ),
@@ -329,28 +338,43 @@ class ConverseInteraction extends StatelessWidget {
   }
 
   Widget _waveform(BuildContext context, {required bool wide}) {
-    const heights = <double>[8, 14, 24, 38, 56, 30, 68, 46, 28, 52, 34, 16, 10];
-    return ExcludeSemantics(
-      child: SizedBox(
-        key: const ValueKey('converse-active-waveform'),
-        width: 570,
-        height: wide ? 72 : 44,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            for (final height in heights)
-              Container(
-                width: wide ? 7 : 5,
-                height: height * (wide ? 1 : .55),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.secondary,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-          ],
+    return ValueListenableBuilder<List<double>>(
+      valueListenable: speechLevels!,
+      builder: (context, levels, _) => Tooltip(
+        message: 'Kinaiya speech output',
+        child: ExcludeSemantics(
+          // The stage badge already conveys playing/idle to screen readers;
+          // individual amplitude updates must not become live announcements.
+          child: SizedBox(
+            key: const ValueKey('converse-active-waveform'),
+            width: 570,
+            height: wide ? 72 : 44,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                for (var i = 0; i < 13; i++)
+                  Container(
+                    key: ValueKey('converse-speech-bar-$i'),
+                    width: wide ? 7 : 5,
+                    height: 2 + _displayLevel(levels, i) * (wide ? 66 : 36),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondary,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  double _displayLevel(List<double> levels, int index) {
+    if (levels.length != 13 || !levels[index].isFinite) return 0;
+    // Fixed display gain preserves amplitude changes; no automatic gain or
+    // fabricated oscillation makes quiet audio look like louder speech.
+    return (levels[index] * 4).clamp(0, 1).toDouble();
   }
 
   Widget _controls(BuildContext context) => LayoutBuilder(

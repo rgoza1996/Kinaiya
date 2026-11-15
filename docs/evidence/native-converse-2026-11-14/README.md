@@ -11,6 +11,11 @@ provider, as described next; it does not touch an owner task or run any tool.
 
 ## Fresh qualification with native task observations
 
+The later [current-main qualification](../native-converse-current-main-2026-11-14/README.md)
+uses the now-shipped explicit pending-steer field and three fresh inputs. It also
+fails the receipt-only handoff behavior; the original observations below remain
+unchanged.
+
 At application commit `9f8cffc7e27155b9dd455f1aa26ac93d8c3b3a34` with a clean
 worktree, three fresh public speech inputs exercised the same native model and
 compatible engine overlay. Actual Agent acceptance and steering use the native
