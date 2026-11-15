@@ -1,0 +1,54 @@
+{
+  "issue": 483,
+  "reference_revision": "21d75123f86c1f7ffb4bef1ea202710c4e7ebe67",
+  "reference_source_manifest_sha256": "21a3a2fabfd59ab02c31ff655a19e60c032e0ff886e5c36dad9cf4668489c30e",
+  "engine_source_revision": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "engine_source_files": [
+    {
+      "path": "tools/server/server-realtime.cpp",
+      "sha256": "e96e14d01ef7ba5f14393a27d6c130dabdfa731a9837f7db87a4ef5a33e601b8"
+    },
+    {
+      "path": "tools/mtmd/mtmd.cpp",
+      "sha256": "2e4ce317ed87c632f9b6016b3fd7f38dfef84443827a1f54e11ef9b25ed06d38"
+    },
+    {
+      "path": "tools/mtmd/mtmd-audio.cpp",
+      "sha256": "f1359fe6b0a1ca82c6cd4012a375dbfef0c69648500a2e21c1be338dcb2a1019"
+    },
+    {
+      "path": "tools/mtmd/mtmd-audio.h",
+      "sha256": "23978502bd05801aba34fa033dba6ffaacd920b6c9fdfd9eae459a28a16ccde6"
+    },
+    {
+      "path": "tools/mtmd/mtmd-helper-gen.cpp",
+      "sha256": "9b54b4761773caa41798d97d8f0738f3b103f49215f6ba61f9cf9a365d9fd646"
+    },
+    {
+      "path": "tools/mtmd/clip.cpp",
+      "sha256": "c8ff1514170f0b4e7d79a697e562ea2b97432c402869be0ca53fe49252b38bba"
+    }
+  ],
+  "template_comparison": {
+    "reference_bytes": 13513,
+    "served_bytes": 13512,
+    "identical": false,
+    "identical_ignoring_final_newline": true,
+    "served_sha256": "4e295a038af980438912483abe76a81c36b2451c87ccc1e62051529a6a0fb7f5"
+  },
+  "source_findings": [
+    "Both generation paths append the explicit interleaved marker after the assistant generation prefix; the engine uses its actual served template and empty thinking block.",
+    "Omni audio markers are added once around the audio embeddings in both source paths; this is distinct from the Audio-only model bare input path.",
+    "The read preprocessing formulas agree on right padding, periodic Hann, non-centered 400-point FFT, 160-sample hop, Slaney mel/area normalization, log10 floor -12 and (value+4)/4 normalization. This is source inspection, not numerical equivalence.",
+    "Retained actual engine props use greedy text output (temperature 0, top_k 1), consistent with the reference generation config. Projector metadata overrides for speech-code sampling were not numerically compared.",
+    "Actual provider instructions preserve the configured system and bounded labelled JSON history, omit the current transcript, and send original PCM on a distinct conversational session."
+  ],
+  "limitations": [
+    "No full-precision reference inference or numerical tensor/feature comparison",
+    "No reference Python code executed",
+    "No new model call, model/dependency installation, owner process/configuration or engine change",
+    "No new audio listening or physical-device qualification",
+    "Historical private echo and current negative handoff outputs remain unresolved"
+  ],
+  "conclusion": "No demonstrated template/mode/preprocessing-source correction identified; #483 remains open."
+}

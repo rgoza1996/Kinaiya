@@ -1,5 +1,6 @@
 """Integration tests for OpenRouter Decisions catalog, selection, and native capture."""
 
+import asyncio
 import importlib
 import json
 from contextlib import asynccontextmanager
@@ -12,7 +13,7 @@ from fastapi import FastAPI
 from packages.contracts.client import JournalClient
 from packages.contracts.decisions_models import DecisionsModelChange
 from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow, Task
-from packages.providers.decision_capture import decision_attempt
+from packages.providers.decision_capture import CaptureNativeUnavailable, decision_attempt
 from packages.providers.openrouter_decisions import (
     OPENROUTER_DECISIONS_MODELS,
     OpenRouterDecisionsProvider,
@@ -34,10 +35,173 @@ from services.settings.provider_factory import inspect_recipe
 MODEL = "typesafe/jev-1.14"
 AUTH = Auth({role: role * 32 for role in ("owner", "agent", "converse", "decisions", "resources")})
 REAL_ASYNC_CLIENT = httpx.AsyncClient
+MAX_SELECTION_OBSERVATIONS = 3
 
 
 def compact(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+
+
+def capture_records(env):
+    return [
+        json.loads(row[0])
+        for row in env.store.db.execute("SELECT value FROM decisions_calls ORDER BY call_sequence")
+    ]
+
+
+async def observe_selected_classification(env, entry, lease, wire, classifier, task):
+    """Require success, while preserving strictly proved pre-dispatch refusals."""
+    refused = []
+    for observation in range(1, MAX_SELECTION_OBSERVATIONS + 1):
+        try:
+            async with decision_attempt(
+                env.journal,
+                entry,
+                lease.provider,
+                attempt=observation,
+                model_pin=lease.pin,
+                current=lease.current,
+            ) as capture:
+                result = await classifier.classify(entry, [], [task])
+                capture.validated_output = result
+        except CaptureNativeUnavailable as exc:
+            # This test observes catalog/transport/capture bindings. A native
+            # currentness refusal is permitted; it is not a positive binding
+            # result and must not be converted into Ignore or discarded.
+            if str(exc) != "Decisions currentness check exceeded its bound" or not isinstance(
+                exc.__cause__, TimeoutError
+            ):
+                raise
+            assert wire.requests == [], "A dispatched provider opportunity must not be retried"
+            records = capture_records(env)
+            assert len(records) == observation
+            record = records[-1]
+            assert record["call_id"] == capture.call_id
+            assert record["source_event_id"] == entry.event_id
+            assert record["model_pin"] == lease.pin.model_dump(mode="json")
+            assert record["attempt"] == observation
+            assert (
+                record["status"] == "error" and record["error_type"] == "CaptureNativeUnavailable"
+            )
+            assert record["raw_response"] is None and record["validated_output"] is None
+            assert (
+                env.store.db.execute("SELECT count(*) FROM decisions_attempts").fetchone()[0] == 0
+            )
+            assert env.store.read(kinds=["routing.decided", "routing.window_decided"]) == []
+            refused.append(capture.call_id)
+            if observation == MAX_SELECTION_OBSERVATIONS:
+                raise
+        else:
+            return result, refused
+    raise AssertionError("Selected-provider observation did not complete")
+
+
+def hold_latest_response(monkeypatch, count):
+    """Hold genuine Session responses, not the currentness implementation."""
+    original_environment, original_wire = environment, Wire
+    report = {"held": 0, "cancelled_reads": 0, "wires": [], "records": []}
+
+    @asynccontextmanager
+    async def controlled_environment(tmp_path):
+        async with original_environment(tmp_path) as env:
+            app = env.journal.http._transport.app
+
+            @app.middleware("http")
+            async def hold(request, call_next):
+                response = await call_next(request)
+                if request.url.path == "/v1/transcript/windows/latest" and report["held"] < count:
+                    assert response.status_code == 200
+                    report["held"] += 1
+                    try:
+                        await asyncio.Event().wait()
+                    finally:
+                        report["cancelled_reads"] += 1
+                return response
+
+            try:
+                yield env
+            finally:
+                report["records"] = capture_records(env)
+                report["native_reservations"] = env.store.db.execute(
+                    "SELECT count(*) FROM decisions_attempts"
+                ).fetchone()[0]
+                report["dispatch_events"] = env.store.read(
+                    kinds=["routing.decided", "routing.window_decided"]
+                )
+
+    def controlled_wire(*args, **kwargs):
+        wire = original_wire(*args, **kwargs)
+        report["wires"].append(wire)
+        return wire
+
+    monkeypatch.setitem(globals(), "environment", controlled_environment)
+    monkeypatch.setitem(globals(), "Wire", controlled_wire)
+    return report
+
+
+async def test_selected_window_oracle_retains_held_currentness_refusal_then_requires_success(
+    tmp_path, monkeypatch
+):
+    report = hold_latest_response(monkeypatch, 1)
+    try:
+        await test_selected_openrouter_decisions_routes_and_captures_inspection(
+            tmp_path, monkeypatch, "window"
+        )
+    finally:
+        print(
+            {
+                "held_native_responses": report["held"],
+                "cancelled_reads": report["cancelled_reads"],
+                "provider_http_calls": sum(len(wire.requests) for wire in report["wires"]),
+                "capture_statuses": [row["status"] for row in report["records"]],
+                "native_reservations": report.get("native_reservations"),
+            }
+        )
+    assert report["held"] == report["cancelled_reads"] == 1
+    assert [row["status"] for row in report["records"]] == ["error", "completed"]
+    assert len(report["wires"][0].requests) == 1
+    assert report["native_reservations"] == 0 and report["dispatch_events"] == []
+
+
+async def test_selected_window_oracle_exhaustion_is_a_failure_not_success(tmp_path, monkeypatch):
+    report = hold_latest_response(monkeypatch, MAX_SELECTION_OBSERVATIONS)
+    with pytest.raises(CaptureNativeUnavailable, match="currentness check exceeded"):
+        await test_selected_openrouter_decisions_routes_and_captures_inspection(
+            tmp_path, monkeypatch, "window"
+        )
+    assert report["held"] == report["cancelled_reads"] == MAX_SELECTION_OBSERVATIONS
+    assert [row["status"] for row in report["records"]] == ["error"] * MAX_SELECTION_OBSERVATIONS
+    assert all(
+        row["raw_response"] is None and row["validated_output"] is None for row in report["records"]
+    )
+    assert report["wires"][0].requests == []
+    assert report["native_reservations"] == 0 and report["dispatch_events"] == []
+
+
+async def test_selected_oracle_never_reobserves_a_dispatched_provider_opportunity(
+    tmp_path, monkeypatch
+):
+    created = []
+
+    class DispatchedWire(Wire):
+        def __init__(self):
+            super().__init__()
+            created.append(self)
+
+        def __call__(self, request):
+            self.requests.append(request)
+            # Even an exception with the same text/cause cannot justify a new
+            # observation once transport entry has actually occurred.
+            raise CaptureNativeUnavailable(
+                "Decisions currentness check exceeded its bound"
+            ) from TimeoutError()
+
+    monkeypatch.setitem(globals(), "Wire", DispatchedWire)
+    with pytest.raises(AssertionError, match="dispatched provider opportunity"):
+        await test_selected_openrouter_decisions_routes_and_captures_inspection(
+            tmp_path, monkeypatch, "window"
+        )
+    assert len(created) == 1 and len(created[0].requests) == 1
 
 
 class Wire:
@@ -299,15 +463,14 @@ async def test_selected_openrouter_decisions_routes_and_captures_inspection(
                 and lease.pin.provider == "openrouter_decisions"
                 and lease.pin.local is False
             )
-            async with decision_attempt(
-                env.journal, entry, lease.provider, model_pin=lease.pin, current=lease.current
-            ) as capture:
-                result = await (
-                    WindowClassifier(lease.provider)
-                    if mode == "window"
-                    else ModelClassifier(lease.provider)
-                ).classify(entry, [], [task])
-                capture.validated_output = result
+            classifier = (
+                WindowClassifier(lease.provider)
+                if mode == "window"
+                else ModelClassifier(lease.provider)
+            )
+            result, refused = await observe_selected_classification(
+                env, entry, lease, wire, classifier, task
+            )
             pin = lease.pin.model_dump(mode="json")
         assert (
             result["target_task_id"] == task.task_id and result["expected_objective_revision"] == 4
@@ -315,18 +478,16 @@ async def test_selected_openrouter_decisions_routes_and_captures_inspection(
         assert result["agent_route" if mode == "window" else "route"] == (
             "STEER_CURRENT_TASK" if mode == "window" else "steer"
         )
-        records = [
-            json.loads(row[0])
-            for row in env.store.db.execute(
-                "SELECT value FROM decisions_calls ORDER BY call_sequence"
-            )
-        ]
-        assert len(records) == 1
-        record = records[0]
+        records = capture_records(env)
+        assert len(records) == len(refused) + 1
+        assert [record["call_id"] for record in records[:-1]] == refused
+        assert len(wire.requests) == 1
+        record = records[-1]
         assert record["model_pin"] == pin and record["request_format"] == "laya_systemone"
         assert compact(record["request"]) == wire.requests[0].content
         assert record["raw_response"].encode() == wire.raw
         assert record["validated_output"] == result and record["status"] == "completed"
+        assert all(compact(row["request"]) == wire.requests[0].content for row in records)
 
 
 async def test_local_only_content_scope_is_refused_before_any_cloud_request(tmp_path, monkeypatch):
