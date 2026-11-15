@@ -1396,13 +1396,13 @@ def setup(
     if not isinstance(existing_distribution, dict):
         raise InstallError("Subsystem distribution selection must be an object")
     dist_map: dict[str, Any] = {**existing_distribution, "converse": topology.converse}
-    if decisions is not None:
-        dist_map.update(agent=topology.agent, decisions=topology.decisions)
-    else:
-        if topology.decisions or "decisions" in dist_map:
-            dist_map["decisions"] = topology.decisions
-        if not topology.agent or "agent" in dist_map:
-            dist_map["agent"] = topology.agent
+    # Retain the historical first Agent-only shape; documented missing-field
+    # defaults express the same validated graph. Existing explicit selectors
+    # are always updated, including turning a formerly enabled role off.
+    if topology.decisions or "decisions" in dist_map:
+        dist_map["decisions"] = topology.decisions
+    if not topology.agent or "agent" in dist_map:
+        dist_map["agent"] = topology.agent
     config["distribution"] = dist_map
     atomic_json(layout.config, config)
     return {"ready": False, "provider_connection": "not_checked", "next": "kinaiya serve host"}
