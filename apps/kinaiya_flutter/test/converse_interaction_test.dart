@@ -53,10 +53,12 @@ Widget _screen({
   Widget character = const ColoredBox(color: Color(0xFF253359)),
   Widget? composer,
   double textScale = 1,
+  bool reducedMotion = false,
   double hostHeader = 0,
   double hostRailWidth = 0,
   ThemeData? theme,
   bool activeVoice = false,
+  ValueNotifier<List<double>>? speechLevels,
   ConverseStageState? stageState,
   String status = 'Synthetic owner status',
   String callLabel = 'Talk with Kinaiya',
@@ -70,9 +72,10 @@ Widget _screen({
 }) => MaterialApp(
   theme: theme ?? kinaiyaTheme(brightness: Brightness.dark, designSystem: true),
   builder: (context, child) => MediaQuery(
-    data: MediaQuery.of(
-      context,
-    ).copyWith(textScaler: TextScaler.linear(textScale)),
+    data: MediaQuery.of(context).copyWith(
+      textScaler: TextScaler.linear(textScale),
+      disableAnimations: reducedMotion,
+    ),
     child: child!,
   ),
   home: Scaffold(
@@ -84,6 +87,7 @@ Widget _screen({
           Expanded(
             child: ConverseInteraction(
               character: character,
+              speechLevels: speechLevels,
               transcript: ListView.builder(
                 key: const ValueKey('synthetic-transcript'),
                 itemCount: 80,
@@ -126,6 +130,40 @@ void _viewport(WidgetTester tester, Size size) {
 }
 
 void main() {
+  for (final size in [const Size(1280, 900), const Size(320, 568)]) {
+    testWidgets('speech amplitudes change bar geometry at $size', (
+      tester,
+    ) async {
+      _viewport(tester, size);
+      final levels = ValueNotifier<List<double>>([
+        ...List<double>.filled(12, 0),
+        .05,
+      ]);
+      addTearDown(levels.dispose);
+      await tester.pumpWidget(_screen(activeVoice: true, speechLevels: levels));
+      double height(int i) =>
+          tester.getSize(find.byKey(ValueKey('converse-speech-bar-$i'))).height;
+      expect(height(0), 2);
+      final soft = height(12);
+      expect(soft, greaterThan(2));
+      levels.value = [...List<double>.filled(12, 0), .20];
+      await tester.pump();
+      expect(height(12) - 2, closeTo((soft - 2) * 4, .001));
+      levels.value = List.filled(13, 0);
+      await tester.pump();
+      for (var i = 0; i < 13; i++) {
+        expect(height(i), 2);
+      }
+      await tester.pumpWidget(
+        _screen(activeVoice: true, speechLevels: levels, reducedMotion: true),
+      );
+      expect(
+        find.byKey(const ValueKey('converse-active-waveform')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
   for (final activeVoice in [false, true]) {
     testWidgets(
       '720px desktop keeps call and composer visible (voice $activeVoice)',
@@ -331,41 +369,53 @@ void main() {
     },
   );
 
-  testWidgets(
-    'voice activity decoration depends only on the supplied active flag',
-    (tester) async {
-      _viewport(tester, const Size(1280, 900));
-      await tester.pumpWidget(
-        _screen(activeVoice: true, status: 'Actual supplied state'),
-      );
-      expect(
-        find.byKey(const ValueKey('converse-active-waveform')),
-        findsOneWidget,
-      );
-      expect(find.text('Actual supplied state'), findsOneWidget);
-      expect(find.textContaining('Listening'), findsNothing);
-      await tester.pumpWidget(_screen(status: 'Actual supplied state'));
-      expect(
-        find.byKey(const ValueKey('converse-active-waveform')),
-        findsNothing,
-      );
-      expect(
-        tester
-            .widget<FilledButton>(find.byKey(const ValueKey('converse-call')))
-            .onPressed,
-        isNull,
-      );
-      expect(
-        tester
-            .widget<OutlinedButton>(
-              find.byKey(const ValueKey('converse-microphone')),
-            )
-            .onPressed,
-        isNull,
-      );
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('voice flags alone cannot fabricate a speech waveform', (
+    tester,
+  ) async {
+    _viewport(tester, const Size(1280, 900));
+    await tester.pumpWidget(
+      _screen(activeVoice: true, status: 'Actual supplied state'),
+    );
+    expect(
+      find.byKey(const ValueKey('converse-active-waveform')),
+      findsNothing,
+    );
+    final levels = ValueNotifier<List<double>>(List.filled(13, 0));
+    addTearDown(levels.dispose);
+    await tester.pumpWidget(
+      _screen(
+        activeVoice: true,
+        speechLevels: levels,
+        status: 'Actual supplied state',
+      ),
+    );
+    expect(
+      find.byKey(const ValueKey('converse-active-waveform')),
+      findsOneWidget,
+    );
+    expect(find.text('Actual supplied state'), findsOneWidget);
+    expect(find.textContaining('Listening'), findsNothing);
+    await tester.pumpWidget(_screen(status: 'Actual supplied state'));
+    expect(
+      find.byKey(const ValueKey('converse-active-waveform')),
+      findsNothing,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('converse-call')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const ValueKey('converse-microphone')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'transcript scrolls independently while its composer stays in place',

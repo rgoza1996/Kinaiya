@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "issue": 606,
+  "base": "4ed9d1f0d87e4c9b53ef8d44e5d1c17ab2014522",
+  "scope": "Actual compiled CharacterView + Dart/JS adapter + Web Audio; in-memory service fixture and public PCM, with no live inference, Agent effects, microphone or owner runtime changes. Native-model PCM source is retained from #483, delivered through the controlled fixture, not a live native admission rehearsal. Native admission is covered separately by the widget regression.",
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "width": 320,
+      "height": 900
+    }
+  ],
+  "native_sample": {
+    "name": "work-output.wav",
+    "sha256": "aa9378b940340a5d0c15fdb64bb10cb9246dee59ae6c9afc6a39e32eb437ff0d",
+    "rate": 24000,
+    "seconds": 12.48
+  },
+  "source_files_sha256": {
+    "lib/audio/speech_playback.dart": "bcba1910a6c4193b7ef85d921dbe9a9706379ca6ab804d6aee78a7728e9f3cbd",
+    "lib/audio/speech_audio.dart": "3ae7d99985c21a2ff2887f2f04b95a8d8de3c2f85ec14315dd74851ba7d88042",
+    "lib/audio/speech_audio_web.dart": "02f6b35e6be2ced8ad3a5e331f605829da12f66d75b936b6d917980b72af0c86",
+    "lib/ui/character_view.dart": "97af100b747d0c40704b6d14544f99b4875ae9176f9df703054f578721e64a76",
+    "lib/ui/converse_interaction.dart": "7c9b3b1b2ae7f172528e3b566d5edeb78db7cabe507dfb64e1878d9df59f267b",
+    "web/audio_bridge.js": "bd5fd58aa7c6f8c5b3817579324f35f6b3f3c88a728a58d8c6e3effbfd8dab2b",
+    "test_support/speech_visualizer_browser.dart": "cf27193782ea901cc0791a697dc12d7b4ee332574e22e65935f19e234b50d2e6"
+  },
+  "compiled_demo_sha256": "b988748e959100a17de25b29d431f78ff20999b638cc9443e7b82e95124f7b2f",
+  "compiled_main_sha256": "9c150d8f9ecc82090d442ab5a9914d34d9db8b24d7161f99d007879c2e33146e",
+  "images": [
+    {
+      "name": "desktop-soft.png",
+      "bytes": 73561,
+      "sha256": "e3831d18deee28e2ce071e40dd726fd239b8921dfacdd126b66f0257153ee7c7"
+    },
+    {
+      "name": "desktop-loud.png",
+      "bytes": 74470,
+      "sha256": "d9aaa8ef00c028169f87a14d708f3686cae4944bd2c3df6dba11a1a680c931c9"
+    },
+    {
+      "name": "desktop-silence.png",
+      "bytes": 73293,
+      "sha256": "672712ed1e9a4d3ca1fe2d591ca783e033e81b3c78611226e6fc388818dd8e51"
+    },
+    {
+      "name": "narrow-soft.png",
+      "bytes": 44662,
+      "sha256": "310efb6af655bbd5122f8a74e43ccb2b4f7bc43a6d00300006235a20548ec736"
+    },
+    {
+      "name": "narrow-loud.png",
+      "bytes": 45308,
+      "sha256": "62613d02a5af8eb8dbdbb03b28e0472960c7e52abe1c410ae6403b3e4e3dac49"
+    },
+    {
+      "name": "native-desktop-playing.png",
+      "bytes": 98595,
+      "sha256": "4a312f523d74925f6e45f2d3abee3c447a6cfaf97472a7d615ed4621e98e43a7"
+    },
+    {
+      "name": "native-desktop-stop.png",
+      "bytes": 100082,
+      "sha256": "0597606eef04b37d9797cd25302c7b01686280a53cd7aad9ea565d46ce653feb"
+    },
+    {
+      "name": "native-narrow-viewport.png",
+      "bytes": 37570,
+      "sha256": "7dd1b42450feeac2371a727578a9d1d756165c5b5aa0dc78838d90d02b9b61ef"
+    },
+    {
+      "name": "native-narrow-completion.png",
+      "bytes": 36004,
+      "sha256": "5c45931bf494f8064c521fd75763468a706a4014cd6a7c8fcdd38e36bf9a24e6"
+    }
+  ],
+  "observations": [
+    "Soft synthetic PCM produced short bars; louder PCM produced taller bars; silence returned to baseline at both widths.",
+    "Native-model speech PCM produced changing RMS and irregular recent-level bars at both widths with mouth motion disabled.",
+    "Desktop Stop removed the waveform and reported interrupted, without played; narrow native speech natural completion reported played and RMS 0 with no waveform.",
+    "Synthetic control natural completion also reported played and removed the waveform."
+  ],
+  "limits": [
+    "Physical audibility, speaker latency and mobile-native playback are not established.",
+    "The displayed verified-result label and receipts belong to the synthetic service fixture; no Agent result is actually verified by this rehearsal.",
+    "The first non-PTY temporary HTTP server ended with exit 143; its reload failed connection-refused. A fresh owned PTY server served the recorded checks and was explicitly stopped after cleanup.",
+    "A narrow Stop locator attempt failed because its semantic target had no actionable viewport node; desktop Stop and widget ownership checks passed. Narrow natural completion was observed.",
+    "One unattributed MutationObserver observe/Node console error appeared during narrow browser setup; no MutationObserver occurs in application lib/web sources. Do not claim clean browser console or attribute it to playback without further evidence.",
+    "Closing the obsolete first error-page tab was blocked by browser URL policy; it was left to normal temporary-tab cleanup. Other rehearsal tabs were closed."
+  ],
+  "checks": {
+    "node_bridge": {
+      "passed": 110,
+      "exit_code": 0
+    },
+    "visualizer_integration": {
+      "passed": 13,
+      "exit_code": 0
+    },
+    "analysis": "passed after a rehearsal-only braces lint correction",
+    "main_web_build": "passed; existing CupertinoIcons font-family warning retained",
+    "rehearsal_web_build": "passed; existing CupertinoIcons font-family warning retained",
+    "first_full_flutter": {
+      "passed": 1464,
+      "exit_code": 0,
+      "before_final_identity_boundary_regression": true
+    },
+    "final_full_flutter": {
+      "reported_passed": 1465,
+      "observed_command_exit_code": 143,
+      "clean_exit_established": false,
+      "followup": "Separately owned bounded exit audit passed with 1,465 tests and exit 0; the earlier terminated invocation is retained."
+    },
+    "controlled_candidate_failure": "Delayed isPlaying/source replacement expected zero reads, got three; retained first failure. Original identity captured before awaits; repaired focused suite passed.",
+    "audited_full_flutter": {
+      "passed": 1465,
+      "exit_code": 0,
+      "received_signals": [],
+      "deadline_expired": false,
+      "elapsed_seconds": 210.245,
+      "command": "flutter --no-version-check test --no-pub --concurrency=2 --reporter expanded",
+      "log_sha256": "c35c6f78e8533dce8e771a70f34d0cd296ececd06bd1c797a8ea78ba809b3cd5"
+    },
+    "companion_web_build": "passed; existing CupertinoIcons font-family warning retained"
+  },
+  "compiled_companion_sha256": "c896d7208e44a630faff9a2a03b94f31a61d82c5604ad254692e85896c6a8110"
+}
