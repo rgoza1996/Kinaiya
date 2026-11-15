@@ -80,3 +80,7 @@ disclosure floor. They do not replace native outcome authority, original PCM,
 complete qualified history or the existing no-fallback behavior.
 
 Independent scripted-transport and real Store/runtime/API tests cover original PCM, journal identity, complete history, no-count/no-TTS traps, replay, limits, stale authority, held cleanup and native delivery. Flutter tests cover canonical WAV, HTTP/receipt identity, fast polling, unarmed import playback and retirement. Existing schema hashes remain unchanged. Exact local test and CI outcomes belong in the PR; a scripted transport is not real inference or audible playback proof. The rehearsal must separately record actual external-engine speech input/output and browser playback.
+
+The separate [duplex voice research](../duplex-voice-research.md) evaluates
+optional cloud conversation interfaces under #560. Continuous streams require
+their own contract, lifecycle and qualification beyond this buffered protocol.
