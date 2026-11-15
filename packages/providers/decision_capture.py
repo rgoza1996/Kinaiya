@@ -51,6 +51,7 @@ class DecisionCapture:
         self._pending_start = None
         self._request_boundary_seen = False
         self.disclosure_sources = [source.model_copy(deep=True)]
+        self.prompt_scope = "public_synthetic"
 
     async def start(self, provider, request, request_format):
         if self.started:
@@ -95,6 +96,11 @@ class DecisionCapture:
         self.started = True
 
     async def check_current(self, provider):
+        info = getattr(provider, "info", None)
+        if (info is None and self.prompt_scope != "public_synthetic") or (
+            info is not None and not scope_allowed(info, self.prompt_scope)
+        ):
+            raise ProviderRefusal("Owner Decisions instructions do not permit this provider")
         # Audit writes add an await immediately before network disclosure.
         # Recheck the actual exported native sources after that await, including
         # sticky scope restrictions on earlier conversation revisions.
@@ -145,6 +151,11 @@ class DecisionCapture:
                 raise ProviderRefusal("Decisions session is obsolete")
             if self.model_current is not None and not self.model_current():
                 raise CaptureNativeUnavailable("Decisions model ownership changed")
+            info = getattr(provider, "info", None)
+            if (info is None and self.prompt_scope != "public_synthetic") or (
+                info is not None and not scope_allowed(info, self.prompt_scope)
+            ):
+                raise ProviderRefusal("Owner Decisions instructions do not permit this provider")
         except ProviderRefusal:
             raise
         except Exception as exc:
@@ -237,6 +248,13 @@ def capture_sources(source, context):
     capture = _capture.get()
     if capture is not None:
         capture.disclosure_sources = [entry.model_copy(deep=True) for entry in [source, *context]]
+
+
+def capture_prompt_scope(scope):
+    """Keep the host instruction floor through audit/currentness awaits."""
+    capture = _capture.get()
+    if capture is not None:
+        capture.prompt_scope = combine_scopes(capture.prompt_scope, scope)
 
 
 def capture_response(raw):

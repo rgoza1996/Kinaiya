@@ -387,6 +387,8 @@ def schema_pin():
         "TaskContextObservation",
         "TaskContextResponse",
     }
+    # #558 independently pins this exact additive host-prompt schema.
+    additive |= {"DecisionsPromptConfig"}
     # The first media intake family is additive too. Exclude only these exact
     # 75 names; test_media_schema_exports separately pins their complete bytes.
     additive |= {

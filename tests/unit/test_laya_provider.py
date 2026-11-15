@@ -149,6 +149,55 @@ def _client(handler):
     return httpx.MockTransport(stream_response)
 
 
+@pytest.mark.parametrize("mode", ["window", "finalized"])
+@pytest.mark.parametrize("text", ["", "Public custom preference Ω", "Ω" * 4096])
+async def test_selected_instructions_reach_actual_jev_request(mode, text):
+    from services.decisions.prompts import configured_prompt, instructions
+
+    prompt = configured_prompt(
+        {
+            "decisions_prompt": {
+                "finalized": text,
+                "window": text,
+                "content_scope": "public_synthetic",
+            }
+        }
+    )
+    messages = _window_input() if mode == "window" else _finalized_input()
+    messages[0]["content"] = instructions(prompt, mode)
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=_ok_payload() if mode == "window" else _final_payload())
+
+    adapter = LayaRoutingProvider("http://127.0.0.1:8871", transport=_client(handler))
+    try:
+        await adapter.complete(messages)
+        assert len(seen) == 1
+        assert seen[0]["state"].startswith(
+            "Classifier system instructions:\n" + messages[0]["content"] + "\nLatest transcript"
+        )
+        assert "genuine user questions and commands" not in json.dumps(seen[0])
+    finally:
+        await adapter.close()
+
+
+@pytest.mark.parametrize("text", ["x" * 16385, "\x00", "\ud800"])
+async def test_invalid_instructions_refuse_before_jev_request(text):
+    def forbidden(request):
+        pytest.fail("Invalid system instructions reached HTTP")
+
+    adapter = LayaRoutingProvider("http://127.0.0.1:8871", transport=_client(forbidden))
+    messages = _window_input()
+    messages[0]["content"] = text
+    try:
+        with pytest.raises(ProviderRefusal):
+            await adapter.complete(messages)
+    finally:
+        await adapter.close()
+
+
 @pytest.mark.parametrize("pin", ["", "x" * 64, "A" * 64, True, 42, "a" * 64 + "\n"])
 def test_artifact_identity_pin_validated_before_request(pin):
     with pytest.raises(ProviderError, match="artifact SHA-256"):

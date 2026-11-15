@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "finalized": {
+      "maxLength": 8192,
+      "title": "Finalized",
+      "type": "string"
+    },
+    "window": {
+      "maxLength": 8192,
+      "title": "Window",
+      "type": "string"
+    },
+    "content_scope": {
+      "default": "local_only",
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    }
+  },
+  "required": [
+    "finalized",
+    "window"
+  ],
+  "title": "DecisionsPromptConfig",
+  "type": "object"
+}

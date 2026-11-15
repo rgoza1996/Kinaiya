@@ -149,12 +149,18 @@ def test_fixture_order_reference_pins_and_fixed_denominators(corpus):
 
 
 @pytest.mark.parametrize("case_id", CASE_IDS)
-def test_exact_native_projection_and_reference_roundtrip(corpus, case_id):
+def test_native_data_projection_and_frozen_reference_mapping(corpus, case_id):
     adapter = native_adapter()
     case, reference = corpus.by_id[case_id], corpus.refs[case_id]
     state, mode, model_input = projected(adapter, case)
     assert mode == case["mode"] and state == case["adapter_state"]
-    assert model_input == case["model_input"]
+    # #558 changes interpretation instructions and question descriptions, not
+    # source projection, action labels or native reference binding. Preserve
+    # the old fixture/digest as historical evidence; its accuracy measurements
+    # do not qualify a different current prompt. Actual instruction-bearing
+    # wire requests are independently checked in the typed-adapter tests.
+    assert model_input["state"] == case["model_input"]["state"]
+    assert model_input["questions"] != case["model_input"]["questions"]
     assert list(model_input["questions"]) == list(case["model_input"]["questions"])
     for name, question in model_input["questions"].items():
         assert list(question["criteria"]) == list(
@@ -335,10 +341,13 @@ def test_published_laya_answers_pass_actual_native_mapper_without_inference(corp
         adapter._map_answers(response, state, mode, datum["questions"])
         == record["native_normalized"]
     )
+    # Reconstruct the request actually measured then, not today's editable
+    # policy/choice descriptions. The original body hash remains mandatory.
+    historical = case["model_input"]
     request = {
-        "state": datum["state"],
+        "state": historical["state"],
         "model": model["requested_model"],
-        "questions": datum["questions"],
+        "questions": historical["questions"],
     }
     raw = json.dumps(request, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
     assert sha(raw) == record["binding"]["request_body_sha256"]
