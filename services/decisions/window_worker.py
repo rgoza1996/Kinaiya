@@ -23,6 +23,10 @@ from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
 from services.decisions.prompts import prompt_stamp
 from services.decisions.window_routing import (
+    MAX_TASK_HISTORY,
+    MAX_TASK_HISTORY_SOURCES,
+    TERMINAL_TASK_STATES,
+    _project_task_history,
     _project_tasks_with_sources,
     admissible_window_projection,
     is_ambiguous_multi_task_target,
@@ -259,8 +263,8 @@ class WindowDecisionsWorker:
         provider = getattr(self.classifier, "provider", None)
         return getattr(provider, "info", None)
 
-    async def _scoped_tasks(self, tasks):
-        return await resolve_scoped_tasks(self.journal, tasks)
+    async def _scoped_tasks(self, tasks, *, force=False):
+        return await resolve_scoped_tasks(self.journal, tasks, force=force)
 
     async def _classify(self, source, *, attempt=None):
         if not await self._ready(source):
@@ -270,22 +274,30 @@ class WindowDecisionsWorker:
         source, window = await self._scoped_source(source, window)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
         context = await self._resolve_context(source, window, recent)
-        tasks, available = [], self.agent_enabled
+        tasks, task_history, available = [], [], self.agent_enabled
         if available:
             try:
                 tasks = await asyncio.wait_for(self.agent.status(), 0.25)
                 if not isinstance(tasks, list):
                     raise ValueError("Agent status is unavailable")
-                tasks = [
+                scoped_status = [
                     t
                     for t in tasks
                     if t.session_id == source.session_id
+                    and t.thread_id == source.thread_id
                     and t.epoch == source.epoch
-                    and t.state not in {"succeeded", "failed", "cancelled"}
                 ]
+                task_history = [
+                    t
+                    for t in scoped_status
+                    if t.state in TERMINAL_TASK_STATES
+                    and len(t.source_event_ids) <= MAX_TASK_HISTORY_SOURCES
+                ][-MAX_TASK_HISTORY:]
+                tasks = [t for t in scoped_status if t.state not in TERMINAL_TASK_STATES]
             except Exception:
-                tasks, available = [], False
+                tasks, task_history, available = [], [], False
         tasks = await self._scoped_tasks(tasks)
+        task_history = await self._scoped_tasks(task_history, force=True)
         self.agent_available = available if self.agent_enabled else None
         if self.agent_enabled and not available:
             await self.status(source, "agent_unavailable", "agent_status_unavailable")
@@ -308,6 +320,7 @@ class WindowDecisionsWorker:
             agent_available=available,
             model_stamp=model_stamp,
             instructions_stamp=instructions_stamp,
+            task_history=task_history,
         )
         # One authorization-first builder defines both the reuse identity and
         # the classifier input: the classifier receives exactly the projected
@@ -315,9 +328,15 @@ class WindowDecisionsWorker:
         # fresh provider call would see.
         input_digest = projection.digest
         admissible_context, admissible_tasks = projection.context, projection.tasks
+        admissible_history = projection.task_history
+        history_argument = {"task_history": admissible_history} if admissible_history else {}
         _, disclosed_task_sources = _project_tasks_with_sources(
             admissible_tasks, provider_info=provider_info, limit=len(admissible_tasks)
         )
+        _, _, disclosed_history_sources = _project_task_history(
+            admissible_history, provider_info=provider_info
+        )
+        disclosed_task_sources += disclosed_history_sources
         cached = self.outputs.get(key)
         reused = (
             projection.source_admissible
@@ -378,7 +397,9 @@ class WindowDecisionsWorker:
                 ) as capture:
                     capture_sources(source, [*admissible_context, *disclosed_task_sources])
                     labels = await asyncio.wait_for(
-                        self.classifier.classify(source, admissible_context, admissible_tasks),
+                        self.classifier.classify(
+                            source, admissible_context, admissible_tasks, **history_argument
+                        ),
                         self.timeout,
                     )
                     capture.validated_output = labels
@@ -401,7 +422,9 @@ class WindowDecisionsWorker:
                     ) as capture:
                         capture_sources(source, [*admissible_context, *disclosed_task_sources])
                         labels = await asyncio.wait_for(
-                            classifier.classify(source, admissible_context, admissible_tasks),
+                            classifier.classify(
+                                source, admissible_context, admissible_tasks, **history_argument
+                            ),
                             self.timeout,
                         )
                         capture.validated_output = labels
