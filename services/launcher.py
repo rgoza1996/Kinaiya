@@ -142,7 +142,15 @@ def converse_native_audio(config, runtime, data_dir, workspace):
     if (
         type(declared) is not dict
         or set(declared)
-        - {"kind", "base_url", "model", "api_key_env", "max_output_tokens", "timeout"}
+        - {
+            "kind",
+            "base_url",
+            "model",
+            "api_key_env",
+            "max_output_tokens",
+            "timeout",
+            "transcription_connection",
+        }
         or declared.get("kind") != "realtime_v1"
         or config.get("resources", {}).get("enabled") is True
     ):
@@ -179,6 +187,7 @@ def converse_native_audio(config, runtime, data_dir, workspace):
         api_key=os.environ.get(reference, "") if reference is not None else "",
         max_output_tokens=declared.get("max_output_tokens", 512),
         timeout=declared.get("timeout", 90),
+        transcription_connection=declared.get("transcription_connection", "intent_url"),
     )
     return NativeAudioOwner(
         runtime, adapter, path=data_dir / "native-audio.sqlite", workspace=workspace
