@@ -1,0 +1,39 @@
+"""Own the offline full-reference process and preserve its original outcome."""
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+
+root = Path(__file__).resolve().parent
+assets = root.parent / 'issue-483-2026-11-15-reference-runtime'
+runtime = Path('/home/roggoz/miniconda3')
+work = root / 'reference-work-1'
+work.mkdir(mode=0o700)
+command = [
+    '/usr/bin/bwrap', '--unshare-all', '--die-with-parent', '--new-session', '--cap-drop', 'ALL', '--clearenv',
+    '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib64', '/lib64',
+    '--ro-bind', str(runtime/'bin'), str(runtime/'bin'), '--ro-bind', str(runtime/'lib'), str(runtime/'lib'),
+    '--ro-bind', str(assets/'overlay'), '/runtime', '--ro-bind', str(assets/'checkpoint'), '/checkpoint',
+    '--ro-bind', str(root/'reference.py'), '/reference.py', '--ro-bind', str(root/'reference-inputs'), '/inputs',
+    '--bind', str(work), '/work', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--dir', '/tmp/home', '--chdir', '/work',
+]
+settings = {
+    'PATH':str(runtime/'bin')+':/usr/bin:/bin', 'HOME':'/tmp/home', 'PYTHONPATH':'/runtime',
+    'PYTHONNOUSERSITE':'1', 'PYTHONDONTWRITEBYTECODE':'1', 'HF_HUB_OFFLINE':'1', 'TRANSFORMERS_OFFLINE':'1',
+    'HF_HOME':'/work/hf-home', 'HF_MODULES_CACHE':'/work/hf-modules', 'HF_HUB_DISABLE_TELEMETRY':'1',
+    'DO_NOT_TRACK':'1', 'XDG_CACHE_HOME':'/work/cache', 'TRITON_CACHE_DIR':'/work/triton-cache',
+    'OMP_NUM_THREADS':'8', 'MKL_NUM_THREADS':'8', 'OPENBLAS_NUM_THREADS':'8', 'TOKENIZERS_PARALLELISM':'false',
+    'CUDA_VISIBLE_DEVICES':'', 'PYTHONHASHSEED':'0',
+}
+for key,value in settings.items():command += ['--setenv',key,value]
+command += ['--','/usr/bin/prlimit','--as=34359738368','--cpu=2400','--',str(runtime/'bin/python'),'/reference.py']
+receipt={'argv':command,'scope':'Pinned full-reference conditional generation, offline CPU float32/eager, no owner home/network/GPU mounted. First outputs retained, no rerolls.','script_sha256':hashlib.sha256((root/'reference.py').read_bytes()).hexdigest(),'inputs_sha256':hashlib.sha256((root/'reference-inputs/cases.json').read_bytes()).hexdigest()}
+path=root/'reference-execution-1.json'
+path.write_text(json.dumps(receipt,indent=2)+'\n')
+with (root/'reference-1.log').open('xb') as log:
+    result=subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,timeout=1200)
+receipt['exit_code']=result.returncode
+path.write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps({'exit_code':result.returncode,'scope':receipt['scope']}))
+print('\n'.join((root/'reference-1.log').read_text().splitlines()[-10:]))
+raise SystemExit(result.returncode)

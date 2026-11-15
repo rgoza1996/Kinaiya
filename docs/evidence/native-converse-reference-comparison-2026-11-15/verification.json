@@ -1,0 +1,83 @@
+{
+  "scope": "Public first-output native/full-reference conditional diagnostic. Both fail work/follow-up and pass the separate question. Not a dialogue repair, independent reference Agent run or browser/audio-listening qualification.",
+  "cases": [
+    {
+      "name": "work",
+      "native_text": "Here's a brief welcome plan for the neighborhood seat exchange:\n\nFirst, we'll greet everyone with a warm welcome and introduce the new seat, sharing its history and significance. Then we'll have a short presentation about the neighborhood's character and why this seat matters. Next, we'll invite residents to share their favorite memories or stories connected to the area. After that, we'll have a casual Q&A session where people can ask questions. Finally, we'll close with a toast to the neighborhood's future and open the floor for any final thoughts.",
+      "reference_text": "Here's a brief welcome plan for the neighborhood seat exchange:\n\nFirst, we'll greet everyone with a warm welcome and introduce the new seat, sharing its history and significance. Then we'll take a moment to reflect on what the old seat represented and how it shaped the community. Next, we'll invite each person to share a memory or story connected to the old seat. After that, we'll discuss how the new seat brings fresh opportunities and perspectives. Finally, we'll close with a toast to the new seat and a look forward to the future together.",
+      "native_semantic_pass": false,
+      "reference_semantic_pass": false,
+      "criterion": "Receipt only for accepted work; truthful pending follow-up; correct unrelated answer.",
+      "native_response_id": "resp_PquraJHkW0eFX32PGyBKPFYDrC35NcU1",
+      "native_pcm_sha256": "f2f9e84502ad3865cda34bf745811f1411b39ea844f18a94625fec44a959f63a",
+      "reference_pcm_sha256": "b405aeede703bc98278c56793f2c88bd1b16ee653e2bc5acc78003ec77ece4e3"
+    },
+    {
+      "name": "followup",
+      "native_text": "Here's the brief welcome plan for the neighborhood seed exchange, including a return envelope station:\n\nFirst, we'll greet everyone with a warm welcome and introduce the new seed envelope, sharing its history and significance. Then we'll have a short presentation about the neighborhood's character and why this envelope matters. Next, we'll invite residents to share their favorite memories or stories connected to the area. After that, we'll have a casual Q&A session where people can ask questions. Finally, we'll close with a toast to the neighborhood's future and open the floor for any final thoughts.",
+      "reference_text": "Here's a brief welcome plan for an imaginary neighborhood seed exchange. We'll greet everyone with a warm welcome and introduce the new seat, sharing its history and significance. Then we'll have a short presentation about the neighborhood's character and why this seat matters. Next, we'll invite residents to share their favorite memories or stories connected to the area. After that, we'll have a casual Q&A session where people can ask questions. Finally, we'll close with a toast to the neighborhood's future and open the floor for any final thoughts.",
+      "native_semantic_pass": false,
+      "reference_semantic_pass": false,
+      "criterion": "Receipt only for accepted work; truthful pending follow-up; correct unrelated answer.",
+      "native_response_id": "resp_wHf5YeRDIMBryyH5lKRzz94yfmrrRo4c",
+      "native_pcm_sha256": "1d69314d6d3e6bd82a42db8987704fe5ada6947e1a5705fcca231f6ec79e859f",
+      "reference_pcm_sha256": "e787487c9792e547db68a1418f456425e469a45fd266b942a8078973405f1c8b"
+    },
+    {
+      "name": "question",
+      "native_text": "Water turns into ice when it freezes.",
+      "reference_text": "When water freezes, it turns into ice.",
+      "native_semantic_pass": true,
+      "reference_semantic_pass": true,
+      "criterion": "Receipt only for accepted work; truthful pending follow-up; correct unrelated answer.",
+      "native_response_id": "resp_e6D5lfjyLrl9WnOy1Vd10oI6VmAWY9PR",
+      "native_pcm_sha256": "04270c6be4cbd84cd4189a3dad8d982066015cdc7b08378ba13a12453372fde1",
+      "reference_pcm_sha256": "e5f6c066cae21d60c47a7528795bed93a91f54bd22fab0a613729c2ead666af2"
+    }
+  ],
+  "raw_wire_files_retained_locally": [
+    {
+      "name": "wire-01.jsonl",
+      "bytes": 252693,
+      "sha256": "675fef234a0bbf207822bf070975ee80dd81ebe05ffd2d627972be23767272a8"
+    },
+    {
+      "name": "wire-02.jsonl",
+      "bytes": 2282380,
+      "sha256": "8c01a4604d2458cae66e812ba9a9641615bdd4638c07a860ca0439cff085daee"
+    },
+    {
+      "name": "wire-03.jsonl",
+      "bytes": 198988,
+      "sha256": "308e71ed1f44b7c721ceebdd9237c1965c914ba0f8638311cad076143696113f"
+    },
+    {
+      "name": "wire-04.jsonl",
+      "bytes": 2375194,
+      "sha256": "895246bad48933d25ec6b133dcac97df69ad8c11ee7b5ef19cf4b38a12dbecc5"
+    },
+    {
+      "name": "wire-05.jsonl",
+      "bytes": 154476,
+      "sha256": "60a450d91b4c459c91dba101d91d143cc1badc95e46aadd2bb18fcde98cbb9ca"
+    },
+    {
+      "name": "wire-06.jsonl",
+      "bytes": 370090,
+      "sha256": "45bfdd3ec504bebd1d3e5853cbca3d1d2b6cf9670a5ff6e5e501bb8c6b9c59c5"
+    }
+  ],
+  "controlled_agent_provider_calls": 1,
+  "task_observations": 12,
+  "native_engine_exit": 0,
+  "reference_process_exit": 0,
+  "retained_byte_checks": "Raw ASR, text deltas/done, completed responses, native publications, original PCM and nine WAVs matched; no inference repeated.",
+  "reference_revision": "21d75123f86c1f7ffb4bef1ea202710c4e7ebe67",
+  "first_failed_launch": "Exit127 before inference: missing existing ROCm library search path. Original manifest/log retained.",
+  "limitations": [
+    "Reference follow-up is conditioned on actual prior native replies, not its own conversation.",
+    "CPU float32 versus Q4_K_M/Q8, engine and RNG differences prevent numerical-equivalence claims.",
+    "Reference and native first work responses confuse seed/seat; native follow-up ASR discrepancy is retained.",
+    "No forced answer, keyword router, changed prompt, confidence gate, native retry, live owner promotion or semantic reroll."
+  ]
+}
