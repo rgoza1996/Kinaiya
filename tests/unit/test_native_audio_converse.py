@@ -895,6 +895,7 @@ async def test_explicit_host_pair_constructs_native_provider_without_loading_inf
         "api_key": "public-synthetic-local-bearer",
         "max_output_tokens": 256,
         "timeout": 45,
+        "transcription_connection": "intent_url",
     }
     assert owner.arguments == (
         host_runtime,
