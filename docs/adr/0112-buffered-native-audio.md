@@ -10,6 +10,20 @@ This first host-only mode refuses resource-managed or independently selected cat
 
 A transcription-intent connection may initially announce a valid realtime session before applying the explicit transcription update. Both initial transcription and initial realtime PCM envelopes are validated. In either case, the matching transcription acknowledgement is mandatory before any input audio is sent; the URL intent alone grants no release.
 
+Issue #595 adds an explicit host `native_audio.transcription_connection` choice:
+`intent_url` (the unchanged default) appends `intent=transcription` for ASR;
+`session_update` opens the original realtime URL and selects transcription with
+the mandatory `session.update`. Some chat-capable engines use the URL intent
+to select a separate live-ASR protocol that has no committed input identity at
+final flush. That protocol remains refused by this buffered adapter. The owner
+must qualify the selected connection path; no model-name inference, automatic
+retry or transport fallback chooses the other mode. Both choices preserve the
+same session-ID/rate/ACK checks before original PCM and require the committed
+input identity before accepting ASR output. The choice is captured in the native
+provider binding, so changing it invalidates an admitted clip. Native dialogue
+still opens the original realtime URL and sends the same complete instructions
+and original PCM; no text/TTS substitution is added.
+
 The authenticated `POST /v1/converse/native-audio/clips` accepts strict session/thread/epoch, utterance/request UUIDs, disclosure scope and base64 WAV. Only canonical 44-byte-header PCM16 mono16000 Hz WAV, nonempty and at most30 seconds, is accepted. A bounded raw-body gate precedes JSON validation and never reflects invalid audio. Original decoded PCM is transcribed through the same captured endpoint with transcription intent. The authoritative authenticated-user `conversation.window` retains its audio digest, scope and native identities for Decisions and the normal transcript. Native conversational generation receives that same original PCM, not a text replacement of its transcription.
 
 ## Ownership and replay
