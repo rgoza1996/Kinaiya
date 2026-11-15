@@ -49,3 +49,26 @@ provider reachability, model quality or audio delivery. The earlier actual
 service startup/shutdown matrix is separate evidence. The Options mode editor,
 independent Decisions consumer policies and complete lifecycle matrix remain
 required; **#566 remains incomplete**.
+
+## Compatibility follow-up
+
+A search across every wizard caller adds five files to the original selection.
+The retained first run has two failures and 71 passes: onboarding and animation
+fixtures still use the old answer order. With only their input order corrected,
+the original onboarding oracle exposes redundant new Agent-only selector fields.
+The implementation now preserves the original `{converse: false}` configuration
+shape when documented defaults express the same validated graph. Existing
+explicit selectors are updated; mode-only saves remain explicit. The original
+onboarding assertion is retained.
+
+At clean source `c71c8afa` the complete union passes **406 tests in 21.75 seconds
+across 20 files**, including every wizard caller. All original assertion ASTs in
+the eleven changed existing test files are unchanged. The identical trusted
+native helper is run once against this corrected source in another fresh private
+namespace: all six modes and all **18 original CLI processes** pass again, with
+unchanged source, retained profiles/token bytes and truthful untested receipts.
+
+`compatibility-native-cli-result.json` and `compatibility-verification.json`
+retain those original results and the complete source identity/pins. This changes
+the setup representation, not the qualified graph or the scope limits above.
+The first failure logs remain in local `output/issue-566-mode-selection/`.

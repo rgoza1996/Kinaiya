@@ -56,12 +56,14 @@ does not invent a configured Agent. CLI filesystem ownership and the existing
 protected atomic configuration write remain the authority; no new live Settings
 API or CAS receipt is claimed by this offline setup increment.
 
-The integrated setup increment passes **333 related tests** across 15 files,
-including all 36 saved-mode transitions. The actual private CLI rehearsal passes
+The complete setup increment passes **406 related tests** across 20 files,
+including every wizard caller and all 36 saved-mode transitions. The actual private CLI rehearsal passes
 all six modes and two mode-only edits per mode: **18 original CLI processes**
 exit zero with saved profiles and token bytes preserved. Source bytes stay fixed
 through the run. [Retained helper, results and source pins](evidence/subsystem-setup-modes-2026-11-15/README.md)
 define its setup-only scope; it does not complete the running-service matrix.
+The compatibility follow-up retains the original compact first Agent-only
+configuration shape and every assertion in eleven existing test files.
 
 `serve host` and `serve all` both respect an existing `distribution` selection.
 The developer `serve all` default without a `distribution` object still selects
