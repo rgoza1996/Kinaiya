@@ -9,7 +9,9 @@ regenerates history, replays historical audio or silently truncates context.
 
 Endpoints without the advertisement retain the documented limited mode: prior
 text/order/role labels are JSON data inside system instructions. That data
-preservation does not establish native chat-role fidelity. There is no probing
+preservation does not establish native chat-role fidelity. With no prior rows,
+the original first system string is sent alone, without an empty-history label.
+There is no probing
 model call, silent model/default switch, transcription/TTS fallback, persona
 tuning or model-quality acceptance gate.
 
@@ -89,6 +91,9 @@ effects. Invalid representation metadata refuses before publication.
 The first provider oracles retain **20 failed / 1 passed**. The digest/metadata
 contract revision retains its separate **14 failed / 11 passed** baseline. The
 provider, history and native-audio metadata modules then pass **216 tests**.
+The separately recorded empty-history check first fails both cases; after the
+fix, the five focused modules, including the portable real-wire replay, pass
+**221 tests**.
 The C++ helper passes **40 checks**, including the actual LFM3 template, literal
 markers, role/order reconstruction, malformed rows, refusal immutability and the
 original-method negative control. Python and C++ independently agree on the
@@ -103,3 +108,9 @@ the intended overlay is mapped, and the original engine exits zero. No answer
 or style score, reroll, microphone, ASR/Agent execution, browser delivery or
 owner-runtime promotion is inferred. Local first failures, helpers, source pins,
 raw frames and receipts remain under `output/issue-626-native-history/`.
+The [packaged evidence](evidence/native-role-history-2026-11-15/README.md)
+retains the plan, source/build/template receipts and replay provenance. The
+committed replay fixture preserves all seven sent and 48 received frames from
+the original call and verifies current adapter behavior without inference.
+The final broader current-main check passes **592 tests** in 118.04 seconds;
+Ruff check/format, schema export preservation and diff checks pass.

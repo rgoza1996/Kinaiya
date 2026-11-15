@@ -1,0 +1,22 @@
+"""Compile the actual prefix helper; run template oracles without models/network."""
+from pathlib import Path
+import hashlib,json,shlex,subprocess
+base=Path('/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab')
+source=Path('/tmp/kinaiya-626-native-history-engine')
+out=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/template-4')
+out.mkdir(mode=0o700)
+flags={}
+for line in (base/'build/tools/server/CMakeFiles/server-context.dir/flags.make').read_text().splitlines():
+    if line.startswith('CXX_'):
+        k,v=line.split('=',1);flags[k.strip()]=shlex.split(v)
+command=['/usr/bin/c++',*flags['CXX_DEFINES'],*flags['CXX_INCLUDES'],*flags['CXX_FLAGS'],str(source/'tests/test-realtime-history.cpp'),'-o',str(out/'test-realtime-history'),*[str(base/'build/bin'/name) for name in ('libllama-common.so.0.7.0','libmtmd.so.0.7.0','libllama.so.0.7.0','libggml.so.0.27.0','libggml-base.so.0.27.0')],'-Wl,-rpath-link,'+str(base/'build/bin')+':/opt/rocm/core-10.0/lib:/opt/rocm/lib',str(base/'build/common/libllama-common-base.a'),str(base/'build/vendor/hash/libvendor-hash.a'),'-pthread']
+with (out/'build.log').open('w') as log:
+    subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=180)
+template=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-15-reference-runtime/checkpoint/chat_template.jinja')
+namespace=['bwrap','--unshare-all','--die-with-parent','--new-session','--cap-drop','ALL','--clearenv','--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib','--symlink','usr/lib64','/lib64','--dir','/etc','--ro-bind','/etc/os-release','/etc/os-release','--proc','/proc','--dev','/dev','--tmpfs','/tmp','--ro-bind',str(out),'/qual','--ro-bind',str(base/'build/bin'),'/engine-libs','--ro-bind','/opt/rocm/core-10.0','/opt/rocm/core-10.0','--ro-bind',str(template),'/template.jinja','--setenv','LD_LIBRARY_PATH','/engine-libs:/opt/rocm/core-10.0/lib','--setenv','PATH','/usr/bin:/bin','/qual/test-realtime-history','/template.jinja','<|startoftext|>','<|im_end|>']
+result=subprocess.run(namespace,capture_output=True,timeout=60,env={'PATH':'/usr/bin:/bin'})
+(out/'run.stdout').write_bytes(result.stdout);(out/'run.stderr').write_bytes(result.stderr)
+receipt={'compile_command':command,'namespace_command':namespace,'exit':result.returncode,'template_sha256':hashlib.sha256(template.read_bytes()).hexdigest(),'binary_sha256':hashlib.sha256((out/'test-realtime-history').read_bytes()).hexdigest(),'model_loaded':False,'network':'unshared','gpu_device':'absent','stdout':result.stdout.decode(),'stderr':result.stderr.decode()}
+(out/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps({k:receipt[k] for k in ('exit','stdout','stderr')}))
+raise SystemExit(result.returncode)

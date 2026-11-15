@@ -1,0 +1,58 @@
+"""Read-only verification plus current-provider replay; no model/endpoint request."""
+import asyncio,base64,hashlib,json,wave
+from pathlib import Path
+from packages.providers.realtime_audio import NativeAudioInput,RealtimeAudioProvider
+
+ROOT=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history')
+RUN=ROOT/'native-run'
+result=json.loads((RUN/'result.json').read_text())
+receipt=json.loads((RUN/'source-receipt.json').read_text())
+assert receipt['exit']==0 and receipt['source_unchanged'] is True
+assert result['protocol_controls_passed'] is True and len(result['checks'])==13
+assert result['engine_exit']==0 and not result.get('forced_cleanup')
+assert '/overlay/bin/libllama-server-impl.so' in result['maps']
+assert '/engine-libs/libllama-server-impl.so' not in result['maps']
+rows=[json.loads(line) for line in (RUN/'single-provider-capture.jsonl').read_text().splitlines()]
+sent=[r['raw'] for r in rows if r['direction']=='send']
+received=[r['raw'] for r in rows if r['direction']=='recv']
+request=next(json.loads(raw)['session'] for raw in sent if json.loads(raw)['type']=='session.update')
+canonical=json.dumps(request['history'],sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()
+updated=next(json.loads(raw)['session'] for raw in received if json.loads(raw)['type']=='session.updated')
+assert updated['history_sha256']==hashlib.sha256(canonical).hexdigest()
+assert updated['history_count']==len(request['history']) and updated['instructions']==request['instructions']
+assert 'history' not in updated
+assert 'SIDECAR-MUST-NOT-BE-SENT-626' not in ''.join(sent)
+pcm=b''.join(base64.b64decode(json.loads(raw)['audio']) for raw in sent if json.loads(raw)['type']=='input_audio_buffer.append')
+assert hashlib.sha256(pcm).hexdigest()==result['single_capture']['input_pcm_sha256']
+text=''.join(json.loads(raw)['delta'] for raw in received if json.loads(raw)['type']=='response.output_text.delta')
+audio=b''.join(base64.b64decode(json.loads(raw)['delta']) for raw in received if json.loads(raw)['type']=='response.output_audio.delta')
+assert text==result['single_capture']['text'] and hashlib.sha256(audio).hexdigest()==result['single_capture']['pcm_sha256']
+with wave.open(str(RUN/'single-provider-output.wav'),'rb') as source:
+    assert source.readframes(source.getnframes())==audio and source.getframerate()==24000
+
+class Replay:
+    def __init__(self): self.i=self.j=0;self.close_calls=0
+    async def send(self,raw):
+        assert raw==sent[self.i],f'outbound frame changed at {self.i}'
+        self.i+=1
+    async def recv(self):
+        value=received[self.j];self.j+=1;return value
+    async def close(self): self.close_calls+=1
+
+async def verify():
+    replay=Replay();connections=[]
+    async def connect(uri,**options):
+        connections.append((uri,options));return replay
+    async def current(): return True
+    provider=RealtimeAudioProvider('http://127.0.0.1:19451','history-qualification',api_key='public-synthetic-history-key-626',connect=connect,timeout=90,max_output_tokens=512)
+    try:
+        reply=await provider.respond(NativeAudioInput(pcm,16000),[{'role':'system','content':request['instructions']},*request['history'],{'role':'user','content':'SIDECAR-MUST-NOT-BE-SENT-626'}],current=current)
+        assert reply.text==text and reply.pcm16==audio and reply.history_mode=='native_roles_v1'
+        assert replay.i==len(sent) and replay.j==len(received) and replay.close_calls==1 and len(connections)==1
+    finally: await provider.close()
+    return {'outgoing_frames':replay.i,'incoming_frames':replay.j,'original_close_calls':replay.close_calls,'additional_model_calls':0,'current_provider_replays_original_frames_exactly':True}
+
+report={'original_native_exit':0,'original_model_calls':1,'protocol_controls':13,'original_overlay_mapped':True,'raw_text_audio_match':True,'input_pcm_sha256':hashlib.sha256(pcm).hexdigest(),'output_pcm_sha256':hashlib.sha256(audio).hexdigest(),'history_sha256':hashlib.sha256(canonical).hexdigest(),'semantic_quality_scored':False,'raw_files':[{'name':p.name,'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(RUN.iterdir()) if p.is_file() and p.name!='key']}
+report['offline_current_provider']=asyncio.run(verify())
+(ROOT/'verification.json').write_text(json.dumps(report,indent=2)+'\n')
+print(json.dumps({k:v for k,v in report.items() if k!='raw_files'}))

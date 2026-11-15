@@ -1,0 +1,32 @@
+"""Run the frozen native protocol driver against original owned private children."""
+from pathlib import Path
+import hashlib,json,subprocess
+out=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history')
+source=Path('/tmp/kinaiya-626-native-history-roles')
+engine_source=Path('/tmp/kinaiya-626-native-history-engine')
+base=Path('/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab')
+work=out/'native-run'
+work.mkdir(mode=0o700)
+model=Path('/home/roggoz/Disks/SN750/models/LiquidAI/LFM3-Omni-2B-GGUF')
+question=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-15-source-association/native/question-input.wav')
+# Only these files/roots enter the namespace; the owner's home is absent.
+command=['bwrap','--unshare-all','--die-with-parent','--new-session','--cap-drop','ALL','--clearenv','--ro-bind','/usr','/usr','--symlink','usr/bin','/bin','--symlink','usr/lib','/lib','--symlink','usr/lib64','/lib64','--dir','/etc','--ro-bind','/etc/os-release','/etc/os-release','--proc','/proc','--dev','/dev','--tmpfs','/tmp','--ro-bind',str(source),'/source','--ro-bind','/home/roggoz/Disks/SN750/Kinaiya/.venv','/runtime','--ro-bind',str(out/'engine-overlay-2'),'/overlay','--ro-bind',str(base/'build/bin'),'/engine-libs','--ro-bind','/opt/rocm/core-10.0','/opt/rocm/core-10.0','--dir','/models','--ro-bind',str(model/'LFM3-Omni-2B-Q4_K_M.gguf'),'/models/model.gguf','--ro-bind',str(model/'mmproj-LFM3-Omni-2B-Q8_0.gguf'),'/models/projector.gguf','--ro-bind',str(question),'/question.wav','--ro-bind',str(out/'native-driver.py'),'/native-driver.py','--bind',str(work),'/work','--chdir','/source','--setenv','HOME','/work/home','--setenv','PYTHONPATH','/source','--setenv','PYTHONDONTWRITEBYTECODE','1','--setenv','PYTHONNOUSERSITE','1','--setenv','LD_LIBRARY_PATH','/overlay/bin:/engine-libs:/opt/rocm/core-10.0/lib','--setenv','PATH','/usr/bin:/bin','/runtime/bin/python','/native-driver.py']
+def pins():
+    entries={}
+    for prefix in ('packages','services'):
+        for p in sorted((source/prefix).rglob('*.py')):
+            entries[str(p.relative_to(source))]=hashlib.sha256(p.read_bytes()).hexdigest()
+    for relative in ('tools/server/server-realtime.cpp','tools/server/server-realtime-history.h'):
+        p=engine_source/relative;entries['engine/'+relative]=hashlib.sha256(p.read_bytes()).hexdigest()
+    return entries
+before=pins()
+receipt={'namespace_command':command,'project_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=source,text=True).strip(),'project_status':subprocess.check_output(['git','status','--short'],cwd=source,text=True),'source_files':before,'driver_sha256':hashlib.sha256((out/'native-driver.py').read_bytes()).hexdigest(),'plan_sha256':hashlib.sha256((out/'native-plan.json').read_bytes()).hexdigest(),'question_wav_sha256':hashlib.sha256(question.read_bytes()).hexdigest()}
+try:
+    result=subprocess.run(command,capture_output=True,timeout=240,env={'PATH':'/usr/bin:/bin'})
+    (work/'run.stdout').write_bytes(result.stdout);(work/'run.stderr').write_bytes(result.stderr)
+    receipt.update(exit=result.returncode,stdout=result.stdout.decode(),stderr=result.stderr.decode())
+finally:
+    receipt['source_unchanged']=before==pins()
+    (work/'source-receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps({k:receipt.get(k) for k in ('exit','source_unchanged','stdout','stderr')}))
+raise SystemExit(result.returncode)

@@ -98,6 +98,23 @@ async def test_unadvertised_endpoint_retains_explicit_legacy_representation():
         await target.close()
 
 
+@pytest.mark.parametrize("system", ["Public first-system instructions.", ""])
+async def test_limited_endpoint_does_not_add_framing_for_nonexistent_history(system):
+    socket = Socket()
+    target = provider(Connector(socket))
+    try:
+        reply = await target.respond(
+            audio(),
+            [{"role": "system", "content": system}, {"role": "user", "content": CURRENT_TEXT}],
+            current=Current(),
+        )
+        assert selected(socket)["instructions"] == system
+        assert "history" not in selected(socket)
+        assert wire_pcm(socket) == PCM and reply.history_mode == "system_json"
+    finally:
+        await target.close()
+
+
 async def test_every_fitting_role_and_literal_placeholder_is_retained_in_order():
     history = [{"role": "system", "content": "Public character. @@USER@@ @@REPLY@@"}]
     for i in range(36):

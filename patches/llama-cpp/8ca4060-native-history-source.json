@@ -1,0 +1,31 @@
+{
+  "base": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "requires": "8ca4060-realtime-no-tools.patch",
+  "files": [
+    {
+      "path": "tools/server/server-realtime.cpp",
+      "sha256": "ba0b95a23f3cbf66b2903ed7f2cb8f853af97bda55511be721af87a64c69bfd3"
+    },
+    {
+      "path": "tools/server/server-realtime-history.h",
+      "sha256": "1e435ceb7de5bd18118f628ef8f47bab9333830445b5182f0dc3a07473fefe0b"
+    },
+    {
+      "path": "tools/server/CMakeLists.txt",
+      "sha256": "274ecd42a8ac2327c6ffd4a9c6051c4145b6329ec131b6cb3676903dde9b26e9"
+    },
+    {
+      "path": "tests/test-realtime-history.cpp",
+      "sha256": "a2b6a37523db876b19a85f5d9fb5e6189d9c90a18772d3054de4b3358ad8d94e"
+    },
+    {
+      "path": "tests/realtime-history-8ca4060.inc",
+      "sha256": "41bb1ee5dd1ac9dc57067f8f57c277d88eaa5ca7740305f56bb036e01c46074a"
+    },
+    {
+      "path": "tests/CMakeLists.txt",
+      "sha256": "d7294391f2da02254dca5ed4abddd746aaf1b3d9cbcff4a73bc3fdd5309fb964"
+    }
+  ],
+  "patch_sha256": "e4042ac7eef5919f34f1f2f9a0c59d13aa9ea0778cd2951d1c1b546a65e22125"
+}

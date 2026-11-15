@@ -119,6 +119,8 @@ def _instructions(messages):
                 total += 1
         _require(total <= _INSTRUCTIONS)
     history = [{"role": item["role"], "content": item["content"]} for item in messages[1:-1]]
+    if not history:
+        return messages[0]["content"]
     result = (
         messages[0]["content"]
         + _LABEL

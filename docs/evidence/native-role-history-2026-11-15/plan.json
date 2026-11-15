@@ -1,0 +1,34 @@
+{
+  "issue": 626,
+  "parent_issue": 483,
+  "scope": "Versioned native role history, exact bounded acknowledgment, actual template and native protocol; model semantics are diagnostic only",
+  "engine_base": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "isolation": "private bwrap namespace; no owner home/network/GPU device; read-only existing model/source/runtime",
+  "model": {
+    "name": "LFM3-Omni-2B-Q4_K_M",
+    "sha256": "9f8d30e9d4fd7a9349d586e077988229b3ca0a0e4ad730897563d1eccc9893e2",
+    "projector_sha256": "720ff4fc09df0e026c4ec641d0c698bf27b5bcd50561944c88eda5e3dffe1839",
+    "gpu_layers": 0,
+    "threads": 8,
+    "context": 8192,
+    "slots": 1,
+    "seed": 626
+  },
+  "controls": [
+    "fresh empty count/digest and disabled tools",
+    "ordered roles/Unicode/literal-marker acknowledgment",
+    "large fitting history with bounded digest acknowledgment",
+    "unknown capability/role/type/extra row/oversized/count refusal without state mutation",
+    "transcription history exclusion",
+    "history immutable after first public PCM append"
+  ],
+  "single_generation_capture": {
+    "audio": "retained public synthetic spider-question PCM; direct provider, not ASR/Agent/device qualification",
+    "history": "controlled public system/user/assistant turns with literal marker text",
+    "max_output_tokens": 512,
+    "timeout_seconds": 90,
+    "calls": 1,
+    "acceptance": "preserve original response/refusal and raw frames; validate completed text/PCM custody if returned; no semantic/style score, retry or prompt/model tuning"
+  },
+  "cleanup": "wait for original owned server and all original sockets; preserve actual exit/cleanup failures"
+}
