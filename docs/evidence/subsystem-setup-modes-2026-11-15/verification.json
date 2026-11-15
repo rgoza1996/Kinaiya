@@ -1,0 +1,50 @@
+{
+  "source_head": "decc37278dd13155ae07ca57e0dceb821d1e62d1",
+  "source_clean_at_start": true,
+  "source_unchanged_through_native_run": true,
+  "namespace_exit": 0,
+  "qualification_helper_sha256": "a8bc2d436d8d9d952d8e50c7b148953dc56760c784d2ee62d10f4d9f0b20d47a",
+  "source_files": {
+    "services/common/topology.py": "dcaef2fca7db8a726bf788234a73087f1c9098890d70360051f5ba6387d64cc9",
+    "services/distribution/cli.py": "1fe63a7b424377ff38503e0929b5dbd5ce79c6cbd6fd6f61e98babd717ad2613",
+    "services/distribution/installation.py": "8c0c4977717b2254db3a18899a92355fe652371e2c6dd5f7d4cb61621ff4aed3",
+    "services/distribution/wizard.py": "153fdecea0d86669ad2d21a0fd35fe90ea220d91d1b725906b93d33b30722a20",
+    "services/distribution/wizard_navigation.py": "1b0828ee3786730030209883d21f4a7c598afea1fbca6846344b018ae1e5f445",
+    "services/distribution/wizard_summary.py": "2c66929e191e5867cf4a48014806dab6addb421be7cfd3ad5101aa890f11d579"
+  },
+  "all_tracked_python_files_count": 839,
+  "all_tracked_python_hashes_digest": "cfef30e40dd21ff6dc7020f888d306e8c2890f92d7ef8ed70d5da35232f2d3de",
+  "framework_checks": {
+    "pytest_files": 15,
+    "pytest_passed": 333,
+    "pytest_elapsed_s": 11.32,
+    "existing_test_assertion_asts_preserved_files": 9,
+    "ruff_lint": "passed",
+    "ruff_format_files": 1040,
+    "schema_export_changed_files": 0,
+    "main_whistle_and_media_diagnostic_fixes_preserved": true
+  },
+  "native_checks": {
+    "modes": 6,
+    "cli_processes_waited": 18,
+    "private_initial_setup": true,
+    "core_then_selected_mode_restore": true,
+    "saved_profiles_and_tokens_preserved": true,
+    "ready_reported": false,
+    "provider_connection": "not_checked"
+  },
+  "namespace": {
+    "network": "unshared",
+    "owner_home": "not mounted",
+    "gpu_devices": "not mounted",
+    "source_and_runtime": "read-only",
+    "scratch": "fresh private writable /work",
+    "capabilities": "all dropped"
+  },
+  "limits": [
+    "Setup/save paths only; no running service startup/degraded/recovery qualification.",
+    "No model inference, provider reachability, audio, external Agent or managed-resource qualification.",
+    "CLI mode-only receipt is a protected filesystem save for next host restart, not a live Options CAS receipt.",
+    "Issue 566 is incomplete."
+  ]
+}

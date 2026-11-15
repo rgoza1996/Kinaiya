@@ -1,0 +1,18 @@
+{
+  "README.md": {
+    "bytes": 2977,
+    "sha256": "dfa65b2a04dc53a7423fb205c1671ed5613c76cc1812bd2d0144ff4423b5e6bf"
+  },
+  "native-cli-helper.py.txt": {
+    "bytes": 3438,
+    "sha256": "a8bc2d436d8d9d952d8e50c7b148953dc56760c784d2ee62d10f4d9f0b20d47a"
+  },
+  "native-cli-result.json": {
+    "bytes": 7845,
+    "sha256": "68d1bd51e16dac28bc87285db17987dd256e5125f39ee9116ca103bcbc319f2b"
+  },
+  "verification.json": {
+    "bytes": 2293,
+    "sha256": "3e7096847b04fceaeadccf1f7f03b72c72d36fbbb3e32d4349ceee1b5d2fa779"
+  }
+}
