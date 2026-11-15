@@ -71,3 +71,21 @@ native guards or repair the first run's evidence. Raw output remains under
 No installed owner service/configuration, model/default, execution permission,
 audio device or third-party Agent changed. Full consumer-policy and lifecycle
 acceptance remains open under #566/#567.
+
+## Reporter compatibility follow-up (#634)
+
+The first PR #632 workflow at `385d0af503ae6ff966726d6d862ec9afa3d12edc`,
+run `43750683316`, Flutter job `132923724847`, passed 1,495 Flutter cases
+(one live-only skip) and the preceding companion native interoperability case.
+The new Core native Dart subprocess also exited zero and reported one passing
+case. Its Python wrapper then failed because GitHub's default reporter prints
+`1 test passed.` instead of the expected local `All tests passed!`.
+
+The unchanged wrapper reproduced the same failure locally with `CI=true
+GITHUB_ACTIONS=true`: one failure in 3.12 seconds. Selecting the documented
+`--reporter expanded` preserves the success-text and exit-code checks and all
+native assertions. The actual Dart/Core fixture then passed in that same
+environment (one case, 2.86 seconds) and in the normal environment (one case,
+2.66 seconds). No product or SDK behavior changed. Full exact-head CI has not
+yet completed for this follow-up. Raw first/final logs remain under the local
+`output/issue-566-core-options/` evidence directory.

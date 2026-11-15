@@ -54,6 +54,15 @@ The [evidence](evidence/core-subsystem-options-2026-11-15/README.md) records
 run. The actual Dart/native integration separately passes. Analysis, web build,
 Ruff and unchanged schema export checks pass.
 
+The first PR #632 CI run exposed [#634](https://github.com/rgoza1996/Kinaiya/issues/634):
+the Dart interoperability case exited zero, but its Python wrapper expected the
+local reporter's success wording. GitHub Actions selects a different default
+reporter. The fixture now explicitly selects Flutter's supported expanded
+reporter, retaining the exit-code check and every native request, receipt,
+unchanged-host and joined-owner assertion. The original CI failure and a local
+CI-environment reproduction are retained. The corrected case passes under both
+normal and GitHub Actions environment selection; exact-head CI remains required.
+
 The built app saves all six modes and a fresh host-default reset through the
 native API at desktop and narrow widths. A real SIGTERM interruption leaves
 its exact original unconfirmed. A replacement controller on the same private

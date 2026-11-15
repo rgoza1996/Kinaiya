@@ -103,7 +103,14 @@ def test_actual_dart_core_subsystem_transport(tmp_path):
             pytest.fail("Original temporary Session/Core did not become ready")
         project = Path(__file__).resolve().parents[2] / "apps/kinaiya_flutter"
         process = subprocess.run(
-            [flutter, "test", "--no-pub", "test/core_subsystems_live_test.dart"],
+            [
+                flutter,
+                "test",
+                "--no-pub",
+                "--reporter",
+                "expanded",
+                "test/core_subsystems_live_test.dart",
+            ],
             cwd=project,
             env={**os.environ, "KINAIYA_LIVE_CORE_URL": url, "KINAIYA_LIVE_CORE_TOKEN": "o" * 32},
             capture_output=True,
