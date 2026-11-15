@@ -126,6 +126,17 @@ process-fixture and client-invariant failures remain retained under local
 `output/issue-566-readiness/`; fixture-only setup failures are recorded separately.
 Fresh full CI for the resulting draft head remains required.
 
+The first full Python 3.14 run found two outdated fixture assumptions (#617):
+effective Converse availability without an observed Decisions runtime, and an
+aggregate schema inventory that included the new readiness record. Both original
+failures reproduce locally. The corrected setup oracle preserves the unavailable
+dependency while separately confirming owner Sleep/Wake revisions, setup refusal,
+opaque-alias privacy and zero model-network calls. All 517 existing schema files
+are byte-identical to main `abb0f87f`; the new readiness schema has its own exact
+byte pin and the original 184-schema count/digest remains unchanged. The five
+focused setup, schema, topology and readiness files pass 194 tests. This does not
+complete the broader matrix below or replace full CI of the resulting head.
+
 ## Remaining full-issue acceptance
 
 - Qualify required-runtime startup, degradation, shutdown, recovery and retained
