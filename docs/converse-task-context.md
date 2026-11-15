@@ -53,7 +53,7 @@ The request cap is 8,192 bytes; the response cap is 65,536 bytes. Duplicate JSON
 keys, non-finite numbers, unknown fields, bool-as-integer values and invalid
 scope/identity combinations are refused. Counters use the exact JSON integer
 range through 9,007,199,254,740,991. A snapshot refuses rather than partially
-folding more than 4,096 task source/context dependencies or scanning a runtime
+folding more than 4,096 applied, pending-steer and context dependencies or scanning a runtime
 pool above 65,536 records. Native snapshot work is bounded to two seconds; the
 client facade is bounded to 2.5 seconds and retains HTTP cleanup ownership.
 
@@ -84,6 +84,12 @@ entry. If those observations become unavailable or forbidden during preparation,
 that prepared request is refused; its metadata is not silently dropped and
 re-inferred. These are observations admitted at checked boundaries, not a claim
 of atomic cross-service revocation after an external request has begun.
+
+Pending steering sources participate in those fresh reads even before their
+IDs join an applied task revision (#597). The snapshot captures the original
+pending selection, its source IDs and scope; replacement during awaited reads
+refuses the snapshot. A metadata read never applies the steer or mutates the
+task's retained scope merely to compute its current disclosure floor.
 
 Before reply publication, task scopes are refreshed again. Later restriction,
 missing observations or backend replacement can only narrow the publication

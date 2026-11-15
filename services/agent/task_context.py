@@ -58,6 +58,7 @@ async def _source(runtime, request):
 
 def _stamp(record):
     task = record.task
+    pending = record.pending_steer
     return (
         id(task),
         task.task_id,
@@ -69,13 +70,22 @@ def _stamp(record):
         tuple(task.source_event_ids),
         frozenset(record.context_event_ids),
         record.task_harness_publication_scope,
+        None
+        if pending is None
+        else (id(pending), tuple(pending["source_event_ids"]), pending["content_scope"]),
     )
 
 
 async def _scope(runtime, record, stamp):
     task = record.task
     scopes = [task.content_scope, record.task_harness_publication_scope]
-    for source_id in stamp[7]:
+    source_ids = stamp[7]
+    if stamp[10] is not None:
+        # Pending steering is admitted before those sources join the applied
+        # task revision. Its current disclosure still qualifies observed facts.
+        source_ids += stamp[10][1]
+        scopes.append(stamp[10][2])
+    for source_id in source_ids:
         source = await runtime.journal.resolve(source_id)
         if (
             (source.session_id, source.thread_id, source.epoch)
@@ -182,7 +192,13 @@ async def snapshot(runtime, request, instance_id):
             truncated = len(records) > MAX_TASK_CONTEXT_TASKS
             records = records[:MAX_TASK_CONTEXT_TASKS]
             stamps = [_stamp(record) for record in records]
-            if sum(len(stamp[7]) + len(stamp[8]) for stamp in stamps) > _MAX_DEPENDENCIES:
+            if (
+                sum(
+                    len(stamp[7]) + len(stamp[8]) + (len(stamp[10][1]) if stamp[10] else 0)
+                    for stamp in stamps
+                )
+                > _MAX_DEPENDENCIES
+            ):
                 raise TaskContextUnavailable()
             scopes = [
                 await _scope(runtime, record, stamp)
