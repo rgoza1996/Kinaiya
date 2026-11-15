@@ -16,6 +16,15 @@ editable source and contains many more screens:
 
 ## Open and edit
 
+The owner uses **local Penpot at [localhost:9001](http://localhost:9001)**.
+Check this instance and its signed-in workspace first. The canonical
+[Kinaiya — Master design](http://localhost:9001/#/workspace?team-id=aed0c863-4a2a-8195-8008-de835100d87c&file-id=aed0c863-4a2a-8195-8008-defdd82e75a3&page-id=539d030b-728d-808b-8008-f29cdb0cd579)
+already contains the native-work page. Edit that file for ongoing work; retain a
+named, locked version before a substantial change. An imported qualification
+copy is a separate file, not an update to the canonical master.
+
+To open the versioned archive in another workspace:
+
 1. Install [Git LFS](https://git-lfs.com/) and run `git lfs install`, then clone
    this repository. In an existing checkout, run `git lfs pull`. The Penpot file
    is stored in Git LFS because it exceeds GitHub's regular file-size limit.
@@ -24,6 +33,8 @@ editable source and contains many more screens:
    `assets/penpot/Kinaiya-Converse-Agent.penpot` from the checkout.
 3. Open the imported file and choose a page in the left sidebar. Select layers to
    edit them; use the **Prototype** tab and **View mode** to inspect linked flows.
+   Open the new page in the editor before its first preview so Penpot calculates
+   native text layout; a direct cold viewer can initially show shapes without text.
 
 The consolidated **Kinaiya — Master design** export contains the current
 Options overview with Kinaiya cradling a gear in front of the moon, together
@@ -132,7 +143,7 @@ sprite animation or a demonstration of live TTS synchronization.
 | **10 · Mascot interaction** | Tell listening and Call listening, thinking, and speaking states using close-up character references. | Static reference boards; labeled preview controls step through selected Call states. |
 | **11 · Agent intelligent UI** | Market watcher, solar system, Las Vegas map, spreadsheet and graph, and database comparison shown inside Agent chat, with generated mockups alongside. | Editable concepts; example sessions and database comparison are linked. |
 | **12 · Converse intelligent UI** | The same five examples with a transcript mockup above Kinaiya’s corner portrait, plus normal conversation and database comparison states. | Editable concepts; the example selector, database comparison, and return to conversation are linked. |
-| **13 · Native work & companions** | 34 paired desktop/mobile boards: task receipts, pending steering, partial results, publication/execution/semantic distinctions, unavailable observations, editable instructions, buffered native audio, readiness, component topology, creations and mobile pairing/catch-up/voice. | Illustrative concepts and draft-backed host configuration. Planned interfaces remain labelled; native model quality and Penpot import are unqualified. |
+| **13 · Native work & companions** | 34 paired desktop/mobile boards: task receipts, pending steering, partial results, publication/execution/semantic distinctions, unavailable observations, editable instructions, buffered native audio, readiness, component topology, creations and mobile pairing/catch-up/voice. | Local master and corrected archive imported and checked natively. Planned interfaces remain labelled; native model quality remains unqualified. |
 
 ## Prototype notes
 
@@ -165,8 +176,8 @@ source pages, all 369 original boards, and every original archive member remain
 byte-exact. The new page has 34 boards, 744 editable native text shapes and 136
 prototype links, split into motion-on (220ms dissolve) and instant motion-off.
 
-Archive: **245,700,930 bytes**; SHA-256:
-`039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7`.
+Archive: **245,704,624 bytes**; SHA-256:
+`a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd`.
 The LFS object was uploaded and its complete remote download verified before
 the tracked pointer was changed. No credentials or signed download URLs are
 retained in the review record.
@@ -179,21 +190,35 @@ prove the task's meaning was fulfilled. The examples contain only public
 synthetic content.
 
 Converse instructions show the owner-editable handoff preference implemented
-in [draft PR #589](https://github.com/rgoza1996/Kinaiya/pull/589). The visual
-instruction editor, Decisions instructions, external Agent/Pi bridge, mobile
+in [PR #589](https://github.com/rgoza1996/Kinaiya/pull/589); Decisions host
+preferences are implemented in [PR #601](https://github.com/rgoza1996/Kinaiya/pull/601).
+The boards' earlier “Backend draft: #589” caption records their preparation
+baseline. The visual instruction editor, external Agent/Pi bridge, mobile
 transport/foreground voice and creations organization are explicitly proposed
 interfaces, not claims of shipped runtime behavior. Buffered original-audio
 turns remain distinct from planned duplex adapters. #483's actual LFM3 handoff
 quality remains unqualified.
 
-Selected SVG previews, rendered from the same native text/vector data, were
-checked in a browser. This checks their presentation; it is not a native Penpot
-import test or application acceptance. The master source revision metadata is
-preserved; no cloud Penpot file/revision was changed. See the
+The local canonical master now has the new page, all 136 transparent painted
+hotspots and both flow starts. Native clicks exercised task states, return
+navigation, mobile catch-up and motion-off navigation. A native export confirms
+all 14 original page records and 48,017 original shape records remain
+structurally identical. The prepared archive separately preserves every original
+member byte for byte; native export changes JSON serialization and thumbnail
+objects, so these are distinct comparisons.
+
+The exact corrected archive was also imported into **Kinaiya — Archive**, opened
+in the editor and clicked successfully in native View mode. The earlier failed
+qualification copy remains there with a distinct name (#603). Screenshots below
+show the actual local master and imported archive. This is selected native
+design verification, not application acceptance. No cloud Penpot revision was
+changed. See the
 [review record](native-work-sync-review.json) and
 [scope/verification notes](../../docs/penpot-native-work-sync.md).
 
-![Pending task steering design](previews/native-work/pending-on.svg)
+![Updated local Penpot master](previews/native-work/local-master-overview.jpg)
+
+![Local mobile catch-up prototype](previews/native-work/local-master-mobile-catchup.jpg)
 
 ## Earlier native Options and November 2 UI/UX synchronization
 

@@ -1,8 +1,8 @@
 {
   "source_sha256": "1fa59798c57172b75afb527a671a44dc44e9c9509d7b4a496030b13f2683b59c",
   "source_bytes": 244662707,
-  "result_sha256": "039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7",
-  "result_bytes": 245700930,
+  "result_sha256": "a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd",
+  "result_bytes": 245704624,
   "master_file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
   "added_page_id": "3d154fd3-c631-5f34-bf0e-4efa76283a20",
   "added_page_name": "13 · Native work & companions",
@@ -296,13 +296,140 @@
     "instant_added_links": 68,
     "changed_members": 68,
     "original_members_byte_exact": 49093,
-    "native_import_executed": false
+    "native_import_executed": true
+  },
+  "second_candidate": {
+    "result_sha256": "039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7",
+    "result_bytes": 245700930,
+    "lfs_publication": {
+      "state": "uploaded_and_full_download_verified",
+      "bytes": 245700930,
+      "sha256": "039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7",
+      "ref": "refs/heads/codex/penpot-native-work",
+      "credential_or_signed_url_retained": false
+    },
+    "native_import_rendered": true,
+    "native_hotspot_navigation_passed": false,
+    "no_paint_hotspots": 136,
+    "issue": 603
+  },
+  "native_hotspot_repair": {
+    "issue": 603,
+    "cause": "No-fill/no-stroke link rectangles do not receive pointer events; clicks hit lower painted backgrounds.",
+    "native_controlled_fix": {
+      "fillColor": "#B1B2B5",
+      "fillOpacity": 0
+    },
+    "changed_added_shape_members": 136,
+    "all_new_links_have_transparent_painted_geometry": true,
+    "original_members_byte_exact": 49093,
+    "exact_v3_native_import_executed": true,
+    "exact_v3_overview_to_receipt_click_passed": true
   },
   "lfs_publication": {
     "state": "uploaded_and_full_download_verified",
-    "bytes": 245700930,
-    "sha256": "039ff39d6b2c41933a4b457e3ecbe028f1cb8fef572c40797c1d5ffea49e3ef7",
+    "bytes": 245704624,
+    "sha256": "a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd",
     "ref": "refs/heads/codex/penpot-native-work",
     "credential_or_signed_url_retained": false
-  }
+  },
+  "local_native_import_verified": true,
+  "local_native_verification": {
+    "date_utc": "2026-11-15",
+    "date_local": "2026-11-14",
+    "origin": "http://localhost:9001",
+    "canonical_file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+    "canonical_page_id": "539d030b-728d-808b-8008-f29cdb0cd579",
+    "recovery_version": {
+      "name": "Before native work & companions (#590)",
+      "locked": true
+    },
+    "transfer_method": "Native copy/paste of all 34 boards into a new master page; 136 transparent fills and two flow starts set through native controls.",
+    "native_master_clicks_passed": [
+      "motion on overview -> receipt",
+      "receipt -> running/pending steering",
+      "running -> failed partial work",
+      "partial work -> overview",
+      "overview -> mobile offline catch-up",
+      "motion off overview -> receipt"
+    ],
+    "native_export": {
+      "origin": "http://localhost:9001",
+      "file_id": "aed0c863-4a2a-8195-8008-defdd82e75a3",
+      "page_id": "539d030b-728d-808b-8008-f29cdb0cd579",
+      "export_bytes": 245558625,
+      "export_sha256": "f832e651a39437fcf883176385c10652f57f9a0aa11e6651d4d9d3ade6f1f8d6",
+      "export_member_count": 50267,
+      "original_page_records_structurally_equal": 14,
+      "original_shape_records_structurally_equal": 48017,
+      "original_all_members_byte_exact_claimed": false,
+      "native_export_note": "Native export changes JSON serialization and regenerates thumbnail/object metadata; all original page and shape values were compared structurally without discarding fields.",
+      "boards": 34,
+      "editable_text_shapes": 744,
+      "all_added_text_content_equal_to_prepared_page": true,
+      "all_added_shape_parent_ids_remapped_correctly": true,
+      "all_added_shape_positions_match_prepared_plus_offset": [
+        282,
+        350
+      ],
+      "links_resolve_to_mapped_local_boards": 136,
+      "transparent_painted_hotspots": 136,
+      "flows": [
+        {
+          "id": "539d030b-728d-808b-8008-f2a63a7aeb99",
+          "name": "Native work & companions · motion on",
+          "startingFrame": "539d030b-728d-808b-8008-f29d838bfa6b"
+        },
+        {
+          "id": "539d030b-728d-808b-8008-f2a64c11bf6a",
+          "name": "Native work & companions · motion off",
+          "startingFrame": "539d030b-728d-808b-8008-f29d838c7067"
+        }
+      ],
+      "zip_crc_passed": true,
+      "duplicate_members": false
+    },
+    "exact_v3_import": {
+      "file_id": "28bf7c0f-3760-81b5-8008-f2a7c70ee0fa",
+      "project_id": "aed0c863-4a2a-8195-8008-ded65d82d6e2",
+      "name": "Kinaiya — Native work v3 · import verified (#590)",
+      "import_success_observed": true,
+      "editor_text_layout_observed": true,
+      "overview_to_receipt_click_passed": true,
+      "initial_direct_cold_viewer": "Shapes appeared without text before the page was opened in the native editor.",
+      "all_links_manually_exercised": false
+    },
+    "retained_v2_rehearsal": {
+      "file_id": "28bf7c0f-3760-81b5-8008-f29a0df763f2",
+      "name": "Kinaiya — Native work v2 · failed hotspots (#603)",
+      "project": "Kinaiya — Archive",
+      "single_controlled_hotspot_fix_applied": true
+    },
+    "browser_observation_limits": [
+      "A qualification tab crashed while its file menu was open; a new tab in the same local browser recovered.",
+      "The download event observer timed out; the completed native file was present in Downloads and independently checked."
+    ]
+  },
+  "native_screenshots": [
+    {
+      "path": "assets/penpot/previews/native-work/local-master-overview.jpg",
+      "bytes": 135482,
+      "sha256": "a697c28b87622e82ce9569909c610c41c7b8f1e6dc4acee65d96cd731df89245"
+    },
+    {
+      "path": "assets/penpot/previews/native-work/local-master-receipt.jpg",
+      "bytes": 83255,
+      "sha256": "b27fa77d076928ecd65cf59cbf99300cf98ab5a1743ec88cc9ca0a45e4bd21fc"
+    },
+    {
+      "path": "assets/penpot/previews/native-work/local-master-mobile-catchup.jpg",
+      "bytes": 63853,
+      "sha256": "ee25d39961162145a60cf9285459de002a677c12159167c673745478eeb71731"
+    },
+    {
+      "path": "assets/penpot/previews/native-work/v3-import-receipt.jpg",
+      "bytes": 56862,
+      "sha256": "0996ab28be0f83adda76346e86f94f544ad07579fda00950f215973839a96838"
+    }
+  ]
 }
