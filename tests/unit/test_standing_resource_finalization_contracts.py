@@ -548,6 +548,15 @@ def schema_pin():
             "LocalExchangeBundleV2",
         )
     }
+    # #566 adds exactly five Core selector records with an independent byte pin
+    # in test_core_subsystem_schema_exports; preserve this original184 pin.
+    additive |= {
+        "CoreSubsystemSelection",
+        "CoreSubsystemChange",
+        "CoreSubsystemSnapshot",
+        "CoreSubsystemReceipt",
+        "CoreSubsystemLookup",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,
