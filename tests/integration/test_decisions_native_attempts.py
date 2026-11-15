@@ -15,13 +15,17 @@ from test_decisions_finalized_refusal_recovery import (
     admit_native,
     append_user_source,
     finish_native,
+    held_recovery_currentness,
+    recover_completed_with_observers,
     session_http_env,
+)
+from test_decisions_finalized_refusal_recovery import (
+    native_attempt_state as state_of,
 )
 
 from packages.contracts.client import JournalClient
 from packages.contracts.decisions_attempts import (
     DecisionsAttemptFinish,
-    DecisionsAttemptLookup,
     DecisionsSource,
 )
 from packages.contracts.models import SessionRequest
@@ -91,12 +95,6 @@ def app_with_faults(store, *, decided=False, refusal=False, inspection=False):
     return app
 
 
-async def state_of(client, source):
-    return await client.decisions_attempt_lookup(
-        DecisionsAttemptLookup(source=DecisionsSource.of(source))
-    )
-
-
 async def test_real_socket_restarts_freeze_policy_despite_capture_outage_and_model_change(tmp_path):
     path = tmp_path / "journal.sqlite"
     store = Store(path, decisions_max_attempts=2)
@@ -154,8 +152,11 @@ async def test_real_socket_restarts_freeze_policy_despite_capture_outage_and_mod
         store.close()
 
 
+@pytest.mark.parametrize("hold_currentness", [False, True])
 async def test_real_socket_completed_result_survives_missing_capture_and_publication_crash(
     tmp_path,
+    monkeypatch,
+    hold_currentness,
 ):
     store = Store(tmp_path / "journal.sqlite")
     session = store.create_session(SessionRequest(channel="converse"))
@@ -176,16 +177,38 @@ async def test_real_socket_completed_result_survives_missing_capture_and_publica
             try:
                 with pytest.raises(httpx.HTTPStatusError):
                     await DecisionsWorker(client, agent, ModelClassifier(provider)).tick()
-                assert (await state_of(client, source)).state == "completed"
+                original = await state_of(client, source)
+                assert original.state == "completed"
             finally:
                 await client.close()
         assert not store.decisions.calls(source.event_id)
         assert not store.read(kinds=["routing.decided"])
+
+        async def assert_retained_unknown(client):
+            state = await state_of(client, source)
+            assert (state.state, state.charged_attempts) == ("completed", 1)
+            assert state.last_attempt == original.last_attempt
+            assert len(entered) == 1
+            assert not agent.submitted and not agent.steered and not agent.interrupted
+            assert not store.read(
+                kinds=["routing.decided", "routing.dispatch", "routing.classification_refused"]
+            )
+
         async with loopback(create_app(store, Auth(dict(TOKENS)))) as root:
             client = JournalClient(root, TOKENS["decisions"])
             try:
-                worker = DecisionsWorker(client, agent, ModelClassifier(provider))
-                await worker.tick()
+                if hold_currentness:
+                    # The production 500 ms currentness deadline must refuse
+                    # before dispatch, retaining the original completed call.
+                    async with held_recovery_currentness(client, monkeypatch) as entered_read:
+                        with pytest.raises(CaptureNativeUnavailable):
+                            await DecisionsWorker(client, agent, ModelClassifier(provider)).tick()
+                        assert entered_read.is_set()
+                        await assert_retained_unknown(client)
+
+                await recover_completed_with_observers(
+                    client, agent, provider, assert_retained_unknown
+                )
                 await DecisionsWorker(client, agent, ModelClassifier(provider)).tick()
             finally:
                 await client.close()
