@@ -187,6 +187,35 @@ async def test_native_receipt_binds_real_program_input_result_and_current_author
     assert len(env.calls) == 1
 
 
+async def test_converse_observation_of_native_program_receipt_is_not_semantic_verification(env):
+    from services.agent.task_context import _observation
+
+    # Real native receipt generation with the fixture's controlled runner.
+    # Actual OS execution is separately covered by test_task_program_runner.
+    _, evidence = await native.run_task_program(env.runtime, env.rec, env.arguments)
+    env.task.evidence.append(evidence)
+    env.task.remaining_required_work = []
+    env.rec.submit_confirmed = True
+    env.rec.completion_pending = False
+    env.rec.pending_steer = None
+    observed = _observation(env.rec, "private_cloud_authorized")
+    assert observed.program_execution_receipt == "observed"
+    assert observed.semantic_verification == "not_assessed"
+    assert observed.state == "running"
+    assert observed.evidence_counts["file"] == observed.evidence_counts["extension"] == 1
+    assert len(env.calls) == 1
+    env.rec.proc_slot["proc"] = object()
+    assert (
+        _observation(env.rec, "private_cloud_authorized").program_execution_receipt == "unavailable"
+    )
+    env.rec.proc_slot.clear()
+    env.task.objective_revision += 1
+    assert (
+        _observation(env.rec, "private_cloud_authorized").program_execution_receipt == "unavailable"
+    )
+    assert len(env.calls) == 1
+
+
 @pytest.mark.parametrize(
     "damage",
     ["missing_author", "source_changed", "wrong_input", "shell_denied", "shell_ask", "withdrawn"],

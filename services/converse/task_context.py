@@ -141,7 +141,11 @@ async def publication_scopes(runtime, frame):
     if frame is None or frame.instance_id is None or not frame.task_ids:
         return ()
     try:
-        return await _fresh_scopes(runtime, frame)
+        scopes = await _fresh_scopes(runtime, frame)
+        # The live Agent snapshot has no durable journal-history qualifier.
+        # A public read now cannot authorize replay of derived dialogue after
+        # the task's independent sources change or its backend disappears.
+        return (*scopes, "local_only")
     except asyncio.CancelledError:
         raise
     except Exception:

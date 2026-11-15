@@ -88,6 +88,14 @@ of atomic cross-service revocation after an external request has begun.
 Before reply publication, task scopes are refreshed again. Later restriction,
 missing observations or backend replacement can only narrow the publication
 floor; failed reads never restore a public floor for already consumed data.
+Replies that consumed task observations are additionally retained as
+`local_only`: this runtime snapshot has no durable history qualifier capable of
+rechecking its independent task sources after restart or later scope edits.
+That conservative floor prevents the derived reply from escaping through a
+subsequent cloud history request or cloud TTS. Fresh public task observations
+may still enter a separately permitted inference request. Local providers keep
+the complete qualified history. Full cloud reuse/speech of task-derived replies
+requires a durable, current provenance path and remains open under #486.
 Existing source, provider, playback, memory, permission and outcome checks remain
 in force. An assistant paraphrase does not create or alter an Agent receipt.
 
@@ -127,7 +135,7 @@ when the owner chooses a different conversational preference.
 | --- | --- | --- |
 | Authenticated read-only task observations, no private task text | `services/agent/task_context.py`, strict `packages/contracts/task_context.py` | `tests/integration/test_converse_task_context.py`: real Agent/SQLite, ASGI and genuine socket HTTP, auth/control denial, no writes/model work, source/revision/epoch fences |
 | Typed/window/native prompt framing and history | `services/converse/task_context.py`, runtime, windows, context budget | Same integration module: actual client, first system message, measured prompt equality, full fitting history, original PCM and no text fallback |
-| Privacy changes, unavailable data, original backend/client | Task frame disclosure and publication refreshes | Same integration module: private-row omission, restriction during count/generation, restart and offline cases, environment-proxy isolation |
+| Privacy changes, unavailable data, original backend/client | Task frame disclosure/publication refreshes and conservative local retention floor | Same integration module: private-row omission, restriction during count/generation, restart and offline cases, environment-proxy isolation, later task-derived history reuse |
 | Editable handoff default without forced model behavior | `converse_prompts.py`, `services/converse/prompts.py`, launcher/runtime | `test_converse_prompt_config.py`: blank/custom/default scope, malformed configuration, actual launcher wiring; integration's five illustrative delegated/follow-up/long-running/failure/unrelated cases on typed and window paths |
 | Preserve native success and execution boundaries | Existing `outcome_notice` and task-program authority | `test_handoff_receipts.py`, `test_task_program.py`, `test_task_program_runner.py`; integration verifies regex-evading dialogue cannot manufacture an outcome |
 | Additive wire compatibility | Five explicit schema exports | `test_task_context_schema_exports.py` pins these five separately; legacy 184-schema bytes and the seven #371 exports retain their independent pins |

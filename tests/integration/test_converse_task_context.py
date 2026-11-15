@@ -310,6 +310,7 @@ class DialogueProvider:
     def __init__(self, *, local=True, native=False):
         self.info = ProviderInfo(provider="fixture", model="public-context", local=local)
         self.counts, self.prompts, self.audio = [], [], []
+        self.context = 1_000_000
         self.native = native
         self.before_count = self.before_reply = None
         self.model, self.base_url = self.info.model, "http://127.0.0.1:8817"
@@ -322,7 +323,7 @@ class DialogueProvider:
             await self.before_count()
         return PromptTokenCount(
             13 + sum(len(m["content"].encode()) + 8 for m in messages),
-            1_000_000,
+            self.context,
             32,
             request_digest(messages),
             "a" * 64,
@@ -724,3 +725,29 @@ async def test_actual_pending_steer_receipt_is_not_an_applied_task_revision_or_e
             assert env.store.read(kinds=["agent.outcome"]) == []
         finally:
             await client.close()
+
+
+async def test_task_derived_reply_cannot_escape_later_through_unrelated_public_history(tmp_path):
+    async with environment(tmp_path) as env:
+        for n in range(18):
+            user_source(
+                env.store, env.session, text=f"Public intervening message {n}: " + "x" * 600
+            )
+        async with dialogue(env, tmp_path, local=False) as chat:
+            chat.provider.context = 5000
+            chat.provider.reply = "PUBLIC_TASK_DERIVED_REPLY_SENTINEL."
+            await respond(env, chat, "typed")
+            prompt = chat.provider.prompts[-1]
+            assert env.task.task_id in prompt[0]["content"]
+            assert env.source.payload["text"] not in [m["content"] for m in prompt[1:]]
+            first = env.store.read(kinds=["conversation.converse"])[-1]
+            assert first.payload["text"] == chat.provider.reply
+            assert first.payload["content_scope"] == "local_only"
+            restrict_task_source(env)
+            chat.provider.reply = "A different public conversation."
+            await respond(
+                env, chat, "typed", "On a separate topic, please continue our conversation."
+            )
+            following = chat.provider.prompts[-1]
+            assert env.task.task_id not in json.dumps(following)
+            assert "PUBLIC_TASK_DERIVED_REPLY_SENTINEL" not in json.dumps(following)
