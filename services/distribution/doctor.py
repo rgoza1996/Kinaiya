@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from services.common.topology import SubsystemTopology
 from services.distribution.installation import (
     MIN_BUBBLEWRAP_VERSION,
     MIN_LIBSECCOMP_VERSION,
@@ -935,15 +936,17 @@ def _check_provider_references(
             "roles": {},
         }
 
-    dist = config.get("distribution")
-    agent_enabled = (
-        dist.get("agent", True) is not False if isinstance(dist, dict) and "agent" in dist else True
-    )
-    converse_enabled = (
-        bool(dist.get("converse"))
-        if isinstance(dist, dict) and "converse" in dist
-        else ("converse" in providers)
-    )
+    try:
+        topology = SubsystemTopology.from_config(config)
+    except ValueError:
+        return {
+            "status": "fail",
+            "summary": "Invalid subsystem selection; Converse requires Decisions.",
+            "remediation": "Repair the boolean subsystem distribution selection.",
+            "next_step": "kinaiya setup",
+            "agent_supports_complete_measurement": None,
+            "roles": {},
+        }
 
     roles_report: dict[str, dict[str, Any]] = {}
     failures: list[str] = []
@@ -952,10 +955,10 @@ def _check_provider_references(
     agent_measurement: bool | None = None
 
     for role in ("agent", "converse", "decisions"):
-        if role not in providers and role != "agent":
+        role_enabled = getattr(topology, role)
+        if role not in providers and not role_enabled:
             continue
         raw_profile = providers.get(role)
-        role_enabled = agent_enabled if role == "agent" else converse_enabled
         if not isinstance(raw_profile, dict):
             if role_enabled:
                 failures.append(f"Provider role {role!r} is missing or not an object.")
@@ -1167,33 +1170,36 @@ def _check_service_reachability(
     session_port = _extract_port(config, "session_port", "session_url", 8760)
     agent_port = _extract_port(config, "agent_port", "agent_url", 8761)
 
-    converse_enabled = False
-    if isinstance(config, dict):
-        dist = config.get("distribution")
-        if isinstance(dist, dict) and dist.get("converse") is True:
-            converse_enabled = True
-        elif (
-            config.get("converse_enabled") is True
-            or "converse_port" in config
-            or "converse_url" in config
-        ):
-            converse_enabled = True
-
+    try:
+        topology = SubsystemTopology.from_config(config if isinstance(config, dict) else {})
+    except ValueError:
+        return {
+            "status": "fail",
+            "state": "invalid_selection",
+            "summary": "Invalid subsystem selection; Converse requires Decisions.",
+            "remediation": "Repair the boolean subsystem distribution selection.",
+            "next_step": "kinaiya setup",
+            "probe_services": probe_services,
+            "services": {},
+            "provider_connection": "unknown",
+            "provider_connection_status": "skipped",
+        }
     converse_port: int | None = (
-        _extract_port(config, "converse_port", "converse_url", 8762) if converse_enabled else None
+        _extract_port(config, "converse_port", "converse_url", 8762) if topology.converse else None
     )
-
-    agent_enabled = True
-    if isinstance(config, dict):
-        dist = config.get("distribution")
-        if isinstance(dist, dict) and "agent" in dist and dist.get("agent") is False:
-            agent_enabled = False
+    decisions_port = (
+        _extract_port(config, "decisions_port", "decisions_url", 8763)
+        if topology.decisions
+        else None
+    )
 
     target_ports: list[tuple[str, int]] = [
         ("session", session_port),
     ]
-    if agent_enabled:
+    if topology.agent:
         target_ports.append(("agent", agent_port))
+    if decisions_port is not None:
+        target_ports.append(("decisions", decisions_port))
     if converse_port is not None:
         target_ports.append(("converse", converse_port))
 
@@ -1217,6 +1223,7 @@ def _check_service_reachability(
             "session_port": session_port,
             "agent_port": agent_port,
             "converse_port": converse_port,
+            "decisions_port": decisions_port,
             "services": services_skipped,
             "provider_connection": "unknown",
             "provider_connection_status": "skipped",
@@ -1246,6 +1253,7 @@ def _check_service_reachability(
             "session_port": session_port,
             "agent_port": agent_port,
             "converse_port": converse_port,
+            "decisions_port": decisions_port,
             "services": services_report,
             "provider_connection": "unknown",
             "provider_connection_status": "skipped",
@@ -1261,6 +1269,7 @@ def _check_service_reachability(
         "session_port": session_port,
         "agent_port": agent_port,
         "converse_port": converse_port,
+        "decisions_port": decisions_port,
         "services": services_report,
         "provider_connection": "unknown",
         "provider_connection_status": "skipped",

@@ -45,8 +45,7 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
 
     app = FastAPI(title="Kinaiya Decisions", lifespan=lifespan)
 
-    @app.get("/v1/decisions/readiness", dependencies=[Depends(auth.require("owner", "converse"))])
-    async def routing_readiness():
+    def routing_phase():
         # This is routing-runtime readiness, not a model/GPU probe or an Agent
         # availability assertion. Inspection must not acquire an inference lease.
         phase = "starting"
@@ -70,6 +69,11 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
             except (CaptureNativeUnavailable, OSError, ValueError, RuntimeError):
                 configured = False
             phase = "ready" if active and configured else "unavailable"
+        return phase
+
+    @app.get("/v1/decisions/readiness", dependencies=[Depends(auth.require("owner", "converse"))])
+    async def routing_readiness():
+        phase = routing_phase()
         result = DecisionsReadiness(
             contract_version=1,
             service="decisions",
@@ -119,6 +123,7 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
                 readiness = {"ready": False}
         return {
             "service": "decisions",
+            "routing_runtime_ready": routing_phase() == "ready",
             "running": worker.running,
             "enabled": worker.enabled,
             "last_error": worker.last_error,

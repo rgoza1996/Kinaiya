@@ -1335,7 +1335,7 @@ def setup(
         config["providers"]["decisions"] = dict(effective_decisions)
 
     dist_map: dict[str, Any] = {"converse": bool(converse or converse_built is not None)}
-    if dist_map["converse"]:
+    if dist_map["converse"] or effective_decisions is not None:
         dist_map["decisions"] = True
     if not agent:
         dist_map["agent"] = False

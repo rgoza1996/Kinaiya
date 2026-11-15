@@ -105,3 +105,24 @@ def test_invalid_topology_precedes_credentials_and_processes(tmp_path, monkeypat
         launcher.serve(args)
     assert args.config.read_bytes() == before
     assert not args.data_dir.exists()
+
+
+def test_host_commands_bind_the_selected_service_ports(tmp_path, monkeypatch):
+    observed = []
+    monkeypatch.setattr(
+        launcher,
+        "load_or_create_tokens",
+        lambda *_: {role: role[0] * 40 for role in ("owner", "agent", "converse", "decisions")},
+    )
+    monkeypatch.setattr(launcher, "supervise", observed.append)
+    config = {
+        "distribution": {"agent": False, "converse": False, "decisions": True},
+        "session_url": "http://127.0.0.1:28760",
+        "decisions_url": "http://127.0.0.1:28763",
+    }
+    launcher.serve(launch_args(tmp_path, config, "host"))
+    assert len(observed) == 1
+    for role, port in (("session", 28760), ("decisions", 28763)):
+        command = observed[0][role]
+        assert "--port" in command
+        assert command[command.index("--port") + 1] == str(port)

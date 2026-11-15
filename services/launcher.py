@@ -534,13 +534,22 @@ def serve(args):
     config = load_config(config_path)
     service = args.service
     topology = SubsystemTopology.from_config(config, developer_all=service == "all")
+    resources = config.get("resources")
+    resources_enabled = isinstance(resources, dict) and resources.get("enabled") is True
+    from services.distribution.start_supervisor import _service_port
+
+    selected_ports = {
+        name: _service_port(config, name, PORTS[name])
+        for name in (
+            topology.services(resources=resources_enabled)
+            if service in {"all", "host"}
+            else [service]
+        )
+    }
     # Reject invalid explicit role combinations before creating credentials or
     # starting even a healthy peer. The owner can correct the preserved config.
     tokens = load_or_create_tokens(args.data_dir)
     auth = Auth(tokens, tuple(config.get("origins", [])))
-    resources_enabled = (
-        isinstance(config.get("resources"), dict) and config["resources"].get("enabled") is True
-    )
     resource_state = args.data_dir.resolve() / "resources-state.json" if resources_enabled else None
     if service in {"all", "host"}:
         names = topology.services(resources=resources_enabled)
@@ -557,6 +566,8 @@ def serve(args):
                 str(args.workspace.resolve()),
                 "serve",
                 name,
+                "--port",
+                str(selected_ports[name]),
             ]
             for name in names
             if name != "resources" or resources_enabled
@@ -1294,7 +1305,9 @@ def serve(args):
                     catalog.close()
 
         app.router.lifespan_context = catalog_lifespan
-    uvicorn.run(app, host="127.0.0.1", port=args.port or PORTS[service], log_level="warning")
+    uvicorn.run(
+        app, host="127.0.0.1", port=args.port or selected_ports[service], log_level="warning"
+    )
 
 
 def owner_login(args):

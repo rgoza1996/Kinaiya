@@ -42,6 +42,31 @@ all three roles. Core Session/resources are ordered before consumers, and
 Decisions before Converse. Ordering is not proof that a required dependency is
 ready. No service, provider or model is started by configuration parsing.
 
+Explicit setup `decisions_profile`/`roles.decisions` enables Decisions even
+without Converse (#619). Startup port planning, child-process commands and
+doctor now use the same selected graph; an unused provider declaration or URL
+does not activate another subsystem. Configured local service ports reach the
+actual child listeners. Selected Decisions participates in port-conflict and
+unavailable-peer checks. Invalid Converse-without-Decisions selections refuse
+before credentials or child creation.
+
+The public Decisions health response adds `routing_runtime_ready`, a boolean
+derived from the same live-worker/configuration observation as the authenticated
+contract below. Startup requires an exact true boolean and matching service
+identity, rather than accepting a generic HTTP listener. This unauthenticated
+diagnostic grants no authority and never substitutes for Converse's owned,
+authenticated dependency monitor. Doctor's service diagnostic remains explicitly
+a loopback TCP observation; it does not claim inference or runtime readiness.
+
+The local six-mode CLI rehearsal starts the actual Session and selected Agent,
+Decisions and Converse processes on private configured ports, using empty
+synthetic journals. It verifies authenticated Decisions readiness, effective
+Converse availability, the original process set and shutdown with every child
+reaped. Dispatch policy is explicitly disabled when Kinaiya Agent is absent.
+This covers startup/ordinary shutdown of all five valid modes plus Core-only;
+managed-resource, external-Agent and complete failure/recovery qualification
+remain required below. No model inference or audio is run in that rehearsal.
+
 ## Required Decisions runtime
 
 All supported Converse launcher paths, including `serve converse`, attach an

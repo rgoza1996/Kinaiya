@@ -4,6 +4,7 @@ import asyncio
 import socket
 from contextlib import AsyncExitStack, asynccontextmanager
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import httpx
@@ -19,6 +20,7 @@ from services.converse.dependencies import RequiredDecisions
 from services.converse.intent import ConverseIntent
 from services.converse.runtime import ConverseRuntime
 from services.decisions.api import create_app
+from services.distribution.start_supervisor import _probe_health
 
 TOKENS = {role: role[0] * 40 for role in ("owner", "converse", "agent", "decisions", "resources")}
 
@@ -267,3 +269,16 @@ def test_real_launcher_cleanup_continues_after_dependency_close_refuses(tmp_path
         )
     )
     assert observed.count("dependency") == 2 and observed.count("model") == 1
+
+
+async def test_startup_probe_observes_actual_routing_readiness_over_http():
+    worker = ControlledWorker()
+    app = create_app(worker, Auth(TOKENS))
+    async with loopback(app) as root:
+        port = urlsplit(root).port
+        assert await asyncio.to_thread(_probe_health, "decisions", port, require_identity=True)
+        worker.ready = False
+        assert not await asyncio.to_thread(_probe_health, "decisions", port, require_identity=True)
+        worker.ready = True
+        assert await asyncio.to_thread(_probe_health, "decisions", port, require_identity=True)
+    assert not await asyncio.to_thread(_probe_health, "decisions", port, require_identity=True)
