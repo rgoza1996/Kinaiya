@@ -119,15 +119,18 @@ async def test_agent_off_never_replays_surprise_work(conversation):
     assert all(e.payload["route"] == "ignore" for e in store.read(kinds=["routing.decided"]))
 
 
-async def test_completion_claim_is_blocked_without_evidence(conversation):
+async def test_completion_claim_is_generated_dialogue_without_native_evidence(conversation):
     store, session = conversation
     runtime = ConverseRuntime(
         LocalJournal(store, "converse"), ScriptedProvider(["Done. I saved all your files."])
     )
-    result = await runtime.turn(request(session, "How is the work?"))
-    assert "I saved" not in result["text"]
-    assert store.read(kinds=["agent.outcome"]) == []
-    assert store.read(kinds=["converse.safety"])
+    try:
+        result = await runtime.turn(request(session, "How is the work?"))
+        assert result["text"] == "Done. I saved all your files."
+        assert store.read(kinds=["agent.outcome"]) == []
+        assert store.read(kinds=["converse.safety"]) == []
+    finally:
+        await runtime.close()
 
 
 async def test_late_audio_rejected_and_speech_interrupt_is_independent(conversation):

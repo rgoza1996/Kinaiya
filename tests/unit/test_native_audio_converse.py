@@ -604,33 +604,38 @@ async def test_native_speech_uses_original_cached_pcm_without_any_tts_configurat
 
 
 @pytest.mark.parametrize(
-    "generated,guarded",
+    "generated",
     [
-        ("I saved your file.", "The Agent has not provided a verified result for that claim."),
-        ("No Agent is available.", "I can't verify that Agent or task status."),
+        "I saved your file.",
+        "No Agent is available.",
+        "Well done, team.",
+        "The task is finished.",
     ],
 )
-async def test_guard_rewrite_drops_contradictory_native_pcm_without_tts_fallback(
-    tmp_path, generated, guarded
+async def test_generated_claim_does_not_rewrite_text_or_suppress_original_native_pcm(
+    tmp_path, generated
 ):
     class NoTTS:
         calls = []
 
         async def synthesize(self, text):
             self.calls.append(text)
-            raise AssertionError("A guarded native reply cannot fall back to TTS")
+            raise AssertionError("An original native reply cannot fall back to TTS")
             yield {}
 
     model, tts = NativeModel(), NoTTS()
     model.text = generated
     async with environment(tmp_path, native=model, speech=tts) as env:
         reply = await released(env)
-        assert reply.payload["text"] == guarded
-        assert reply.payload.get("native_audio") is False
-        assert not reply.payload.get("native_audio_sha256")
+        assert reply.payload["text"] == generated
+        assert reply.payload.get("native_audio") is True
+        assert reply.payload["native_audio_sha256"] == hashlib.sha256(OUTPUT_PCM).hexdigest()
         response = await request_speech(env, reply)
-        assert response.status_code == 409
-        assert response.content and OUTPUT_PCM not in response.content
+        assert response.status_code == 200
+        frames = [json.loads(line) for line in response.text.splitlines() if line]
+        assert frames and b"".join(base64.b64decode(f["audio"]) for f in frames) == OUTPUT_PCM
+        assert all(f["event_id"] == reply.event_id for f in frames)
+        assert env.store.read(kinds=["agent.outcome", "delivery.updated"]) == []
         assert tts.calls == []
         assert len(model.responses) == 1
 

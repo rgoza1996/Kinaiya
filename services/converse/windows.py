@@ -2,7 +2,6 @@
 
 import asyncio
 import hashlib
-import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -16,7 +15,6 @@ from services.converse.context_budget import ContextBudgetBuilder
 from services.converse.context_projection import ContextProjection
 from services.converse.delivery_context import window_context_projection
 from services.converse.runtime import SpeechChunker
-from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
 from services.converse.task_context import check_disclosure as check_task_disclosure
 from services.converse.task_context import prepare as prepare_task_context
 from services.converse.task_context import publication_scopes as task_publication_scopes
@@ -41,23 +39,6 @@ class WindowGenerationTask(asyncio.Task):
 
 def allowed_scope(provider, scope):
     return scope_allowed(provider.info, scope)
-
-
-def unverified_work_claim(text, work_routed):
-    # This is a conservative guard for explicit effect claims, not a blanket
-    # ban on ordinary words such as "well done" or "finished my introduction".
-    actor = r"(?:i(?:'ve)?|we(?:'ve)?|the agent)"
-    verb = r"(?:(?:have|has|just|already)\s+){0,2}(?:completed?|finished|sent|saved|created|deleted|verified)"
-    obj = r"(?:\s+(?:the|your|a|an|those|that|requested)){0,2}\s+(?:task|work|job|file|email|message|document|script|changes|report)\b"
-    return bool(
-        re.search(rf"\b{actor}\s+{verb}{obj}", text, re.I)
-        or re.search(
-            r"\b(?:the )?(?:agent|task|work|job)\s+(?:(?:is|was|has|been|now)\s+){0,3}(?:done|completed?|finished)\b",
-            text,
-            re.I,
-        )
-        or (work_routed and re.fullmatch(r"\s*(?:done|completed?|finished)[.!]?\s*", text, re.I))
-    )
 
 
 @dataclass
@@ -443,17 +424,6 @@ class WindowConverseController:
                     prepared.content_scope = combine_scopes(prepared.content_scope, *task_scopes)
                     if await self.current(prepared) is None:
                         return False
-                positive_hit = unverified_work_claim(
-                    text, prepared.decision.payload["agent_route"] != "IGNORE_FOR_IMMEDIATE_ROUTING"
-                )
-                if positive_hit:
-                    text = "The Agent has not provided a verified result for that claim."
-                    negative_state = False
-                elif negative_runtime_state_claim(text):
-                    negative_state = True
-                    text = UNVERIFIED_STATE_REPLY
-                else:
-                    negative_state = False
                 if prepared.reply_request is None:
                     prepared.reply_request = AppendRequest(
                         session_id=source.session_id,
@@ -487,18 +457,13 @@ class WindowConverseController:
                                             ).hexdigest()
                                         }
                                         if text == prepared.native_audio_reply.text
-                                        else {"native_audio_suppressed": "guard_replaced_text"}
+                                        else {"native_audio_suppressed": "text_identity_mismatch"}
                                     ),
                                 }
                                 if prepared.native_audio_reply is not None
                                 else {}
                             ),
                             **self.runtime.model_payload(prepared),
-                            **(
-                                {"guard_reason": "ungrounded_runtime_state_claim"}
-                                if negative_state
-                                else {}
-                            ),
                             "content_scope": combine_scopes(
                                 prepared.content_scope,
                                 latest.content_scope
