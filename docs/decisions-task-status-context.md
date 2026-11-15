@@ -65,7 +65,8 @@ local model through that fallback. Its first failure is retained, and the new
 projection now omits that unverifiable row.
 
 These controlled checks establish input and dispatch behavior, not model
-accuracy. A varied predeclared actual-model matrix, exact integrated-head CI
-and final acceptance review remain required for #485. The old private rehearsal
-and separate Agent outcome-durability discrepancy are not rewritten or claimed
-reconciled by this change.
+accuracy. The [predeclared native d1 matrix](evidence/decisions-task-status-native-2026-11-15/README.md)
+retains one accepted matching result and eleven below-floor refusals. Actual
+routing quality, exact integrated-head CI and final acceptance review remain
+required for #485. The old private rehearsal and separate Agent outcome-durability
+discrepancy are not rewritten or claimed reconciled by this change.
