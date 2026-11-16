@@ -31,8 +31,18 @@ def _cleanup_unconfirmed(error, provider):
 
 
 class NativeDecisionAttempt:
+    CONTRACT_VERSION = 1
+    ADMIT_TYPE = DecisionsAttemptAdmit
+    FINISH_TYPE = DecisionsAttemptFinish
+    ADMIT_METHOD = "decisions_attempt_admit"
+    FINISH_METHOD = "decisions_attempt_finish"
+
+    @staticmethod
+    def _bind_source(source):
+        return DecisionsSource.of(source)
+
     def __init__(self, journal, source, *, expected_attempts, max_attempts=None):
-        self.journal, self.source = journal, DecisionsSource.of(source)
+        self.journal, self.source = journal, self._bind_source(source)
         self.expected_attempts = expected_attempts
         self.max_attempts = max_attempts
         self.owner, self.owner_id = asyncio.current_task(), uuid4().hex
@@ -84,7 +94,8 @@ class NativeDecisionAttempt:
         self._binding = self._transport_binding(provider)
         self.model_current = capture.model_current
         try:
-            request = DecisionsAttemptAdmit(
+            request = self.ADMIT_TYPE(
+                contract_version=self.CONTRACT_VERSION,
                 source=self.source,
                 attempt_id=self.attempt_id,
                 owner_id=self.owner_id,
@@ -104,7 +115,7 @@ class NativeDecisionAttempt:
             # This task may only enter the provider after this exact ACK. A late
             # ACK remains owned by JournalClient; it cannot resume this facade.
             async with asyncio.timeout(2):
-                self.receipt = await self.journal.decisions_attempt_admit(request)
+                self.receipt = await getattr(self.journal, self.ADMIT_METHOD)(request)
             if self.receipt.admission != request or self.receipt.completion is not None:
                 raise CaptureNativeUnavailable("Decisions admission ACK is not a fresh original")
             if (
@@ -142,7 +153,8 @@ class NativeDecisionAttempt:
             status = "uncertain"
         elif status == "completed" and capture.validated_output is None:
             status = "uncertain"
-        self.completion = DecisionsAttemptFinish(
+        self.completion = self.FINISH_TYPE(
+            contract_version=self.CONTRACT_VERSION,
             source=self.source,
             attempt_id=self.attempt_id,
             owner_id=self.owner_id,
@@ -155,7 +167,7 @@ class NativeDecisionAttempt:
         )
         try:
             async with asyncio.timeout(2):
-                result = await self.journal.decisions_attempt_finish(self.completion)
+                result = await getattr(self.journal, self.FINISH_METHOD)(self.completion)
             if result.completion != self.completion:
                 raise ValueError("Decisions completion ACK mismatch")
         except asyncio.CancelledError:

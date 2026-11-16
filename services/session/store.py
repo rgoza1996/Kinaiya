@@ -79,6 +79,7 @@ ALLOWED_KINDS = {
         "artifact.updated",
     },
     "decisions": {
+        "routing.live_window_decided",
         "routing.decided",
         "routing.classification_refused",
         "routing.dispatch",
@@ -232,6 +233,9 @@ class Store:
         from services.session.live_captures import LiveCaptureStore
 
         self.live_captures = LiveCaptureStore(self)
+        from services.session.live_decisions_attempts import LiveDecisionsAttemptStore
+
+        self.live_decisions_attempts = LiveDecisionsAttemptStore(self, decisions_max_attempts)
 
     def register_converse_context_validator(self, implementation_id, callback):
         """Trusted startup only; registration never imports a memory backend."""
@@ -894,6 +898,10 @@ class Store:
             from services.session.live_windows import validate_capture
 
             validate_capture(self, request, role)
+        elif request.kind == "routing.live_window_decided":
+            from services.session.live_decisions_attempts import validate_live_outcome
+
+            validate_live_outcome(request, role)
         elif request.kind == "routing.window_decided":
             try:
                 decision = WindowDecision.model_validate(request.payload)
@@ -1042,6 +1050,8 @@ class Store:
         return event
 
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if request.kind == "routing.live_window_decided":
+            raise JournalError("Live outcomes require original native result publication")
         if request.kind == "conversation.window_capture":
             raise JournalError("Capture annotations require native live publication")
         if isinstance(request.payload, dict) and "native_media_v2" in request.payload:
@@ -1979,6 +1989,31 @@ class LocalJournal:
         if self.role not in {"converse", "decisions"}:
             raise PermissionError("Native capture metadata requires Converse or Decisions")
         return self.store.live_captures.source_state(reference)
+
+    async def live_decisions_attempt_lookup(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live inference requires Decisions")
+        return self.store.live_decisions_attempts.lookup(request)
+
+    async def live_decisions_attempt_admit(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live inference requires Decisions")
+        return self.store.live_decisions_attempts.admit(request)
+
+    async def live_decisions_attempt_finish(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live inference requires Decisions")
+        return self.store.live_decisions_attempts.finish(request)
+
+    async def publish_live_decision(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live result publication requires Decisions")
+        return self.store.live_decisions_attempts.publish_result(request)
+
+    async def lookup_live_decision(self, request):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Live result inspection requires Converse or Decisions")
+        return self.store.live_decisions_attempts.lookup_publication(request)
 
     async def lookup_live_window(self, reference):
         if self.role != "converse":

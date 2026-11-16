@@ -334,6 +334,31 @@ class JournalClient:
 
         return await source(self, reference)
 
+    async def live_decisions_attempt_lookup(self, request):
+        from packages.contracts.live_decisions_client import lookup
+
+        return await lookup(self, request)
+
+    async def live_decisions_attempt_admit(self, request):
+        from packages.contracts.live_decisions_client import admit
+
+        return await admit(self, request)
+
+    async def live_decisions_attempt_finish(self, request):
+        from packages.contracts.live_decisions_client import finish
+
+        return await finish(self, request)
+
+    async def publish_live_decision(self, request):
+        from packages.contracts.live_decisions_client import publication
+
+        return await publication(self, "publish", request)
+
+    async def lookup_live_decision(self, request):
+        from packages.contracts.live_decisions_client import publication
+
+        return await publication(self, "publication", request)
+
     async def journal_wake_cursor(self):
         from packages.contracts.journal_wake import MAX_BYTES, JournalWakeCursor, wake_json
 

@@ -1,5 +1,7 @@
 """Native charged attempt CAS. No inspection record can grant provider entry."""
 
+from contextlib import contextmanager
+
 from packages.contracts.decisions import encoded
 from packages.contracts.decisions_attempts import (
     MAX_ATTEMPTS,
@@ -19,6 +21,27 @@ class DecisionsAttemptConflict(ValueError):
 
 
 class DecisionsAttemptStore:
+    CONTRACT_VERSION = 1
+    LOOKUP_TYPE = DecisionsAttemptLookup
+    ADMIT_TYPE = DecisionsAttemptAdmit
+    FINISH_TYPE = DecisionsAttemptFinish
+    ATTEMPT_TYPE = DecisionsAttempt
+    STATE_TYPE = DecisionsAttemptState
+
+    @staticmethod
+    def _binding(source):
+        return DecisionsSource.of(source)
+
+    @contextmanager
+    def _transaction(self):
+        with self.store.lock:
+            db = self.store.db
+            if db.in_transaction:
+                raise DecisionsAttemptConflict("Original journal transaction remains active")
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                yield db
+
     def __init__(self, store, max_attempts=2):
         if type(max_attempts) is not int or not 1 <= max_attempts <= MAX_ATTEMPTS:
             raise ValueError("decisions_max_attempts must be an integer from 1 to 16")
@@ -66,7 +89,7 @@ class DecisionsAttemptStore:
                 "SELECT value FROM decisions_attempts WHERE source_event_id=? AND attempt=?",
                 (source.event_id, charged),
             ).fetchone()
-            last = DecisionsAttempt.model_validate_json(raw[0])
+            last = self.ATTEMPT_TYPE.model_validate_json(raw[0])
             completion = last.completion
             state = (
                 "admitted"
@@ -87,8 +110,9 @@ class DecisionsAttemptStore:
             # Older best-effort inspection cannot prove absence or fund replay.
             # Preserve it unchanged; do not manufacture admissions from it.
             state = "legacy_uncertain"
-        return DecisionsAttemptState(
-            source=DecisionsSource.of(source),
+        return self.STATE_TYPE(
+            contract_version=self.CONTRACT_VERSION,
+            source=self._binding(source),
             state=state,
             max_attempts=limit,
             charged_attempts=charged,
@@ -96,7 +120,7 @@ class DecisionsAttemptStore:
         )
 
     def lookup(self, request):
-        request = DecisionsAttemptLookup.model_validate(request)
+        request = self.LOOKUP_TYPE.model_validate(request)
         with self.store.lock:
             return self._state(self._source(request.source))
 
@@ -120,11 +144,7 @@ class DecisionsAttemptStore:
                 else entry.event_id
             )
             resolved = self.store.resolve(original)
-            if (
-                binding == request.source
-                and resolved.payload.get("revision", 1) != binding.source_revision
-            ):
-                raise DecisionsAttemptConflict("Decisions source revision changed")
+            self._primary_revision(request, binding, resolved)
             floor = self.store._agent_source_scope(self.store.entry(original), resolved)
             if not scope_allowed(
                 request.provider,
@@ -132,11 +152,17 @@ class DecisionsAttemptStore:
             ):
                 raise DecisionsAttemptConflict("Decisions disclosure refused")
 
+    @staticmethod
+    def _primary_revision(request, binding, resolved):
+        if (
+            binding == request.source
+            and resolved.payload.get("revision", 1) != binding.source_revision
+        ):
+            raise DecisionsAttemptConflict("Decisions source revision changed")
+
     def admit(self, request):
-        request = DecisionsAttemptAdmit.model_validate(request)
-        db = self.store.db
-        with self.store.lock, db:
-            db.execute("BEGIN IMMEDIATE")
+        request = self.ADMIT_TYPE.model_validate(request)
+        with self._transaction() as db:
             source = self._source(request.source)
             prior = db.execute(
                 "SELECT * FROM decisions_attempts WHERE attempt_id=?", (request.attempt_id,)
@@ -145,7 +171,7 @@ class DecisionsAttemptStore:
             if prior:
                 if prior["admission_digest"] != fingerprint:
                     raise DecisionsAttemptConflict("Conflicting Decisions admission replay")
-                return DecisionsAttempt.model_validate_json(prior["value"])
+                return self.ATTEMPT_TYPE.model_validate_json(prior["value"])
             self._current(request, source)
             if db.execute(
                 "SELECT 1 FROM decisions_attempt_outcomes WHERE source_event_id=?",
@@ -168,7 +194,7 @@ class DecisionsAttemptStore:
             if state.state == "known_absent" and request.max_attempts is not None:
                 limit = min(limit, request.max_attempts)
             count = state.charged_attempts + 1
-            result = DecisionsAttempt(
+            result = self.ATTEMPT_TYPE(
                 admission=request, admission_sha256=fingerprint, attempt=count, completion=None
             )
             db.execute(
@@ -189,9 +215,7 @@ class DecisionsAttemptStore:
 
     def publish(self, request, role):
         """Serialize late original results against a published uncertainty refusal."""
-        db = self.store.db
-        with self.store.lock, db:
-            db.execute("BEGIN IMMEDIATE")
+        with self._transaction() as db:
             source = self.store.entry(request.causes[0])
             if (source.session_id, source.thread_id, source.epoch) != (
                 request.session_id,
@@ -213,17 +237,15 @@ class DecisionsAttemptStore:
             return result
 
     def finish(self, request):
-        request = DecisionsAttemptFinish.model_validate(request)
-        db = self.store.db
-        with self.store.lock, db:
-            db.execute("BEGIN IMMEDIATE")
+        request = self.FINISH_TYPE.model_validate(request)
+        with self._transaction() as db:
             self._source(request.source)
             row = db.execute(
                 "SELECT * FROM decisions_attempts WHERE attempt_id=?", (request.attempt_id,)
             ).fetchone()
             if row is None:
                 raise DecisionsAttemptConflict("Unknown original Decisions admission")
-            original = DecisionsAttempt.model_validate_json(row["value"])
+            original = self.ATTEMPT_TYPE.model_validate_json(row["value"])
             if (
                 original.admission.source,
                 original.admission.owner_id,

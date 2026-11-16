@@ -28,6 +28,7 @@ from packages.contracts import (
     journal_wake,
     live_captures,
     live_decisions,
+    live_decisions_attempts,
     live_windows,
     media,
     memory,
@@ -131,6 +132,21 @@ for name in (
     "LiveCaptureSourceState",
 ):
     cls = getattr(live_captures, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+# Live inference has explicit v2 source/admission/result bindings; v1 stays frozen.
+for name in (
+    "LiveDecisionsSource",
+    "LiveDecisionsAttemptLookup",
+    "LiveDecisionsAttemptAdmit",
+    "LiveDecisionsAttemptFinish",
+    "LiveDecisionsAttempt",
+    "LiveDecisionsAttemptState",
+    "LiveDecisionsPublication",
+    "LiveDecisionsOutcome",
+    "LiveDecisionsPublicationState",
+):
+    cls = getattr(live_decisions_attempts, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Owner policy requests are strict frozen models, separate from journal events.
