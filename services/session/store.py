@@ -229,6 +229,9 @@ class Store:
         from services.session.agent_control import AgentControl
 
         self.agent_control = AgentControl(self, new_store=new_store)
+        from services.session.live_captures import LiveCaptureStore
+
+        self.live_captures = LiveCaptureStore(self)
 
     def register_converse_context_validator(self, implementation_id, callback):
         """Trusted startup only; registration never imports a memory backend."""
@@ -1894,6 +1897,7 @@ class Store:
 
     def close(self):
         with self.lock:
+            self.live_captures.close()
             if not self.media_close_confirmed():
                 raise JournalError("Original native media cleanup is unconfirmed")
             self.db.close()
@@ -1950,6 +1954,31 @@ class LocalJournal:
         from services.session.live_windows import publish
 
         return publish(self.store, original)
+
+    async def live_capture_backend(self):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.backend()
+
+    async def register_live_capture(self, original):
+        if self.role != "converse":
+            raise PermissionError("Native capture registration requires Converse")
+        return self.store.live_captures.register(original)
+
+    async def lookup_live_capture(self, original):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.lookup(original)
+
+    async def fence_live_capture(self, request):
+        if self.role != "converse":
+            raise PermissionError("Native capture fence requires Converse")
+        return self.store.live_captures.fence(request)
+
+    async def live_capture_for_source(self, reference):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.source_state(reference)
 
     async def lookup_live_window(self, reference):
         if self.role != "converse":

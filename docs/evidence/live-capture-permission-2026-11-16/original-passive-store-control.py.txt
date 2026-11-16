@@ -1,0 +1,25 @@
+# Unchanged legacy standing-owner oracle; common fixtures are in its source test module.
+
+async def test_passive_store_journal_owner_reads_never_initialize_or_register(native_factory):
+    env = native_factory(register=False)
+    before = database_rows(env.store.db)
+    request = proposal(env)
+    observer = Store(env.path)
+    reader = StandingOwner(observer, observer.agent_control, clock=env.clock)
+    try:
+        assert await LocalJournal(observer, "agent").read() == []
+        for operation in [
+            lambda: reader.snapshot(FIRST),
+            reader.page,
+            lambda: reader.lookup(request),
+        ]:
+            with pytest.raises(StandingUnavailable):
+                operation()
+        assert database_rows(env.store.db) == before
+        assert not set(TABLES) & {
+            row[0]
+            for row in observer.db.execute("SELECT name FROM sqlite_schema WHERE type='table'")
+        }
+    finally:
+        reader.close()
+        observer.close()

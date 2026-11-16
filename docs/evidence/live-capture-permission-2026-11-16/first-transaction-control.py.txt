@@ -1,0 +1,24 @@
+# Frozen first control; common fixtures are in tests/integration/test_live_capture_permission.py.
+
+@pytest.mark.parametrize("operation", ["register", "fence", "initialize"])
+def test_refusing_an_existing_transaction_never_rolls_back_the_original_owner(env, operation):
+    request = registration(env)
+    db = env.store.db
+    db.execute("BEGIN IMMEDIATE")
+    db.execute(
+        "UPDATE sessions SET value=json_set(value,'$.name','public-uncommitted-owner') WHERE session_id=?",
+        (env.session.session_id,),
+    )
+    try:
+        if operation == "initialize":
+            assert LiveCaptureStore(env.store).failed
+        else:
+            with pytest.raises(ValueError):
+                getattr(env.store.live_captures, operation)(
+                    request if operation == "register" else fence(request)
+                )
+        assert db.in_transaction
+        assert env.store.session(env.session.session_id).name == "public-uncommitted-owner"
+        assert db.execute("SELECT count(*) FROM live_captures").fetchone()[0] == 0
+    finally:
+        db.rollback()

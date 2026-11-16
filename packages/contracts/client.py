@@ -309,6 +309,31 @@ class JournalClient:
 
         return await latest(self, scope)
 
+    async def live_capture_backend(self):
+        from packages.contracts.live_capture_client import backend
+
+        return await backend(self)
+
+    async def register_live_capture(self, original):
+        from packages.contracts.live_capture_client import state
+
+        return await state(self, "register", original)
+
+    async def lookup_live_capture(self, original):
+        from packages.contracts.live_capture_client import state
+
+        return await state(self, "lookup", original)
+
+    async def fence_live_capture(self, request):
+        from packages.contracts.live_capture_client import fence
+
+        return await fence(self, request)
+
+    async def live_capture_for_source(self, reference):
+        from packages.contracts.live_capture_client import source
+
+        return await source(self, reference)
+
     async def journal_wake_cursor(self):
         from packages.contracts.journal_wake import MAX_BYTES, JournalWakeCursor, wake_json
 
