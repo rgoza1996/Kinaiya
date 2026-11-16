@@ -2,7 +2,7 @@
   "issue": 623,
   "branch": "codex/623-adaptive-host-integration",
   "base": "aaf2cfa49853232949493ea77e0a551e4fbd34ae",
-  "state": "Local focused and final broader qualification passed. Feature gate off; no normal launcher/Call/consumer/default enablement.",
+  "state": "Original local96focused/1932broader runs passed on04659. First fullCI43962368497 failed the omitted184aggregate selector(#669);3.11 also observed a missing inspection response(#670). Fresh361focused checks pass on3.13and3.14 after explicitselector/finishownership fixes. Fresh2035broader pass on3.13. AdaptiveLiveoff.",
   "focused": [
     {
       "utc": "2026-11-16T21:25:31.876975+00:00",
@@ -394,5 +394,7 @@
     "result": "1932 passed; one existing Starlette warning",
     "log": "broader-313.log"
   },
-  "final_current_inputs_verified": 896
+  "qualification_baseline": "04659d966d75afe4afd51c65abafdd4743adf824",
+  "legacy_aggregate_correction": "The original local commands did not execute the184aggregate test. Original568-schema byte preservation remains verified; do not interpret the separate7-schema attempt-family test as that aggregate.",
+  "original_qualified_baseline_input_count": 896
 }

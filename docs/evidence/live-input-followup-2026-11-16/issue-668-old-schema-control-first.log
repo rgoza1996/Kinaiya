@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_old_codecs_schema_bytes_and_depth_limits_are_preserved __________
+tests/unit/test_standing_resource_finalization_contracts.py:672: in test_old_codecs_schema_bytes_and_depth_limits_are_preserved
+    assert schema_pin() == (184, OLD_SCHEMA_HASH)
+E   AssertionError: assert (195, '51ce52...1e83cf591ce3') == (184, '21351c...d8035257328a')
+E     
+E     At index 0 diff: 195 != 184
+E     Use -v to get more diff
+=========================== short test summary info ============================
+FAILED tests/unit/test_standing_resource_finalization_contracts.py::test_old_codecs_schema_bytes_and_depth_limits_are_preserved
+1 failed in 0.22s

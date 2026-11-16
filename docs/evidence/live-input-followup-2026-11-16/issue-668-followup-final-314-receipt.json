@@ -1,0 +1,30 @@
+{
+  "utc": "2026-11-16T22:45:20.524288+00:00",
+  "args": [
+    "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/integration/test_live_stream_api.py",
+    "tests/integration/test_live_stream_capture.py",
+    "tests/integration/test_live_mic_capture.py",
+    "tests/integration/test_live_decisions_readiness.py",
+    "tests/integration/test_required_decisions_readiness.py",
+    "tests/integration/test_incremental_stream_ownership.py",
+    "tests/integration/test_incremental_stream_publications.py",
+    "tests/integration/test_incremental_whistle_converse.py",
+    "tests/unit/test_live_stream_contracts.py",
+    "tests/unit/test_decisions_attempt_schema_exports.py",
+    "tests/integration/test_native_d1_selection.py",
+    "tests/integration/test_decisions_inspection.py",
+    "tests/unit/test_standing_resource_finalization_contracts.py",
+    "tests/unit/test_native_d1_provider.py",
+    "-q",
+    "--tb=short"
+  ],
+  "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+  "exit_code": 0,
+  "elapsed": 78.52499325300596,
+  "input_count": 896,
+  "inputs_unchanged": true,
+  "log_sha256": "b6bc112672f08e86f81eee9021ae60ecf1ea32f14cd828b04de458f52c6049c1"
+}

@@ -618,7 +618,8 @@ def schema_pin():
     }
     # Bounded pending discovery has a separately pinned additive pair.
     additive |= {"LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"}
-    # #669: preserve the frozen184 aggregate while pinning each new family.
+    # #623's gated mic/readiness family has a separate eleven-file pin.
+    # Preserve the original184 count/hash and every legacy codec limit.
     additive |= {
         "LiveDecisionsReadiness",
         "LiveStreamCapability",
@@ -631,6 +632,9 @@ def schema_pin():
         "LiveStreamLookup",
         "LiveStreamProof",
         "LiveStreamCancellation",
+    }
+    # Native consumer ownership has its own independently pinned family.
+    additive |= {
         "LiveEffectQuery",
         "LiveEffectAdmit",
         "LiveEffectReceipt",

@@ -1,0 +1,30 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_native_capture_finish_keeps_original_http_through_slow_ack[False-False] _
+tests/integration/test_native_d1_selection.py:510: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    assert result["agent_route"] == "START_NEW_TASK"
+E   AssertionError: assert 'QUEUE_UNTIL_TASK_DONE' == 'START_NEW_TASK'
+E     
+E     - START_NEW_TASK
+E     + QUEUE_UNTIL_TASK_DONE
+_ test_native_capture_finish_keeps_original_http_through_slow_ack[False-True] __
+tests/integration/test_native_d1_selection.py:510: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    assert result["agent_route"] == "START_NEW_TASK"
+E   AssertionError: assert 'QUEUE_UNTIL_TASK_DONE' == 'START_NEW_TASK'
+E     
+E     - START_NEW_TASK
+E     + QUEUE_UNTIL_TASK_DONE
+_ test_native_capture_finish_keeps_original_http_through_slow_ack[True-False] __
+tests/integration/test_native_d1_selection.py:516: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    assert not cancelled and not settled.is_set()
+E   assert (not [True])
+__ test_native_capture_finish_keeps_original_http_through_slow_ack[True-True] __
+tests/integration/test_native_d1_selection.py:516: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    assert not cancelled and not settled.is_set()
+E   assert (not [True])
+=========================== short test summary info ============================
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[False-False]
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[False-True]
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[True-False]
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[True-True]
+4 failed in 3.76s
