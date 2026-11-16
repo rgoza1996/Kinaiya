@@ -150,32 +150,51 @@ void main() {
       final held = Completer<http.Response>(), writes = CoreSubsystemWrites();
       Map<String, Object?>? original;
       var fenced = false;
-      http.Client factory() => MockClient((request) async {
-        sent.add(request);
-        if (request.method == 'GET') return reply(f['snapshot']);
-        final body = jsonDecode(request.body) as Map<String, Object?>;
-        if (request.url.path.endsWith('/lookup')) {
-          expect(body, original);
-          return reply({
-            ...(f['lookup_before'] as Map<String, Object?>),
-            'request_sha256': CoreSubsystemChange.fromJson(body).digest,
-            'mutation_fenced': fenced,
-          });
-        }
-        original = body;
-        return held.future;
-      });
+      http.Client factory() {
+        // Exercise legal synchronous acquisition latency under the native budget.
+        // A tiny fixture-wide budget can expire before reaching the held save.
+        final acquiring = Stopwatch()..start();
+        while (acquiring.elapsed < const Duration(milliseconds: 50)) {}
+        return MockClient((request) async {
+          sent.add(request);
+          if (request.method == 'GET') return reply(f['snapshot']);
+          final body = jsonDecode(request.body) as Map<String, Object?>;
+          if (request.url.path.endsWith('/lookup')) {
+            expect(body, original);
+            return reply({
+              ...(f['lookup_before'] as Map<String, Object?>),
+              'request_sha256': CoreSubsystemChange.fromJson(body).digest,
+              'mutation_fenced': fenced,
+            });
+          }
+          original = body;
+          return held.future;
+        });
+      }
+
       final api = CoreSubsystemApi(
         baseUrl: 'http://127.0.0.1:8760',
         ownerToken: 'public-uncertain-core-owner',
-        resultTimeout: const Duration(milliseconds: 20),
         clientFactory: factory,
       );
       addTearDown(api.close);
       await showCore(tester, api, writes);
       await choose(tester, CoreSubsystemMode.all.label);
       await tester.tap(find.text('Save for next launch'));
-      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump();
+      expect(
+        original,
+        isNotNull,
+        reason: 'Observe the original admission before advancing its deadline',
+      );
+      expect(
+        sent
+            .where((r) => r.method == 'POST' && !r.url.path.endsWith('/lookup'))
+            .length,
+        1,
+      );
+      // Expire the existing native ten-second result budget for the held save.
+      await tester.pump(const Duration(seconds: 11));
       await tester.pumpAndSettle();
       expect(find.text('Check save status'), findsOneWidget);
       expect(

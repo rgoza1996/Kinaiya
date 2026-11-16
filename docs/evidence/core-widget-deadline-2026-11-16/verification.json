@@ -1,0 +1,18 @@
+{
+  "issue": 652,
+  "base": "22f26e8069b7eaf9c260c71215d962f2642732e8",
+  "first_full": "output/issue-623-flutter-all-second.log",
+  "negative_control": {
+    "command": "flutter test --no-pub --reporter expanded test/core_subsystems_options_652_control_test.dart --plain-name \"uncertain original survives navigation and reconnect, lookup never resends it\"",
+    "result": "1 failed before target save admission",
+    "log_sha256": "d853e934ba38414e8fa2d0e67d7613ba36f5e24a8252ac1c7ca480a7b4686cad",
+    "controlled_fixture_sha256": "8615baa0b014746ab73aed4204a2098a61e00ee276b753908abdcdafd213e176"
+  },
+  "positive": {
+    "command": "flutter test --no-pub --reporter expanded test/core_subsystems_options_test.dart",
+    "result": "5 passed",
+    "log_sha256": "cfb11e24a603d70ef9cafd46543cf0e0fe599a6f794915e03e2d60fbb7694cdb"
+  },
+  "native_transport_sha256": "f2c5373d797413f7532dc588320ab02261c1daff22054cbf39bc68c161e8888b",
+  "scope": "test-only; native result deadline remains ten seconds; cleanup and transport bounds unchanged; historical first failure cause not inferred from control"
+}
