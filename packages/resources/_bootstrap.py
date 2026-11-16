@@ -17,6 +17,11 @@ import re
 import signal
 import sys
 
+if __package__:
+    from ._bootstrap_protocol import BOOTSTRAP_ENTRY, BOOTSTRAP_ENTRY_FLAG
+else:
+    from _bootstrap_protocol import BOOTSTRAP_ENTRY, BOOTSTRAP_ENTRY_FLAG
+
 MAX_CONFIG_BYTES = 1048576
 GRANT_BYTE = b"\x01"
 _ENV_KEY_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,255}")
@@ -70,15 +75,25 @@ def _valid_cfg(cfg: object, nonce: str) -> tuple[list[str], str, dict[str, str]]
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
+    args = sys.argv
+    report_entry = len(args) == 5 and args[-1] == BOOTSTRAP_ENTRY_FLAG
+    if report_entry:
+        args = args[:-1]
+    if len(args) != 4:
         _die(2)
-    _, grant_s, config_s, nonce = sys.argv
+    _, grant_s, config_s, nonce = args
     try:
         grant_fd, config_fd = int(grant_s), int(config_s)
     except ValueError:
         _die(2)
     if len(nonce) != 32 or any(c not in "0123456789abcdef" for c in nonce.lower()):
         _die(2)
+    if report_entry:
+        try:
+            if os.write(1, BOOTSTRAP_ENTRY) != len(BOOTSTRAP_ENTRY):
+                _die(2)
+        except OSError:
+            _die(2)
     try:
         data = os.read(grant_fd, 1)
     except OSError:
