@@ -86,6 +86,27 @@ the same boundary is tracked in [#620](https://github.com/rgoza1996/Kinaiya/issu
 This does not establish the same cause as that issue's earlier JPEG failure.
 Four manual-only jobs were skipped. Both first failure logs are retained.
 
+The subsequent documentation-head run
+[43765825209](https://github.com/rgoza1996/Kinaiya/actions/runs/43765825209)
+on `7b59e84ce7b1a8116cec285c923c9321506e6803` passes seven standard jobs,
+including 14,989 cases on each of 3.11, 3.13 and 3.14. Python 3.12 reports
+14,988 passed and one failure in the selected-window oracle-exhaustion negative
+control, with nine skips, 49 live deselections and two subtests. The native
+capture remained `started` after its bounded best-effort finish; this is unknown,
+not proof of terminal error. [#643](https://github.com/rgoza1996/Kinaiya/issues/643)
+retains that failure and the conservative test-only correction merged in
+[PR #644](https://github.com/rgoza1996/Kinaiya/pull/644). The positive oracle still
+fails on that uncertainty and cannot advance to another observation.
+
+The resumed branch integrates main32d5fb7a and the private trusted-bootstrap
+entry protocol in [PR #647](https://github.com/rgoza1996/Kinaiya/pull/647), alongside
+the passive standing/media observations and isolated Dart fixture. This is a
+changed runtime/test composition; the prior failures remain retained rather
+than counted as passing runs. A fresh full local and hosted qualification is
+required for this composition. PR #647 must land through its own checks before
+this additive lane merges. No historical failure cause or physical target
+qualification follows from the controlled entry-ordering tests alone.
+
 The SDK-generated analyzer-file change is tracked in
 [#637](https://github.com/rgoza1996/Kinaiya/issues/637). That file and the existing
 GUI recovery test's generated receipt were preserved as post-run artifacts and
