@@ -37,3 +37,33 @@ attempts, and their count must not be treated as a native allowance or billing
 claim. Live-window and finalized production accounting retain their existing
 separate contracts. No production source, currentness deadline, provider retry,
 confidence policy, native limit or runtime recovery behavior changes.
+
+## Unconfirmed inspection finish (#643)
+
+A bounded capture finish is best effort. If its write is unconfirmed, the native
+row may remain `started`, which the inspection contract calls unknown. The
+positive selection oracle now raises the specific test-only
+`UnconfirmedSelectionCapture` failure after checking the original call, source,
+model pin, observation ordinal, empty output, zero provider requests, zero native
+reservations and no routing event. It neither fabricates an error completion nor
+permits another diagnostic observation. All other invalid evidence still fails
+the original assertions.
+
+The exhaustion negative control proves either three confirmed pre-dispatch
+refusals or an earlier conservative stop on unconfirmed inspection. It checks the
+exact distinct failure and capture states in each case. It does not accept an
+arbitrary AssertionError. This does not relax the positive oracle: catalog,
+request/output binding and successful classification still require the original
+completed capture and exactly one provider request.
+
+The first hosted 3.12 failure in PR #636/run 43765825209 is retained: the bounded
+native currentness refusal was followed by a `started` capture, and the old
+negative control failed its terminal-error assertion (14,988 other cases passed).
+Its particular finish failure cause remains unproven. Controlled actual
+Session/SQLite/JournalClient cases hold the finish before commit or only its
+acknowledgement after commit. Before commit, unknown inspection stops the
+positive oracle without a provider request or fresh observation; after commit,
+the retained error proof permits the existing single successful provider request.
+The first three controlled cases give two failures and one pass with the old
+oracle. Separate evidence records final checks and source/log hashes. No
+production deadline, retry, native admission or model behavior changes.
