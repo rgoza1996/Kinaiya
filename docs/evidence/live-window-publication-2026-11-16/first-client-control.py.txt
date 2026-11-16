@@ -30,4 +30,3 @@ async def test_client_retains_frozen_original_when_callers_mutate_nested_v1_requ
     finally:
         release.set()
         await client.close()
-

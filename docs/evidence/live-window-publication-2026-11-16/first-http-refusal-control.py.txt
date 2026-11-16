@@ -39,4 +39,3 @@ async def test_legacy_http_boundary_reports_native_refusal_without_server_error(
         response = await client.post("/v1/transcript/entries", json=data)
     assert response.status_code == 409
     assert response.json()["detail"]
-

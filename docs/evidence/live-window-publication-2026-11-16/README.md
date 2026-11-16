@@ -25,19 +25,19 @@ with the same existing warning and all 862 inputs unchanged.
 
 Four first failures were recorded in #623 before repairs:
 
-- Native row columns:3 failed / 14 passed in1.90s. Serialized request/value and
+- Native row columns: 3 failed / 14 passed in 1.90s. Serialized request/value and
   event/sequence agreed, but protected native thread/epoch/kind disagreement was
   accepted. The repair bounds and compares all relevant native columns. Frozen
   [first controls](first-native-controls.py.txt) retain the original assertions.
-- Caller mutation:1 failed / 109 passed in10.15s. A caller could mutate the nested v1
+- Caller mutation: 1 failed / 109 passed in 10.15s. A caller could mutate the nested v1
   request after actual send, changing the response comparison. The client now
   detaches its original before any HTTP effect. The frozen
   [client control](first-client-control.py.txt) retains the held original response.
-- Direct legacy append:2 failed / 1 passed in0.45s. Backlog filtering prevented old
+- Direct legacy append: 2 failed / 1 passed in 0.45s. Backlog filtering prevented old
   admission, but direct native v1 decisions/status could claim a live source.
   Both old publication kinds now refuse an annotated source. The frozen
   [protocol control](first-v1-controls.py.txt) preserves both cases.
-- HTTP refusal mapping:3 failures in 1.40s. The new guards raised outside the old
+- HTTP refusal mapping: 3 failures in 1.40s. The new guards raised outside the old
   JournalError boundary, producing 500 for native refusal or malformed windows.
   The repair preserves the original v1 payload validation and maps native live
   refusal to JournalError/409. The [HTTP control](first-http-refusal-control.py.txt)
