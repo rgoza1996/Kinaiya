@@ -668,5 +668,6 @@ require('./audio_output_selection.test.js');
 
 // Native capture and input discovery stay covered by the CI entry point.
 require('./native_call_input_selection.test.js');
+require('./incremental_pcm_capture.test.js');
 require('./input_discovery_feedback.test.js');
 require('./audio_input_feedback_adversarial.test.js');

@@ -1,0 +1,64 @@
+{
+  "source": "actual trusted bridge over public synthetic WebAudio fixture; no physical microphone or model",
+  "before": {
+    "capture_epoch": 1,
+    "sample_rate": 16000,
+    "buffered_samples": 5,
+    "received_samples": 5,
+    "sample_offset": 0,
+    "next_sequence": 1,
+    "active": true,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  },
+  "packet": {
+    "capture_epoch": 1,
+    "sequence": 1,
+    "sample_offset": 0,
+    "sample_count": 5,
+    "sample_rate": 16000,
+    "user_speaking": true,
+    "pcm16_base64": "AAD/PwDA/38AgA=="
+  },
+  "after": {
+    "capture_epoch": 1,
+    "sample_rate": 16000,
+    "buffered_samples": 0,
+    "received_samples": 5,
+    "sample_offset": 5,
+    "next_sequence": 2,
+    "active": true,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  },
+  "stopped": {
+    "capture_epoch": 1,
+    "sample_rate": 16000,
+    "buffered_samples": 0,
+    "received_samples": 5,
+    "sample_offset": 5,
+    "next_sequence": 2,
+    "active": false,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  },
+  "released": {
+    "capture_epoch": null,
+    "sample_rate": 16000,
+    "buffered_samples": 0,
+    "received_samples": 0,
+    "sample_offset": 0,
+    "next_sequence": 1,
+    "active": false,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  }
+}

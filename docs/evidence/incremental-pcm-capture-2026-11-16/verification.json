@@ -1,0 +1,63 @@
+{
+  "issue": 623,
+  "base": "dfc7013b7459e3f87a540eb989bd53ffe7419747",
+  "status": "optional adapter foundation; Adaptive Live off; no native/call integration",
+  "sdk": "existing pinned Flutter3.47.8/Dart3.13.7",
+  "private_source_matches": true,
+  "source_sha256": {
+    "apps/kinaiya_flutter/lib/audio/incremental_pcm.dart": "41c9f89eedae6dd3b561bff51eef5e83047a67310e0b8adca75001cd629ac506",
+    "apps/kinaiya_flutter/lib/audio/speech_audio.dart": "cad5e95ab7b9c7c3cfbe436aa4ad2a420e93b8eefa18b1e5f2390f5bb42e4cb8",
+    "apps/kinaiya_flutter/lib/audio/speech_audio_web.dart": "254fc6b40efeff5ef42ef9a96450746091fe6fa9dbe6cdf6cb06c1285d5c4c50",
+    "apps/kinaiya_flutter/test/fixtures/incremental_pcm_bridge.json": "2d9e9f776fe3f5a7939fd5d3dcffedd1d884b02d356c6e510584e26c49792651",
+    "apps/kinaiya_flutter/test/incremental_pcm_bridge_fixture_test.dart": "ec0791cede20e7c048beaded0c84ec459c53c3dd9bf0b5a14250582602e4962d",
+    "apps/kinaiya_flutter/test/incremental_pcm_test.dart": "fa3e51cf0a984d9e3a67c2e964f07756ea3887ba927c20c74cb4bd6d959ba38a",
+    "apps/kinaiya_flutter/web/audio_bridge.js": "63dc5adcf4141f20c548b38e11b8e82daaaee5de471e710b602ef183ccf2e2a9",
+    "apps/kinaiya_flutter/web/audio_bridge.test.js": "fd9d3d96f8b86fec8625dd373545f80df949bd588ff68d8305b03dd28a8da391",
+    "apps/kinaiya_flutter/web/incremental_pcm_capture.test.js": "4def6e5491c26876559e51881e09aa27d6a79ea9be0c968ab3f6f92dda22c5e1",
+    "apps/kinaiya_flutter/web/native_call_input_selection.test.js": "052d8c138c103104be54ce16e62495494d57d96f09684c0ac9a6e8e090af84be"
+  },
+  "checks": [
+    {
+      "command": "node --test web/audio_bridge.test.js",
+      "result": "120passed; synthetic WebAudio;3079.56ms",
+      "log": "output/issue-623-incremental-pcm-wake.log",
+      "log_sha256": "ef7fe02a07be682c2c4e5a77884003cbe5004f8faaa1fa6f9e0c025a3620ca21"
+    },
+    {
+      "command": "flutter test --no-pub --reporter expanded",
+      "result": "1522passed,2opt-in-native-skips;74s; before separate bridge fixture addition",
+      "log": "output/issue-623-pcm-flutter-full-first.log",
+      "log_sha256": "35b62714e4c45aa7053aa35c913d58be3bb8d9c00701516fd98342316fb14d52"
+    },
+    {
+      "command": "flutter test --no-pub --reporter expanded test/incremental_pcm_bridge_fixture_test.dart test/incremental_pcm_test.dart",
+      "result": "7passed; final source review, all ten changed files match private SDK copy",
+      "log": "output/issue-623-pcm-final-review-codecs.log",
+      "log_sha256": "fcefa81e482239463f66a55207f262bb30553648edc1bff802b2920d0a69335e"
+    },
+    {
+      "command": "flutter build web --release --no-web-resources-cdn --no-pub",
+      "result": "passed45.0s; Wasm dry run passed; existing CupertinoIcons warning",
+      "log": "output/issue-623-pcm-web-build-first.log",
+      "log_sha256": "26e0e45aac093d73768f221232eb73cd94fe3fc0223d4f8795dfed24045d335e"
+    },
+    {
+      "command": "dart format --output=none --set-exit-if-changed lib test",
+      "result": "300files;0changed",
+      "log": "output/issue-623-pcm-final-review-format.log",
+      "log_sha256": "e62b64f0a2d52f2c494bed314e91d26af23527d59d8bb40fa040557fd7c7ead3"
+    },
+    {
+      "command": "flutter analyze --no-pub",
+      "result": "No issues found",
+      "log": "output/issue-623-pcm-final-review-analysis.log",
+      "log_sha256": "16ef87fa4123e4d6a2b5652cf39813fd4395c70aa7ec461de3df4f13070cefdc"
+    }
+  ],
+  "first_control": {
+    "log": "output/issue-623-incremental-pcm-first.log",
+    "sha256": "fa8857f8b22596164722c8dc3913369196977b6927f9e3601d60504ce9fa7ced",
+    "result": "six new API cases failed;16existing native cases passed"
+  },
+  "limits": "no physical microphone/model/native ASR, publication, echo, segment rollover, complete scheduler/backchannel or runtime default qualification; no installed-owner promotion"
+}

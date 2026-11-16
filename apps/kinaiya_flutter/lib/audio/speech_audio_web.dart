@@ -31,10 +31,79 @@ class _WebSpeechAudio
         SpeechPlaybackAudio,
         AdaptiveVadAudio,
         NativePcmCaptureAudio,
+        IncrementalPcmCaptureAudio,
         AudioInputSelection,
         AudioOutputSelection {
   bool get _ready => _bridge != null;
   bool _nativePcmEnabled = false;
+
+  @override
+  bool get supportsIncrementalPcmCapture =>
+      const [
+        'streamPcmConfigure',
+        'streamPcmState',
+        'streamPcmPeek',
+        'streamPcmAck',
+        'streamPcmWait',
+        'streamPcmRelease',
+      ].every((name) {
+        final method = _bridge?.getProperty<JSAny?>(name.toJS);
+        return method != null && method.isA<JSFunction>();
+      });
+
+  @override
+  Future<void> configureIncrementalPcmCapture(bool enabled) async {
+    if (!supportsIncrementalPcmCapture ||
+        await _str1('streamPcmConfigure', enabled.toJS) !=
+            (enabled ? 'stream-pcm' : 'legacy')) {
+      throw StateError(
+        'Incremental microphone configuration was not confirmed',
+      );
+    }
+  }
+
+  @override
+  Future<IncrementalPcmState> incrementalPcmState() async =>
+      IncrementalPcmState.fromJson(jsonDecode(await _str0('streamPcmState')));
+
+  @override
+  Future<IncrementalPcmPacket?> peekIncrementalPcm() async {
+    final raw = await _str0('streamPcmPeek');
+    return raw.isEmpty ? null : IncrementalPcmPacket.fromJson(jsonDecode(raw));
+  }
+
+  void _captureEpoch(int epoch) {
+    if (epoch < 1 || epoch > maxIncrementalPcmEpoch) {
+      throw const FormatException('Invalid incremental capture identity');
+    }
+  }
+
+  @override
+  Future<IncrementalPcmState> waitIncrementalPcm(int captureEpoch) async {
+    _captureEpoch(captureEpoch);
+    return IncrementalPcmState.fromJson(
+      jsonDecode(await _str1('streamPcmWait', captureEpoch.toString().toJS)),
+    );
+  }
+
+  @override
+  Future<void> acknowledgeIncrementalPcm(IncrementalPcmPacket original) async {
+    if (await _str1('streamPcmAck', jsonEncode(original.identity).toJS) !=
+        'confirmed') {
+      throw StateError(
+        'Captured PCM acknowledgment did not match its original',
+      );
+    }
+  }
+
+  @override
+  Future<void> releaseIncrementalPcm(int captureEpoch) async {
+    _captureEpoch(captureEpoch);
+    if (await _str1('streamPcmRelease', captureEpoch.toString().toJS) !=
+        'released') {
+      throw StateError('Incremental capture retirement was not confirmed');
+    }
+  }
 
   @override
   bool get supportsVadSettings {

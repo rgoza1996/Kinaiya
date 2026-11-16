@@ -48,10 +48,13 @@ function fixture(options = {}) {
     stop() { this.stops++; queueMicrotask(()=>this.onended && this.onended()); }
   }
   class Context {
-    constructor() { this.sampleRate=16000; this.currentTime=1; this.state='running';
+    constructor() { this.sampleRate=options.sampleRate || 16000; this.currentTime=1; this.state='running';
       this.destination={}; this.sinkId=''; seen.context=this; }
     resume() { this.state='running'; return Promise.resolve(); }
-    close() { this.state='closed'; return Promise.resolve(); }
+    close() {
+      if (options.closeGate) return options.closeGate.promise.then(()=>{this.state='closed';});
+      this.state='closed'; return Promise.resolve();
+    }
     setSinkId(id) { this.sinkId=id; return Promise.resolve(); }
     createMediaStreamSource() { return new Source(); }
     createGain() { return {gain:{value:1},connect(){},disconnect(){}}; }
@@ -341,3 +344,6 @@ test('pending fresh enumeration has one original and disposal fences its late re
   assert.notEqual(joined[1].value,'armed');
   assert.equal(f.seen.gets.length,0);
 });
+
+// Shared public WebAudio/mediaDevices fixture; no candidate-private bridge state.
+module.exports = { fixture, gate };
