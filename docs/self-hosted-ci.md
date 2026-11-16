@@ -294,3 +294,20 @@ behavioral coverage.
 References: [GitHub service setup](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/configure-the-application),
 [job hooks](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/run-scripts),
 [runner requirements](https://docs.github.com/en/actions/reference/runners/self-hosted-runners).
+
+
+## Automatic main qualification queue (#649)
+
+Automatic pushes to `refs/heads/main` share a workflow-specific concurrency
+group: a newer main revision supersedes the older automatic matrix. PRs and
+explicit manual qualifications use independent run IDs, so this policy does
+not cancel those runs. This follows GitHub's [workflow concurrency contract](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency).
+
+The initial queue audit found seventeen nonterminal main-push runs, including
+one from the previous day. Sixteen obsolete heads were verified as ancestors
+of current main72f2a9ac before cancellation was requested; its current run
+43843486864 and all PR/manual qualifications were retained. The original queue
+and cancellation requests are recorded under [issue649](https://github.com/rgoza1996/Kinaiya/issues/649). A cancelled status is not a passing qualification or proof
+that original processes physically stopped. Subsequent work must pass the
+existing host-owned admission and cleanup boundaries. Runner permissions,
+isolation, interpreter pins, suite coverage and deadlines remain unchanged.

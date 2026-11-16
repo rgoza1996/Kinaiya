@@ -22,6 +22,11 @@ on:
         default: both
 permissions:
   contents: read
+# Only newer automatic main qualification supersedes an older automatic run.
+# PRs and explicit manual qualifications retain independent run identities.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 jobs:
   runner-smoke:
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'smoke'
