@@ -48,6 +48,7 @@
     output: { revision: 0, listing: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
     input: { revision: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
     nativePcm: { enabled: false, ctx: null, source: null, node: null, sink: null, closing: null, failed: false, recording: false, heard: false, overflow: false, chunks: [], samples: 0, pre: [], preSamples: 0 },
+    incrementalPcm: { enabled: false, fifo: null, lastEpoch: 0, speaking: false },
     waiters: [], // pending awaitPlayback resolvers.
     armed: false,
     clip: { recording: false, startMs: 0 },
@@ -102,7 +103,7 @@
   // Kinaiya owns capture and playback separately from the prototype's UI state.
   function updateNoise(vad, level, now) {
     if (!vad.adaptive) return;
-    var idle = !vad.speaking && !state.windows.speaking && !state.playing;
+    var idle = !vad.speaking && !state.windows.speaking && !state.incrementalPcm.speaking && !state.playing;
     var quiet = level < Math.max(vad.noise * 2.2 + 0.006, vad.noise * 2 + 0.008);
     if (!idle || (!quiet && !vad.calibrationPending && vad.calibratingUntil === null)) {
       vad.idleNoiseSamples = [];
@@ -372,8 +373,10 @@
 
   function stopTracks() {
     state.micGeneration++;
+    state.incrementalPcm.speaking = false;
     pumpStop();
     stopNativePcm().catch(function () {});
+    notifyStreamPcm();
     if (state.stream) {
       try {
         var tracks = state.stream.getTracks();
@@ -503,7 +506,7 @@
 
   function micConstraints(selected) {
     var audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-    if (state.nativePcm.enabled) audio.channelCount = 1;
+    if (state.nativePcm.enabled || state.incrementalPcm.enabled) audio.channelCount = 1;
     if (selected !== null) audio.deviceId = { exact: selected };
     return { audio: audio };
   }
@@ -570,7 +573,101 @@
     return n.closing;
   }
 
+  function freshStreamPcm() {
+    var s = state.incrementalPcm;
+    var epoch = Math.max(state.vad.epoch, s.lastEpoch + 1);
+    if (!Number.isSafeInteger(epoch) || epoch < 1) throw new Error('Capture identity unavailable');
+    state.vad.epoch = s.lastEpoch = epoch;
+    s.speaking = false;
+    // One fixed PCM allocation also bounds object count and avoids a callback-
+    // sized chunk list or growing work when a slow consumer catches up.
+    s.fifo = { epoch: epoch, samples: new Int16Array(960000), buffered: 0, received: 0,
+      offset: 0, sequence: 1, pending: null, acknowledged: null, fault: null, waiter: null };
+  }
+
+  function notifyStreamPcm() {
+    var f = state.incrementalPcm.fifo;
+    if (!f || !f.waiter) return;
+    var original = f.waiter; f.waiter = null;
+    original.resolve(api.streamPcmState());
+  }
+
+  function streamPcmFault(reason) {
+    var f = state.incrementalPcm.fifo;
+    if (!f || f.fault) return;
+    f.fault = reason;
+    pushEvent({ type: 'stream-pcm-fault', reason: reason, epoch: f.epoch });
+    // Capture stops locally without clearing the original PCM or claiming that
+    // the asynchronous context close (or a native STT operation) has settled.
+    api.stopArmed().catch(function () {});
+  }
+
+  function incrementalSamples(samples) {
+    var f = state.incrementalPcm.fifo;
+    if (!state.armed || !f || f.fault) return;
+    if (!(samples instanceof Float32Array) || samples.length < 1 || samples.length > 16384) {
+      streamPcmFault('invalid_pcm'); return;
+    }
+    for (var i = 0; i < samples.length; i++) {
+      if (!Number.isFinite(samples[i])) { streamPcmFault('invalid_pcm'); return; }
+    }
+    // Match the existing Whistle stream's declared sixty-second sample bound.
+    // Never evict a prefix, overwrite a pending packet, or send a partial block.
+    if (f.received + samples.length > 960000) { streamPcmFault('stream_limit'); return; }
+    for (var j = 0; j < samples.length; j++) {
+      var value = clamp(samples[j], -1, 1);
+      f.samples[f.received + j] = value < 0 ? value * 32768 : value * 32767;
+    }
+    f.buffered += samples.length; f.received += samples.length;
+    notifyStreamPcm();
+  }
+
+  function streamPcmPacket() {
+    var s = state.incrementalPcm, f = s.fifo;
+    if (!f) return '';
+    if (f.pending) return JSON.stringify(f.pending);
+    if (!f.buffered) return '';
+    // Reserve the final native sequence for finish; PCM and finish share the
+    // existing 1..100000 request counter. This is not an inference cadence.
+    if (f.sequence >= 100000) { streamPcmFault('sequence_limit'); return ''; }
+    var count = Math.min(f.buffered, 16000);
+    var bytes = new Uint8Array(count * 2), view = new DataView(bytes.buffer);
+    for (var i = 0; i < count; i++) {
+      view.setInt16(i * 2, f.samples[f.offset + i], true);
+    }
+    var binary = '';
+    for (var at = 0; at < bytes.length; at += 8192) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(at, at + 8192));
+    }
+    f.pending = { capture_epoch: f.epoch, sequence: f.sequence,
+      sample_offset: f.offset, sample_count: count, sample_rate: 16000,
+      user_speaking: s.speaking, pcm16_base64: btoa(binary) };
+    return JSON.stringify(f.pending);
+  }
+
+  function samePcmOriginal(left, right) {
+    return left && right && left.capture_epoch === right.capture_epoch &&
+      left.sequence === right.sequence && left.sample_offset === right.sample_offset &&
+      left.sample_count === right.sample_count;
+  }
+
+  function acknowledgeStreamPcm(raw) {
+    var f = state.incrementalPcm.fifo, original;
+    if (!f || typeof raw !== 'string' || raw.length > 512) return 'mismatch';
+    try { original = JSON.parse(raw); } catch (e) { return 'mismatch'; }
+    if (!original || typeof original !== 'object' || Array.isArray(original) ||
+        Object.keys(original).sort().join(',') !== 'capture_epoch,sample_count,sample_offset,sequence' ||
+        Object.keys(original).some(function (key) { return !Number.isSafeInteger(original[key]); })) return 'mismatch';
+    if (samePcmOriginal(original, f.acknowledged)) return 'confirmed';
+    if (!samePcmOriginal(original, f.pending)) return 'mismatch';
+    f.samples.fill(0, f.offset, f.offset + f.pending.sample_count);
+    f.offset += f.pending.sample_count; f.buffered -= f.pending.sample_count;
+    f.sequence++; f.acknowledged = original; f.pending = null;
+    return 'confirmed';
+  }
+
   function nativeSamples(samples) {
+    if (state.incrementalPcm.enabled) { incrementalSamples(samples); return; }
     var n = state.nativePcm;
     if (!state.armed || !n.enabled || n.failed || n.overflow || !samples || !samples.length) return;
     if (!Number.isInteger(samples.length) || samples.length > 16384) {
@@ -867,7 +964,7 @@
   function pumpStart() {
     pumpStop();
     try {
-      var captureContext = state.nativePcm.enabled ? state.nativePcm.ctx : state.ctx;
+      var captureContext = state.nativePcm.enabled || state.incrementalPcm.enabled ? state.nativePcm.ctx : state.ctx;
       if (!captureContext || !state.stream) return;
       if (typeof captureContext.createAnalyser !== 'function') return;
       if (typeof window === 'undefined') return;
@@ -1001,6 +1098,45 @@
   }
 
   var api = {
+    streamPcmConfigure: function (enabled) {
+      var s = state.incrementalPcm, n = state.nativePcm;
+      if (typeof enabled !== 'boolean') return 'unavailable';
+      if (inputBusy() || s.fifo || n.closing) return 'busy';
+      if (enabled && (n.enabled || state.windows.enabled || n.failed || typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext))) return 'unavailable';
+      s.enabled = enabled;
+      return enabled ? 'stream-pcm' : 'legacy';
+    },
+    streamPcmState: function () {
+      var s = state.incrementalPcm, f = s.fifo, n = state.nativePcm;
+      return JSON.stringify({ capture_epoch: f ? f.epoch : null, sample_rate: 16000,
+        buffered_samples: f ? f.buffered : 0, received_samples: f ? f.received : 0,
+        sample_offset: f ? f.offset : 0, next_sequence: f ? f.sequence : 1,
+        active: !!(f && !f.fault && state.armed && n.node), fault: f ? f.fault : null,
+        cleanup_pending: !!(n.closing || state.micStop || state.micAcquire),
+        max_stream_samples: 960000, max_chunk_samples: 16000 });
+    },
+    streamPcmPeek: streamPcmPacket,
+    streamPcmAck: acknowledgeStreamPcm,
+    streamPcmWait: function (raw) {
+      var f = state.incrementalPcm.fifo;
+      if (typeof raw !== 'string' || !f || raw !== String(f.epoch)) return Promise.resolve('unavailable');
+      if (f.buffered || f.fault || !state.armed || !state.nativePcm.node) return Promise.resolve(api.streamPcmState());
+      if (!f.waiter) {
+        var original = { promise: null, resolve: null };
+        original.promise = new Promise(function (resolve) { original.resolve = resolve; });
+        f.waiter = original;
+      }
+      return f.waiter.promise;
+    },
+    streamPcmRelease: function (raw) {
+      var s = state.incrementalPcm, f = s.fifo;
+      if (typeof raw !== 'string' || !/^[1-9][0-9]{0,15}$/.test(raw) ||
+          !Number.isSafeInteger(Number(raw)) || !f || f.epoch !== Number(raw)) return 'mismatch';
+      if (inputBusy() || state.nativePcm.ctx || state.nativePcm.closing) return 'busy';
+      notifyStreamPcm();
+      s.fifo = null; s.speaking = false;
+      return 'released';
+    },
     inputDevices: listInputs,
     selectInput: function (id) { return changeInput(id, false); },
     defaultInput: function () { return changeInput(null, true); },
@@ -1008,6 +1144,7 @@
       var n = state.nativePcm;
       if (typeof enabled !== 'boolean') return 'unavailable';
       if (inputBusy() || n.closing) return 'busy';
+      if (state.incrementalPcm.enabled || state.incrementalPcm.fifo) return 'unavailable';
       if (enabled && (n.failed || typeof window === 'undefined' || !(window.AudioContext || window.webkitAudioContext))) return 'unavailable';
       n.enabled = enabled;
       return enabled ? 'native-pcm' : 'legacy';
@@ -1054,6 +1191,7 @@
     },
 
     startMic: function () {
+      if (state.incrementalPcm.enabled) return Promise.resolve('unavailable');
       api.stopAudio();
       return acquireMic(function () {
           startRecorderOnStream();
@@ -1380,9 +1518,12 @@
       var silence = (vad.adaptive ? clamp(vad.noise * 2.2 + 0.006, 0.012, 0.045) : 0.022) * factor;
       var speech = (vad.adaptive ? clamp(Math.max(silence / factor + 0.010, vad.noise * 3.4 + 0.012), 0.026, 0.085) : 0.035) * factor;
       var voice = r > speech || (vad.speaking && r >= silence);
-      if(state.windows.enabled){
-        state.windows.speaking=voice;
-        if(voice){state.windows.heard=true;state.windows.voices++;}
+      if(state.windows.enabled || state.incrementalPcm.enabled){
+        if (state.incrementalPcm.enabled) state.incrementalPcm.speaking = voice;
+        else {
+          state.windows.speaking=voice;
+          if(voice){state.windows.heard=true;state.windows.voices++;}
+        }
         return '';
       }
       // Barge timing is independent of ordinary turn-start confirmation.
@@ -1429,6 +1570,7 @@
     },
 
     startArmed: function () {
+      if (state.incrementalPcm.enabled && state.incrementalPcm.fifo && !state.armed) return Promise.resolve('unavailable');
       api.stopAudio();
       if (state.armed) return Promise.resolve('armed');
       return acquireMic(async function (micOwner) {
@@ -1436,8 +1578,15 @@
           if (micOwner !== state.micGeneration) throw new Error('Microphone stopped');
           state.armed = true;
           resetVadActivity(state.vad);
+          if (state.incrementalPcm.enabled) freshStreamPcm();
           queueNoiseCalibration(state.vad);
-          if (state.nativePcm.enabled) await startNativePcm(micOwner);
+          if (state.nativePcm.enabled || state.incrementalPcm.enabled) {
+            try { await startNativePcm(micOwner); }
+            catch (e) {
+              if (state.incrementalPcm.fifo) state.incrementalPcm.fifo.fault = 'capture_unavailable';
+              throw e;
+            }
+          }
           if (micOwner !== state.micGeneration) throw new Error('Microphone stopped');
           pumpStart();
           if(state.windows.enabled && !(await startWindowCapture())){
@@ -1484,6 +1633,7 @@
     },
 
     beginClip: function () {
+      if (state.incrementalPcm.enabled) return Promise.resolve('busy');
       if (state.nativePcm.enabled) {
         var n = state.nativePcm;
         if (!state.armed || !state.stream || n.failed || n.closing) return Promise.resolve('not-armed');
@@ -1512,14 +1662,14 @@
     captureEpoch: function () { return String(state.vad.epoch); },
 
     windowConfigure: function(enabled){
-      if (enabled === true && state.nativePcm.enabled) return 'unavailable';
+      if (enabled === true && (state.nativePcm.enabled || state.incrementalPcm.enabled)) return 'unavailable';
       state.windows.enabled=enabled===true;
       if(!state.windows.enabled)stopWindowCapture();
       return state.windows.enabled?'windows':'legacy';
     },
     windowSnapshot: function(){return windowWav();},
     windowSpeaking: function(){return state.windows.speaking?'yes':'no';},
-    nextWindowUtterance: function(){resetWindow();state.vad.epoch++;return String(state.vad.epoch);},
+    nextWindowUtterance: function(){if(state.incrementalPcm.enabled)return 'unavailable';resetWindow();state.vad.epoch++;return String(state.vad.epoch);},
 
     finishClip: function () {
       if (state.nativePcm.enabled) return Promise.resolve(finishNativeClip());

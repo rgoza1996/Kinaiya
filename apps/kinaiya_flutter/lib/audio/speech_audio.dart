@@ -6,8 +6,10 @@ library;
 export 'speech_mouth.dart';
 export 'speech_playback.dart';
 export 'vad_settings.dart';
+export 'incremental_pcm.dart';
 
 import 'vad_settings.dart';
+import 'incremental_pcm.dart';
 
 import 'speech_audio_stub.dart'
     if (dart.library.js_interop) 'speech_audio_web.dart'
@@ -105,6 +107,21 @@ abstract interface class AudioOutputSelection {
 abstract interface class NativePcmCaptureAudio {
   bool get supportsNativePcmCapture;
   Future<void> configureNativePcmCapture(bool enabled);
+}
+
+/// Optional contiguous mono16k PCM16 input. Configuration never acquires a mic.
+/// Peek retains one exact packet until local acknowledgment; that acknowledgment
+/// must follow the caller's independent native publication proof. Wait retains
+/// one notification until input or retirement, without polling/replacement.
+/// Release is a local buffer operation, never proof of native STT retirement.
+abstract interface class IncrementalPcmCaptureAudio {
+  bool get supportsIncrementalPcmCapture;
+  Future<void> configureIncrementalPcmCapture(bool enabled);
+  Future<IncrementalPcmState> incrementalPcmState();
+  Future<IncrementalPcmPacket?> peekIncrementalPcm();
+  Future<IncrementalPcmState> waitIncrementalPcm(int captureEpoch);
+  Future<void> acknowledgeIncrementalPcm(IncrementalPcmPacket original);
+  Future<void> releaseIncrementalPcm(int captureEpoch);
 }
 
 /// Session-local preference, not proof that a microphone has been acquired.
