@@ -17,6 +17,7 @@ enum SettingsDomain {
   standing,
   standingDispatch,
   coreSubsystems,
+  converseCapture,
 }
 
 class OwnedSettingsFailure implements Exception {
@@ -61,6 +62,7 @@ class OwnedSettingsTransport {
     SettingsDomain.standing => 'Standing work',
     SettingsDomain.standingDispatch => 'Standing dispatch',
     SettingsDomain.coreSubsystems => 'Core subsystem settings',
+    SettingsDomain.converseCapture => 'Converse capture mode',
   };
   String get _connectionLabel => switch (domain) {
     SettingsDomain.model => 'model',
@@ -69,6 +71,7 @@ class OwnedSettingsTransport {
     SettingsDomain.standing => 'standing work',
     SettingsDomain.standingDispatch => 'standing dispatch',
     SettingsDomain.coreSubsystems => 'Core subsystem settings',
+    SettingsDomain.converseCapture => 'Converse capture mode',
   };
   int get _requestBytes => domain == SettingsDomain.standing ? 131072 : 4096;
   int get _responseBytes => switch (domain) {

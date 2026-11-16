@@ -19,6 +19,7 @@ final session = SessionInfo(
 );
 
 class WindowApi extends ControlledApi {
+  WindowApi() : super(captureMode: 'rolling_windows');
   List<SessionInfo> listedSessions = [session];
   final received = <Map<String, Object?>>[];
   final entries = <JournalEntry>[];
@@ -139,7 +140,7 @@ void main() {
     testWidgets(
       'typed conversation stays pinned for rolling Call (reconnect=$reconnect)',
       (tester) async {
-        final api = WindowApi();
+        var api = WindowApi();
         final audio = WindowAudio();
         final state = AppState()
           ..connect(ConnectionProfile.defaults(), injected: api);
@@ -162,6 +163,7 @@ void main() {
         );
         if (reconnect) {
           state.disconnect();
+          api = WindowApi()..listedSessions = [session, typed];
           state.connect(state.connection!, injected: api);
           // Typed mode's existing acquisition restores its selected session.
           await state.ensureSession('converse', name: 'Kinaiya');

@@ -25,6 +25,7 @@ import 'agent_model_settings.dart';
 import 'agent_runtime_client.dart';
 import 'agent_runtime_settings.dart';
 import 'core_subsystems_client.dart';
+import 'capture_modes_client.dart';
 import 'agent_control_client.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
@@ -111,6 +112,7 @@ class KinaiyaClient {
     http.Client Function()? agentRuntimeClientFactory,
     http.Client Function()? agentControlClientFactory,
     http.Client Function()? coreSubsystemClientFactory,
+    http.Client Function()? captureModeClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -160,7 +162,12 @@ class KinaiyaClient {
            coreSubsystemClientFactory ??
            (httpClient == null
                ? http.Client.new
-               : _coreSubsystemInjectionRequired);
+               : _coreSubsystemInjectionRequired),
+       _captureModeClientFactory =
+           captureModeClientFactory ??
+           (httpClient == null
+               ? http.Client.new
+               : _captureModeInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -367,6 +374,16 @@ class KinaiyaClient {
     clientFactory: _coreSubsystemClientFactory,
   );
 
+  final http.Client Function() _captureModeClientFactory;
+  static http.Client _captureModeInjectionRequired() => throw StateError(
+    'Capture Mode settings require an independently injected transport',
+  );
+  late final CaptureModeApi captureModes = CaptureModeApi(
+    baseUrl: converseBase,
+    ownerToken: _token,
+    clientFactory: _captureModeClientFactory,
+  );
+
   Future<ConverseSetup> converseSetup() async =>
       ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
 
@@ -407,6 +424,7 @@ class KinaiyaClient {
     http.Client Function()? agentRuntimeClientFactory,
     http.Client Function()? agentControlClientFactory,
     http.Client Function()? coreSubsystemClientFactory,
+    http.Client Function()? captureModeClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -440,7 +458,9 @@ class KinaiyaClient {
        _agentControlClientFactory =
            agentControlClientFactory ?? _controlInjectionRequired,
        _coreSubsystemClientFactory =
-           coreSubsystemClientFactory ?? _coreSubsystemInjectionRequired {
+           coreSubsystemClientFactory ?? _coreSubsystemInjectionRequired,
+       _captureModeClientFactory =
+           captureModeClientFactory ?? _captureModeInjectionRequired {
     _mockLabel = label;
   }
 
@@ -1211,6 +1231,7 @@ class KinaiyaClient {
       unawaited(runtimeSettings.close());
       unawaited(agentControl.close());
       unawaited(coreSubsystems.close());
+      unawaited(captureModes.close());
       artifacts.close();
     }
   }

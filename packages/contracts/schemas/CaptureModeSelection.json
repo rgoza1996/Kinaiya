@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "enum": [
+        "host",
+        "saved"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "adaptive_live",
+            "rolling_windows",
+            "legacy_silence"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mode"
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "title": "CaptureModeSelection",
+  "type": "object"
+}

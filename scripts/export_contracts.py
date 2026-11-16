@@ -13,6 +13,7 @@ from packages.contracts import (
     auxiliary_attempts,
     auxiliary_routes,
     capability_settings,
+    capture_modes,
     companion,
     context,
     context_usage,
@@ -93,6 +94,11 @@ for name in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    capture_modes.CaptureModeSelection,
+    capture_modes.CaptureModeChange,
+    capture_modes.CaptureModeSnapshot,
+    capture_modes.CaptureModeReceipt,
+    capture_modes.CaptureModeLookup,
     subsystem_readiness.DecisionsReadiness,
     core_subsystems.CoreSubsystemSelection,
     core_subsystems.CoreSubsystemChange,

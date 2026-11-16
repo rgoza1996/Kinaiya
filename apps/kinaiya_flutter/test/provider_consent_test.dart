@@ -9,6 +9,8 @@
 /// never submit. All transports are synthetic; no inference runs.
 library;
 
+import 'capture_mode_fixtures.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -119,12 +121,13 @@ Future<AppState> verifiedState({
 /// Counting fake for widget denial tests: every inference submission is
 /// observable, so denial means an exact zero.
 class ConsentClient extends KinaiyaClient {
-  ConsentClient()
+  ConsentClient({String captureMode = 'legacy_silence'})
     : super(
         sessionBase: 'http://127.0.0.1:8760',
         agentBase: 'http://127.0.0.1:8761',
         converseBase: 'http://127.0.0.1:8762',
         ownerToken: 'synthetic',
+        captureModeClientFactory: captureModeFixtureFactory(captureMode),
         artifactClientFactory: () => throw StateError(
           'UI artifacts are unavailable in this synthetic consent fixture',
         ),

@@ -8,13 +8,15 @@ import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 
 import 'live_capture_test.dart' show CaptureAudio;
+import 'capture_mode_fixtures.dart';
 
 class ResourceApi extends KinaiyaClient {
   ResourceApi()
     : super(
         sessionBase: 'http://fixture',
         agentBase: 'http://fixture',
-        converseBase: 'http://fixture',
+        converseBase: 'http://127.0.0.1:8762',
+        captureModeClientFactory: captureModeFixtureFactory('legacy_silence'),
         ownerToken: 'synthetic',
       );
   String controller = 'first';

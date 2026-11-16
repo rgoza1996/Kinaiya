@@ -1180,6 +1180,21 @@ def serve(args):
         )
         if runtime.native_audio is not None and windows is None:
             raise ValueError("Native buffered audio requires Decisions window routing")
+        from services.converse.capture_settings import (
+            CaptureModeSettings,
+            configured_capture_default,
+        )
+
+        try:
+            runtime.capture_settings = CaptureModeSettings(
+                lambda: configured_capture_default(
+                    config, rolling=windows is not None, native=runtime.native_audio is not None
+                ),
+                path=args.data_dir.resolve() / "converse-capture-mode.sqlite",
+                workspace=args.workspace.resolve(),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime._capture_options_unavailable = True
         app = create_app(runtime, auth, speech, windows, setup=setup)
 
         @asynccontextmanager

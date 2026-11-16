@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:kinaiya_flutter/api/client.dart';
 import 'package:kinaiya_flutter/api/models.dart';
 import 'package:kinaiya_flutter/audio/speech_audio.dart';
@@ -9,17 +10,23 @@ import 'package:kinaiya_flutter/config/connection.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
 
+import 'capture_mode_fixtures.dart';
+
 class ControlledApi extends KinaiyaClient {
-  ControlledApi()
-    : super(
-        sessionBase: 'http://fixture',
-        agentBase: 'http://fixture',
-        converseBase: 'http://fixture',
-        ownerToken: 'synthetic',
-        artifactClientFactory: () => throw StateError(
-          'UI artifacts are unavailable in this synthetic capture fixture',
-        ),
-      );
+  ControlledApi({
+    String captureMode = 'legacy_silence',
+    http.Client Function()? captureFactory,
+  }) : super(
+         sessionBase: 'http://fixture',
+         agentBase: 'http://fixture',
+         converseBase: 'http://127.0.0.1:8762',
+         ownerToken: 'synthetic',
+         captureModeClientFactory:
+             captureFactory ?? captureModeFixtureFactory(captureMode),
+         artifactClientFactory: () => throw StateError(
+           'UI artifacts are unavailable in this synthetic capture fixture',
+         ),
+       );
   final transcription = Completer<Map<String, Object?>>();
   int interrupts = 0;
   @override

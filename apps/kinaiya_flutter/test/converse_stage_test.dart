@@ -17,6 +17,7 @@ import 'package:kinaiya_flutter/ui/visual_theme.dart';
 import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'client_test.dart' show mockTransport;
+import 'capture_mode_fixtures.dart';
 
 // Synthetic audio adapter with controllable capabilities and no service or
 // model calls. Mirrors the existing test fakes without importing them.
@@ -100,7 +101,8 @@ class StageApi extends KinaiyaClient {
     : super(
         sessionBase: 'http://fixture',
         agentBase: 'http://fixture',
-        converseBase: 'http://fixture',
+        converseBase: 'http://127.0.0.1:8762',
+        captureModeClientFactory: captureModeFixtureFactory('legacy_silence'),
         ownerToken: 'synthetic',
         httpClient: mockTransport(commandsMissing: false),
         memoryClientFactory:
@@ -393,7 +395,10 @@ void main() {
     expect(audio.cancels, 0);
     expect(audio.clips, 1);
 
+    // The current Call keeps animating. Scroll without waiting for it to end.
     // Changing silence uses the real handler and persists across reopen.
+    await tester.ensureVisible(find.byType(DropdownButton<int>));
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byType(DropdownButton<int>));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));

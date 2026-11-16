@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kinaiya_flutter/api/client.dart';
 
+import 'capture_mode_fixtures.dart';
+
 class RedirectProbe extends http.BaseClient {
   final requests = <http.BaseRequest>[];
   @override
@@ -125,6 +127,7 @@ KinaiyaClient mockClient({bool commandsMissing = true}) => KinaiyaClient.mock(
   sessionBase: 'http://127.0.0.1:8760',
   agentBase: 'http://127.0.0.1:8761',
   converseBase: 'http://127.0.0.1:8762',
+  captureModeClientFactory: captureModeFixtureFactory('legacy_silence'),
   mockTransport: mockTransport(commandsMissing: commandsMissing),
 );
 

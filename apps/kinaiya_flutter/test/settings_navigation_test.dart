@@ -20,11 +20,13 @@ import 'package:kinaiya_flutter/character/package.dart';
 import 'package:kinaiya_flutter/state/app_state.dart';
 import 'package:kinaiya_flutter/ui/agent_chat.dart';
 import 'package:kinaiya_flutter/ui/character_view.dart';
+import 'package:kinaiya_flutter/ui/voice_options.dart';
 import 'package:kinaiya_flutter/ui/settings_controls.dart';
 import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'converse_stage_test.dart' show StageAudio;
 import 'model_setup_test.dart' show setupFixture;
+import 'capture_mode_fixtures.dart';
 
 Future<CharacterSelection> selection(WidgetTester tester) async =>
     (await tester.runAsync(() => loadDefaultCharacterSelection(rootBundle)))!;
@@ -75,6 +77,7 @@ class NavigationFixture {
     sessionBase: 'http://localhost:8760',
     agentBase: 'http://localhost:8761',
     converseBase: 'http://localhost:8762',
+    captureModeClientFactory: captureModeFixtureFactory('legacy_silence'),
     ownerToken: 'public-synthetic-owner',
     httpClient: transport,
     memoryClientFactory: () => MockClient(respond),
@@ -359,11 +362,12 @@ void main() {
     final stale = controls.openVoiceOptions!;
     final opened = stale();
     await routePump(tester);
+    final staleSilence = tester
+        .widget<VoiceOptionsSheet>(find.byType(VoiceOptionsSheet))
+        .onSilenceChanged;
     state.value = second;
     await tester.pump();
-    await tester.tap(find.byType(DropdownButton<int>));
-    await routePump(tester);
-    await tester.tap(find.text('0.8s').last);
+    staleSilence(800);
     await routePump(tester);
     expect(audio.lastVad, isNull);
     await tester.tap(find.byTooltip('Close voice options'));
