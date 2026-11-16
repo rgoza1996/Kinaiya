@@ -80,7 +80,11 @@
   "static_checks": {
     "ruff_check": "passed: python -m ruff check .",
     "ruff_format": "passed: python -m ruff format --check .;1173files",
-    "diff": "passed: git diff --check",
+    "diff": {
+      "unfiltered": "FAILED: git diff HEAD^ HEAD --check at5c98a719; only byte-exact pytest/CI log artifacts contain trailing whitespace",
+      "source_and_prose": "passed: git diff HEAD^ HEAD --check -- . :!docs/evidence/live-input-followup-2026-11-16/*.log",
+      "rationale": "Keep original first-failure/workflow bytes intact. This scoped source/prose result does not claim the raw artifacts pass whitespace style checks."
+    },
     "export": "passed: python -m scripts.export_contracts; all568prior schemas unchanged and no schema diff from04659"
   },
   "ci_original": {

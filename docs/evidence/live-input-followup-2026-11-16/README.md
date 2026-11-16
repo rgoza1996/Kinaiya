@@ -45,7 +45,11 @@ The broader Python 3.13 regression passed **2,035 cases in 543.69s**, also
 with one existing Starlette warning. All three runs used the same 896 unchanged
 Python inputs identified by
 [python-input-sha256.json](python-input-sha256.json). Full Ruff and a 1,173-file
-format check, schema export and diff check passed. The receipts contain the
+format check and schema export passed. The unfiltered staged whitespace check
+failed on trailing spaces in the byte-exact original pytest/CI log artifacts;
+those bytes are preserved. The source/prose check excluding only this directory's
+raw `.log` artifacts passed. This distinction corrects the earlier overly broad
+diff-check claim. The receipts contain the
 exact commands and log hashes. Counts overlap and are not unique coverage.
 
 Only `packages/contracts/client.py` changes production Python relative to the
