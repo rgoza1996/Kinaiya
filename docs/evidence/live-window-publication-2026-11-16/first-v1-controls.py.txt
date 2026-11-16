@@ -1,0 +1,33 @@
+# Frozen first control; fixture helpers are in tests/integration/test_live_window_publication*.py.
+
+@pytest.mark.parametrize("kind", ["routing.window_decided", "routing.window_status"])
+def test_native_v1_publication_cannot_claim_a_live_v2_source(env, kind):
+    from packages.contracts.models import WindowDecision
+
+    source = publish(env.store, original(env)).source
+    common = dict(
+        source_event_id=source.event_id, source_sequence=source.sequence, source_revision=1
+    )
+    payload = (
+        WindowDecision(
+            **common,
+            conversation="WAIT_FOR_NEXT_WINDOW",
+            agent_route="IGNORE_FOR_IMMEDIATE_ROUTING",
+        ).model_dump(mode="json")
+        if kind == "routing.window_decided"
+        else common | {"phase": "classifying", "reason": "public_synthetic_control", "attempt": 1}
+    )
+    with pytest.raises(ValueError):
+        env.store.append(
+            AppendRequest(
+                session_id=source.session_id,
+                thread_id=source.thread_id,
+                epoch=source.epoch,
+                kind=kind,
+                payload=payload,
+                causes=[source.event_id],
+                idempotency_key="public-old-worker-publication",
+            ),
+            "decisions",
+        )
+

@@ -56,6 +56,7 @@ ALLOWED_KINDS = {
         "delivery.updated",
     },
     "converse": {
+        "conversation.window_capture",
         "conversation.user",
         "conversation.window",
         "conversation.converse",
@@ -168,6 +169,12 @@ class Store:
                 WHERE kind='routing.window_status';
             CREATE INDEX IF NOT EXISTS entries_window_backlog ON entries(session_id, sequence)
                 WHERE kind='conversation.window';
+            CREATE INDEX IF NOT EXISTS entries_live_capture_source ON entries(
+                json_extract(value,'$.payload.source_event_id'),sequence)
+                WHERE kind='conversation.window_capture' AND writer='converse';
+            CREATE INDEX IF NOT EXISTS entries_live_capture_scope ON entries(
+                session_id,epoch,json_extract(value,'$.payload.original.utterance_id'),sequence)
+                WHERE kind='conversation.window_capture' AND writer='converse';
             CREATE TABLE IF NOT EXISTS cursors(
                 writer TEXT NOT NULL, consumer TEXT NOT NULL, sequence INTEGER NOT NULL,
                 PRIMARY KEY(writer,consumer));
@@ -852,10 +859,13 @@ class Store:
         if pin is not None and session.channel != "converse":
             raise JournalError("Memory context requires a Converse session")
         if request.kind == "conversation.window":
+            from services.session.live_windows import guard_window
+
             try:
                 window = SpeechWindow.model_validate(request.payload)
             except ValueError as exc:
                 raise JournalError("Invalid transcript-window payload") from exc
+            guard_window(self, request, window)
             if window.stt_model is not None and role != "converse":
                 raise JournalError(
                     "Only native Converse audio admission may publish STT provenance"
@@ -877,11 +887,18 @@ class Store:
                     raise JournalError("Window revision must increase by one")
             elif window.revision != 1:
                 raise JournalError("The first window revision must be one")
+        elif request.kind == "conversation.window_capture":
+            from services.session.live_windows import validate_capture
+
+            validate_capture(self, request, role)
         elif request.kind == "routing.window_decided":
             try:
                 decision = WindowDecision.model_validate(request.payload)
             except ValueError as exc:
                 raise JournalError("Invalid window decision payload") from exc
+            from services.session.live_windows import guard_legacy_decision
+
+            guard_legacy_decision(self, decision.source_event_id)
             source = self.resolve(decision.source_event_id)
             if (
                 source.kind != "conversation.window"
@@ -930,6 +947,9 @@ class Store:
                 )
             ):
                 raise JournalError("Invalid window status payload")
+            from services.session.live_windows import guard_legacy_decision
+
+            guard_legacy_decision(self, source_id)
             source = self.entry(source_id)
             if (
                 source.kind != "conversation.window"
@@ -1019,6 +1039,8 @@ class Store:
         return event
 
     def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if request.kind == "conversation.window_capture":
+            raise JournalError("Capture annotations require native live publication")
         if isinstance(request.payload, dict) and "native_media_v2" in request.payload:
             raise JournalError("Native media publications require the original publication owner")
         if request.kind == "agent.standing-command":
@@ -1390,6 +1412,11 @@ class Store:
                         ) AS session_position
                     FROM entries e JOIN sessions s ON s.session_id=e.session_id
                     WHERE e.kind='conversation.window'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM entries c WHERE c.kind='conversation.window_capture'
+                          AND c.writer='converse'
+                          AND json_extract(c.value,'$.payload.source_event_id')=+e.event_id
+                      )
                       AND e.epoch=json_extract(s.value,'$.epoch')
                       AND json_extract(s.value,'$.channel')='converse'
                       AND NOT EXISTS (
@@ -1916,6 +1943,31 @@ class LocalJournal:
 
     async def append(self, request):
         return self.store.append(request, self.role)
+
+    async def publish_live_window(self, original):
+        if self.role != "converse":
+            raise PermissionError("Live publication requires Converse")
+        from services.session.live_windows import publish
+
+        return publish(self.store, original)
+
+    async def lookup_live_window(self, reference):
+        if self.role != "converse":
+            raise PermissionError("Live publication lookup requires Converse")
+        from services.session.live_windows import lookup
+
+        return lookup(self.store, reference)
+
+    async def latest_live_window(self, scope):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Live source selection requires Converse or Decisions")
+        from packages.contracts.live_windows import LiveWindowScope
+        from services.session.live_windows import latest
+
+        scope = LiveWindowScope.model_validate(scope, strict=True)
+        return latest(
+            self.store, scope.session_id, scope.thread_id, scope.epoch, scope.utterance_id
+        )
 
     async def lookup_authorization_revocation(self, request):
         if self.role != "agent":
