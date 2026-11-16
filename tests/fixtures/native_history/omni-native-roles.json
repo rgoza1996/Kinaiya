@@ -1,0 +1,12 @@
+{
+  "scope": "Original public synthetic local Omni Q4 capture; replay only, no model-quality score",
+  "raw_bytes": 287028,
+  "raw_sha256": "4297b740b8c6097043b562651abbd5df4ec136b7cdf3b8c722da3d184cce1e73",
+  "input_pcm_sha256": "4a0e13e3b8ef4a95e6e79ca1d200bf1bff6e87a8dc501c58fd68f2c32dd7f0fd",
+  "output_pcm_sha256": "81a14cda5ec5725e3545b7571af984a66770863e415e94d441e70443d1160b2c",
+  "output_text_sha256": "3e87a6fe8935bbc1e72c9a38278f10b41c7a95f56b0d698784aabb0374922f31",
+  "history_mode": "native_roles_v1",
+  "sample_rate": 24000,
+  "original_model_calls": 1,
+  "additional_model_calls_for_replay": 0
+}

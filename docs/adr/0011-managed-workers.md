@@ -120,8 +120,11 @@ support refuses spawn.
 
 Configured code cannot run before parent ownership: each start spawns trusted
 `packages/resources/_bootstrap.py` via absolute path and `sys.executable`. Argv/env/cwd
-travel as bounded JSON in a sealed memfd; the command line carries only fd numbers and a
-fresh random nonce. The bootstrap blocks for a one-byte grant (EOF exits without exec),
+travel as bounded JSON in a sealed memfd; the command line carries fd numbers, a
+fresh random nonce and the private entry-framing option. The parent consumes the
+trusted helper's bounded stdout [entry prefix](../bootstrap-entry-protocol.md)
+within the original startup budget before native identity verification. Entry
+is neither identity nor permission. The bootstrap blocks for a one-byte grant (EOF exits without exec),
 then validates bounded JSON/nonce, closes control fds, and `os.execve`s the configured
 absolute executable with the validated minimal env/cwd. The parent verifies pidfd
 bind-back, ppid/session/group/starttime, and the bootstrap nonce around `pidfd_open`

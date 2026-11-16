@@ -1,0 +1,113 @@
+{
+  "base_commit": "8ca4060b7e30e76baaa5670ee1ec1b760b7f8552",
+  "base_source_clean": true,
+  "source_files": {
+    "tools/server/server-realtime.cpp": "ba0b95a23f3cbf66b2903ed7f2cb8f853af97bda55511be721af87a64c69bfd3",
+    "tools/server/server-realtime-history.h": "1e435ceb7de5bd18118f628ef8f47bab9333830445b5182f0dc3a07473fefe0b",
+    "tools/server/CMakeLists.txt": "274ecd42a8ac2327c6ffd4a9c6051c4145b6329ec131b6cb3676903dde9b26e9"
+  },
+  "commands": [
+    [
+      "/usr/bin/c++",
+      "-DGGML_BACKEND_SHARED",
+      "-DGGML_SHARED",
+      "-DGGML_USE_CPU",
+      "-DGGML_USE_CUDA",
+      "-DGGML_USE_HIP",
+      "-DLLAMA_SHARED",
+      "-DLLAMA_SUBPROCESS",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/tools/server",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/build/tools/server",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/tools/server/../mtmd",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/common/.",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/vendor/nlohmann/..",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/vendor/sheredom/..",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/src/../include",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/ggml/src/../include",
+      "-I/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/tools/mtmd/.",
+      "-O3",
+      "-DNDEBUG",
+      "-fPIC",
+      "-Wmissing-declarations",
+      "-Wmissing-noreturn",
+      "-Wall",
+      "-Wextra",
+      "-Wpedantic",
+      "-Wcast-qual",
+      "-Wno-unused-function",
+      "-Wno-array-bounds",
+      "-Wextra-semi",
+      "-o",
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/server-realtime.cpp.o",
+      "-c",
+      "/tmp/kinaiya-626-native-history-engine/tools/server/server-realtime.cpp"
+    ],
+    [
+      "/usr/bin/ar",
+      "r",
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/libserver-context.a",
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/server-realtime.cpp.o"
+    ],
+    [
+      "/usr/bin/ranlib",
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/libserver-context.a"
+    ],
+    [
+      "/usr/bin/c++",
+      "-fPIC",
+      "-O3",
+      "-DNDEBUG",
+      "-shared",
+      "-Wl,-soname,libllama-server-impl.so",
+      "-o",
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/bin/libllama-server-impl.so",
+      "CMakeFiles/llama-server-impl.dir/server.cpp.o",
+      "CMakeFiles/llama-server-impl.dir/server-connect.cpp.o",
+      "CMakeFiles/llama-server-impl.dir/server-http.cpp.o",
+      "CMakeFiles/llama-server-impl.dir/server-models.cpp.o",
+      "CMakeFiles/llama-server-impl.dir/server-models-sched.cpp.o",
+      "-Wl,-rpath,/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/build/bin:/opt/rocm/core-10.0/lib:/opt/rocm/lib:",
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/libserver-context.a",
+      "../ui/libllama-ui.a",
+      "../../vendor/cpp-httplib/libcpp-httplib.a",
+      "../../bin/libllama-common.so.0.7.0",
+      "../../common/libllama-common-base.a",
+      "../../bin/libmtmd.so.0.7.0",
+      "../../bin/libllama.so.0.7.0",
+      "../../bin/libggml.so.0.27.0",
+      "../../bin/libggml-cpu.so.0.27.0",
+      "../../bin/libggml-hip.so.0.27.0",
+      "../../bin/libggml-base.so.0.27.0",
+      "/usr/lib/x86_64-linux-gnu/libssl.so",
+      "/usr/lib/x86_64-linux-gnu/libcrypto.so",
+      "-Wl,-rpath-link,/opt/rocm/core-10.0/lib:/opt/rocm/lib",
+      "/home/roggoz/Disks/SN750/model-downloads/llama.cpp-lfm3-lab/build/vendor/hash/libvendor-hash.a"
+    ]
+  ],
+  "build_kind": "one private object; existing other objects/libraries, not a clean rebuild",
+  "passed": true,
+  "source_unchanged": true,
+  "files": [
+    {
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/server-realtime.cpp.o",
+      "bytes": 366696,
+      "sha256": "b2d9351bcf88f357d9ca297925a56bc14934a2ce89c6bffbc47933dfad764ade"
+    },
+    {
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/libserver-context.a",
+      "bytes": 4935228,
+      "sha256": "c76e9fd829bf14f5083d0f01f87d148a875fcb463cfb253e69a2fc1cae99df37"
+    },
+    {
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/bin/libllama-server-impl.so",
+      "bytes": 8020088,
+      "sha256": "3bbb9189340ddfb95d7187e0b3bea70991d5e5362085debbb08da981d48fc20d"
+    },
+    {
+      "path": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-626-native-history/engine-overlay-2/bin/llama-server",
+      "bytes": 17888,
+      "sha256": "b353986239f9dc432de8d3b563a0a0a5566693091661e0ee16e2c2d00b8b42a7"
+    }
+  ]
+}

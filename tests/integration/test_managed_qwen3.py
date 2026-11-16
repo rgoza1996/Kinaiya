@@ -776,9 +776,8 @@ async def test_actual_coordinator_revocation_wins_active_generation(native_env, 
         if action == "off"
         else {"operation": "handoff", "required_bytes": 128 * 1024**2}
     )
-    assert (await env.coordinator.action({**payload, "idempotency_key": "synthetic-" + action}))[
-        "ok"
-    ]
+    result = await env.coordinator.action({**payload, "idempotency_key": "synthetic-" + action})
+    assert result["ok"], result
     assert await consume(body) == [{"kind": "error", "code": "paused"}]
     assert env.broker.operation is None and not Path(f"/proc/{old.pid}").exists()
     with pytest.raises(HTTPException) as paused:

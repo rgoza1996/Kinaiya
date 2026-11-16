@@ -67,6 +67,13 @@ before writing the grant and positively closing its writer. Unsupported native
 ownership primitives fail closed. A spawn dispatched without a returned process
 facade stays unknown; absence of the facade cannot establish no child.
 
+Before identity verification, the retained original start task consumes the
+trusted helper's private stdout [entry prefix](bootstrap-entry-protocol.md).
+Scoped preparation spends its existing absolute startup deadline; legacy
+unscoped preparation gains no implicit timer. Observer cancellation retains the
+same original, and a fence after entry still prevents a grant. The prefix does
+not establish identity, source permission, decoder readiness or settlement.
+
 Positive local settlement requires all original local owners and the native
 dependency gate. Outer reap, an empty process group, a response label or a
 timeout alone cannot settle it. Uncertain owners retain capacity. Registration

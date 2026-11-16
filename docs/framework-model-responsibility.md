@@ -26,6 +26,13 @@ not interchangeable probabilities or evidence of a universal routing quality.
 Defaults can suggest behavior; actual quality needs separately scoped model
 evaluation, including its first failures.
 
+Model answer quality is not a Kinaiya release or issue-closure gate. Typed,
+retained-window and native-media dialogue preserve generated text; English
+work-claim heuristics no longer substitute a fallback or suppress matching
+native speech. [Output fidelity](converse-output-fidelity.md) is a harness
+requirement. Generated claims remain untrusted and cannot become authenticated
+task state, outcomes, execution permission or delivery receipts.
+
 After a valid model selection, trusted native code still owns the deterministic
 contract: authenticated source/task/session/epoch/revision identity, retained
 transcripts and retrieval, queue/wait/steer/interrupt semantics, permissions,

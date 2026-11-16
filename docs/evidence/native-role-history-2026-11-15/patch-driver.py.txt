@@ -1,0 +1,20 @@
+from pathlib import Path
+import difflib,subprocess,hashlib,json
+engine=Path('/tmp/kinaiya-626-native-history-engine')
+root=Path('/tmp/kinaiya-626-native-history-roles')
+base='8ca4060b7e30e76baaa5670ee1ec1b760b7f8552'
+paths=['tools/server/server-realtime.cpp','tools/server/server-realtime-history.h','tools/server/CMakeLists.txt','tests/test-realtime-history.cpp','tests/realtime-history-8ca4060.inc','tests/CMakeLists.txt']
+parts=[];pins=[]
+for name in paths:
+    if name=='tools/server/server-realtime.cpp':
+        before=Path('/home/roggoz/Disks/SN750/Kinaiya/output/issue-483-2026-11-14-engine-overlay/server-realtime.cpp').read_text();old='a/'+name
+    else:
+        original=subprocess.run(['git','show',base+':'+name],cwd=engine,capture_output=True)
+        before=original.stdout.decode() if original.returncode==0 else '';old='a/'+name if original.returncode==0 else '/dev/null'
+    after=(engine/name).read_text()
+    parts.extend(difflib.unified_diff(before.splitlines(True),after.splitlines(True),fromfile=old,tofile='b/'+name,n=0))
+    pins.append({'path':name,'sha256':hashlib.sha256(after.encode()).hexdigest()})
+patch=''.join(parts)
+(root/'patches/llama-cpp/8ca4060-native-history.patch').write_text(patch)
+(root/'patches/llama-cpp/8ca4060-native-history-source.json').write_text(json.dumps({'base':base,'requires':'8ca4060-realtime-no-tools.patch','files':pins,'patch_sha256':hashlib.sha256(patch.encode()).hexdigest()},indent=2)+'\n')
+print({'files':len(pins),'patch_sha256':hashlib.sha256(patch.encode()).hexdigest()})

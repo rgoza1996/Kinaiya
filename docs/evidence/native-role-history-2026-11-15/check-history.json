@@ -1,0 +1,60 @@
+{
+  "checks": [
+    {
+      "log": "provider-before.log",
+      "sha256": "95e18be880b4a43b7edebce87e3f41ad6e6c32d3dc5a65a7a07f6502e0924518",
+      "result": "20 failed, 1 passed"
+    },
+    {
+      "log": "digest-and-metadata-before.log",
+      "sha256": "1fa01abeb033e6207a368d116e4c5d0cd98eb8cd192fb5fff3bd5c4a1e126f23",
+      "result": "14 failed, 11 passed"
+    },
+    {
+      "log": "empty-history-before.log",
+      "sha256": "90db927e7565945897d47b917a0ef0d2cba9542739d6fd080743f7ccc7b06e60",
+      "result": "2 failed, 23 deselected"
+    },
+    {
+      "log": "provider-after-1.log",
+      "sha256": "460e885b6587460fbebee15592b01170bd24a0ab8e9f5b14ff550d2e661e5750",
+      "result": "135 passed"
+    },
+    {
+      "log": "provider-after-2.log",
+      "sha256": "2c100226643520b69a7c77523db31150300cf551fa0460dde5611714f4081b73",
+      "result": "216 passed"
+    },
+    {
+      "log": "current-main-related.log",
+      "sha256": "83a5d078c4ac5c7eda3909b6dbfed8b0c85340ea84444022c29fee33adeefe9d",
+      "result": "589 passed"
+    },
+    {
+      "log": "empty-history-and-replay-after.log",
+      "sha256": "b6955b54222d633e17461e58c452501353ab32b0d4ccb31f0c6fddb35b482953",
+      "result": "221 passed"
+    },
+    {
+      "log": "current-main-final-related.log",
+      "sha256": "dc95e9b5e21155c407fb9c1e19767f23e6c788874901e9245d7b0925b2f6f3a2",
+      "result": "592 passed in 118.04s",
+      "modules": 14
+    }
+  ],
+  "model_generations": 1,
+  "additional_model_generations_for_fixes_or_replay": 0,
+  "semantic_quality_gate": false,
+  "static_checks": {
+    "ruff_check": "passed",
+    "ruff_format_check": "1040 files already formatted",
+    "schema_export_and_diff": "passed; schema bytes unchanged",
+    "git_diff_check": "passed"
+  },
+  "packaging_first_failure": {
+    "log": "patch-context-first-check.log",
+    "sha256": "f578ae1e490cb12518c00a203b6475b3f94e04e5b5d24b12c6ee4ece1a98f717",
+    "result": "git diff --cached --check: blank unified-context lines flagged as trailing whitespace",
+    "fix": "zero-context patch; identical six source digests; ordered whitespace=error application passes"
+  }
+}
