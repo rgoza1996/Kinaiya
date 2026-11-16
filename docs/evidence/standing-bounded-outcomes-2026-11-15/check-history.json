@@ -1,0 +1,77 @@
+{
+  "baseline": "548f85d84874b2b0d3366ffdb36f8c74aa880ae8",
+  "environment": {
+    "python": "3.12.3",
+    "architecture": "x86_64",
+    "sqlite": "3.45.1",
+    "httpx": "0.28.1",
+    "pydantic": "2.14.1"
+  },
+  "raw_logs": "local output/; SHA-256 of complete original logs",
+  "checks": [
+    {
+      "file": "issue-487-current-main-check.log",
+      "sha256": "aa33b1d22a81311a7d85e9aff8bc9b7bfe4c69ee31d8d28a5490f2ee22fd0a00",
+      "summary": "56 passed in 5.06s",
+      "interpretation": "Existing ordinary #487 repair already in current main, unchanged focused baseline."
+    },
+    {
+      "file": "issue-633-standing-contract-first.log",
+      "sha256": "f13de1600a41af994643eccd67b57ff9d7c1ec94e12b44d0ac8ea9ff2a3d1f40",
+      "summary": "25 failed in 0.28s",
+      "interpretation": "Frozen v2 constructor absent before implementation."
+    },
+    {
+      "file": "issue-633-standing-outcomes-first.log",
+      "sha256": "5f24c1d66266693a213b7880e6650e9e24369e68eabc960602be2304fd6a44c3",
+      "summary": "10 failed in 93.99s (0:01:33)",
+      "interpretation": "Nine oversized standing outcomes never attempted a POST; inline terminal status was not recovered."
+    },
+    {
+      "file": "issue-633-contract-after.log",
+      "sha256": "991b49ff8d1dd504b0a22743eacb284e1ed4d7ef6361167a2610792e327ee578",
+      "summary": "66 passed in 0.35s",
+      "interpretation": "Ordinary and standing contract checks after implementation."
+    },
+    {
+      "file": "issue-633-native-after.log",
+      "sha256": "9c3af97cb0ae275e133e1646fd2e6a6b1dd71950c767fb25ca72a5b223922559",
+      "summary": "3 failed, 25 passed in 101.99s (0:01:41)",
+      "interpretation": "Three test-only expectations used ordinary TaskTerminal; actual standing lifetime guard correctly returned permanent PolicyDenied. Exact no-retry/fence assertions retained."
+    },
+    {
+      "file": "issue-633-native-refusal-after.log",
+      "sha256": "61f59d0e2c52520e90d2079d24ae6ef9b5e224ce4671eba66549dc91cd3d0b54",
+      "summary": "1 failed, 94 passed in 112.72s (0:01:52)",
+      "interpretation": "New observer expectation incorrectly requested speech in an Agent channel; genuine hydration returns no notice."
+    },
+    {
+      "file": "issue-633-observers-deadline.log",
+      "sha256": "87a36a6ca4860ad849ca0e63c53a9735b1ab40bfeecef712f946dd5e28650c5f",
+      "summary": "1 failed, 1 passed in 1.62s",
+      "interpretation": "Proposed Converse-channel fixture was refused by actual standing native authority; fixture removed, native guard unchanged."
+    },
+    {
+      "file": "issue-633-observers-deadline-final.log",
+      "sha256": "05106aba503a2c6fb5cb2bce274dbf4ecaba206a4c9060fc273bb35ac071ee24",
+      "summary": "1 failed, 1 passed in 11.67s",
+      "interpretation": "New test incorrectly required absence of retained bookkeeping; corrected to assert fenced owners, no worker/lease and erased launch capability."
+    },
+    {
+      "file": "issue-633-observers-deadline-confirmed.log",
+      "sha256": "b92b90a73bc3e728f4850c5d435e1d982f54231f54b914cdc02f64869f0a4266",
+      "summary": "1 failed, 1 passed in 11.51s",
+      "interpretation": "Restart test shared the original client; actual retained-owner cleanup correctly closed it. Each restart now owns a fresh native client."
+    },
+    {
+      "file": "issue-633-observers-own-clients.log",
+      "sha256": "d2757d303f4fc65402b422a3e32786d04913f60af1c8d5318ee753ab6edbcc44",
+      "summary": "2 passed in 11.73s",
+      "interpretation": "Actual observer/tamper and deadline controls pass with owned fresh restart clients."
+    }
+  ],
+  "static_first_findings": [
+    "Ruff formatting differences corrected.",
+    "Ruff B023 loop-capture findings corrected by binding each original damage value."
+  ]
+}

@@ -19,6 +19,7 @@ MAX_EVIDENCE_PAGES = 256
 EVIDENCE_PAGE_LIMIT = 200
 EVIDENCE_READ_TIMEOUT_S = 10.0
 _CONTRACT = "agent.evidence-prefix.v1"
+_STANDING_CONTRACT = "agent.evidence-prefix.v2"
 _SCOPES = {"public_synthetic": 0, "private_cloud_authorized": 1, "local_only": 2}
 _REFERENCE_FIELDS = {
     "contract",
@@ -57,14 +58,78 @@ def _binding(task):
     return (task.task_id, task.session_id, task.thread_id, task.epoch)
 
 
+def standing_outcome_admission(entry: JournalEntry):
+    """Commit an authenticated standing initial row for read-only history.
+
+    Native origin is established by the journal transport, never by this
+    grammar or hash. This does not reconstruct a claim or a launch capability.
+    The full row commitment includes all authorization, model and workspace
+    metadata without copying that metadata into every terminal outcome.
+    """
+    try:
+        if not isinstance(entry, JournalEntry):
+            raise OutcomeEvidenceUnavailable
+        payload = entry.payload
+        standing = payload.get("standing")
+        if (
+            entry.origin != "standing-supervisor"
+            or entry.kind != "agent.standing-command"
+            or type(entry.sequence) is not int
+            or entry.sequence < 1
+            or type(entry.event_id) is not str
+            or not 1 <= len(entry.event_id) <= 256
+            or payload.get("op") != "submit"
+            or payload.get("actor") != "standing"
+            or payload.get("state") != "accepted"
+            or type(payload.get("objective_revision")) is not int
+            or payload["objective_revision"] != 1
+            or type(standing) is not dict
+            or standing.get("schema_version") != "1.0"
+            or type(standing.get("occurrence_id")) is not str
+            or re.fullmatch(r"[a-f0-9]{64}", standing["occurrence_id"]) is None
+            or entry.task_refs != [payload.get("task_id")]
+            or (entry.session_id, entry.thread_id, entry.epoch)
+            != (payload.get("session_id"), payload.get("thread_id"), payload.get("epoch"))
+            or payload.get("idempotency_key") != "standing:" + standing["occurrence_id"]
+            or entry.idempotency_key != f"agent:{payload.get('task_id')}:agent.standing-command:1"
+            or payload.get("content_scope") not in _SCOPES
+            or len(entry.model_dump_json().encode("utf-8")) > 69_632
+        ):
+            raise OutcomeEvidenceUnavailable
+        return {
+            "kind": "agent.standing-command",
+            "origin": "standing-supervisor",
+            "event_id": entry.event_id,
+            "sha256": hashlib.sha256(_canonical(entry.model_dump(mode="json"))).hexdigest(),
+        }
+    except (ValueError, KeyError, TypeError, OverflowError, RecursionError):
+        raise OutcomeEvidenceUnavailable from None
+
+
 def _reference_header(outcome):
     task = Task.model_validate(outcome.payload["task"])
     reference = outcome.payload["evidence_ref"]
+    if type(reference) is not dict:
+        raise OutcomeEvidenceUnavailable
+    standing = reference.get("contract") == _STANDING_CONTRACT
+    fields = _REFERENCE_FIELDS | {"admission"} if standing else _REFERENCE_FIELDS
+    if standing:
+        admission = reference.get("admission")
+        if (
+            type(admission) is not dict
+            or set(admission) != {"kind", "origin", "event_id", "sha256"}
+            or admission["kind"] != "agent.standing-command"
+            or admission["origin"] != "standing-supervisor"
+            or type(admission["event_id"]) is not str
+            or not 1 <= len(admission["event_id"]) <= 256
+            or type(admission["sha256"]) is not str
+            or re.fullmatch(r"[a-f0-9]{64}", admission["sha256"]) is None
+        ):
+            raise OutcomeEvidenceUnavailable
     if (
         task.state not in TERMINAL_STATES
-        or type(reference) is not dict
-        or set(reference) != _REFERENCE_FIELDS
-        or reference["contract"] != _CONTRACT
+        or set(reference) != fields
+        or reference["contract"] not in (_CONTRACT, _STANDING_CONTRACT)
         or any(
             type(reference[key]) is not int
             for key in (
@@ -110,7 +175,7 @@ class OutcomeEvidenceIndex:
     Task evidence list is separately checked before a sparse outcome is frozen.
     """
 
-    def __init__(self, task: Task, after_sequence: int):
+    def __init__(self, task: Task, after_sequence: int, *, initial: JournalEntry | None = None):
         if type(after_sequence) is not int or after_sequence < 1:
             raise OutcomeEvidenceUnavailable
         self.binding = _binding(task)
@@ -119,6 +184,27 @@ class OutcomeEvidenceIndex:
         self.scope = task.content_scope
         self._evidence = hashlib.sha256()
         self._receipts = hashlib.sha256()
+        self._admission = None
+        if initial is not None:
+            admission = standing_outcome_admission(initial)
+            if (
+                initial.sequence != after_sequence
+                or (
+                    initial.payload["task_id"],
+                    initial.session_id,
+                    initial.thread_id,
+                    initial.epoch,
+                )
+                != self.binding
+                or initial.payload["idempotency_key"] != task.idempotency_key
+            ):
+                raise OutcomeEvidenceUnavailable
+            self._admission = admission
+            self.scope = initial.payload["content_scope"]
+
+    @property
+    def is_standing(self):
+        return self._admission is not None
 
     def observe(self, entry: JournalEntry):
         if (
@@ -172,7 +258,7 @@ class OutcomeEvidenceIndex:
         ):
             raise OutcomeEvidenceUnavailable
         return {
-            "contract": _CONTRACT,
+            "contract": _STANDING_CONTRACT if self.is_standing else _CONTRACT,
             "task_id": task.task_id,
             "session_id": task.session_id,
             "thread_id": task.thread_id,
@@ -185,6 +271,7 @@ class OutcomeEvidenceIndex:
             "evidence_sha256": digest,
             "receipts_sha256": self._receipts.hexdigest(),
             "content_scope": self.scope,
+            **({"admission": dict(self._admission)} if self.is_standing else {}),
         }
 
 
@@ -195,8 +282,8 @@ def bounded_outcome_request(
     if len(request.model_dump_json().encode("utf-8")) <= MAX_OUTCOME_BYTES:
         return request
     if not allow_sparse:
-        # Standing admission has a different native submit proof. Do not emit
-        # an ordinary-submit commitment that its consumer cannot authenticate.
+        # Callers without the appropriate native initial index can explicitly
+        # retain inline-only behavior; never infer a different admission family.
         raise OutcomeEvidenceUnavailable
     reference = index.reference(task)
     payload = dict(request.payload)
@@ -253,7 +340,8 @@ async def hydrate_outcome_task(journal, outcome: JournalEntry):
             or not 1 <= after <= through < outcome.sequence
         ):
             raise OutcomeEvidenceUnavailable
-        index = OutcomeEvidenceIndex(task, after)
+        standing = reference["contract"] == _STANDING_CONTRACT
+        kind = "agent.standing-command" if standing else "agent.command"
         # Tool scopes are folded from their original rows, not the narrowed
         # terminal snapshot. This seed is fixed by the native submit below.
         submit = await journal.read(
@@ -261,7 +349,7 @@ async def hydrate_outcome_task(journal, outcome: JournalEntry):
             limit=1,
             session_id=task.session_id,
             thread_id=task.thread_id,
-            kinds=["agent.command"],
+            kinds=[kind],
             task_id=task.task_id,
         )
         if (
@@ -269,8 +357,8 @@ async def hydrate_outcome_task(journal, outcome: JournalEntry):
             or len(submit) != 1
             or not isinstance(submit[0], JournalEntry)
             or submit[0].sequence != after
-            or submit[0].origin != "agent-supervisor"
-            or submit[0].kind != "agent.command"
+            or submit[0].origin != ("standing-supervisor" if standing else "agent-supervisor")
+            or submit[0].kind != kind
             or (submit[0].session_id, submit[0].thread_id, submit[0].epoch)
             != (task.session_id, task.thread_id, task.epoch)
             or submit[0].task_refs != [task.task_id]
@@ -279,6 +367,7 @@ async def hydrate_outcome_task(journal, outcome: JournalEntry):
             or submit[0].payload.get("idempotency_key") != task.idempotency_key
         ):
             raise OutcomeEvidenceUnavailable
+        index = OutcomeEvidenceIndex(task, after, initial=submit[0] if standing else None)
         index.scope = submit[0].payload.get("content_scope", "local_only")
         if index.scope not in _SCOPES:
             raise OutcomeEvidenceUnavailable

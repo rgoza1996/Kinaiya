@@ -1,0 +1,79 @@
+{
+  "baseline": "548f85d84874b2b0d3366ffdb36f8c74aa880ae8",
+  "existing_ordinary_repair": "212c4bc3242e67182afda32128c413f159c1f89d",
+  "command": [
+    "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/unit/test_agent_outcome_evidence.py",
+    "tests/unit/test_standing_outcome_evidence.py",
+    "tests/unit/test_agent_completion_confirmation.py",
+    "tests/unit/test_standing_admission_contract.py",
+    "tests/unit/test_standing_admission_closure.py",
+    "tests/unit/test_standing_execution_contract.py",
+    "tests/unit/test_standing_export_contract.py",
+    "tests/integration/test_agent_bounded_outcomes.py",
+    "tests/integration/test_standing_bounded_outcomes.py",
+    "tests/integration/test_standing_worker_final_deadline.py",
+    "tests/integration/test_standing_agent_runtime.py",
+    "tests/integration/test_standing_task_admission.py",
+    "tests/integration/test_standing_export_admission.py",
+    "tests/integration/test_agent_submit_recovery_authority.py",
+    "tests/integration/test_agent_submit_receipt_recovery.py",
+    "tests/integration/test_agent_submit_runtime_deadlines.py",
+    "tests/integration/test_agent_submit_native_provenance.py",
+    "tests/integration/test_agent_submit_http_stack.py",
+    "tests/integration/test_agent_completion_recovery.py",
+    "tests/integration/test_agent_completion_races.py",
+    "tests/integration/test_task_retirement.py",
+    "tests/integration/test_task_retirement_authority.py",
+    "tests/integration/test_agent_standing_claim_retirement.py",
+    "tests/integration/test_agent_standing_binding_retirement.py",
+    "tests/integration/test_agent_standing_external_control_retirement.py",
+    "tests/integration/test_agent_resource_restore_retirement.py",
+    "tests/integration/test_agent_post_worker_resource_completion.py",
+    "tests/integration/test_agent_resource_completion_replacement.py",
+    "tests/integration/test_agent_retained_disclosure.py",
+    "tests/integration/test_agent_typed_disclosure.py",
+    "tests/integration/test_agent_revision_disclosure.py",
+    "tests/integration/test_meta_publication_recovery.py",
+    "tests/integration/test_meta_ui_actions.py",
+    "tests/integration/test_resource_restore_model_retirement.py"
+  ],
+  "results": {
+    "passed": 783,
+    "failed": 0,
+    "skipped": 0,
+    "pytest_seconds": 377.86,
+    "harness_seconds": 379.221,
+    "modules": 34,
+    "new_cases": 37
+  },
+  "python_inputs": {
+    "count": 836,
+    "unchanged": true,
+    "before_manifest_sha256": "302def42a343d8868b86b3c063dc1c828eeb98d86959e0aadca34a005bc78605",
+    "after_manifest_sha256": "302def42a343d8868b86b3c063dc1c828eeb98d86959e0aadca34a005bc78605",
+    "complete_local_receipt": "output/issue-633-broader-final-receipt.json"
+  },
+  "changed_python_sha256": {
+    "packages/contracts/agent_outcome.py": "3c6bbea5d599b76c69986a4fd2ea8706106d5fc5d009e0f8acc457508a68154e",
+    "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+    "services/agent/standing_runtime.py": "6515a005504fa5f4965f94fa48c2d321eea0286b274e67734fff474baa560f5f",
+    "tests/unit/test_standing_outcome_evidence.py": "07c5944f4e5e138bedb68939bfa6c08c0c6cf5e01ef9d282afbbcaa42fea3372",
+    "tests/integration/test_standing_bounded_outcomes.py": "ed037b380238c6be23848783215e154380bea7d8203c3a97924326bff962637a"
+  },
+  "final_log": {
+    "file": "issue-633-broader-final.log",
+    "sha256": "96cb9b90465a8b15a78a5e80141f53e56a37a0a46effeaee2cb95e6259a3229b"
+  },
+  "static": {
+    "ruff_check": "passed",
+    "ruff_format_check": "1042 files already formatted",
+    "contract_export": "unchanged packages/contracts/schemas",
+    "git_diff_check": "passed"
+  },
+  "qualification": "Real native Session/SQLite and standing admission/file/ownership boundaries; measured synthetic inference; no installed owner mutation or model-quality gate.",
+  "historical_uncertainty": "Original #487 RAM failure without native terminal outcome is not backfilled or re-executed."
+}
