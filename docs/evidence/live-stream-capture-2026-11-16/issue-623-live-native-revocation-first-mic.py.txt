@@ -1,0 +1,181 @@
+"""Logical microphone ownership across decoder segments; no physical-stop claims."""
+
+import asyncio
+import secrets
+
+from packages.contracts.live_captures import (
+    LiveCaptureFence,
+    LiveCaptureRegistration,
+    LiveCaptureState,
+)
+from packages.contracts.live_windows import LiveWindowPublication, LiveWindowPublicationProof
+
+_retained = set()
+
+
+class LiveCaptureUnavailable(RuntimeError):
+    pass
+
+
+class LiveMicCapture:
+    def __init__(self, journal, original, *, current):
+        self.journal = journal
+        self.original = LiveCaptureRegistration.model_validate(
+            original.model_dump(mode="json"), strict=True
+        )
+        self.current = current
+        self.fenced = False
+        self.registration = self.fence_request = self.fence_receipt = None
+        self.fenced_state = None
+        self.registration_task = self.fence_task = None
+        self.publication = self.publication_task = self.publication_receipt = None
+        self.tasks = set()
+
+    def _current(self):
+        try:
+            return self.current() is True
+        except Exception:
+            return False
+
+    def _retain(self, task):
+        _retained.add(self)
+        self.tasks.add(task)
+
+        def done(original):
+            self.tasks.discard(original)
+            if not original.cancelled():
+                original.exception()
+            if not self.tasks and self.fence_receipt is not None:
+                _retained.discard(self)
+
+        task.add_done_callback(done)
+        return task
+
+    @staticmethod
+    async def _wait(task):
+        # The facade deadline/cancellation never cancels the original metadata owner.
+        async with asyncio.timeout(2):
+            return await asyncio.shield(task)
+
+    def _state(self, state):
+        state = LiveCaptureState.model_validate(state.model_dump(mode="json"), strict=True)
+        if state.original != self.original:
+            raise LiveCaptureUnavailable("Capture metadata changed its original registration")
+        if state.receipt is not None:
+            self.registration = state.receipt
+        if state.fence is not None and self.fence_request is not None:
+            if state.fence.request != self.fence_request:
+                raise LiveCaptureUnavailable("Capture metadata changed its original fence")
+            self.fence_receipt = state.fence
+            self.fenced_state = state
+        return state
+
+    async def register(self):
+        if self.fenced or not self._current():
+            self.fence("cancelled")
+            raise LiveCaptureUnavailable("Original microphone capture is fenced")
+        if self.registration_task is None:
+            self.registration_task = self._retain(
+                asyncio.create_task(self.journal.register_live_capture(self.original))
+            )
+        state = self._state(await self._wait(self.registration_task))
+        if self.fenced or not self._current() or not state.capture_open:
+            self.fence("cancelled")
+            raise LiveCaptureUnavailable("Original microphone registration is not current")
+        return state
+
+    def fence(self, reason):
+        self.fenced = True
+        if self.fence_task is None:
+            self.fence_request = LiveCaptureFence(
+                schema_version="2.0",
+                protocol="native_live_capture_v2",
+                original=self.original,
+                request_id=secrets.token_hex(16),
+                reason=reason,
+            )
+
+            async def original_fence():
+                state = self._state(await self.journal.fence_live_capture(self.fence_request))
+                if state.fence is None or state.capture_open:
+                    raise LiveCaptureUnavailable("Original microphone fence is unconfirmed")
+                return state
+
+            self.fence_task = self._retain(asyncio.create_task(original_fence()))
+        return self.fence_task
+
+    async def wait_fenced(self, reason="cancelled"):
+        if self.fenced_state is not None:
+            return self.fenced_state
+        return await self._wait(self.fence(reason))
+
+    async def inspect(self):
+        state = self._state(await self.journal.lookup_live_capture(self.original))
+        if self.fence_receipt is not None and not self.tasks:
+            _retained.discard(self)
+        return state
+
+    def _publication(self, request):
+        request = request.model_copy(deep=True)
+        scope = self.original
+        if (request.session_id, request.thread_id, request.epoch) != (
+            scope.session_id,
+            scope.thread_id,
+            scope.epoch,
+        ):
+            raise LiveCaptureUnavailable("Recognized input crossed its original microphone scope")
+        return LiveWindowPublication(
+            schema_version="2.0",
+            protocol="live_window_publication_v2",
+            owner_instance=scope.owner_instance,
+            capture_id=scope.capture_id,
+            request=request,
+        )
+
+    def _accept_publication(self, result):
+        result = LiveWindowPublicationProof.model_validate(
+            result.model_dump(mode="python"), strict=True
+        )
+        if result.original != self.publication.reference():
+            raise LiveCaptureUnavailable("Recognized input changed its original paired publication")
+        self.publication_receipt = result
+        return result
+
+    async def publish(self, request):
+        if self.registration is None:
+            raise LiveCaptureUnavailable("Recognized input has no positive original registration")
+        original = self._publication(request)
+        if not self._current():
+            self.fence("cancelled")
+        if self.publication == original and self.publication_receipt is not None:
+            return self.publication_receipt
+        if self.publication != original:
+            if self.publication is not None and self.publication_receipt is None:
+                raise LiveCaptureUnavailable(
+                    "The previous recognized publication remains unconfirmed"
+                )
+            self.publication, self.publication_receipt = original, None
+
+            async def original_publication():
+                if not self._current():
+                    self.fence("cancelled")
+                if self.fenced:
+                    # Retain late text after a positive native fence, without
+                    # creating a source that can revive inference permission.
+                    if self.fenced_state is None:
+                        await asyncio.shield(self.fence_task)
+                return self._accept_publication(await self.journal.publish_live_window(original))
+
+            self.publication_task = self._retain(asyncio.create_task(original_publication()))
+        return await self._wait(self.publication_task)
+
+    async def inspect_publication(self, request=None):
+        publication = self.publication if request is None else self._publication(request)
+        if publication is None:
+            raise LiveCaptureUnavailable("No original recognized publication is owned")
+        result = await self.journal.lookup_live_window(publication.reference())
+        if result.original != publication.reference():
+            raise LiveCaptureUnavailable("Recognized lookup changed its original source")
+        if result.receipt is not None and publication == self.publication:
+            self._accept_publication(result.receipt)
+        return result

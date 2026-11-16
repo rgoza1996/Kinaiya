@@ -1,0 +1,22 @@
+..FFF                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable[False] _
+tests/integration/test_live_mic_capture.py:131: in test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable
+    with pytest.raises(httpx.ReadError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ReadError
+_ test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable[True] _
+tests/integration/test_live_mic_capture.py:131: in test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable
+    with pytest.raises(httpx.ReadError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ReadError
+_ test_invalidated_local_owner_fences_native_permission_before_retaining_late_input _
+tests/integration/test_live_mic_capture.py:158: in test_invalidated_local_owner_fences_native_permission_before_retaining_late_input
+    assert owner.fenced and owner.fence_receipt is not None
+E   assert (False)
+E    +  where False = <services.converse.live_capture.LiveMicCapture object at 0x784c2474d0f0>.fenced
+=========================== short test summary info ============================
+FAILED tests/integration/test_live_mic_capture.py::test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable[False]
+FAILED tests/integration/test_live_mic_capture.py::test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable[True]
+FAILED tests/integration/test_live_mic_capture.py::test_invalidated_local_owner_fences_native_permission_before_retaining_late_input
+3 failed, 2 passed in 1.87s

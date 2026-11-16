@@ -1,0 +1,49 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_live_stream_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "capture_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "begin",
+        "pcm",
+        "finish"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "request_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "capture_id",
+    "phase",
+    "request_sha256"
+  ],
+  "title": "LiveStreamLookup",
+  "type": "object"
+}

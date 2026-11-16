@@ -236,7 +236,42 @@ class IncrementalStreams:
             with CancelScope(shield=True):
                 await asyncio.wait((watcher,), timeout=0.2)
 
-    async def begin(self, body, request):
+    def _new_stream(self, body, original):
+        return _Stream(dict(body), original)
+
+    async def _publish_window(self, state, original):
+        return await self.controller.ingest(original.window)
+
+    async def _lookup_window(self, state, original):
+        descriptor = self._publication(original)
+        observed = await self.runtime.journal.lookup_stream_publication(descriptor.model_dump())
+        proof = StreamPublicationProof.model_validate(observed)
+        if proof.original != descriptor:
+            raise ValueError("Original stream publication lookup changed its source")
+        return proof.entry
+
+    async def _before_publication(self, state):
+        await self._verify(state)
+
+    def _window_cursor(self, state, original, result, hypothesis):
+        index, revision = state.window_index, state.revision + 1
+        if index is None:
+            return 0, 1
+        if (
+            original.user_speaking != state.last_speaking
+            or original.capture_ended
+            or (bool(result["delta_text"].strip()) and hypothesis != state.last_text)
+        ):
+            return index + 1, 1
+        return index, revision
+
+    def _window_times(self, state, expected_samples):
+        return 0, min(60000, round(expected_samples / 16))
+
+    def _admit_native_stream(self, state):
+        state.native.lease.owner.begin_native(state.native.lease)
+
+    async def begin(self, body, request, *, original_body=None):
         if (
             self.controller is None
             or self.speech is None
@@ -246,7 +281,7 @@ class IncrementalStreams:
         if not self.runtime.enabled:
             raise HTTPException(409, "Converse is unavailable")
         self._trim()
-        sha = digest(body)
+        sha = digest(body if original_body is None else original_body)
         if ("begin", sha) in self.originals:
             raise HTTPException(
                 409, "This original begin already exists; inspect its exact outcome"
@@ -257,7 +292,7 @@ class IncrementalStreams:
         ):
             raise HTTPException(409, "Original stream work or recovery is still retained")
         original = _Original("begin", sha)
-        state = _Stream(dict(body), original)
+        state = self._new_stream(body, original)
         self.states.append(state)
         self.originals[("begin", sha)] = state, original
         self.runtime._incremental_stream_owners.add(self)
@@ -272,13 +307,13 @@ class IncrementalStreams:
             if state.native is not None:
                 state.native.dependencies.add(asyncio.current_task())
             await self._verify(state)
-            original.native_original = await state.client.reserve("begin", sha)
+            original.native_original = await state.client.reserve("begin", digest(body))
             await self._verify(state)
             if state.native is not None and state.native.lease.uncertain_native_worker:
                 # A stream is not a unary STT publication. A crash preserves a
                 # conservative NULL-binding admission; never overwrite v1's
                 # one-publication descriptor with successive PCM receipts.
-                state.native.lease.owner.begin_native(state.native.lease)
+                self._admit_native_stream(state)
             original.native_dispatched = True
             result = await state.client.dispatch(original.native_original, body=body)
             self._accept_result(state, original, result)
@@ -317,9 +352,9 @@ class IncrementalStreams:
                 state.native.publications.discard(previous.publication)
                 state.native.dependencies.discard(previous.publication)
 
-    async def append_or_finish(self, phase, body, request):
+    async def append_or_finish(self, phase, body, request, *, original_body=None):
         state = self._scope(body)
-        sha = digest(body)
+        sha = digest(body if original_body is None else original_body)
         known = self.originals.get((phase, sha))
         if known is not None:
             _, original = known
@@ -394,9 +429,9 @@ class IncrementalStreams:
                 original.native_original, body=forward, pcm16=pcm16, headers=headers
             )
             self._accept_result(state, original, result)
-            await self._verify(state)
+            await self._before_publication(state)
             original.publication = self._retain(
-                asyncio.create_task(self.controller.ingest(original.window))
+                asyncio.create_task(self._publish_window(state, original))
             )
             if state.native is not None:
                 state.native.dependencies.add(original.publication)
@@ -471,22 +506,15 @@ class IncrementalStreams:
         if original.window is None:
             committed, pending = result["committed_text"].strip(), result["pending_text"].strip()
             hypothesis = f"{committed} {pending}" if committed and pending else committed or pending
-            index, revision = state.window_index, state.revision + 1
-            if index is None:
-                index, revision = 0, 1
-            elif (
-                original.user_speaking != state.last_speaking
-                or original.capture_ended
-                or (bool(result["delta_text"].strip()) and hypothesis != state.last_text)
-            ):
-                index, revision = index + 1, 1
+            index, revision = self._window_cursor(state, original, result, hypothesis)
+            start_ms, end_ms = self._window_times(state, expected_samples)
             original.window = SpeechWindow(
                 **state.scope,
                 window_index=index,
                 revision=revision,
                 text=hypothesis,
-                start_ms=0,
-                end_ms=min(60000, round(expected_samples / 16)),
+                start_ms=start_ms,
+                end_ms=end_ms,
                 user_speaking=False if original.capture_ended else original.user_speaking,
                 capture_ended=original.capture_ended,
                 audio_sha256=original.audio_sha256,
@@ -668,15 +696,9 @@ class IncrementalStreams:
                         phase, request.request_sha256, state, original, "not_dispatched"
                     )
             if original.ack is None and original.window is not None:
-                descriptor = self._publication(original)
-                observed = await self.runtime.journal.lookup_stream_publication(
-                    descriptor.model_dump()
-                )
-                proof = StreamPublicationProof.model_validate(observed)
-                if proof.original != descriptor:
-                    raise ValueError("Original stream publication lookup changed its source")
-                if proof.entry is not None:
-                    self._accept_entry(state, original, proof.entry, settle=False)
+                entry = await self._lookup_window(state, original)
+                if entry is not None:
+                    self._accept_entry(state, original, entry, settle=False)
             if (
                 state.fenced
                 and not state.process_released

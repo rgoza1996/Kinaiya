@@ -1,0 +1,16 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch[native-fence] _
+tests/integration/test_live_stream_capture.py:376: in test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch
+    with pytest.raises(Exception) as error:
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE Exception
+_ test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch[controller-replacement] _
+tests/integration/test_live_stream_capture.py:376: in test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch
+    with pytest.raises(Exception) as error:
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE Exception
+=========================== short test summary info ============================
+FAILED tests/integration/test_live_stream_capture.py::test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch[native-fence]
+FAILED tests/integration/test_live_stream_capture.py::test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch[controller-replacement]
+2 failed in 0.84s

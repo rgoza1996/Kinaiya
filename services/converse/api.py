@@ -5,7 +5,7 @@ import json
 import re
 import sqlite3
 import time
-from contextlib import aclosing
+from contextlib import aclosing, asynccontextmanager
 from typing import Annotated
 
 from anyio import CancelScope
@@ -285,13 +285,29 @@ class SpeechTurnResponse(TypedTurnResponse):
     """Close a paused speech body before releasing its ASGI preparation owner."""
 
 
-def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None):
+def create_app(
+    runtime, auth, speech=None, window_controller=None, *, setup=None, live_dependency=None
+):
     from services.converse.capture_api import install_capture_controls
     from services.converse.memory_api import install_memory_controls
     from services.converse.stt_model_api import install_stt_model_controls
     from services.converse.tts_model_api import install_tts_model_controls
 
-    app = FastAPI(title="Kinaiya Converse", version="1.0")
+    @asynccontextmanager
+    async def lifespan(app):
+        if live_dependency is None:
+            yield
+            return
+        try:
+            await live_dependency.start()
+            yield
+        finally:
+            try:
+                await live_streams.close()
+            finally:
+                await live_dependency.close()
+
+    app = FastAPI(title="Kinaiya Converse", version="1.0", lifespan=lifespan)
     owner = [Depends(auth.require("owner"))]
     require_control = auth.require("owner", "resources")
 
@@ -788,6 +804,13 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
             "cancel": IncrementalStreamCancelRequest,
         },
     )
+
+    from services.converse.live_stream_api import install_live_streams
+
+    live_streams = install_live_streams(
+        app, runtime, auth, speech, live_dependency, _reserve_api_model
+    )
+    app.state.live_streams = live_streams
 
     class NativeClipRoute(APIRoute):
         """Authenticate and bound this PCM envelope before FastAPI parses it."""

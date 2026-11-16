@@ -2,17 +2,35 @@ import asyncio
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from packages.contracts.live_readiness import LiveDecisionsReadiness
 from packages.contracts.subsystem_readiness import DecisionsReadiness
 from packages.providers.decision_capture import CaptureNativeUnavailable
 
 
-def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, model_settings=None):
+def create_app(
+    worker,
+    auth,
+    window_worker=None,
+    window_dispatcher=None,
+    *,
+    model_settings=None,
+    live_worker=None,
+):
+    if live_worker is not None:
+        from services.decisions.live_worker import LiveDecisionsWorker
+
+        if (
+            not isinstance(live_worker, LiveDecisionsWorker)
+            or model_settings is None
+            or live_worker.model_settings is not model_settings
+        ):
+            raise ValueError("Live routing requires its native v2 worker and original model owner")
     instance_id = secrets.token_hex(16)
-    state = {"started": False, "stopped": False, "tasks": ()}
+    state = {"started": False, "stopped": False, "tasks": (), "live_task": None}
 
     def window_status():
         return {
@@ -29,7 +47,8 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
             for w in (window_worker, window_dispatcher)
             if w is not None
         ]
-        state.update(started=True, tasks=(task, *extras))
+        live_task = asyncio.create_task(live_worker.run()) if live_worker is not None else None
+        state.update(started=True, tasks=(task, *extras), live_task=live_task)
         try:
             yield
         finally:
@@ -37,8 +56,15 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
             task.cancel()
             for extra in extras:
                 extra.cancel()
+            if live_task is not None:
+                live_task.cancel()
             try:
-                await asyncio.gather(task, *extras, return_exceptions=True)
+                await asyncio.gather(
+                    task,
+                    *extras,
+                    *([live_task] if live_task is not None else []),
+                    return_exceptions=True,
+                )
             finally:
                 if model_settings is not None:
                     await model_settings.close()
@@ -84,6 +110,48 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
         phase = routing_phase()
         result = DecisionsReadiness(
             contract_version=1,
+            service="decisions",
+            consumer="converse",
+            instance_id=instance_id,
+            phase=phase,
+            ready=phase == "ready",
+        )
+        return JSONResponse(result.model_dump(), headers={"Cache-Control": "no-store"})
+
+    @app.get(
+        "/v2/decisions/live-readiness", dependencies=[Depends(auth.require("owner", "converse"))]
+    )
+    async def live_readiness(request: Request):
+        if request.query_params:
+            raise HTTPException(
+                400, "Live readiness has no query envelope", headers={"Cache-Control": "no-store"}
+            )
+        phase = "starting"
+        if state["stopped"]:
+            phase = "stopped"
+        elif live_worker is None:
+            phase = "disabled"
+        elif state["started"]:
+            actual = state["live_task"]
+            active = (
+                actual is not None
+                and not actual.done()
+                and live_worker.running is True
+                and live_worker.ready is True
+            )
+            try:
+                stamp = model_settings.cache_stamp()
+                configured = (
+                    type(stamp) is str
+                    and len(stamp) == 64
+                    and all(c in "0123456789abcdef" for c in stamp)
+                )
+            except (CaptureNativeUnavailable, OSError, ValueError, RuntimeError):
+                configured = False
+            phase = "ready" if active and configured else "unavailable"
+        result = LiveDecisionsReadiness(
+            contract_version=2,
+            protocol="native_live_decisions_v2",
             service="decisions",
             consumer="converse",
             instance_id=instance_id,

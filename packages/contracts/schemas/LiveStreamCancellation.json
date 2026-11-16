@@ -1,0 +1,335 @@
+{
+  "$defs": {
+    "LiveCaptureBackend": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "controller_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Controller Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend_id",
+        "controller_id"
+      ],
+      "title": "LiveCaptureBackend",
+      "type": "object"
+    },
+    "LiveCaptureFence": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "request_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "owner_off",
+            "cancelled",
+            "disconnected",
+            "replaced",
+            "shutdown"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "request_id",
+        "reason"
+      ],
+      "title": "LiveCaptureFence",
+      "type": "object"
+    },
+    "LiveCaptureFenceReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/LiveCaptureFence"
+        },
+        "fence_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Fence Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "request",
+        "fence_id"
+      ],
+      "title": "LiveCaptureFenceReceipt",
+      "type": "object"
+    },
+    "LiveCaptureReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "registration_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Registration Id",
+          "type": "string"
+        },
+        "registered_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Registered Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "registration_id",
+        "registered_sequence"
+      ],
+      "title": "LiveCaptureReceipt",
+      "type": "object"
+    },
+    "LiveCaptureRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend": {
+          "$ref": "#/$defs/LiveCaptureBackend"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "capture_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend",
+        "owner_instance",
+        "capture_id",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "LiveCaptureRegistration",
+      "type": "object"
+    },
+    "LiveCaptureState": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "backend": {
+          "$ref": "#/$defs/LiveCaptureBackend"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveCaptureReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveCaptureFenceReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope_current": {
+          "title": "Scope Current",
+          "type": "boolean"
+        },
+        "capture_open": {
+          "title": "Capture Open",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "backend",
+        "receipt",
+        "fence",
+        "scope_current",
+        "capture_open"
+      ],
+      "title": "LiveCaptureState",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_live_stream_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "capture_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "fenced": {
+      "const": true,
+      "title": "Fenced",
+      "type": "boolean"
+    },
+    "capture": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveCaptureState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cleanup_confirmed": {
+      "title": "Cleanup Confirmed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "capture_id",
+    "fenced",
+    "capture",
+    "cleanup_confirmed"
+  ],
+  "title": "LiveStreamCancellation",
+  "type": "object"
+}

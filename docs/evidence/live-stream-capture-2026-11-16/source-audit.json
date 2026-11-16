@@ -1,0 +1,28 @@
+{
+  "base": "aaf2cfa49853232949493ea77e0a551e4fbd34ae",
+  "final_python_inputs": 896,
+  "all_three_runs_match_current_source": true,
+  "old_schema_count": 568,
+  "old_schema_changed": [],
+  "new_schemas": [
+    "LiveDecisionsReadiness.json",
+    "LiveStreamBegin.json",
+    "LiveStreamCancel.json",
+    "LiveStreamCancellation.json",
+    "LiveStreamCapability.json",
+    "LiveStreamFinish.json",
+    "LiveStreamIdentity.json",
+    "LiveStreamLookup.json",
+    "LiveStreamPcm.json",
+    "LiveStreamProof.json",
+    "LiveStreamScope.json"
+  ],
+  "new_schema_sha256": "e7453211778e17609023c0488655584ed8d2bf9581873cd7c125c0303e813f34",
+  "normal_launcher_changed": false,
+  "legacy_hooks": {
+    "_publish_window": "async def _publish_window(self, state, original):\n    return await self.controller.ingest(original.window)",
+    "_before_publication": "async def _before_publication(self, state):\n    await self._verify(state)",
+    "_admit_native_stream": "def _admit_native_stream(self, state):\n    state.native.lease.owner.begin_native(state.native.lease)",
+    "_window_times": "def _window_times(self, state, expected_samples):\n    return (0, min(60000, round(expected_samples / 16)))"
+  }
+}

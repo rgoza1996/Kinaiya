@@ -1,0 +1,10 @@
+.....F.                                                                  [100%]
+=================================== FAILURES ===================================
+_ test_decoder_history_limit_does_not_retain_old_segments_through_rollover_links _
+tests/integration/test_live_stream_capture.py:192: in test_decoder_history_limit_does_not_retain_old_segments_through_rollover_links
+    assert old() is None
+E   AssertionError: assert _Stream(scope={'session_id': '558d4544-e03a-4628-9f9b-9d75ff0b7ab8', 'thread_id': '9bf17fd4-14ca-448a-933a-b4d023d362e...ntal_streams.py:607> result=None>, fenced=False, decoder_finished=True, process_released=False, never_dispatched=False) is None
+E    +  where _Stream(scope={'session_id': '558d4544-e03a-4628-9f9b-9d75ff0b7ab8', 'thread_id': '9bf17fd4-14ca-448a-933a-b4d023d362e...ntal_streams.py:607> result=None>, fenced=False, decoder_finished=True, process_released=False, never_dispatched=False) = <weakref at 0x7be3c01018f0; to 'services.converse.incremental_streams._Stream' at 0x7be3c01302d0>()
+=========================== short test summary info ============================
+FAILED tests/integration/test_live_stream_capture.py::test_decoder_history_limit_does_not_retain_old_segments_through_rollover_links
+1 failed, 6 passed in 1.64s

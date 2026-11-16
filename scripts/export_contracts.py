@@ -30,6 +30,8 @@ from packages.contracts import (
     live_decisions,
     live_decisions_attempts,
     live_decisions_pending,
+    live_readiness,
+    live_streams,
     live_windows,
     media,
     memory,
@@ -153,6 +155,24 @@ for name in (
 # Bounded live discovery is a recheck hint, never inference or effect authority.
 for name in ("LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"):
     cls = getattr(live_decisions_pending, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+(target / "LiveDecisionsReadiness.json").write_text(
+    json.dumps(live_readiness.LiveDecisionsReadiness.model_json_schema(), indent=2) + "\n"
+)
+for name in (
+    "LiveStreamCapability",
+    "LiveStreamIdentity",
+    "LiveStreamScope",
+    "LiveStreamBegin",
+    "LiveStreamPcm",
+    "LiveStreamFinish",
+    "LiveStreamCancel",
+    "LiveStreamLookup",
+    "LiveStreamProof",
+    "LiveStreamCancellation",
+):
+    cls = getattr(live_streams, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Owner policy requests are strict frozen models, separate from journal events.

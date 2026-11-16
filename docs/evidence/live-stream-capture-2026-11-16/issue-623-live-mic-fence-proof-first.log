@@ -1,0 +1,36 @@
+.....F..                                                                 [100%]
+=================================== FAILURES ===================================
+_ test_positive_fence_lookup_releases_late_publication_without_replaying_fence _
+tests/integration/test_live_mic_capture.py:198: in test_positive_fence_lookup_releases_late_publication_without_replaying_fence
+    assert await owner.wait_fenced() == observed
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/live_capture.py:106: in wait_fenced
+    return await self._wait(self.fence(reason))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/live_capture.py:57: in _wait
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/live_capture.py:97: in original_fence
+    state = self._state(await self.journal.fence_live_capture(self.fence_request))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/client.py:330: in fence_live_capture
+    return await fence(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/live_capture_client.py:45: in fence
+    result = await _exchange(client, "/fence", request, LiveCaptureState)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/live_capture_client.py:23: in _exchange
+    raw = await client._owned_metadata(
+packages/contracts/client.py:290: in _owned_metadata
+    return await asyncio.shield(exchange.task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/client.py:252: in _run
+    async for chunk in self.response.stream:
+../../output/issue-643-python313-venv/lib/python3.13/site-packages/httpx/_client.py:176: in __aiter__
+    async for chunk in self._stream:
+tests/integration/test_live_mic_capture.py:175: in __aiter__
+    raise httpx.ReadError("Public synthetic lost native fence acknowledgment")
+E   httpx.ReadError: Public synthetic lost native fence acknowledgment
+=========================== short test summary info ============================
+FAILED tests/integration/test_live_mic_capture.py::test_positive_fence_lookup_releases_late_publication_without_replaying_fence
+1 failed, 7 passed in 2.83s

@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from packages.contracts.live_readiness import LiveDecisionsReadiness
 from packages.contracts.subsystem_readiness import DecisionsReadiness
 
 MAX_READINESS_BYTES = 4096
@@ -29,6 +30,9 @@ def _constant(_value):
 
 
 class RequiredDecisions:
+    endpoint = "v1/decisions/readiness"
+    response_model = DecisionsReadiness
+
     def __init__(self, base_url, token):
         try:
             url = urlsplit(base_url)
@@ -114,7 +118,7 @@ class RequiredDecisions:
             observed_at = monotonic()
             try:
                 async with asyncio.timeout(PROBE_TIMEOUT):
-                    async with self._client.stream("GET", "v1/decisions/readiness") as response:
+                    async with self._client.stream("GET", self.endpoint) as response:
                         response.raise_for_status()
                         if (
                             response.headers.get("content-type", "").split(";", 1)[0]
@@ -131,7 +135,7 @@ class RequiredDecisions:
                         value = json.loads(
                             body, object_pairs_hook=_unique, parse_constant=_constant
                         )
-                        observation = DecisionsReadiness.model_validate(value)
+                        observation = self.response_model.model_validate(value)
                 self._replace(observation, observation.phase, observed_at=observed_at)
             except (httpx.HTTPError, TimeoutError, ValueError, TypeError, RecursionError):
                 self._replace(None, "unavailable")
@@ -162,3 +166,8 @@ class RequiredDecisions:
         if self._close_task is None:
             self._close_task = asyncio.create_task(self._close())
         await asyncio.shield(self._close_task)
+
+
+class RequiredLiveDecisions(RequiredDecisions):
+    endpoint = "v2/decisions/live-readiness"
+    response_model = LiveDecisionsReadiness

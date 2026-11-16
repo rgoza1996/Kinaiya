@@ -1,0 +1,293 @@
+"""Native mic/STT/publication/Decisions lifecycle composition through owner HTTP."""
+
+import asyncio
+from contextlib import AsyncExitStack, asynccontextmanager
+from types import SimpleNamespace
+
+import httpx
+import pytest
+
+from packages.contracts.live_streams import LiveStreamProof
+from packages.contracts.stt_settlement import digest
+from packages.providers.text import CompatibleTextProvider
+from services.converse.api import create_app
+from services.converse.dependencies import RequiredLiveDecisions
+from services.converse.live_stream_api import BASE
+from services.decisions.api import create_app as decisions_app
+from services.decisions.live_worker import LiveDecisionsWorker
+from services.decisions.model_settings import DecisionsModelSettings
+from services.session.store import LocalJournal
+from tests.integration.test_incremental_stream_ownership import install_settings, pcm_for, scope_for
+from tests.integration.test_incremental_whistle_converse import AUTH
+from tests.integration.test_incremental_whistle_converse import (
+    converse_incremental_env as converse_incremental_env,
+)
+from tests.integration.test_live_completion_worker import Agent
+from tests.integration.test_live_decisions_http import response
+from tests.integration.test_required_decisions_readiness import ControlledWorker
+
+
+@asynccontextmanager
+async def live_client(env, *, native_stt=True):
+    env.store.live_captures.activate()
+    owned_stt = (
+        install_settings(env) if native_stt and env.runtime.stt_model_settings is None else None
+    )
+    calls, probes = [], []
+
+    def model(request):
+        calls.append(request.content)
+        return httpx.Response(200, stream=httpx.ByteStream(response()))
+
+    provider = CompatibleTextProvider(
+        "http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(model)
+    )
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(LocalJournal(env.store, "decisions"), Agent(), settings)
+    peer = decisions_app(ControlledWorker(), AUTH, model_settings=settings, live_worker=worker)
+
+    class Observe(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            probes.append(request.url.path)
+            return await httpx.ASGITransport(app=peer).handle_async_request(request)
+
+    dependency = RequiredLiveDecisions("http://decisions.local", AUTH.tokens["converse"])
+    await dependency._client.aclose()
+    dependency._client = httpx.AsyncClient(
+        base_url="http://decisions.local/",
+        transport=Observe(),
+        headers={"Authorization": "Bearer " + AUTH.tokens["converse"]},
+    )
+    app = create_app(
+        env.runtime,
+        AUTH,
+        speech=env.speech,
+        window_controller=env.window_controller,
+        live_dependency=dependency,
+    )
+    async with AsyncExitStack() as cleanup:
+        if owned_stt is not None:
+            cleanup.push_async_callback(owned_stt.close)
+        await cleanup.enter_async_context(peer.router.lifespan_context(peer))
+        async with asyncio.timeout(3):
+            while not worker.ready:
+                await asyncio.sleep(0)
+        await cleanup.enter_async_context(app.router.lifespan_context(app))
+        client = await cleanup.enter_async_context(
+            httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://converse.local",
+                headers={"Authorization": "Bearer " + AUTH.tokens["owner"]},
+            )
+        )
+        yield SimpleNamespace(
+            client=client, app=app, dependency=dependency, worker=worker, calls=calls, probes=probes
+        )
+
+
+def begin_body(env, owner):
+    return {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": owner,
+        "capture_id": "d" * 32,
+        "segment_index": 0,
+        **scope_for(env),
+    }
+
+
+async def test_owner_v2_pcm_reaches_native_decisions_and_rolls_over_without_ending_mic(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    stt = install_settings(env)
+    try:
+        async with live_client(env) as live:
+            capability = await live.client.get(BASE + "/ownership")
+            assert capability.status_code == 200 and capability.json()["available"]
+            body = begin_body(env, capability.json()["owner_instance"])
+            started = await live.client.post(BASE + "/begin", json=body)
+            assert started.status_code == 200
+            proof = LiveStreamProof.model_validate(started.json())
+            assert proof.native.outcome == "confirmed" and proof.capture.capture_open
+            assert proof.request_sha256 == digest(body) and live.calls == []
+            raw_pcm = pcm_for(env, proof.native.result)
+            pcm_body = {**body, **raw_pcm}
+            result = await live.client.post(BASE + "/pcm", json=pcm_body)
+            assert result.status_code == 200
+            pcm = LiveStreamProof.model_validate(result.json())
+            assert pcm.native.outcome == "confirmed" and pcm.publication is not None
+            assert pcm.request_sha256 == digest(pcm_body)
+            assert pcm.publication.source.payload["text"] == "please check"
+            assert pcm.publication.source.payload["user_speaking"]
+            async with asyncio.timeout(5):
+                while not env.store.read(kinds=["routing.live_window_decided"]):
+                    await asyncio.sleep(0.01)
+            outcome = env.store.read(kinds=["routing.live_window_decided"])[0]
+            assert outcome.payload["decision"]["conversation"] == "WAIT_WITH_BACKCHANNEL"
+            assert len(live.calls) == 1 and live.probes
+            assert set(live.probes) == {"/v2/decisions/live-readiness"}
+            assert env.engine.begin_calls == env.engine.step == 1
+            assert (await live.client.get(BASE + "/ownership")).json()["available"]
+            finish_body = {
+                **body,
+                **{k: v for k, v in raw_pcm.items() if k != "pcm16_base64"},
+                "sequence": 2,
+                "sample_offset": 160,
+                "capture_ended": False,
+            }
+            final = await live.client.post(BASE + "/finish", json=finish_body)
+            assert (
+                final.status_code == 200 and not final.json()["native"]["result"]["capture_ended"]
+            )
+            capture = live.app.state.live_streams.captures[body["capture_id"]]
+            first_lease = capture.native.lease
+            await asyncio.wait_for(asyncio.shield(capture.states[-1].lifetime), 3)
+            assert not capture.capture_task.done() and len(stt.leases) == 1
+            second = await live.client.post(BASE + "/begin", json={**body, "segment_index": 1})
+            assert second.status_code == 200
+            assert second.json()["segment_sample_offset"] == 160
+            assert second.json()["capture"] == started.json()["capture"]
+            assert capture.native.lease is first_lease and len(stt.leases) == 1
+            next_pcm = await live.client.post(
+                BASE + "/pcm",
+                json={
+                    **body,
+                    "segment_index": 1,
+                    **pcm_for(env, second.json()["native"]["result"]),
+                },
+            )
+            assert next_pcm.status_code == 200
+            next_source = next_pcm.json()["publication"]["source"]["event_id"]
+            async with asyncio.timeout(5):
+                while not any(
+                    entry.payload["decision"]["source_event_id"] == next_source
+                    for entry in env.store.read(kinds=["routing.live_window_decided"])
+                ):
+                    await asyncio.sleep(0.01)
+            assert b"please check the build status" in live.calls[-1]
+            assert next_pcm.json()["publication"]["source"]["payload"]["text"] == "please check"
+            assert capture.native.lease is first_lease and len(stt.leases) == 1
+            stopped = await live.client.post(
+                BASE + "/cancel",
+                json={
+                    k: v
+                    for k, v in body.items()
+                    if k in {"schema_version", "protocol", "owner_instance", "capture_id"}
+                }
+                | {"reason": "cancelled"},
+            )
+            assert stopped.status_code == 200 and stopped.json()["cleanup_confirmed"]
+            assert not stopped.json()["capture"]["capture_open"]
+            assert not stt.leases and not stt._admissions()
+    finally:
+        await stt.close()
+
+
+@pytest.mark.parametrize("role", ["owner", "converse", "agent", "decisions", "resources", None])
+async def test_default_gate_and_roles_start_no_stream_or_capture(converse_incremental_env, role):
+    env = converse_incremental_env
+    before = env.store.db.execute(
+        "SELECT name FROM sqlite_master WHERE name LIKE 'live_capture%'"
+    ).fetchall()
+    assert before == []
+    headers = {} if role is None else {"Authorization": "Bearer " + AUTH.tokens[role]}
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=env.app), base_url="http://converse.local"
+    ) as client:
+        response = await client.get(BASE + "/ownership", headers=headers)
+        if role == "owner":
+            assert response.status_code == 200 and not response.json()["available"]
+            result = await client.post(
+                BASE + "/begin",
+                json=begin_body(env, response.json()["owner_instance"]),
+                headers=headers,
+            )
+            assert result.status_code == 503
+        else:
+            assert response.status_code == (401 if role is None else 403)
+    assert env.engine.begin_calls == env.engine.step == 0
+    assert not env.app.state.live_streams.captures
+    assert (
+        env.store.db.execute(
+            "SELECT name FROM sqlite_master WHERE name LIKE 'live_capture%'"
+        ).fetchall()
+        == before
+    )
+
+
+@pytest.mark.parametrize(
+    "body,headers,expected",
+    [
+        (b'{"x":1,"x":2}', {}, 400),
+        (b'{"epoch":NaN}', {}, 400),
+        (b"{}", {"Content-Encoding": "gzip"}, 415),
+        (b"{}", {"Content-Type": "text/plain"}, 415),
+        (b" " * 4097, {}, 413),
+    ],
+)
+async def test_v2_request_boundaries_run_before_capture(
+    converse_incremental_env, body, headers, expected
+):
+    env = converse_incremental_env
+    result = await env.client.post(
+        BASE + "/begin", content=body, headers={"Content-Type": "application/json", **headers}
+    )
+    assert result.status_code == expected
+    assert env.engine.begin_calls == 0 and not env.app.state.live_streams.captures
+
+
+async def test_live_dependency_failure_fences_only_live_capture_preserving_legacy_availability(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        owner = (await live.client.get(BASE + "/ownership")).json()["owner_instance"]
+        body = begin_body(env, owner)
+        assert (await live.client.post(BASE + "/begin", json=body)).status_code == 200
+        old_admission = env.runtime.admission()
+        live.worker.ready = False
+        await live.dependency.refresh()
+        capture = live.app.state.live_streams.captures[body["capture_id"]]
+        assert capture.capture_fenced and env.runtime.enabled
+        assert env.runtime.admission_current(old_admission)
+        assert not (await live.client.get(BASE + "/ownership")).json()["available"]
+        async with asyncio.timeout(3):
+            while capture.mic.fence_receipt is None:
+                await asyncio.sleep(0)
+        assert not (await capture.mic.inspect()).capture_open
+        assert live.calls == [] and env.engine.begin_calls == 1
+
+
+@pytest.mark.parametrize("change", ["missing-registration", "capture-scope"])
+async def test_confirmed_live_source_proof_requires_exact_original_registration(
+    converse_incremental_env, change
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        owner = (await live.client.get(BASE + "/ownership")).json()["owner_instance"]
+        body = begin_body(env, owner)
+        result = await live.client.post(BASE + "/begin", json=body)
+        assert result.status_code == 200
+        pcm = await live.client.post(
+            BASE + "/pcm", json={**body, **pcm_for(env, result.json()["native"]["result"])}
+        )
+        assert pcm.status_code == 200
+        proof = pcm.json()
+        if change == "missing-registration":
+            proof["capture"] = None
+        else:
+            proof["capture"]["original"]["session_id"] = "public-other-session"
+            proof["capture"]["receipt"]["original"]["session_id"] = "public-other-session"
+        with pytest.raises(ValueError):
+            LiveStreamProof.model_validate(proof)
+
+
+async def test_live_entrypoint_requires_the_native_stt_selection_owner(converse_incremental_env):
+    env = converse_incremental_env
+    assert not env.runtime._stt_options_configured and env.runtime.stt_model_settings is None
+    async with live_client(env, native_stt=False) as live:
+        owner = (await live.client.get(BASE + "/ownership")).json()["owner_instance"]
+        result = await live.client.post(BASE + "/begin", json=begin_body(env, owner))
+        assert result.status_code == 503
+        assert env.engine.begin_calls == 0 and not live.app.state.live_streams.captures
