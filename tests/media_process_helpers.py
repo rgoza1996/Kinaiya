@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from native_startup_observers import observe_media_commands
 
 from packages.contracts import media
 from packages.resources.media_processes import MediaLaunchBinding, MediaWorkerPool
@@ -155,6 +156,7 @@ class _Harness:
         self.release_dependencies = asyncio.Event()
         self.dependencies = []
         self.native_spawn = asyncio.create_subprocess_exec
+        self.command_failures = observe_media_commands(monkeypatch)
         monkeypatch.setattr(asyncio, "create_subprocess_exec", self.spawn)
 
     async def spawn(self, *args, **kwargs):

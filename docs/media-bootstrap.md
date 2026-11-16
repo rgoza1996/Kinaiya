@@ -11,17 +11,26 @@ read-only source to FD4. It does not decode media or read the source body.
 This program has no public service endpoint. Native Session admission, a
 registered original source grant, descriptor-aware WorkerManager integration,
 the sealed decoder sandbox, inner-process ownership and per-segment budgets
-remain required before a decoder can run. The generic worker bootstrap and
-existing public media protocols are unchanged.
+remain required before a decoder can run. Existing public media protocols
+are unchanged.
 
 ## Inputs and refusal
 
-The native-selected Python executable runs the absolute script with exactly
-five arguments:
+The native-selected Python executable runs the absolute script with the private
+entry-framing option:
 
 ```text
-<script> <grant_fd> <config_fd> <nonce> <control_fd> <source_fd>
+<script> <grant_fd> <config_fd> <nonce> <control_fd> <source_fd> --kinaiya-bootstrap-entry-v1
 ```
+
+Scoped preparation inserts `--kinaiya-cgroup-v1 <enroll_fd>` before that final
+option. Legacy direct helper forms without entry framing remain accepted, but
+native parents require v1. The helper writes the exact bounded stdout prefix
+after argument/grant validation and required cgroup enrollment, before waiting
+on the original grant. The parent consumes that prefix before its unchanged
+identity verification and sole grant. Entry establishes no execution permission
+or application readiness. See [entry framing](bootstrap-entry-protocol.md) for
+bytes, budget, refusal and cancellation behavior.
 
 The four descriptors must be distinct canonical decimal integers greater than
 two and fit the native C-int range before any grant read. The nonce is exactly

@@ -18,6 +18,11 @@ import socket
 import stat
 import sys
 
+if __package__:
+    from ._bootstrap_protocol import BOOTSTRAP_ENTRY, BOOTSTRAP_ENTRY_FLAG
+else:
+    from _bootstrap_protocol import BOOTSTRAP_ENTRY, BOOTSTRAP_ENTRY_FLAG
+
 MAX_CONFIG_BYTES = 65_536
 _FD = re.compile(r"[1-9][0-9]{0,9}\Z")
 _FD_MAX = (1 << (ctypes.sizeof(ctypes.c_int) * 8 - 1)) - 1
@@ -142,12 +147,16 @@ def _validate_enrollment(fd: int) -> None:
 
 
 def _run() -> int:
-    if len(sys.argv) not in (6, 8):
+    args = sys.argv
+    report_entry = len(args) in (7, 9) and args[-1] == BOOTSTRAP_ENTRY_FLAG
+    if report_entry:
+        args = args[:-1]
+    if len(args) not in (6, 8):
         raise ValueError
-    if len(sys.argv) == 8:
-        if sys.argv[6] != "--kinaiya-cgroup-v1":
+    if len(args) == 8:
+        if args[6] != "--kinaiya-cgroup-v1":
             raise ValueError
-        _, grant_s, config_s, nonce, control_s, source_s, _, enroll_s = sys.argv
+        _, grant_s, config_s, nonce, control_s, source_s, _, enroll_s = args
         grant_fd, config_fd, control_fd, source_fd = (
             _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
         )
@@ -171,7 +180,7 @@ def _run() -> int:
         # A successful write still needs positive retirement before grant/exec.
         # Any close error refuses execution; the possibly reused fd is not retried.
         os.close(enroll_fd)
-        _, grant_s, config_s, nonce, control_s, source_s = sys.argv[0:6]
+        _, grant_s, config_s, nonce, control_s, source_s = args[0:6]
         grant_fd, config_fd, control_fd, source_fd = (
             _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
         )
@@ -179,7 +188,7 @@ def _run() -> int:
         if len(set(originals)) != 4 or _NONCE.fullmatch(nonce) is None:
             raise ValueError
     else:
-        _, grant_s, config_s, nonce, control_s, source_s = sys.argv
+        _, grant_s, config_s, nonce, control_s, source_s = args
         grant_fd, config_fd, control_fd, source_fd = (
             _descriptor(value) for value in (grant_s, config_s, control_s, source_s)
         )
@@ -188,6 +197,8 @@ def _run() -> int:
             raise ValueError
     parent = os.getppid()
     if not stat.S_ISFIFO(os.fstat(grant_fd).st_mode) or not _read_only(grant_fd):
+        raise ValueError
+    if report_entry and os.write(1, BOOTSTRAP_ENTRY) != len(BOOTSTRAP_ENTRY):
         raise ValueError
     grant = os.read(grant_fd, 1)
     if grant == b"":

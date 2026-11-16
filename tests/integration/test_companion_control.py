@@ -15,6 +15,7 @@ import httpx
 import pytest
 import uvicorn
 from fastapi.testclient import TestClient
+from flutter_project_helpers import isolated_flutter_project
 
 from packages.contracts.companion import (
     CallAction,
@@ -705,7 +706,20 @@ def test_owner_and_companion_dart_transports_against_live_session_asgi(tmp_path)
             pytest.fail("Live Session ASGI server did not become ready on loopback")
 
         if flutter_bin is not None:
-            flutter_dir = Path(__file__).resolve().parents[2] / "apps" / "kinaiya_flutter"
+            root = Path(__file__).resolve().parents[2]
+            names = (
+                subprocess.check_output(
+                    ["git", "ls-files", "-z", "--", "apps/kinaiya_flutter"], cwd=root
+                )
+                .decode()
+                .split("\0")
+            )
+            original_inputs = {
+                name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+                for name in names
+                if name
+            }
+            flutter_dir = isolated_flutter_project(root, tmp_path / "flutter-project")
             env = {
                 **os.environ,
                 "KINAIYA_LIVE_SESSION_URL": base_url,
@@ -727,8 +741,17 @@ def test_owner_and_companion_dart_transports_against_live_session_asgi(tmp_path)
                 check=False,
             )
             assert proc.returncode == 0, f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+            assert (
+                hashlib.sha256((flutter_dir / "pubspec.lock").read_bytes()).hexdigest()
+                == original_inputs["apps/kinaiya_flutter/pubspec.lock"]
+            ), "Actual Flutter fixture changed its declared dependency lock"
+            assert {
+                name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+                for name in original_inputs
+            } == original_inputs, "Actual Flutter fixture changed declared application source"
     finally:
         server.should_exit = True
         thread.join(timeout=5.0)
         sock.close()
         store.close()
+        assert not thread.is_alive(), "Original temporary Session thread did not retire"
