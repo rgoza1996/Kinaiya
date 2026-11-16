@@ -20,11 +20,14 @@ and native engine source `8ca4060b7e30e76baaa5670ee1ec1b760b7f8552`.
 
 The concrete harness limitation is tracked in
 [#626](https://github.com/rgoza1996/Kinaiya/issues/626): versioned role/history
-capability handling and faithful native history when supported. Until that is
-resolved, do not describe the existing reference comparison as proof that
-Kinaiya has no multi-turn protocol limitation. #483 retains this architecture
-follow-up; further persona/style tuning, confidence changes or model sweeps are
-not its acceptance gate.
+capability handling and faithful native history when supported. The
+[role-history implementation](native-realtime-history.md) adds explicit bounded
+negotiation, native chat-template rendering in a downstream engine candidate,
+representation provenance and exact original-wire replay. Limited endpoints
+remain identified as `system_json`. The candidate is not installed into an
+owner's runtime by this change. The earlier reference comparison still does
+not establish structured-history fidelity. Further persona/style tuning,
+confidence changes or model sweeps are not #483's acceptance gate.
 
 `tests/unit/test_realtime_audio_provider.py` covers actual encoded history and
 original PCM, all-or-refuse bounds, matching session/response/item acknowledgments,
@@ -36,4 +39,6 @@ current-main audit runs both modules unchanged: **160 passed in 34.22 seconds**.
 The documentation diff check also passes.
 
 No model inference, engine replacement, owner configuration change, history
-rewrite, audio replay, semantic override or fallback is part of this audit.
+rewrite, audio replay, semantic override or fallback was part of the original
+audit. The separate role-history qualification retains its one original public
+synthetic native call and exact limits in its linked evidence.

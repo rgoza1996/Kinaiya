@@ -1,0 +1,60 @@
+{
+  "baseline": "0ae03656f096e8cddcdd50a02f77ec55df687cf6",
+  "unchanged_native_methods": [
+    {
+      "file": "services/converse/runtime.py",
+      "method": "ConverseRuntime.outcome_notice",
+      "ast_sha256": "160d4f2c1d33d267075816890409a71a3ebf74a4a0fb5d70d75815114669ff43",
+      "unchanged": true
+    },
+    {
+      "file": "services/converse/runtime.py",
+      "method": "ConverseRuntime._text_current",
+      "ast_sha256": "51acf0e05e4ac97e67de5aae2d1bbc72dde431c652ca6ea82bbc915c77aa3116",
+      "unchanged": true
+    },
+    {
+      "file": "services/converse/runtime.py",
+      "method": "ConverseRuntime.acknowledge_delivery",
+      "ast_sha256": "96a6b19e52b970530173167f4083b8c6d1a43886e87b633371dcd3cd187fbde7",
+      "unchanged": true
+    },
+    {
+      "file": "services/converse/runtime.py",
+      "method": "ConverseRuntime.validate_speech",
+      "ast_sha256": "501ac3e495aa0c4ad8b94329a6a0e49a3c903b01d92ef66c05bc1de56697b658",
+      "unchanged": true
+    },
+    {
+      "file": "services/converse/windows.py",
+      "method": "WindowConverseController.current",
+      "ast_sha256": "df776f6f83ebfb8806e303719eb56cf0ed47d421e25d33d9e1c8ea3f0ba2308d",
+      "unchanged": true
+    }
+  ],
+  "unchanged_native_modules": [
+    {
+      "file": "services/converse/task_context.py",
+      "sha256": "4f7639509792ba4b9b4d325166b29368b890c823f9a6d29e8264c511d824c164"
+    },
+    {
+      "file": "services/agent/task_context.py",
+      "sha256": "f438fc94227f14357316843c7974dcfe320ecb31f719b6daaac748008d9749a2"
+    },
+    {
+      "file": "packages/contracts/task_context.py",
+      "sha256": "7c765701ad9e7d3b0332fb95859d6566d7c22215a64d50bd51f6690908128890"
+    },
+    {
+      "file": "services/converse/native_audio.py",
+      "sha256": "28cd88802229b2e61eb01f6ea7c1fdfaf50a947b59fada46d7ba902505f14114"
+    },
+    {
+      "file": "services/converse/delivery_context.py",
+      "sha256": "d82dfac18fef1c0ad440f0acf09dbe401a8e74eaaff5aa9a063c138dd5ffa432"
+    }
+  ],
+  "production_claim_predicate_callers": [],
+  "model_inference_performed": false,
+  "native_pcm_verification": "original controlled PCM bytes/hash delivered through actual authenticated ASGI speech route"
+}

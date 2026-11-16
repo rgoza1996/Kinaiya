@@ -1,0 +1,75 @@
+{
+  "original_native_exit": 0,
+  "original_model_calls": 1,
+  "protocol_controls": 13,
+  "original_overlay_mapped": true,
+  "raw_text_audio_match": true,
+  "input_pcm_sha256": "4a0e13e3b8ef4a95e6e79ca1d200bf1bff6e87a8dc501c58fd68f2c32dd7f0fd",
+  "output_pcm_sha256": "81a14cda5ec5725e3545b7571af984a66770863e415e94d441e70443d1160b2c",
+  "history_sha256": "ba99a18b6e3d1d2b9038e495f1f5e8c05c1bd51602d90262b41f255866dedcac",
+  "semantic_quality_scored": false,
+  "raw_files": [
+    {
+      "name": "controls.jsonl",
+      "bytes": 1232194,
+      "sha256": "b18bc17c3e0cff7eb4c3154c3ef355ace474e5465bcf4a14a3dcaf62ec7f0bad"
+    },
+    {
+      "name": "engine.log",
+      "bytes": 4001,
+      "sha256": "e4715c28a25298e84897ec7253aba724f6a6c06ac7ac545b49df91758b182935"
+    },
+    {
+      "name": "large-history.jsonl",
+      "bytes": 302108,
+      "sha256": "7f7188567d4f4c83695c29bebf5be13e332298060bac99677297e56ada492d43"
+    },
+    {
+      "name": "result.json",
+      "bytes": 33815,
+      "sha256": "1c9bd9708ef97a5d78715bc3abfcef4068d31b5911aa7248c1c8938a0d5a1ef6"
+    },
+    {
+      "name": "run.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "run.stdout",
+      "bytes": 78,
+      "sha256": "53eb71752f0a3915bd845145cc2a37927112c1a59fcb788275440c6a15ec7f77"
+    },
+    {
+      "name": "single-provider-capture.jsonl",
+      "bytes": 287028,
+      "sha256": "4297b740b8c6097043b562651abbd5df4ec136b7cdf3b8c722da3d184cce1e73"
+    },
+    {
+      "name": "single-provider-output.wav",
+      "bytes": 96044,
+      "sha256": "793f3c93694c9fa3c29d65f67dd87cb75876cfbb233110d1b05d0c5fd4eb915b"
+    },
+    {
+      "name": "source-receipt.json",
+      "bytes": 37378,
+      "sha256": "afee8e58f0fbb999da79bd781196d256669216110fd6b120fc200ccc52f37799"
+    },
+    {
+      "name": "started-history.jsonl",
+      "bytes": 3430,
+      "sha256": "24536d33d043acf1d9dfdf6b858fbd60fd9584c9e519890c423822a473aca5e9"
+    },
+    {
+      "name": "transcription.jsonl",
+      "bytes": 1927,
+      "sha256": "6e77cd8909cc1e268cccc08f2f72575325670cfd565c15b9fb0456271b60d3eb"
+    }
+  ],
+  "offline_current_provider": {
+    "outgoing_frames": 7,
+    "incoming_frames": 48,
+    "original_close_calls": 1,
+    "additional_model_calls": 0,
+    "current_provider_replays_original_frames_exactly": true
+  }
+}

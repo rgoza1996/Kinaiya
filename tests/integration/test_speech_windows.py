@@ -383,7 +383,7 @@ async def test_conversational_completion_words_are_preserved(env):
     assert spoken == "Well done. I finished my introduction."
 
 
-async def test_explicit_file_completion_claim_needs_native_evidence(env):
+async def test_explicit_file_completion_claim_remains_generated_dialogue(env):
     env.runtime.provider = ScriptedProvider(["I created the file."])
     source = await window(env, "Please write a file.", speaking=False)
     await env.controller.process(
@@ -391,7 +391,8 @@ async def test_explicit_file_completion_claim_needs_native_evidence(env):
     )
     await settle(env)
     spoken = env.store.read(kinds=["conversation.converse"])[0].payload["text"]
-    assert spoken == "The Agent has not provided a verified result for that claim."
+    assert spoken == "I created the file."
+    assert env.store.read(kinds=["agent.outcome"]) == []
 
 
 async def test_out_of_order_window_does_not_cancel_newer_prepared_reply(env):

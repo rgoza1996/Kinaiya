@@ -1,4 +1,4 @@
-"""Typed + retained-window negative runtime-state publication; synthetic only."""
+"""Faithful generated-state publication; generated text has no native authority."""
 
 import asyncio
 from types import SimpleNamespace
@@ -50,7 +50,7 @@ def typed_request(session, text="hi", key="k1"):
     )
 
 
-async def test_typed_negative_claim_substituted_with_distinct_provenance(tmp_path):
+async def test_typed_negative_claim_preserved_without_invented_safety_provenance(tmp_path):
     store = Store(tmp_path / "journal.sqlite")
     try:
         session = store.create_session(SessionRequest(channel="converse"))
@@ -61,17 +61,16 @@ async def test_typed_negative_claim_substituted_with_distinct_provenance(tmp_pat
             assert len(provider.calls) == 1
             assert provider.closed == 1
             texts = [e["entry"]["payload"]["text"] for e in result["events"] if e["type"] == "text"]
-            assert texts == [UNVERIFIED_STATE_REPLY]
-            assert "No Agent" not in result["text"]
+            assert texts == ["No Agent is presently authorized to execute that."]
+            assert "No Agent" in result["text"]
             safety = store.read(kinds=["converse.safety"])
-            assert len(safety) == 1
-            assert safety[0].payload["reason"] == "ungrounded_runtime_state_claim"
+            assert safety == []
             replies = store.read(kinds=["conversation.converse"])
             assert len(replies) == 1
-            assert replies[0].payload["text"] == UNVERIFIED_STATE_REPLY
+            assert replies[0].payload["text"] == "No Agent is presently authorized to execute that."
             assert replies[0].payload["content_scope"] == "public_synthetic"
             assert replies[0].epoch == session.epoch
-            # Empty history grants no authority: claim still blocked above.
+            # Generated dialogue retains its source; it grants no native authority.
             assert replies[0].causes
         finally:
             await runtime.close()
@@ -83,7 +82,7 @@ async def test_typed_mixed_planning_and_history_presence_stay_useful(tmp_path):
     store = Store(tmp_path / "journal.sqlite")
     try:
         session = store.create_session(SessionRequest(channel="converse"))
-        # Nonempty history must not authorize a later negative claim, and planning stays useful.
+        # History does not turn dialogue into native state; planning stays useful.
         first = ConverseRuntime(LocalJournal(store, "converse"), ScriptedProvider(["We can plan."]))
         try:
             await asyncio.wait_for(first.turn(typed_request(session, "hello", "h1")), 2)
@@ -107,7 +106,7 @@ async def test_typed_mixed_planning_and_history_presence_stay_useful(tmp_path):
         )
         try:
             result = await asyncio.wait_for(bad.turn(typed_request(session, "status?", "h3")), 2)
-            assert result["text"] == UNVERIFIED_STATE_REPLY
+            assert result["text"] == "No task has started."
         finally:
             await bad.close()
     finally:
@@ -192,7 +191,7 @@ async def _settle(env):
     await env.controller.tick()
 
 
-async def test_window_negative_claim_uses_owned_payload_marker(tmp_path):
+async def test_window_negative_claim_preserves_source_without_semantic_marker(tmp_path):
     env = await _window_env(tmp_path, FragmentedProvider(["Nothing has ", "been executed."]))
     try:
         source = await _decide(env)
@@ -202,8 +201,8 @@ async def test_window_negative_claim_uses_owned_payload_marker(tmp_path):
         assert env.provider.closed == 1
         replies = env.store.read(kinds=["conversation.converse"])
         assert len(replies) == 1
-        assert replies[0].payload["text"] == UNVERIFIED_STATE_REPLY
-        assert replies[0].payload.get("guard_reason") == "ungrounded_runtime_state_claim"
+        assert replies[0].payload["text"] == "Nothing has been executed."
+        assert "guard_reason" not in replies[0].payload
         assert replies[0].payload["window_source_id"] == source.event_id
         assert replies[0].epoch == env.session.epoch
         assert replies[0].payload["content_scope"] == "public_synthetic"
@@ -251,7 +250,7 @@ async def test_window_planning_preserved_and_positive_fallback_untouched(tmp_pat
         env2.store.close()
 
 
-async def test_window_refusal_stays_error_after_guarded_chunk(tmp_path):
+async def test_window_refusal_stays_error_after_generated_chunk(tmp_path):
     env = await _window_env(
         tmp_path,
         FragmentedProvider(["No Agent is available. "], error=ProviderRefusal("Synthetic refusal")),
@@ -262,11 +261,11 @@ async def test_window_refusal_stays_error_after_guarded_chunk(tmp_path):
         await _settle(env)
         assert len(env.provider.calls) == 1
         assert env.provider.closed == 1
-        # The earlier guarded chunk is still published with its owned marker.
+        # The earlier generated chunk is still published with its source identity.
         replies = env.store.read(kinds=["conversation.converse"])
         assert len(replies) == 1
-        assert replies[0].payload["text"] == UNVERIFIED_STATE_REPLY
-        assert replies[0].payload.get("guard_reason") == "ungrounded_runtime_state_claim"
+        assert replies[0].payload["text"] == "No Agent is available."
+        assert "guard_reason" not in replies[0].payload
         # The refusal still surfaces as an error and is never substituted.
         assert env.controller.last_error == "ProviderRefusal"
         assert all(

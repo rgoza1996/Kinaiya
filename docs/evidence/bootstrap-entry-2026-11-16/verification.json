@@ -1,0 +1,311 @@
+{
+  "issues": [
+    577,
+    620,
+    645,
+    646
+  ],
+  "baseline": "7299f8b9e31b045382892a224c6a0b51c523e54b",
+  "scope": "Trusted first-party userland entry before unchanged native verification and sole original grant; not historical cause proof",
+  "environment": {
+    "os": "Linux",
+    "kernel": "7.0.0-43-generic",
+    "arch": "x86_64",
+    "python313": "3.13.18",
+    "python312": "3.12.3",
+    "dev_lock": {
+      "sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+      "size_bytes": 90841
+    },
+    "python313_executable_sha256": "3332ebd605e668146a009f4a4aa4670bcb987bb3c27abce4a7135546e42d55ac"
+  },
+  "frozen_control": {
+    "passed": 0,
+    "failed": 2,
+    "seconds": 0.48,
+    "after_protocol": {
+      "passed": 2,
+      "failed": 0,
+      "seconds": 0.64
+    },
+    "proves": "real parent phase ordering under a test-owned gate; not kernel-race reproduction"
+  },
+  "first_results": [
+    {
+      "log": "issue-577-entry-related-first.log",
+      "passed": 420,
+      "failed": 4,
+      "seconds": 51.67,
+      "issue": 645,
+      "reason": "Cached original refusal-exit warning bypassed on new entry EOF path; original cleanup assertions passed"
+    },
+    {
+      "log": "issue-577-entry-boundaries-first.log",
+      "passed": 10,
+      "failed": 2,
+      "seconds": 13.64,
+      "reason": "Test awaited native cleanup while withholding its entry gate; fixture ordering corrected, not a production deadline change"
+    },
+    {
+      "log": "issue-577-entry-expanded-first.log",
+      "passed": 590,
+      "failed": 1,
+      "seconds": 446.79,
+      "issue": 646,
+      "reason": "New entry wait accidentally applied an implicit timer to legacy unscoped media; removed that new timer"
+    }
+  ],
+  "final_expanded": {
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "tests/integration/test_bootstrap_entry_phase.py",
+      "tests/integration/test_resource_processes.py",
+      "tests/integration/test_resource_boundaries.py",
+      "tests/integration/test_resource_bootstrap_observations.py",
+      "tests/unit/test_worker_bootstrap_diagnostics.py",
+      "tests/unit/test_worker_bootstrap_command_observations.py",
+      "tests/unit/test_media_bootstrap.py",
+      "tests/unit/test_media_bootstrap_diagnostics.py",
+      "tests/unit/test_media_processes.py",
+      "tests/unit/test_media_process_retirement_guards.py",
+      "tests/integration/test_media_decoder_child.py",
+      "tests/unit/test_media_cgroup_custody.py",
+      "tests/integration/test_managed_whistle.py",
+      "tests/integration/test_managed_qwen3.py",
+      "tests/integration/test_managed_text_lifecycle.py",
+      "tests/integration/test_native_media_publication.py"
+    ],
+    "python": "3.13.18",
+    "passed": 591,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 0,
+    "seconds": 476.25,
+    "PYTHONPATH": "absolute current worktree",
+    "PATH": "qualification Python3.13 venv first; fixed ordinary system path follows"
+  },
+  "targeted_cross312": {
+    "python": "3.12.3",
+    "passed": 39,
+    "failed": 0,
+    "skipped": 0,
+    "warnings": 0,
+    "seconds": 6.73,
+    "scope": "Entry, cached-exit diagnostics and media cgroup custody",
+    "full_argv_retained": false
+  },
+  "static": {
+    "ruff_check": "passed",
+    "ruff_format_files": 1053,
+    "diff_check": "passed",
+    "test_decorator_formatting": "Python AST identical before and after; no behavior change"
+  },
+  "unchanged_native_bodies": [
+    {
+      "file": "packages/resources/processes.py",
+      "unchanged_existing_function_bodies": 58,
+      "changed_existing_bodies": [
+        "WorkerManager._start_locked"
+      ],
+      "new_functions": []
+    },
+    {
+      "file": "packages/resources/media_processes.py",
+      "unchanged_existing_function_bodies": 75,
+      "changed_existing_bodies": [
+        "MediaLaunch._spawn_owned"
+      ],
+      "new_functions": [
+        "MediaLaunch._read_bootstrap_entry"
+      ]
+    },
+    {
+      "file": "packages/resources/_bootstrap.py",
+      "unchanged_existing_function_bodies": 2,
+      "changed_existing_bodies": [
+        "main"
+      ],
+      "new_functions": []
+    },
+    {
+      "file": "packages/resources/_media_bootstrap.py",
+      "unchanged_existing_function_bodies": 9,
+      "changed_existing_bodies": [
+        "_run"
+      ],
+      "new_functions": []
+    }
+  ],
+  "source": {
+    "packages/resources/_bootstrap.py": {
+      "sha256": "ae8f1626f6fe31ea37eb7a8bca3ab59ca6f2f914852d6ff45f47ec5431231eac",
+      "size_bytes": 4735
+    },
+    "packages/resources/_media_bootstrap.py": {
+      "sha256": "62fa83fe5dae7007db2670de7997b274c7279b7b717a617762576d5d327eb37f",
+      "size_bytes": 9145
+    },
+    "packages/resources/_bootstrap_protocol.py": {
+      "sha256": "1cb83da24cc8c19ce24b880dde067cde4b1f6904af61df2bcc0909126ba1bcab",
+      "size_bytes": 192
+    },
+    "packages/resources/processes.py": {
+      "sha256": "26dcd23ba87b2086be4bed3e14cab0e12eecb539814ebc640eed1f2caf197f71",
+      "size_bytes": 68208
+    },
+    "packages/resources/media_processes.py": {
+      "sha256": "6f2613d49494715c6e1e1dacba20e199fd846700d6499181adc5a5fbe7b77937",
+      "size_bytes": 66562
+    },
+    "tests/integration/test_bootstrap_entry_phase.py": {
+      "sha256": "769084432e5f6a657b10549825a340df6d41ee02667ff28b0fab6dc136e23515",
+      "size_bytes": 11750
+    }
+  },
+  "logs": {
+    "issue-577-entry-frozen-baseline.log": {
+      "sha256": "2967e4146c8a42ed2b924227612c217f31d0e09644528adcd6b34fb80efcb79d",
+      "size_bytes": 8343,
+      "last_line": "2 failed in 0.48s"
+    },
+    "issue-577-entry-first-after.log": {
+      "sha256": "29dfaadb73977f4d958826f9fe727776d7cfc85207543b453ecdd2304ffa15cd",
+      "size_bytes": 98,
+      "last_line": "2 passed in 0.64s"
+    },
+    "issue-577-entry-related-first.log": {
+      "sha256": "dfc3ea15fc5668f25de4aec1a07c5c01f2a97bc132437d08877305a15dcef264",
+      "size_bytes": 9556,
+      "last_line": "4 failed, 420 passed in 51.67s"
+    },
+    "issue-577-entry-boundaries-first.log": {
+      "sha256": "5a71faefa4fe592c0cf2962ebe1bcb8ae98cfa5b3854666b5ae275d5d0d769e3",
+      "size_bytes": 18385,
+      "last_line": "2 failed, 10 passed in 13.64s"
+    },
+    "issue-577-entry-boundaries-corrected.log": {
+      "sha256": "36f88be7ef85aec31fd86cef9e3375d40b0bf693c79545a58a87d7d04dbee67b",
+      "size_bytes": 99,
+      "last_line": "12 passed in 5.48s"
+    },
+    "issue-577-entry-expanded-first.log": {
+      "sha256": "221f3bc834b3cce12a2b0fae618d01427c8e45d0f1e855bb4c3d9152447a2d3a",
+      "size_bytes": 3665,
+      "last_line": "1 failed, 590 passed in 446.79s (0:07:26)"
+    },
+    "issue-577-entry-expanded-final.log": {
+      "sha256": "7c16e01aba1d8845bca195582b62da4cac7dc0da25c87d408f1791c80584f42f",
+      "size_bytes": 752,
+      "last_line": "591 passed in 476.25s (0:07:56)"
+    },
+    "issue-577-entry-cross312.log": {
+      "sha256": "33f900c96d0d500805dd8186de41021382daa0ca5c2b1f630276bbcaf9bcd359",
+      "size_bytes": 99,
+      "last_line": "39 passed in 6.73s"
+    },
+    "issue-577-wheel-build.log": {
+      "sha256": "198c6236d0410e8b6c101b61b984afab5a3f91e73e31ebd8383271845c137f45",
+      "size_bytes": 619,
+      "last_line": "Successfully built kinaiya"
+    },
+    "issue-577-wheel-install.log": {
+      "sha256": "1b83f3b63a8d8dfd1b291728f8f217f751a9d9e4bab61c17873f3b741493149c",
+      "size_bytes": 186,
+      "last_line": "Successfully installed kinaiya-0.1.0.dev0"
+    },
+    "issue-577-composed-312.log": {
+      "sha256": "6ae3df6a0ada9fac1d285fa8a2f52e306fbde10d1ec0161a0cdeafd5716035e2",
+      "size_bytes": 848,
+      "last_line": "248 passed, 1 warning in 54.10s"
+    },
+    "issue-577-composed-313.log": {
+      "sha256": "27ad5f3cf269eda80622042fff93dca361561003470c3fdcbf95b2be4053c6a3",
+      "size_bytes": 900,
+      "last_line": "248 passed, 1 warning in 53.87s"
+    }
+  },
+  "wheel": {
+    "wheel": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-577-package/kinaiya-0.1.0.dev0-py3-none-any.whl",
+    "sha256": "7e928774a5c86a010252afc3be46a8f32cfce9d7a4b4d84edf62713c68fd2e15",
+    "record_members_verified": 365,
+    "all_three_private_helpers_match_source": true
+  },
+  "installed_wheel": {
+    "python": "3.13.18 (main, Oct 26 2026, 14:20:56) [GCC 13.3.0]",
+    "cwd": "/tmp",
+    "runtime_module": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/lib/python3.13/site-packages/packages/resources/processes.py",
+    "protocol_module": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/lib/python3.13/site-packages/packages/resources/_bootstrap_protocol.py",
+    "original_executed_once": true,
+    "configured_stdout_sha256": "a30c4333d5278463b8c95342ee49a9d94008169dce974ae853570d67f63819c4",
+    "configured_stdout_preserved": true,
+    "original_process_reaped": true
+  },
+  "packaging": {
+    "build": "PIP_CONFIG_FILE=/dev/null <task-build-venv>/bin/python -m pip wheel --disable-pip-version-check --no-index --no-build-isolation --no-deps --wheel-dir <root>/output/issue-577-package .",
+    "build_tool": "setuptools84.2.1; existing requirements-vibevoice.lock hash-locked stanza only; no VibeVoice/Torch install",
+    "install": "<qualification-venv>/bin/python -m pip install --no-index --no-deps <verified-wheel>",
+    "probe": "From /tmp: <qualification-venv>/bin/python -I <root>/output/issue-577-installed-wheel-probe.py",
+    "probe_source": {
+      "sha256": "0b19ce1248d4ec31df7346bac920ac40e4610e60c15d47d0e4c297297d7807e6",
+      "size_bytes": 2219
+    },
+    "pip_check": "No broken requirements found"
+  },
+  "limitations": [
+    "Exact-head hosted CI not yet collected",
+    "No physical ARM64, Dell, Pi, cgroup or GPU qualification claimed",
+    "Historical577/620 causes remain unproven; coarse pre_command_mismatch does not prove empty cmdline",
+    "Existing unscoped media has no implicit timer; original task, fence and cleanup ownership preserved",
+    "No model/provider call, host policy change, dependency or supported-version migration"
+  ],
+  "composition": {
+    "main": "32d5fb7a0df36de62c9c4ed789c8b8fbff665366",
+    "tested_revision": "0ac92778ed7dea444684898e59817f5930846cb6",
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "tests/integration/test_bootstrap_entry_phase.py",
+      "tests/unit/test_worker_bootstrap_diagnostics.py",
+      "tests/unit/test_media_cgroup_custody.py",
+      "tests/integration/test_decisions_selection_capture_unknown.py",
+      "tests/integration/test_openrouter_decisions_selection.py",
+      "tests/integration/test_decisions_inspection.py",
+      "tests/integration/test_decisions_finalized_refusal_recovery.py",
+      "tests/integration/test_decisions_finalized_refusal.py",
+      "tests/integration/test_window_cache_identity.py"
+    ],
+    "PYTHONPATH": "absolute current worktree",
+    "PATH": "qualification Python3.13 venv first for both explicit interpreters; ordinary system path follows",
+    "results": [
+      {
+        "interpreter": "root .venv/bin/python",
+        "python": "3.12.3",
+        "passed": 248,
+        "failed": 0,
+        "skipped": 0,
+        "warnings": 1,
+        "seconds": 54.1
+      },
+      {
+        "interpreter": "output/issue-643-python313-venv/bin/python",
+        "python": "3.13.18",
+        "passed": 248,
+        "failed": 0,
+        "skipped": 0,
+        "warnings": 1,
+        "seconds": 53.87
+      }
+    ],
+    "warning": "Existing StarletteDeprecationWarning about httpx/httpx2; dependencies unchanged",
+    "code_changed_by_main_merge": false
+  }
+}
