@@ -25,6 +25,7 @@ from packages.contracts import (
     decisions_attempts,
     decisions_models,
     decisions_prompts,
+    live_decisions,
     media,
     memory,
     memory_catalog,
@@ -91,6 +92,11 @@ for name in (
     "AgentSteerLookupResult",
 ):
     cls = getattr(agent_control, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+# Five-outcome labels/bindings never change the frozen four-outcome v1 models.
+for name in ("LiveWindowLabels", "LiveWindowDecision"):
+    cls = getattr(live_decisions, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Owner policy requests are strict frozen models, separate from journal events.

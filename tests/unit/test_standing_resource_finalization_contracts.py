@@ -579,6 +579,9 @@ def schema_pin():
         "StreamPublication",
         "StreamPublicationProof",
     }
+    # #623's five-outcome records have an independent two-file byte pin.
+    # Keep the original184 family and its expected digest unchanged.
+    additive |= {"LiveWindowLabels", "LiveWindowDecision"}
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

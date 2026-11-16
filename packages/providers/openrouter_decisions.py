@@ -19,10 +19,10 @@ from packages.contracts.models import ProviderInfo
 from packages.providers.complete_http import RequestBoundAsyncClient, complete_stream
 from packages.providers.laya import (
     AGENT_CHOICES,
-    CONVERSATION_CHOICES,
     FINAL_CHOICES,
     MAX_TOTAL_CHARS,
     LayaRoutingProvider,
+    _conversation_choices,
     _finalized_questions,
     _window_questions,
 )
@@ -255,7 +255,9 @@ class OpenRouterDecisionsProvider:
 
         state, mode = self._parse_messages(messages)
         questions = (
-            _window_questions(state["tasks"])
+            _window_questions(
+                state["tasks"], window_contract_version=state.get("window_contract_version", 1)
+            )
             if mode == "window"
             else _finalized_questions(state["tasks"])
         )
@@ -409,7 +411,7 @@ class OpenRouterDecisionsProvider:
         if type(answers) is not dict or set(answers) != set(questions):
             raise ProviderRefusal("OpenRouter decisions answer questions did not match")
         allowed = (
-            {"conversation": CONVERSATION_CHOICES, "agent_route": AGENT_CHOICES}
+            {"conversation": _conversation_choices(state), "agent_route": AGENT_CHOICES}
             if mode == "window"
             else {"route": FINAL_CHOICES}
         )
@@ -468,7 +470,8 @@ class OpenRouterDecisionsProvider:
         }
         if mode == "window":
             return {
-                "conversation": CONVERSATION_CHOICES[picked["conversation"]],
+                **({"schema_version": "2.0"} if state.get("window_contract_version") == 2 else {}),
+                "conversation": _conversation_choices(state)[picked["conversation"]],
                 "agent_route": AGENT_CHOICES[action],
                 **result,
             }

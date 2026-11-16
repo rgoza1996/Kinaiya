@@ -17,6 +17,7 @@ import httpx
 from pydantic import ValidationError
 
 from core.policy import PolicyDenied
+from packages.contracts.live_decisions import LiveWindowDecision, LiveWindowLabels
 from packages.contracts.models import (
     AppendRequest,
     InterruptRequest,
@@ -314,10 +315,16 @@ def _project_task_history(tasks, *, provider_info=None):
 
 
 def _encode_request(
-    window: SpeechWindow, entries: list[JournalEntry], task_refs: list[dict], task_history=()
+    window: SpeechWindow,
+    entries: list[JournalEntry],
+    task_refs: list[dict],
+    task_history=(),
+    *,
+    window_contract_version=1,
 ) -> str:
     return json.dumps(
         {
+            **({"window_contract_version": 2} if window_contract_version == 2 else {}),
             "latest": {
                 "text": window.text,
                 "user_speaking": window.user_speaking,
@@ -353,6 +360,7 @@ def build_window_request(
     provider_info,
     window_chars: int,
     task_history=(),
+    window_contract_version=1,
 ) -> WindowRequest:
     """Build the single authorization-first, bounded window classifier request.
 
@@ -362,6 +370,8 @@ def build_window_request(
     ``task_history`` yields the identical ``body``, so the worker's reuse identity
     and provider call bind the same bytes (including the overflow fold).
     """
+    if type(window_contract_version) is not int or window_contract_version not in {1, 2}:
+        raise ValueError("Unsupported Decisions window contract")
     window = SpeechWindow.model_validate(source.payload)
     if provider_info is not None and not scope_allowed(provider_info, window.content_scope):
         raise WindowDisclosureRefused("Window disclosure does not permit this provider")
@@ -372,7 +382,9 @@ def build_window_request(
         task_history, provider_info=provider_info
     )
     task_refs = _task_projection(included_tasks, provider_info=provider_info, limit=MAX_TASKS)
-    body = _encode_request(window, entries, task_refs, history_refs)
+    body = _encode_request(
+        window, entries, task_refs, history_refs, window_contract_version=window_contract_version
+    )
     if len(body) > window_chars:
         # Overflow drops conversational history and folds active targets;
         # terminal observations remain part of the bounded request.
@@ -380,7 +392,13 @@ def build_window_request(
         task_refs = _task_projection(
             included_tasks, provider_info=provider_info, limit=OVERFLOW_TASKS
         )
-        body = _encode_request(window, entries, task_refs, history_refs)
+        body = _encode_request(
+            window,
+            entries,
+            task_refs,
+            history_refs,
+            window_contract_version=window_contract_version,
+        )
     if len(body) > window_chars:
         raise ValueError("Current window exceeds classifier context bound")
     return WindowRequest(body, entries, included_tasks, included_history)
@@ -407,6 +425,7 @@ def admissible_window_projection(
     model_stamp: str | None = None,
     instructions_stamp: str | None = None,
     task_history=(),
+    window_contract_version=1,
 ) -> WindowProjection:
     """Project the exact classifier request and its canonical reuse digest.
 
@@ -424,6 +443,7 @@ def admissible_window_projection(
             provider_info=provider_info,
             window_chars=window_chars,
             task_history=task_history,
+            window_contract_version=window_contract_version,
         )
     except WindowDisclosureRefused:
         return WindowProjection(False, [], [], None, None)
@@ -490,7 +510,12 @@ class WindowClassifier:
     never silently replaced with a fabricated classification.
     """
 
-    def __init__(self, provider, window_chars: int = 36000, *, prompt=None):
+    def __init__(
+        self, provider, window_chars: int = 36000, *, prompt=None, window_contract_version=1
+    ):
+        if type(window_contract_version) is not int or window_contract_version not in {1, 2}:
+            raise ValueError("Unsupported Decisions window contract")
+        self.window_contract_version = window_contract_version
         self.provider = provider
         self.window_chars = window_chars
         self.prompt = DEFAULT_PROMPT if prompt is None else prompt
@@ -505,6 +530,7 @@ class WindowClassifier:
             provider_info=self.provider.info,
             window_chars=self.window_chars,
             task_history=task_history,
+            window_contract_version=self.window_contract_version,
         )
 
     def _request_body(
@@ -521,11 +547,22 @@ class WindowClassifier:
         task_history=(),
     ) -> dict:
         prompt = self.prompt
-        prompt_stamp(prompt, "window", self.provider.info)
+        prompt_stamp(
+            prompt,
+            "window",
+            self.provider.info,
+            window_contract_version=self.window_contract_version,
+        )
         capture_prompt_scope(prompt.content_scope)
         if source.kind != "conversation.window":
             raise ValueError(f"WindowClassifier needs a conversation.window, got {source.kind!r}")
         window = SpeechWindow.model_validate(source.payload)
+        if self.window_contract_version == 2 and (
+            source.origin != "authenticated-user"
+            or (source.session_id, source.thread_id, source.epoch)
+            != (window.session_id, window.thread_id, window.epoch)
+        ):
+            raise ValueError("Contract2.0 needs its authenticated native window scope")
         capture = _capture.get()
         if capture is not None and any(
             getattr(t, "source_event_ids", None) and getattr(t, "_disclosure_sources", None) is None
@@ -537,7 +574,9 @@ class WindowClassifier:
             for t in task_history
         ):
             task_history = await resolve_scoped_tasks(capture.journal, task_history, force=True)
-        system_instructions = instructions(prompt, "window")
+        system_instructions = instructions(
+            prompt, "window", window_contract_version=self.window_contract_version
+        )
         started = time.monotonic()
         request = self._build(source, context, tasks, task_history)
         body = request.body
@@ -566,6 +605,30 @@ class WindowClassifier:
             raise ValueError("Classifier returned non-JSON output") from exc
         if not isinstance(data, dict):
             raise ValueError("Classifier output must be a JSON object")
+        if self.window_contract_version == 2:
+            labels = LiveWindowLabels.model_validate(data)
+            if labels.target_task_id is not None and not any(
+                (task["task_id"], task["objective_revision"])
+                == (labels.target_task_id, labels.expected_objective_revision)
+                for task in json.loads(body)["tasks"]
+            ):
+                raise ValueError("Live Agent target does not match its submitted native revision")
+            return LiveWindowDecision(
+                **labels.model_dump(),
+                decision_id=new_id(),
+                session_id=source.session_id,
+                thread_id=source.thread_id,
+                epoch=source.epoch,
+                utterance_id=window.utterance_id,
+                window_index=window.window_index,
+                source_event_id=source.event_id,
+                source_sequence=source.sequence,
+                source_revision=window.revision,
+                prompt_chars=len(system_instructions) + len(body),
+                history_chars=sum(len(e["text"]) for e in context_used),
+                context_entries=len(context_used),
+                classifier_ms=classifier_ms,
+            ).model_dump(mode="json")
         if set(data) - {
             "conversation",
             "agent_route",

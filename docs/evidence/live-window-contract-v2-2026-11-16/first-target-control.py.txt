@@ -1,0 +1,296 @@
+"""Independent v2 vectors through real HTTP adapters; no inference or side effects."""
+
+import json
+from types import SimpleNamespace
+
+import httpx
+import pytest
+
+from packages.contracts.live_decisions import LiveWindowDecision, LiveWindowLabels
+from packages.contracts.models import (
+    AppendRequest,
+    SessionRequest,
+    SpeechWindow,
+    Task,
+    WindowDecision,
+)
+from packages.providers.laya import LayaRoutingProvider
+from packages.providers.native_d1 import NativeD1RoutingProvider
+from packages.providers.openrouter_decisions import OpenRouterDecisionsProvider
+from packages.providers.text import CompatibleTextProvider, ProviderRefusal, ScriptedProvider
+from services.decisions.prompts import DEFAULT_PROMPT, prompt_stamp
+from services.decisions.window_routing import WindowClassifier, admissible_window_projection
+from services.decisions.window_worker import WindowDecisionsWorker
+from services.session.store import Store
+
+CONVERSATION = [
+    "IGNORE",
+    "WAIT_FOR_NEXT_WINDOW",
+    "RESPOND_INTERRUPT_USER",
+    "RESPOND_WITHOUT_INTERRUPTING_USER",
+    "WAIT_WITH_BACKCHANNEL",
+]
+ROUTES = [
+    "IGNORE_FOR_IMMEDIATE_ROUTING",
+    "STEER_CURRENT_TASK",
+    "INTERRUPT_CURRENT_TASK",
+    "QUEUE_UNTIL_TASK_DONE",
+]
+CHOICES = ["backchannel", "unfinished", "urgent", "ready", "acknowledge"]
+
+
+@pytest.fixture
+def env(tmp_path):
+    store = Store(tmp_path / "live.sqlite")
+    session = store.create_session(SessionRequest(channel="converse"))
+    window = SpeechWindow(
+        session_id=session.session_id,
+        thread_id=session.thread_id,
+        epoch=session.epoch,
+        utterance_id="public-ongoing-capture",
+        window_index=7,
+        revision=1,
+        text="Public continuous thought café Ω",
+        start_ms=0,
+        end_ms=1000,
+        user_speaking=True,
+        capture_ended=False,
+        content_scope="public_synthetic",
+    )
+    source = store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind="conversation.window",
+            payload=window.model_dump(mode="json"),
+            idempotency_key="public-window",
+        ),
+        "converse",
+    )
+    task = Task(
+        session_id=session.session_id,
+        thread_id=session.thread_id,
+        epoch=session.epoch,
+        task_id="public-task",
+        idempotency_key="public-task-key",
+        objective="Public task",
+        objective_revision=4,
+        state="running",
+        content_scope="public_synthetic",
+    )
+    yield SimpleNamespace(store=store, source=source, task=task)
+    store.close()
+
+
+def labels(conversation="WAIT_WITH_BACKCHANNEL", route="IGNORE_FOR_IMMEDIATE_ROUTING"):
+    targeted = route in {"STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"}
+    return dict(
+        schema_version="2.0",
+        conversation=conversation,
+        agent_route=route,
+        target_task_id="public-task" if targeted else None,
+        expected_objective_revision=4 if targeted else None,
+        reason_code="public_synthetic_outcome",
+    )
+
+
+@pytest.mark.parametrize("conversation", CONVERSATION)
+@pytest.mark.parametrize("route", ROUTES)
+async def test_v2_http_labels_are_independent_and_native_source_is_bound(env, conversation, route):
+    submitted = []
+    output = labels(conversation, route)
+
+    def wire(request):
+        submitted.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(
+                json.dumps(
+                    {
+                        "choices": [
+                            {"message": {"content": json.dumps(output)}, "finish_reason": "stop"}
+                        ],
+                    }
+                ).encode()
+            ),
+        )
+
+    provider = CompatibleTextProvider(
+        "http://127.0.0.1:8877", "public-model", transport=httpx.MockTransport(wire)
+    )
+    try:
+        classifier = WindowClassifier(provider, window_contract_version=2)
+        result = LiveWindowDecision.model_validate(
+            await classifier.classify(env.source, [], [env.task])
+        )
+        assert result.conversation == conversation and result.agent_route == route
+        assert result.reason_code == output["reason_code"]
+        assert (result.target_task_id, result.expected_objective_revision) == (
+            output["target_task_id"],
+            output["expected_objective_revision"],
+        )
+        assert (result.session_id, result.thread_id, result.epoch) == (
+            env.source.session_id,
+            env.source.thread_id,
+            env.source.epoch,
+        )
+        assert (result.source_event_id, result.source_sequence, result.source_revision) == (
+            env.source.event_id,
+            env.source.sequence,
+            1,
+        )
+        assert result.window_index == 7 and result.utterance_id == "public-ongoing-capture"
+        assert len(submitted) == 1
+        body = json.loads(submitted[0]["messages"][1]["content"])
+        assert body["window_contract_version"] == 2
+        assert body["latest"]["text"] == "Public continuous thought café Ω"
+        assert body["latest"]["user_speaking"] is True and body["latest"]["capture_ended"] is False
+        assert "WAIT_WITH_BACKCHANNEL" in submitted[0]["messages"][0]["content"]
+        assert len(env.store.read()) == 1
+        with pytest.raises(ValueError):
+            WindowDecision.model_validate(result.model_dump())
+    finally:
+        await provider.close()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"schema_version": "1.0"},
+        {"schema_version": None},
+        {"source_event_id": "model-invented"},
+        {"conversation": "backchannel"},
+        {"agent_route": "WAIT_WITH_BACKCHANNEL"},
+        {"target_task_id": "invented"},
+        {"expected_objective_revision": True},
+        {"agent_route": "STEER_CURRENT_TASK", "target_task_id": "invented", "expected_objective_revision": 4},
+        {"agent_route": "STEER_CURRENT_TASK", "target_task_id": "public-task", "expected_objective_revision": 5},
+        {"reason_code": ""},
+        {"reason_code": "\ud800"},
+    ],
+)
+async def test_malformed_or_cross_version_model_output_is_refused_without_retry(env, change):
+    provider = ScriptedProvider([json.dumps(labels() | change)])
+    classifier = WindowClassifier(provider, window_contract_version=2)
+    with pytest.raises(ValueError):
+        await classifier.classify(env.source, [], [env.task])
+    assert not provider.responses and len(provider.calls) == 1
+    assert len(env.store.read()) == 1
+
+
+async def test_legacy_response_never_silently_satisfies_v2_and_legacy_worker_refuses_it(env):
+    old = labels("IGNORE")
+    old.pop("schema_version")
+    provider = ScriptedProvider([json.dumps(old), json.dumps(old)])
+    assert (await WindowClassifier(provider).classify(env.source, [], []))[
+        "conversation"
+    ] == "IGNORE"
+    classifier = WindowClassifier(provider, window_contract_version=2)
+    with pytest.raises(ValueError):
+        await classifier.classify(env.source, [], [])
+    with pytest.raises(ValueError, match="contract1.0"):
+        WindowDecisionsWorker(None, None, classifier)
+    assert not provider.responses and len(provider.calls) == 2
+
+
+@pytest.mark.parametrize("field,value", [("origin", "model"), ("thread_id", "wrong"), ("epoch", 2)])
+async def test_non_native_or_mismatched_scope_refuses_before_provider(env, field, value):
+    provider = ScriptedProvider([json.dumps(labels())])
+    classifier = WindowClassifier(provider, window_contract_version=2)
+    with pytest.raises(ValueError, match="authenticated native window"):
+        await classifier.classify(env.source.model_copy(update={field: value}), [], [])
+    assert len(provider.responses) == 1
+
+
+def test_reuse_identity_and_prompt_bind_selected_contract_while_v1_remains_unchanged(env):
+    p1 = admissible_window_projection(env.source, [], [])
+    p2 = admissible_window_projection(env.source, [], [], window_contract_version=2)
+    assert "window_contract_version" not in json.loads(p1.body)
+    assert p1.digest != p2.digest and p1.body != p2.body
+    assert prompt_stamp(DEFAULT_PROMPT, "window", None) != prompt_stamp(
+        DEFAULT_PROMPT, "window", None, window_contract_version=2
+    )
+
+
+@pytest.mark.parametrize("adapter", ["laya", "native_d1", "openrouter"])
+@pytest.mark.parametrize("choice,expected", list(zip(CHOICES, CONVERSATION, strict=True)))
+async def test_typed_http_adapters_submit_five_choices_and_preserve_selected_outcome(
+    env, adapter, choice, expected
+):
+    model = {
+        "laya": "english",
+        "native_d1": "native/d1-Omni_2B.Q8",
+        "openrouter": "typesafe/jev-1.14",
+    }[adapter]
+    seen = []
+
+    def wire(request):
+        seen.append(json.loads(request.content))
+        answer = {
+            "type": "choice",
+            "choice": choice,
+            "probabilities": {label: float(label == choice) for label in CHOICES},
+            "answer_confidence" if adapter == "laya" else "confidence": 1.0,
+        }
+        agent = {
+            "type": "choice",
+            "choice": "conversation",
+            "probabilities": {
+                "conversation": 1.0,
+                "correction": 0.0,
+                "cancellation": 0.0,
+                "new_task": 0.0,
+            },
+            "answer_confidence" if adapter == "laya" else "confidence": 1.0,
+        }
+        payload = {"answers": {"conversation": answer, "agent_route": agent}}
+        if adapter == "laya":
+            payload.update(
+                usage={"truncated": False, "state_tokens_dropped": 0, "truncated_questions": []},
+                routing={"model": model},
+            )
+        else:
+            payload.update(model=model, usage={"input_tokens": 43, "output_tokens": 0})
+            if adapter == "openrouter":
+                payload.update(provider="TypeSafe", id="gen-public-v2")
+                payload["usage"]["cost"] = 0.00001806
+        return httpx.Response(200, stream=httpx.ByteStream(json.dumps(payload).encode()))
+
+    transport = httpx.MockTransport(wire)
+    if adapter == "laya":
+        provider = LayaRoutingProvider("http://127.0.0.1:8871", transport=transport)
+    elif adapter == "native_d1":
+        provider = NativeD1RoutingProvider("http://127.0.0.1:8870", model, min_confidence=0.5, transport=transport)
+    else:
+        provider = OpenRouterDecisionsProvider(
+            "https://openrouter.ai/api/alpha",
+            model,
+            api_key="sk-or-v1-public-synthetic-key",
+            allow_cloud=True,
+            transport=transport,
+        )
+    try:
+        result = await WindowClassifier(provider, window_contract_version=2).classify(
+            env.source, [], []
+        )
+        assert result["schema_version"] == "2.0" and result["conversation"] == expected
+        assert (
+            result["agent_route"] == "IGNORE_FOR_IMMEDIATE_ROUTING"
+            and result["target_task_id"] is None
+        )
+        assert len(seen) == 1
+        assert list(seen[0]["questions"]["conversation"]["criteria"]) == CHOICES
+        assert list(seen[0]["questions"]["agent_route"]["criteria"]) == [
+            "conversation",
+            "correction",
+            "cancellation",
+            "new_task",
+        ]
+        assert (
+            "WAIT_WITH_BACKCHANNEL" in seen[0]["state"]
+            and "Public continuous thought café Ω" in seen[0]["state"]
+        )
+        assert len(env.store.read()) == 1
+    finally:
+        await provider.close()
