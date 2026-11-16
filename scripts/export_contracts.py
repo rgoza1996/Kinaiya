@@ -46,6 +46,7 @@ from packages.contracts import (
     tool_permissions,
     transcript_scan,
     tts_models,
+    whistle_stream_owner,
     workspace_settings,
 )
 
@@ -238,3 +239,19 @@ for name, alias in media.MEDIA_SCHEMA_ALIASES.items():
     (target / f"{name}.json").write_text(
         json.dumps(TypeAdapter(alias).json_schema(), indent=2, sort_keys=True) + "\n"
     )
+
+# Incremental ownership is versioned separately from unary STT settlement.
+for name in (
+    "WhistleStreamCapability",
+    "WhistleStreamReservation",
+    "WhistleStreamOriginal",
+    "WhistleStreamAcknowledgment",
+    "WhistleStreamProof",
+    "ConverseStreamLookup",
+    "ConverseStreamCapability",
+    "ConverseStreamProof",
+    "StreamPublication",
+    "StreamPublicationProof",
+):
+    cls = getattr(whistle_stream_owner, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")

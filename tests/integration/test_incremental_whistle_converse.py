@@ -2,6 +2,8 @@
 
 import asyncio
 import base64
+import hashlib
+import json
 import os
 import select
 import socket
@@ -39,11 +41,13 @@ class _IncrementalEngine:
         self.active = False
         self.samples = 0
         self.step = 0
+        self.begin_calls = self.finish_calls = 0
 
     def transcribe(self, data: bytes) -> str:
         return "batch fallback"
 
     def begin_stream(self):
+        self.begin_calls += 1
         self.active = True
         self.samples = 0
         self.step = 0
@@ -85,6 +89,7 @@ class _IncrementalEngine:
         }
 
     def finish_stream(self) -> dict:
+        self.finish_calls += 1
         self.active = False
         return {
             "delta_text": "build status",
@@ -231,6 +236,10 @@ async def converse_incremental_env(tmp_path: Path):
             runtime=runtime,
             window_controller=window_controller,
             broker=broker,
+            app=converse_app,
+            engine=engine,
+            resources_app=resources_app,
+            speech=speech,
         )
 
 
@@ -372,3 +381,211 @@ async def test_incremental_whistle_persists_windows_and_separates_counters_witho
     assert classified["conversation"] == "RESPOND_WITHOUT_INTERRUPTING_USER"
     assert classified["agent_route"] == "IGNORE_FOR_IMMEDIATE_ROUTING"
     assert classified["reason_code"] == "incremental_window_classified"
+
+
+class _LoseSuccessfulResponse(httpx.AsyncBaseTransport):
+    """Complete the original real ASGI call, then lose its owner-facing ACK."""
+
+    def __init__(self, app, path):
+        self.inner = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        self.path = path
+        self.lost = 0
+
+    async def handle_async_request(self, request):
+        response = await self.inner.handle_async_request(request)
+        if request.url.path == self.path and response.status_code == 200 and not self.lost:
+            await response.aread()
+            await response.aclose()
+            self.lost += 1
+            raise httpx.ReadError("PUBLIC-LOST-INCREMENTAL-ACK", request=request)
+        return response
+
+    async def aclose(self):
+        await self.inner.aclose()
+
+
+@pytest.mark.parametrize(
+    "phase", ["begin", "begin_upstream", "pcm_committed", "pcm_unobserved", "finish"]
+)
+async def test_incremental_original_lifecycle_is_inspectable_without_stt_replay(
+    converse_incremental_env, phase
+):
+    """#654: source, consumed PCM and final text have distinct native outcomes."""
+    env = converse_incremental_env
+    scope = {
+        "session_id": env.session.session_id,
+        "thread_id": env.session.thread_id,
+        "epoch": env.session.epoch,
+        "utterance_id": "public-lifecycle-original",
+        "content_scope": "local_only",
+    }
+    operation = (
+        "begin" if phase.startswith("begin") else "pcm" if phase.startswith("pcm_") else phase
+    )
+    target = "/v1/converse/audio/stream/" + operation
+    async with AsyncExitStack() as resources:
+        app = env.app
+        if phase == "begin_upstream":
+            upstream = _LoseSuccessfulResponse(
+                env.resources_app, "/v1/audio/transcriptions/stream/begin"
+            )
+            speech = SpeechClient(
+                "http://127.0.0.1:8765",
+                AUTH.tokens["converse"],
+                stt_provider="whistle",
+                stt_url="http://127.0.0.1:8764",
+                stt_transport=upstream,
+            )
+            resources.push_async_callback(speech.close)
+            app = create_converse_app(
+                env.runtime, AUTH, speech=speech, window_controller=env.window_controller
+            )
+        transport = _LoseSuccessfulResponse(app, target if phase == "begin" else "")
+        await _inspect_original_lifecycle(env, phase, scope, target, transport)
+
+
+async def _inspect_original_lifecycle(env, phase, scope, target, transport):
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://converse.local",
+        headers={"Authorization": "Bearer " + AUTH.tokens["owner"]},
+    ) as client:
+        capability = await client.get("/v1/converse/audio/stream/ownership")
+        assert capability.status_code == 200
+        owner_instance = capability.json()["owner_instance"]
+        if phase.startswith("begin"):
+            if phase == "begin":
+                with pytest.raises(httpx.ReadError, match="PUBLIC-LOST-INCREMENTAL-ACK"):
+                    await client.post(target, json=scope)
+                assert transport.lost == 1
+            else:
+                refused = await client.post(target, json=scope)
+                assert refused.status_code == 500
+            original = scope
+            assert env.engine.begin_calls == 1
+            assert env.engine.active is True
+            assert env.store.read(kinds=["conversation.window"]) == []
+        else:
+            began = await client.post("/v1/converse/audio/stream/begin", json=scope)
+            assert began.status_code == 200
+            start = began.json()
+            original = {
+                **scope,
+                "stream_id": start["stream_id"],
+                "worker_incarnation": start["worker_incarnation"],
+                "sequence": 1,
+                "sample_offset": 0,
+                "user_speaking": True,
+                "pcm16_base64": base64.b64encode(b"\x01\x00" * 160).decode(),
+            }
+            if phase == "finish":
+                accepted = await client.post("/v1/converse/audio/stream/pcm", json=original)
+                assert accepted.status_code == 200
+                original = {
+                    **scope,
+                    "stream_id": start["stream_id"],
+                    "worker_incarnation": start["worker_incarnation"],
+                    "sequence": 2,
+                    "sample_offset": 160,
+                    "capture_ended": False,
+                    "user_speaking": True,
+                }
+            ingest = env.window_controller.ingest
+
+            async def unavailable(window):
+                if phase == "pcm_committed":
+                    await ingest(window)
+                raise httpx.ReadError("PUBLIC-ORIGINAL-PUBLICATION-UNCONFIRMED")
+
+            env.window_controller.ingest = unavailable
+            try:
+                failed = await client.post(target, json=original)
+                assert failed.status_code == 500
+            finally:
+                env.window_controller.ingest = ingest
+            assert env.engine.begin_calls == 1 and env.engine.step == 1
+            assert env.engine.samples == 160
+            assert env.engine.finish_calls == int(phase == "finish")
+            windows = env.store.read(kinds=["conversation.window"])
+            assert len(windows) == int(phase in {"pcm_committed", "finish"})
+
+        # Exact-original read-only inspection cannot infer success/failure from
+        # coincident values, rerun STT or open another stream after uncertainty.
+        canonical = json.dumps(original, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        inspected = await client.post(
+            target + "/lookup",
+            json={
+                "schema_version": "1.0",
+                "protocol": "converse_stream_owner_v1",
+                "owner_instance": owner_instance,
+                "request_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
+            },
+        )
+        assert inspected.status_code == 200, {
+            "phase": phase,
+            "status": inspected.status_code,
+            "begin_calls": env.engine.begin_calls,
+            "pcm_calls": env.engine.step,
+            "finish_calls": env.engine.finish_calls,
+        }
+        proof = inspected.json()
+        canonical = json.dumps(original, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        assert proof["request_sha256"] == hashlib.sha256(canonical.encode()).hexdigest()
+        assert proof["outcome"] in {"confirmed", "publication_pending"}
+        assert proof["owner_instance"] == owner_instance
+        assert proof["native_original"] is not None
+        if phase in {"pcm_unobserved", "finish"}:
+            assert proof["outcome"] == "publication_pending"
+            assert proof["result"] is None
+        else:
+            assert proof["outcome"] == "confirmed"
+            assert proof["result"] is not None
+        assert len(env.store.read(kinds=["conversation.window"])) == int(
+            phase in {"pcm_committed", "finish"}
+        )
+        assert env.engine.begin_calls == 1
+        assert env.engine.step == int(not phase.startswith("begin"))
+        assert env.engine.finish_calls == int(phase == "finish")
+
+
+async def test_incremental_openapi_preserves_closed_legacy_input_contracts_without_inference(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    response = await env.client.get("/openapi.json")
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    required = {
+        "begin": {"session_id", "thread_id", "epoch", "utterance_id"},
+        "pcm": {
+            "session_id",
+            "thread_id",
+            "epoch",
+            "utterance_id",
+            "stream_id",
+            "worker_incarnation",
+            "sequence",
+            "sample_offset",
+            "user_speaking",
+            "pcm16_base64",
+        },
+        "finish": {
+            "session_id",
+            "thread_id",
+            "epoch",
+            "utterance_id",
+            "stream_id",
+            "worker_incarnation",
+            "sequence",
+            "sample_offset",
+        },
+        "cancel": {"stream_id"},
+    }
+    for phase, fields in required.items():
+        schema = paths["/v1/converse/audio/stream/" + phase]["post"]["requestBody"]["content"][
+            "application/json"
+        ]["schema"]
+        assert schema["type"] == "object" and schema["additionalProperties"] is False
+        assert set(schema["required"]) == fields
+    assert env.engine.begin_calls == env.engine.step == env.engine.finish_calls == 0
+    assert env.store.read(kinds=["conversation.window"]) == []

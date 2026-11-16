@@ -1,0 +1,161 @@
+{
+  "$defs": {
+    "WhistleStreamOriginal": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "whistle_stream_owner_v1",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "broker_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Broker Instance",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "begin",
+            "pcm",
+            "finish",
+            "cancel"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "broker_instance",
+        "phase",
+        "request_sha256",
+        "operation_id"
+      ],
+      "title": "WhistleStreamOriginal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_stream_owner_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "begin",
+        "pcm",
+        "finish"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "confirmed",
+        "publication_pending",
+        "in_progress",
+        "unknown",
+        "not_dispatched"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "result": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Result"
+    },
+    "native_original": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WhistleStreamOriginal"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decoder_finished": {
+      "title": "Decoder Finished",
+      "type": "boolean"
+    },
+    "process_released": {
+      "title": "Process Released",
+      "type": "boolean"
+    },
+    "never_dispatched": {
+      "title": "Never Dispatched",
+      "type": "boolean"
+    },
+    "ownership_retired": {
+      "title": "Ownership Retired",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "phase",
+    "request_sha256",
+    "outcome",
+    "result",
+    "native_original",
+    "decoder_finished",
+    "process_released",
+    "never_dispatched",
+    "ownership_retired"
+  ],
+  "title": "ConverseStreamProof",
+  "type": "object"
+}

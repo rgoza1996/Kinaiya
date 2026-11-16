@@ -120,3 +120,48 @@ def parse_native_result(raw, *, total_samples, prev_committed, return_code, is_f
         "pass_ms": pass_ms,
         "candidate": candidate,
     }
+
+
+def validate_stream_update(update, *, expected_samples=None, expect_final=False):
+    required_keys = {
+        "delta_text",
+        "committed_text",
+        "pending_text",
+        "received_samples",
+        "final",
+        "native_pass_ms",
+        "language",
+    }
+    if not isinstance(update, dict) or set(update) != required_keys:
+        raise ValueError("Invalid bounded Whistle stream update")
+    for field_name in ("delta_text", "committed_text", "pending_text"):
+        val = update[field_name]
+        if not isinstance(val, str) or len(val) > MAX_TEXT_CHARS:
+            raise ValueError("Invalid bounded Whistle stream text")
+        val.encode("utf-8")
+    received_samples = update["received_samples"]
+    if (
+        type(received_samples) is not int
+        or not 0 <= received_samples <= MAX_TOTAL_SAMPLES
+        or (expected_samples is not None and received_samples != expected_samples)
+    ):
+        raise ValueError("Invalid Whistle stream sample count")
+    if type(update["final"]) is not bool or update["final"] is not expect_final:
+        raise ValueError("Invalid Whistle stream final flag")
+    if expect_final and update["pending_text"] != "":
+        raise ValueError("Final Whistle stream update cannot retain pending_text")
+    pass_ms = update["native_pass_ms"]
+    if (
+        type(pass_ms) is bool
+        or not isinstance(pass_ms, (int, float))
+        or not math.isfinite(pass_ms)
+        or not 0 <= float(pass_ms) <= MAX_PASS_MS
+    ):
+        raise ValueError("Invalid Whistle stream native_pass_ms")
+    language = update["language"]
+    if not (
+        language is None
+        or (isinstance(language, str) and (language == "" or language in SUPPORTED_LANGUAGES))
+    ):
+        raise ValueError("Invalid Whistle stream language")
+    return update

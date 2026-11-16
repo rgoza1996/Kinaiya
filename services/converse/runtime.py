@@ -281,6 +281,7 @@ class ConverseRuntime:
         self._tts_history = {}
         self._stt_stopping = False
         self._stt_operations = set()
+        self._incremental_stream_owners = set()
         self._stt_finalizers = set()
         self._stt_transports = set()
         self._stt_transport_closures = set()
@@ -424,6 +425,7 @@ class ConverseRuntime:
     def decisions_dependency_changed(self):
         """Fence prior work; a recovered service cannot revive its admissions."""
         self._availability_generation += 1
+        self._fence_incremental_streams()
         self._cancel_speech()
         self._cancel_text()
         for task in list(self._active.values()):
@@ -453,6 +455,7 @@ class ConverseRuntime:
         self._resource_enabled = value
         if not value:
             self._availability_generation += 1
+            self._fence_incremental_streams()
             self._cancel_speech()
             self._cancel_text()
 
@@ -493,12 +496,17 @@ class ConverseRuntime:
     def _derived_reply_scope(self, consumed_scopes, request_scope):
         return combine_scopes(*consumed_scopes, request_scope, self.personality_scope)
 
+    def _fence_incremental_streams(self):
+        for owner in self._incremental_stream_owners:
+            owner.fence()
+
     async def set_enabled(self, value, *, owner=False):
         if owner:
             # Persist before any await: an acknowledged off survives process
             # loss and is visible to a restoring controller immediately.
             self.intent.set(value)
             self._availability_generation += 1
+            self._fence_incremental_streams()
             self._cancel_speech()
             self._cancel_text()
         else:
@@ -1044,6 +1052,7 @@ class ConverseRuntime:
 
     async def _close_resources(self):
         self._stt_stopping = True
+        self._fence_incremental_streams()
         self._cancel_speech()
         if self._stt_finalizers:
             await asyncio.wait(tuple(self._stt_finalizers), timeout=1)

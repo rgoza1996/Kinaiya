@@ -2,7 +2,6 @@
 
 import asyncio
 import hashlib
-import math
 import os
 import secrets
 import stat
@@ -34,12 +33,12 @@ from packages.providers.whistle_ipc import (
 )
 from packages.providers.whistle_stream import (
     MAX_CHUNK_SAMPLES,
-    MAX_PASS_MS,
     MAX_TOTAL_SAMPLES,
-    SUPPORTED_LANGUAGES,
+    validate_stream_update,
 )
 from packages.resources.processes import WorkerSpec
 from services.resources.coordinator import WhistleAdmissionError
+from services.resources.whistle_stream_owner import WhistleStreamOwner, retain_native
 
 
 class ManagedWhistleConfig(BaseModel):
@@ -188,50 +187,7 @@ class WhistleEndpoint:
         text.encode("utf-8")
         return text
 
-    @staticmethod
-    def _validate_stream_update(update, *, expected_samples=None, expect_final=False):
-        required_keys = {
-            "delta_text",
-            "committed_text",
-            "pending_text",
-            "received_samples",
-            "final",
-            "native_pass_ms",
-            "language",
-        }
-        if not isinstance(update, dict) or set(update) != required_keys:
-            raise ValueError("Invalid bounded Whistle stream update")
-        for field_name in ("delta_text", "committed_text", "pending_text"):
-            val = update[field_name]
-            if not isinstance(val, str) or len(val) > MAX_TEXT_CHARS:
-                raise ValueError("Invalid bounded Whistle stream text")
-            val.encode("utf-8")
-        received_samples = update["received_samples"]
-        if (
-            type(received_samples) is not int
-            or not 0 <= received_samples <= MAX_TOTAL_SAMPLES
-            or (expected_samples is not None and received_samples != expected_samples)
-        ):
-            raise ValueError("Invalid Whistle stream sample count")
-        if type(update["final"]) is not bool or update["final"] is not expect_final:
-            raise ValueError("Invalid Whistle stream final flag")
-        if expect_final and update["pending_text"] != "":
-            raise ValueError("Final Whistle stream update cannot retain pending_text")
-        pass_ms = update["native_pass_ms"]
-        if (
-            type(pass_ms) is bool
-            or not isinstance(pass_ms, (int, float))
-            or not math.isfinite(pass_ms)
-            or not 0 <= float(pass_ms) <= MAX_PASS_MS
-        ):
-            raise ValueError("Invalid Whistle stream native_pass_ms")
-        language = update["language"]
-        if not (
-            language is None
-            or (isinstance(language, str) and (language == "" or language in SUPPORTED_LANGUAGES))
-        ):
-            raise ValueError("Invalid Whistle stream language")
-        return update
+    _validate_stream_update = staticmethod(validate_stream_update)
 
     async def begin_stream(self, identity):
         current = self.ready
@@ -323,6 +279,7 @@ class Transcription:
     cleanup_confirmed: bool = False
     cleanup_failed: bool = False
     stream: dict | None = None
+    stream_finished: bool = False
 
 
 class WhistleStreamStartRequest(BaseModel):
@@ -367,6 +324,7 @@ class WhistleBroker:
         self.timeout = request_timeout_s
         self.operation = None
         self.closed = False
+        self.stream_owner = WhistleStreamOwner(self)
 
     def policy(self):
         try:
@@ -425,6 +383,7 @@ class WhistleBroker:
                     if not exc.cleanup_confirmed:
                         raise RuntimeError("Whistle startup cleanup is unconfirmed") from exc
                     operation.cleanup_confirmed = True
+                    operation.cleanup_failed = False
                     self.release(operation)
                     return
             result = await self.manager.stop_if_current(operation.identity)
@@ -444,6 +403,11 @@ class WhistleBroker:
             ]
             if pending_tasks:
                 await asyncio.wait(pending_tasks, timeout=1)
+            # #656: this exact retry has positive native cleanup evidence.
+            # Original work and independent IPC closes still have their own
+            # completion/failure guards; an earlier unknown attempt is not a
+            # permanent veto after this one actually completes.
+            operation.cleanup_failed = False
             self.release(operation)
         except Exception:
             operation.cleanup_failed = True
@@ -616,6 +580,7 @@ class WhistleBroker:
         self.operation = operation
         watcher, success, started = None, False, False
         try:
+            retain_native(operation)
             async with asyncio.timeout(self.timeout):
                 body = await self._read_control_json(request, WhistleStreamStartRequest)
                 if await request.is_disconnected():
@@ -751,6 +716,7 @@ class WhistleBroker:
         operation.active_request = request_token
         watcher, work_task, success, dispatched, abort_on_exit = None, None, False, False, False
         try:
+            retain_native(operation)
             async with asyncio.timeout(self.timeout):
                 if request.headers.get("content-type", "").split(";", 1)[0].lower() not in {
                     "application/octet-stream",
@@ -896,6 +862,7 @@ class WhistleBroker:
         operation.active_request = request_token
         watcher, work_task, success, dispatched, abort_on_exit = None, None, False, False, False
         try:
+            retain_native(operation)
             async with asyncio.timeout(self.timeout):
                 body = await self._read_control_json(request, WhistleStreamFinishRequest)
                 if (
@@ -987,6 +954,7 @@ class WhistleBroker:
             if watcher is not None:
                 watcher.cancel()
             if success:
+                operation.stream_finished = True
                 if self.operation is operation:
                     self.operation = None
             elif dispatched or abort_on_exit:
@@ -1006,6 +974,7 @@ class WhistleBroker:
             body.worker_incarnation is not None and body.worker_incarnation != operation.incarnation
         ):
             raise HTTPException(409, "Whistle stream cancel identity mismatch")
+        retain_native(operation)
         self.abort(operation)
         with CancelScope(shield=True):
             await asyncio.wait((operation.cleanup,), timeout=1)
@@ -1016,6 +985,7 @@ class WhistleBroker:
 
     async def close(self):
         self.closed = True
+        self.stream_owner.closed = True
         if self.operation is not None:
             self.abort(self.operation)
             with CancelScope(shield=True):

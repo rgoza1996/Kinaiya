@@ -185,8 +185,13 @@ def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
         if whistle is None:
             raise HTTPException(503, "Managed Whistle STT is not selected")
         from packages.providers.whistle_ipc import MAX_RESPONSE_BYTES, encode_json
+        from services.resources.whistle_stream_owner import ORIGINAL_HEADER
 
-        result = await whistle.begin_stream(request)
+        result = (
+            await whistle.stream_owner.dispatch(request, "begin", whistle.begin_stream)
+            if ORIGINAL_HEADER in request.headers
+            else await whistle.begin_stream(request)
+        )
         return Response(
             encode_json(result, MAX_RESPONSE_BYTES),
             media_type="application/json",
@@ -201,8 +206,13 @@ def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
         if whistle is None:
             raise HTTPException(503, "Managed Whistle STT is not selected")
         from packages.providers.whistle_ipc import MAX_RESPONSE_BYTES, encode_json
+        from services.resources.whistle_stream_owner import ORIGINAL_HEADER
 
-        result = await whistle.append_stream(request)
+        result = (
+            await whistle.stream_owner.dispatch(request, "pcm", whistle.append_stream)
+            if ORIGINAL_HEADER in request.headers
+            else await whistle.append_stream(request)
+        )
         return Response(
             encode_json(result, MAX_RESPONSE_BYTES),
             media_type="application/json",
@@ -217,8 +227,13 @@ def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
         if whistle is None:
             raise HTTPException(503, "Managed Whistle STT is not selected")
         from packages.providers.whistle_ipc import MAX_RESPONSE_BYTES, encode_json
+        from services.resources.whistle_stream_owner import ORIGINAL_HEADER
 
-        result = await whistle.finish_stream(request)
+        result = (
+            await whistle.stream_owner.dispatch(request, "finish", whistle.finish_stream)
+            if ORIGINAL_HEADER in request.headers
+            else await whistle.finish_stream(request)
+        )
         return Response(
             encode_json(result, MAX_RESPONSE_BYTES),
             media_type="application/json",
@@ -233,12 +248,46 @@ def create_app(coordinator, auth, whistle=None, qwen3=None, gguf=None):
         if whistle is None:
             raise HTTPException(503, "Managed Whistle STT is not selected")
         from packages.providers.whistle_ipc import MAX_RESPONSE_BYTES, encode_json
+        from services.resources.whistle_stream_owner import ORIGINAL_HEADER
 
-        result = await whistle.cancel_stream(request)
+        result = (
+            await whistle.stream_owner.dispatch(request, "cancel", whistle.cancel_stream)
+            if ORIGINAL_HEADER in request.headers
+            else await whistle.cancel_stream(request)
+        )
         return Response(
             encode_json(result, MAX_RESPONSE_BYTES),
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get(
+        "/v1/audio/transcriptions/stream/ownership",
+        dependencies=[Depends(auth.require("owner", "converse"))],
+    )
+    async def whistle_stream_ownership():
+        if whistle is None:
+            raise HTTPException(503, "Managed Whistle STT is not selected")
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            whistle.stream_owner.capability(), headers={"Cache-Control": "no-store"}
+        )
+
+    @app.post(
+        "/v1/audio/transcriptions/stream/ownership/{operation}",
+        dependencies=[Depends(auth.require("owner", "converse"))],
+    )
+    async def whistle_stream_control(
+        operation: Literal["reserve", "lookup", "acknowledge", "abort"], request: Request
+    ):
+        if whistle is None:
+            raise HTTPException(503, "Managed Whistle STT is not selected")
+        from packages.contracts.stt_settlement import encode
+
+        result = await whistle.stream_owner.control(request, operation)
+        return Response(
+            encode(result), media_type="application/json", headers={"Cache-Control": "no-store"}
         )
 
     @app.post("/v1/converse/completions", dependencies=[Depends(auth.require("owner", "converse"))])

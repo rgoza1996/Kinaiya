@@ -575,6 +575,25 @@ class JournalClient:
                 closing.add_done_callback(settled)
                 await asyncio.shield(closing)
 
+    async def lookup_stream_publication(self, original):
+        from packages.contracts.whistle_stream_owner import (
+            StreamPublication,
+            StreamPublicationProof,
+        )
+
+        original = StreamPublication.model_validate(original)
+        result = StreamPublicationProof.model_validate(
+            await self._owned_metadata(
+                "POST",
+                "/v1/transcript/stream-publications/lookup",
+                maximum=132 * 1024,
+                json=original.model_dump(),
+            )
+        )
+        if result.original != original:
+            raise ValueError("Stream publication proof changed its original identity")
+        return result.model_dump(mode="json")
+
     async def lookup_authorization_revocation(self, original):
         """Strict retained exchange for a positive metadata-only original event."""
         from packages.contracts.authorizations import AuthorizationJournalProof, AuthorizationRevoke

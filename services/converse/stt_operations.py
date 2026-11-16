@@ -216,6 +216,8 @@ async def retire_converse_shared(runtime, journal, speech, windows=None):
                     for task in (turn.cleanup, turn.producer_cleanup, turn.request_task)
                     if task is not None
                 )
+            for owner in runtime._incremental_stream_owners:
+                tasks.update(owner.tasks())
             for operation in runtime._stt_operations:
                 tasks.update(operation.dependencies)
                 tasks.update(
