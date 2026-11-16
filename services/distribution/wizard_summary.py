@@ -124,8 +124,15 @@ def _extract_converse_label(receipt: Mapping[str, Any], default_model: str) -> t
         or receipt.get("converse_enabled") is True
         or (isinstance(dist, Mapping) and dist.get("converse") is True)
     )
+    if isinstance(receipt.get("subsystems"), Mapping):
+        enabled = receipt["subsystems"].get("converse") is True
     if not enabled:
-        return False, "Disabled (Agent-only)"
+        subsystems = receipt.get("subsystems")
+        if not isinstance(subsystems, Mapping) or (
+            subsystems.get("agent") is True and subsystems.get("decisions") is False
+        ):
+            return False, "Disabled (Agent-only)"
+        return False, "Disabled"
 
     providers = receipt.get("providers")
     converse_cfg = (
@@ -175,6 +182,13 @@ def sanitize_completion_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
         sanitized["web_assets_available"] = bool(receipt["web_assets_available"])
     if "connection_probe" in receipt and isinstance(receipt["connection_probe"], Mapping):
         sanitized["connection_probe"] = dict(receipt["connection_probe"])
+    if isinstance(receipt.get("subsystems"), Mapping):
+        sanitized["subsystems"] = {
+            role: receipt["subsystems"].get(role) is True
+            for role in ("agent", "converse", "decisions")
+        }
+        if receipt.get("activation") == "restart_required":
+            sanitized["activation"] = "restart_required"
     return sanitized
 
 
@@ -220,18 +234,28 @@ def render_completion_summary(
     next_cmd = str(receipt.get("next_command") or receipt.get("next") or "kinaiya serve host")
 
     rule = "-" * min(effective_width, 60)
+    subsystems = receipt.get("subsystems")
+    agent_enabled = not isinstance(subsystems, Mapping) or subsystems.get("agent") is True
     raw_lines: list[str] = [
         rule,
         "Kinaiya Setup Summary",
         rule,
         f"Status: {badge_text}",
         f"Install: {install_loc}",
-        f"Agent: {agent['adapter']} @ {agent['endpoint']} (model: {agent['model']})",
+        (
+            f"Agent: {agent['adapter']} @ {agent['endpoint']} (model: {agent['model']})"
+            if agent_enabled
+            else "Agent: Disabled"
+        ),
         f"Converse: {converse_label}",
         f"Config: {config_loc}",
         f"Data: {data_loc}",
         f"Workspace: {workspace_loc}",
     ]
+    if isinstance(subsystems, Mapping):
+        raw_lines.insert(
+            7, f"Decisions: {'Enabled' if subsystems.get('decisions') is True else 'Disabled'}"
+        )
 
     if receipt.get("web_assets_available") is False:
         raw_lines.append(
@@ -242,7 +266,7 @@ def render_completion_summary(
     raw_lines.append(rule)
     raw_lines.append("Next steps:")
 
-    credential_env = agent["credential_env"]
+    credential_env = agent["credential_env"] if agent_enabled else None
     credential_saved = bool(
         receipt.get("credential_saved")
         or receipt.get("credential_status") in {"saved", "masked", "present"}

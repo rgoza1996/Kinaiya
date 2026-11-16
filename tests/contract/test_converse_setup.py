@@ -197,7 +197,14 @@ async def test_opaque_decisions_alias_cannot_prevent_converse_startup_or_owner_c
             assert setup.json() == {"detail": "Converse setup declarations are unavailable"}
             assert alias not in setup.text
             health = await client.get("/health")
-            assert health.status_code == 200 and health.json()["enabled"] is True
+            assert health.status_code == 200 and health.json()["enabled"] is False
+            assert health.json()["owner_enabled"] is True
+            assert health.json()["resource_enabled"] is True
+            assert health.json()["decisions"] == {
+                "required": True,
+                "ready": False,
+                "state": "starting",
+            }
             assert health.json()["provider"]["model"] == "synthetic-conversation"
             assert health.json()["context_history"] == "measured"
             for enabled, revision in ((False, 1), (True, 2)):
@@ -207,9 +214,16 @@ async def test_opaque_decisions_alias_cannot_prevent_converse_startup_or_owner_c
                     headers=owner_headers(),
                 )
                 assert control.status_code == 200
-                assert control.json()["enabled"] is enabled
+                assert control.json()["owner_enabled"] is enabled
+                assert control.json()["enabled"] is False
+                assert control.json()["resource_enabled"] is True
+                assert control.json()["decisions"] == health.json()["decisions"]
                 assert control.json()["owner_intent_revision"] == revision
-                assert (await client.get("/health")).json()["enabled"] is enabled
+                current = (await client.get("/health")).json()
+                assert current["owner_enabled"] is enabled
+                assert current["enabled"] is False
+                assert current["owner_intent_revision"] == revision
+                assert current["decisions"] == health.json()["decisions"]
             assert (await client.get("/v1/converse/setup")).status_code == 401
             unavailable = await client.get("/v1/converse/setup", headers=owner_headers())
             assert unavailable.status_code == 503 and alias not in unavailable.text

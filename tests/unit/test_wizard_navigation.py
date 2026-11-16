@@ -42,24 +42,31 @@ def test_backtracking_across_steps_discards_stale_converse_and_rewinds_from_revi
             ":back",  # at step 0 (workspace): stays at step 0
             "",  # workspace (default)
             "",  # data (default)
+            "yes",  # all three services, selected before their models
             "http://127.0.0.1:1234",  # endpoint
             "typo-model",  # model (mistake)
             "back",  # at allow_cloud: rewind to model
             "first-pass-model",  # model (updated)
             "no",  # allow_cloud
             "",  # credential_env
-            "yes",  # converse = yes (mistake)
             "compatible",  # converse_adapter
             "http://127.0.0.1:9999/v1",  # stale converse_endpoint
             "<",  # at converse_model: rewind to converse_endpoint
             ":back",  # rewind to converse_adapter
-            "back",  # rewind to converse
+            "back",  # rewind to Agent credential
+            "back",  # rewind to Agent disclosure
+            "back",  # rewind to Agent model
+            "back",  # rewind to Agent endpoint
+            "back",  # rewind to service selection
             "no",  # change converse to no -> must discard stale converse answers!
+            "",  # keep Agent endpoint
+            "",  # keep Agent model
+            "",  # keep Agent disclosure
+            "",  # keep Agent credential
             "back model",  # at review confirmation: rewind directly to model
             "final-verified-model",  # fix model
             "",  # allow_cloud (keeps "no")
             "",  # credential_env (keeps "")
-            "",  # converse (keeps "no")
             "yes",  # confirm write
         ]
     )
@@ -124,6 +131,7 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
         }
     }
     cfg["skills"] = {"enabled": True}
+    cfg["distribution"]["decisions"] = False
     layout.config.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
 
     tokens_path = layout.data / "service-tokens.json"
@@ -153,6 +161,7 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
     assert cfg_after_model["agent_profiles"] == cfg["agent_profiles"]
     assert cfg_after_model["skills"] == {"enabled": True}
     assert cfg_after_model["distribution"]["converse"] is False
+    assert cfg_after_model["distribution"]["decisions"] is False
     assert tokens_path.read_bytes() == original_tokens_bytes
 
     # 2. Reconfigure `converse` section only
@@ -179,6 +188,7 @@ def test_targeted_section_reconfiguration_preserves_unrelated_settings_and_token
 
     cfg_after_converse = json.loads(layout.config.read_text(encoding="utf-8"))
     assert cfg_after_converse["distribution"]["converse"] is True
+    assert cfg_after_converse["distribution"]["decisions"] is True
     assert cfg_after_converse["providers"]["converse"]["model"] == "converse-local-model"
     assert cfg_after_converse["providers"]["decisions"]["kind"] == "native_d1"
     assert cfg_after_converse["providers"]["decisions"]["model"] == "decisions-d1-model"
@@ -322,14 +332,14 @@ def test_keyboard_interrupt_cancels_cleanly_across_wizard_prompts_and_cli(
     monkeypatch.setattr(cli, "chosen_layout", lambda: layout)
 
     # 1. Ctrl-C at raw prompt (e.g. Agent provider endpoint)
-    tty_raw = InterruptingTerminal(["", "", KeyboardInterrupt()])
+    tty_raw = InterruptingTerminal(["", "", "no", KeyboardInterrupt()])
     with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
         wizard.run_wizard(layout, tty=tty_raw)
     assert not layout.config.exists()
 
     # 2. Ctrl-C at y/n prompt (e.g. cloud disclosure)
     tty_yn = InterruptingTerminal(
-        ["", "", "http://127.0.0.1:1234", "qwen2.5-coder", KeyboardInterrupt()]
+        ["", "", "no", "http://127.0.0.1:1234", "qwen2.5-coder", KeyboardInterrupt()]
     )
     with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
         wizard.run_wizard(layout, tty=tty_yn)
@@ -337,7 +347,7 @@ def test_keyboard_interrupt_cancels_cleanly_across_wizard_prompts_and_cli(
 
     # 3. Ctrl-C at final confirmation prompt
     tty_confirm = InterruptingTerminal(
-        ["", "", "http://127.0.0.1:1234", "qwen2.5-coder", "no", "", "no", KeyboardInterrupt()]
+        ["", "", "no", "http://127.0.0.1:1234", "qwen2.5-coder", "no", "", KeyboardInterrupt()]
     )
     with pytest.raises(InstallError, match="Setup cancelled; no configuration written"):
         wizard.run_wizard(layout, tty=tty_confirm)
@@ -436,11 +446,11 @@ def test_keyboard_interrupt_cancels_cleanly_across_wizard_prompts_and_cli(
         [
             "",
             "",
+            "no",  # Agent-only selection precedes model setup
             "http://127.0.0.1:1234",
             "qwen2.5-coder",
             "no",
             "",
-            "no",
             "yes",
             KeyboardInterrupt(),
         ]
@@ -467,11 +477,11 @@ def test_structured_workspace_selection_default_and_cwd(
         [
             "2",  # workspace -> CWD
             "1",  # data -> Default
+            "no",  # Agent only
             "http://127.0.0.1:1234",
             "qwen2.5-coder",
             "no",
             "",
-            "no",
             "yes",  # confirm
         ]
     )
@@ -501,11 +511,11 @@ def test_structured_workspace_selection_custom_path_and_protected_refusal(
             "3",  # workspace -> Custom
             str(custom_ws),  # path
             "",  # data -> Default
+            "no",  # Agent only
             "http://127.0.0.1:1234",
             "qwen2.5-coder",
             "no",
             "",
-            "no",
             "yes",
         ]
     )
@@ -539,11 +549,11 @@ def test_service_topology_reuse_shortcut_with_independent_decisions_model(
         [
             "",  # workspace
             "",  # data
+            "1",  # topology: option 1 (reuse Agent LLM)
             "http://127.0.0.1:1234",  # endpoint
             "qwen2.5-coder-32b",  # model
             "no",  # allow_cloud
             "",  # credential_env
-            "1",  # topology: option 1 (reuse Agent LLM)
             "meta-llama/llama-3.2-3b-instruct",  # independent Decisions router model (#517)
             "yes",  # confirm write
         ]
@@ -570,11 +580,11 @@ def test_service_topology_agent_only(tmp_path: Path) -> None:
         [
             "",  # workspace
             "",  # data
+            "3",  # topology: option 3 (Agent only)
             "http://127.0.0.1:1234",  # endpoint
             "qwen2.5-coder-32b",  # model
             "no",  # allow_cloud
             "",  # credential_env
-            "3",  # topology: option 3 (Agent only)
             "yes",  # confirm write
         ]
     )
@@ -592,10 +602,6 @@ def test_service_topology_converse_only(tmp_path: Path) -> None:
         [
             "",  # workspace
             "",  # data
-            "http://127.0.0.1:1234",  # endpoint (initial fallback)
-            "qwen2.5-coder-32b",  # model (initial fallback)
-            "no",  # allow_cloud
-            "",  # credential_env
             "4",  # topology: option 4 (Converse only)
             "compatible",  # converse_adapter
             "http://127.0.0.1:1234",  # converse_endpoint
@@ -642,6 +648,7 @@ def test_universal_previous_back_across_custom_url_api_key_and_manual_model_subs
             "2",  # data -> Custom directory path...
             "back",  # at Enter custom private data path -> back to data menu
             "1",  # data -> Default private data directory
+            "1",  # Both Agent & Converse; reuse after Agent is configured
             "3",  # provider -> Custom OpenAI-compatible endpoint
             "back",  # at Custom endpoint Base URL -> back to provider menu
             "3",  # provider -> Custom OpenAI-compatible endpoint again
@@ -654,9 +661,12 @@ def test_universal_previous_back_across_custom_url_api_key_and_manual_model_subs
             "http://127.0.0.1:1234/v1",  # Change Custom Base URL to local loopback
             "",  # Skip local API key -> lands on Enter exact model ID
             "qwen2.5-coder-7b",  # Enter manual model ID
-            "1",  # Topology -> Both Agent & Converse (reuse)
             "back",  # at Decisions router model prompt -> rewinds to Topology selection!
             "3",  # Topology -> Agent only
+            "3",  # provider -> retain custom endpoint through Back
+            "http://127.0.0.1:1234/v1",  # same local endpoint
+            "",  # skip local API key
+            "qwen2.5-coder-7b",  # same exact manual model
             "yes",  # Confirm write
         ]
     )

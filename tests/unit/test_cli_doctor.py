@@ -164,6 +164,7 @@ def write_valid_config(
     session_port: int = 8760,
     agent_port: int = 8761,
     converse_port: int | None = None,
+    decisions_port: int | None = None,
     converse_enabled: bool = False,
     agent_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -213,6 +214,9 @@ def write_valid_config(
     if converse_port is not None:
         config["converse_port"] = converse_port
         config["converse_url"] = f"http://127.0.0.1:{converse_port}"
+    if decisions_port is not None:
+        config["decisions_port"] = decisions_port
+        config["decisions_url"] = f"http://127.0.0.1:{decisions_port}"
     layout.config.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     os.chmod(layout.config, 0o600)
     return config
@@ -603,12 +607,13 @@ def test_doctor_supports_install_release_receipt_and_converse_port_probe(tmp_pat
     module.install_release(layout, release, archive, prepare=lambda *a: None, busy=lambda: False)
     write_private_tokens(layout, mode=0o600)
 
-    with loopback_listeners(3) as (session_port, agent_port, converse_port):
+    with loopback_listeners(4) as (session_port, agent_port, decisions_port, converse_port):
         write_valid_config(
             layout,
             session_port=session_port,
             agent_port=agent_port,
             converse_port=converse_port,
+            decisions_port=decisions_port,
             converse_enabled=True,
         )
         report = run_doctor(layout, probe_services=True, env={}, runner=healthy_sandbox)
@@ -618,4 +623,6 @@ def test_doctor_supports_install_release_receipt_and_converse_port_probe(tmp_pat
     assert report["checks"]["managed_install"]["status"] == "pass"
     assert report["checks"]["managed_install"]["channel"] == "stable"
     assert report["checks"]["service_reachability"]["converse_port"] == converse_port
+    assert report["checks"]["service_reachability"]["decisions_port"] == decisions_port
+    assert report["checks"]["service_reachability"]["services"]["decisions"]["listening"] is True
     assert report["checks"]["service_reachability"]["services"]["converse"]["listening"] is True

@@ -9,7 +9,7 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 
 from packages.contracts.models import TaskRequest, new_id  # noqa: E402
 from services.common.auth import Auth, load_or_create_tokens  # noqa: E402
+from services.common.topology import SubsystemTopology  # noqa: E402
 
 PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
 
@@ -516,16 +517,10 @@ def managed_guard_roots():
 
 def host_service_names(config):
     """Managed default has no Converse, Decisions, resources, voice or model work."""
-    dist = config.get("distribution") if isinstance(config.get("distribution"), dict) else {}
-    agent_enabled = dist.get("agent", True) is not False
-    names = ["session"]
-    if agent_enabled:
-        names.append("agent")
-    if dist.get("converse") is True:
-        names += ["converse", "decisions"]
-    if config.get("resources", {}).get("enabled") is True:
-        names.append("resources")
-    return names
+    resources = config.get("resources")
+    return SubsystemTopology.from_config(config).services(
+        resources=isinstance(resources, dict) and resources.get("enabled") is True
+    )
 
 
 def serve(args):
@@ -537,15 +532,39 @@ def serve(args):
 
     config_path = args.config or args.data_dir / "config.json"
     config = load_config(config_path)
+    service = args.service
+    startup_mode = getattr(args, "startup_subsystem_mode", None)
+    if service in {"all", "host"} or startup_mode is not None:
+        from services.settings.subsystems import effective_config
+
+        config = effective_config(
+            config,
+            args.data_dir,
+            args.workspace,
+            developer_all=service == "all",
+            startup_mode=startup_mode,
+        )
+    topology = SubsystemTopology.from_config(config, developer_all=service == "all")
+    subsystem_settings = None
+    resources = config.get("resources")
+    resources_enabled = isinstance(resources, dict) and resources.get("enabled") is True
+    from services.distribution.start_supervisor import _service_port
+
+    selected_ports = {
+        name: _service_port(config, name, PORTS[name])
+        for name in (
+            topology.services(resources=resources_enabled)
+            if service in {"all", "host"}
+            else [service]
+        )
+    }
+    # Reject invalid explicit role combinations before creating credentials or
+    # starting even a healthy peer. The owner can correct the preserved config.
     tokens = load_or_create_tokens(args.data_dir)
     auth = Auth(tokens, tuple(config.get("origins", [])))
-    service = args.service
-    resources_enabled = (
-        isinstance(config.get("resources"), dict) and config["resources"].get("enabled") is True
-    )
     resource_state = args.data_dir.resolve() / "resources-state.json" if resources_enabled else None
     if service in {"all", "host"}:
-        names = host_service_names(config) if service == "host" else PORTS
+        names = topology.services(resources=resources_enabled)
         commands = {
             name: [
                 sys.executable,
@@ -559,6 +578,10 @@ def serve(args):
                 str(args.workspace.resolve()),
                 "serve",
                 name,
+                "--port",
+                str(selected_ports[name]),
+                "--startup-subsystem-mode",
+                topology.mode,
             ]
             for name in names
             if name != "resources" or resources_enabled
@@ -578,16 +601,28 @@ def serve(args):
     elif service == "session":
         from services.session.api import create_app
         from services.session.store import Store
+        from services.settings.subsystems import CoreSubsystemSettings, host_mode_reader
 
-        app = create_app(
-            Store(
-                args.data_dir / "journal.sqlite",
-                decisions_max_attempts=config.get("decisions_max_attempts", 2),
-            ),
-            auth,
-            converse_memory=getattr(args, "converse_memory", False),
-            agent_enabled=config.get("agent_enabled"),
+        subsystem_settings = CoreSubsystemSettings(
+            host_mode_reader(config_path, args.workspace),
+            path=args.data_dir / "core-subsystems.sqlite",
+            workspace=args.workspace,
+            startup_mode=startup_mode,
         )
+        try:
+            app = create_app(
+                Store(
+                    args.data_dir / "journal.sqlite",
+                    decisions_max_attempts=config.get("decisions_max_attempts", 2),
+                ),
+                auth,
+                converse_memory=getattr(args, "converse_memory", False),
+                agent_enabled=config.get("agent_enabled"),
+                subsystem_settings=subsystem_settings,
+            )
+        except BaseException:
+            subsystem_settings.close()
+            raise
     elif service == "agent":
         from core.policy import ToolPolicy
         from packages.commands import Registry
@@ -985,6 +1020,7 @@ def serve(args):
 
         from packages.agent_adapters.task_context import TaskContextClient
         from services.converse.api import create_app
+        from services.converse.dependencies import RequiredDecisions
         from services.converse.intent import ConverseIntent
         from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.model_settings import ConverseModelSettings
@@ -1044,6 +1080,9 @@ def serve(args):
             memory_adapters=memory_adapters,
             context_budgeted=True,
             task_context_client=task_context_client,
+            decisions_dependency=RequiredDecisions(
+                config.get("decisions_url", "http://127.0.0.1:8763"), tokens["converse"]
+            ),
             **prompt_options,
         )
         if getattr(args, "start_paused", False):
@@ -1153,23 +1192,31 @@ def serve(args):
                     except httpx.HTTPError:
                         await asyncio.sleep(1)
 
-            observer = asyncio.create_task(observe())
-            window_observer = asyncio.create_task(windows.run()) if windows else None
-            yield
-            observer.cancel()
-            if window_observer:
-                window_observer.cancel()
-            await asyncio.gather(
-                observer, *([window_observer] if window_observer else []), return_exceptions=True
-            )
-            await runtime.close()
-            if runtime.native_audio is not None:
-                await runtime.native_audio.close()
-            if runtime.model_settings is not None:
-                await runtime.model_settings.close()
+            observers = []
+
+            async def stop_observers():
+                for task in observers:
+                    task.cancel()
+                await asyncio.gather(*observers, return_exceptions=True)
+
             from services.converse.stt_operations import retire_converse_shared
 
-            await retire_converse_shared(runtime, journal, speech, windows)
+            async with AsyncExitStack() as cleanup:
+                cleanup.push_async_callback(
+                    retire_converse_shared, runtime, journal, speech, windows
+                )
+                if runtime.model_settings is not None:
+                    cleanup.push_async_callback(runtime.model_settings.close)
+                if runtime.native_audio is not None:
+                    cleanup.push_async_callback(runtime.native_audio.close)
+                cleanup.push_async_callback(runtime.close)
+                cleanup.push_async_callback(stop_observers)
+                cleanup.push_async_callback(runtime.decisions_dependency.close)
+                await runtime.decisions_dependency.start()
+                observers.append(asyncio.create_task(observe()))
+                if windows is not None:
+                    observers.append(asyncio.create_task(windows.run()))
+                yield
 
         app.router.lifespan_context = converse_lifespan
     else:
@@ -1284,7 +1331,13 @@ def serve(args):
                     catalog.close()
 
         app.router.lifespan_context = catalog_lifespan
-    uvicorn.run(app, host="127.0.0.1", port=args.port or PORTS[service], log_level="warning")
+    try:
+        uvicorn.run(
+            app, host="127.0.0.1", port=args.port or selected_ports[service], log_level="warning"
+        )
+    finally:
+        if subsystem_settings is not None:
+            subsystem_settings.close()
 
 
 def owner_login(args):
@@ -1396,6 +1449,9 @@ def build_parser():
     server = commands.add_parser("serve")
     server.add_argument("service", choices=[*PORTS, "all", "host"])
     server.add_argument("--port", type=int)
+    from services.common.topology import SUBSYSTEM_MODES
+
+    server.add_argument("--startup-subsystem-mode", choices=SUBSYSTEM_MODES, help=argparse.SUPPRESS)
     server.add_argument(
         "--start-paused",
         action="store_true",

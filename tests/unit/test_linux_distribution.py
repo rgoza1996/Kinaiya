@@ -336,7 +336,7 @@ def test_tty_wizard_requires_confirmation_and_keeps_agent_only(tmp_path, monkeyp
     class Terminal:
         def __init__(self):
             # Final "" declines the optional #402 custom API profile step.
-            self.answers = iter(["", "", "", "local-model", "", "", "", "yes", ""])
+            self.answers = iter(["", "", "", "", "local-model", "", "", "yes", ""])
             self.output = ""
 
         def write(self, value):
@@ -724,7 +724,7 @@ def test_wizard_accepts_short_yn_and_reprompts_invalid_boolean(tmp_path):
 
     module = distribution()
     layout = module.Layout.for_home(tmp_path)
-    answers = iter(["", "", "", "local-model", "maybe", "n", "", "n", "y"])
+    answers = iter(["", "", "n", "", "local-model", "maybe", "n", "", "y"])
     output = io.StringIO()
     tty = type(
         "TTY",

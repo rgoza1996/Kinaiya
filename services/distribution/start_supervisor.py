@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from services.common.topology import SubsystemTopology
 from services.distribution.installation import (
     InstallError,
     Layout,
@@ -61,21 +62,18 @@ def _service_port(config: Mapping[str, Any], service: str, default_port: int) ->
 def required_service_ports(config: Mapping[str, Any], *, web_port: int = 8780) -> dict[str, int]:
     """Return the required loopback ports for the configured local host and web UI."""
     validated_web_port = _validate_port(web_port, "web")
+    try:
+        topology = SubsystemTopology.from_config(config)
+    except ValueError as exc:
+        raise InstallError(str(exc)) from None
     ports: dict[str, int] = {
         "session": _service_port(config, "session", DEFAULT_PORTS["session"]),
     }
-    agent_enabled = (
-        config.get("distribution", {}).get("agent", True) is not False
-        if isinstance(config.get("distribution"), Mapping)
-        else True
-    )
-    if agent_enabled:
+    if topology.agent:
         ports["agent"] = _service_port(config, "agent", DEFAULT_PORTS["agent"])
-    converse_enabled = (
-        isinstance(config.get("distribution"), Mapping)
-        and config["distribution"].get("converse") is True
-    ) or config.get("converse_enabled") is True
-    if converse_enabled:
+    if topology.decisions:
+        ports["decisions"] = _service_port(config, "decisions", DEFAULT_PORTS["decisions"])
+    if topology.converse:
         ports["converse"] = _service_port(config, "converse", DEFAULT_PORTS["converse"])
     ports["web"] = validated_web_port
     if len(set(ports.values())) != len(ports):
@@ -97,7 +95,11 @@ def _probe_health(
     timeout: float = 0.4,
 ) -> bool:
     """Probe loopback HTTP readiness without sending or logging any credentials."""
-    paths = ("/health", "/") if service == "web" else ("/health",)
+    paths = (
+        ("/health/runtime",)
+        if service == "decisions"
+        else (("/health", "/") if service == "web" else ("/health",))
+    )
     for path in paths:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
         try:
@@ -106,7 +108,7 @@ def _probe_health(
             body = response.read(16384)
             if response.status != 200:
                 continue
-            if path == "/health":
+            if path in {"/health", "/health/runtime"}:
                 try:
                     payload = json.loads(body.decode("utf-8"))
                 except (ValueError, UnicodeDecodeError):
@@ -116,6 +118,10 @@ def _probe_health(
                 if not isinstance(payload, Mapping):
                     return False
                 reported = payload.get("service")
+                if service == "decisions":
+                    # This is an unauthenticated startup observation, never
+                    # permission or a substitute for Converse's owned monitor.
+                    return reported == service and payload.get("routing_runtime_ready") is True
                 if require_identity:
                     return reported == service
                 return reported in {None, service}
@@ -240,7 +246,13 @@ def build_start_commands(
             str(layout.workspace),
         ]
     commands = {
-        "host": [*prefix, "serve", "host"],
+        "host": [
+            *prefix,
+            "serve",
+            "host",
+            "--startup-subsystem-mode",
+            SubsystemTopology.from_config(config).mode,
+        ],
         "web": [*prefix, "web", "--port", str(web_port)],
     }
     _assert_no_secrets_in_commands(commands, config)
@@ -334,6 +346,12 @@ def start_local(
     config = read_json(layout.config)
     if not isinstance(config, Mapping):
         raise InstallError("Configuration file must contain a JSON object")
+    from services.settings.subsystems import CoreSubsystemUnavailable, effective_config
+
+    try:
+        config = effective_config(config, layout.data, layout.workspace)
+    except (CoreSubsystemUnavailable, ValueError, OSError):
+        raise InstallError("Core subsystem selection is invalid or unavailable") from None
 
     # Verify matching-release Flutter web assets before spawning any processes.
     web_bundle_dir(layout, fallback_source=fallback_source)

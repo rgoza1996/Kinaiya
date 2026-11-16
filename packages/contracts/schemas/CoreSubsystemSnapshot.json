@@ -1,0 +1,180 @@
+{
+  "$defs": {
+    "CoreSubsystemSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "core",
+                "agent",
+                "decisions",
+                "agent-decisions",
+                "converse-decisions",
+                "all"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "CoreSubsystemSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "core_subsystems.v1",
+      "default": "core_subsystems.v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "authority_epoch": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Authority Epoch",
+      "type": "string"
+    },
+    "authority_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Authority Generation",
+      "type": "integer"
+    },
+    "revision": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "state_token": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "State Token",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CoreSubsystemSelection"
+    },
+    "host_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "core",
+            "agent",
+            "decisions",
+            "agent-decisions",
+            "converse-decisions",
+            "all"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Host Mode"
+    },
+    "selected_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "core",
+            "agent",
+            "decisions",
+            "agent-decisions",
+            "converse-decisions",
+            "all"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Selected Mode"
+    },
+    "startup_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "core",
+            "agent",
+            "decisions",
+            "agent-decisions",
+            "converse-decisions",
+            "all"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Startup Mode"
+    },
+    "running_state": {
+      "const": "not_observed",
+      "default": "not_observed",
+      "title": "Running State",
+      "type": "string"
+    },
+    "change_boundary": {
+      "const": "next_managed_host_launch",
+      "default": "next_managed_host_launch",
+      "title": "Change Boundary",
+      "type": "string"
+    },
+    "writable": {
+      "title": "Writable",
+      "type": "boolean"
+    },
+    "max_changes": {
+      "const": 1000,
+      "default": 1000,
+      "title": "Max Changes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "backend_id",
+    "authority_epoch",
+    "authority_generation",
+    "revision",
+    "state_token",
+    "selection",
+    "host_mode",
+    "selected_mode",
+    "startup_mode",
+    "writable"
+  ],
+  "title": "CoreSubsystemSnapshot",
+  "type": "object"
+}

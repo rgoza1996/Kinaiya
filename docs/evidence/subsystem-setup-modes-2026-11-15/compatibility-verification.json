@@ -1,0 +1,39 @@
+{
+  "source_head": "c71c8afa2ae1ed325f2274f04c09156e19b0ab29",
+  "source_clean_at_start": true,
+  "source_unchanged_through_native_run": true,
+  "namespace_exit": 0,
+  "helper_sha256": "a8bc2d436d8d9d952d8e50c7b148953dc56760c784d2ee62d10f4d9f0b20d47a",
+  "source_files": {
+    "services/common/topology.py": "dcaef2fca7db8a726bf788234a73087f1c9098890d70360051f5ba6387d64cc9",
+    "services/distribution/cli.py": "1fe63a7b424377ff38503e0929b5dbd5ce79c6cbd6fd6f61e98babd717ad2613",
+    "services/distribution/installation.py": "3bada6b25ee5b745f44776a9871c2d58fefb853c9966fac32d9341a2c734a302",
+    "services/distribution/wizard.py": "153fdecea0d86669ad2d21a0fd35fe90ea220d91d1b725906b93d33b30722a20",
+    "services/distribution/wizard_navigation.py": "1b0828ee3786730030209883d21f4a7c598afea1fbca6846344b018ae1e5f445",
+    "services/distribution/wizard_summary.py": "2c66929e191e5867cf4a48014806dab6addb421be7cfd3ad5101aa890f11d579"
+  },
+  "all_tracked_python_files_count": 839,
+  "all_tracked_python_hashes_digest": "bdb83c3b96d18509e3fa04e56ce5d3900884c272802358febe09d6c4704fb42d",
+  "framework_checks": {
+    "pytest_files": 20,
+    "pytest_passed": 406,
+    "pytest_elapsed_s": 21.75,
+    "existing_test_assertion_asts_preserved_files": 11,
+    "first_additional_callers_run": "2 failed,71 passed in10.40s; old fixture answer order",
+    "order_corrected_run": "1 failed,1 passed in1.13s; original compact Agent-only serialization oracle retained"
+  },
+  "native_checks": {
+    "modes": 6,
+    "cli_processes_waited": 18,
+    "initial_setup_and_core_then_selected_restore": true,
+    "saved_profiles_and_token_bytes_preserved": true,
+    "ready_reported": false,
+    "provider_connection": "not_checked"
+  },
+  "limits": [
+    "Setup/save paths only; no running service startup/degraded/recovery qualification.",
+    "No model inference, provider reachability, audio, external Agent or managed-resource qualification.",
+    "CLI mode-only receipt is a protected filesystem save for next host restart, not a live Options CAS receipt.",
+    "Issue 566 is incomplete."
+  ]
+}

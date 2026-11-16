@@ -203,6 +203,7 @@ class ConverseRuntime:
         memory_adapters=None,
         native_media_owner=None,
         task_context_client=None,
+        decisions_dependency=None,
     ):
         self.journal, self.provider = journal, provider
         self.native_media_owner = native_media_owner
@@ -252,6 +253,9 @@ class ConverseRuntime:
         self.intent = intent if intent is not None else ConverseIntent()
         self._resource_enabled = not resources_managed
         self._availability_generation = 0
+        self.decisions_dependency = decisions_dependency
+        if decisions_dependency is not None:
+            decisions_dependency.bind(self)
         self._active = {}
         self._text = {}
         self._text_admitting = set()
@@ -402,12 +406,34 @@ class ConverseRuntime:
 
     def availability(self):
         choice = self.intent.read()
-        return {
-            "enabled": choice.enabled and self._resource_enabled,
+        dependency = self.decisions_dependency
+        result = {
+            "enabled": choice.enabled
+            and self._resource_enabled
+            and (dependency is None or dependency.ready),
             "owner_enabled": choice.enabled,
             "owner_intent_revision": choice.revision,
             "resource_enabled": self._resource_enabled,
         }
+        if dependency is not None:
+            result["decisions"] = dependency.snapshot()
+        return result
+
+    def decisions_dependency_changed(self):
+        """Fence prior work; a recovered service cannot revive its admissions."""
+        self._availability_generation += 1
+        self._cancel_speech()
+        self._cancel_text()
+        for task in list(self._active.values()):
+            if not task.done():
+                task.cancel()
+        native = getattr(self, "native_audio", None)
+        if native is not None:
+            native.fence()
+        for session_id in list(self.playback):
+            # Existing native stop reconciliation retains unknown journal
+            # effects. New work cannot pass _epoch until that stop settles.
+            self.fence_playback(session_id)
 
     @property
     def enabled(self):
@@ -431,6 +457,8 @@ class ConverseRuntime:
     def admission(self):
         state = self.availability()
         if not state["enabled"]:
+            if self.decisions_dependency is not None and not self.decisions_dependency.ready:
+                raise RuntimeError("Converse requires an available Decisions runtime")
             raise RuntimeError("Converse is disabled; direct Agent Chat remains available")
         return state["owner_intent_revision"], self._availability_generation
 
@@ -1002,6 +1030,13 @@ class ConverseRuntime:
         )
 
     async def close(self):
+        try:
+            if self.decisions_dependency is not None:
+                await self.decisions_dependency.close()
+        finally:
+            await self._close_resources()
+
+    async def _close_resources(self):
         self._stt_stopping = True
         self._cancel_speech()
         if self._stt_finalizers:

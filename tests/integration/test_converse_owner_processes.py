@@ -9,6 +9,7 @@ import json
 import os
 import socket
 import sys
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -24,6 +25,74 @@ from services.resources.coordinator import ResourceCoordinator
 from services.resources.state import ResourceState
 
 MiB = 1024 * 1024
+
+
+@asynccontextmanager
+async def native_services(root, data, config, workspace, ports, tokens):
+    """Own actual Session/Decisions/Converse processes, without model requests."""
+    children = {}
+    logs = []
+    try:
+        for role, port in ports.items():
+            log_path = data / f"readiness-{role}.log"
+            log = log_path.open("xb")
+            logs.append(log)
+            child = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
+                "services.launcher",
+                "--data-dir",
+                str(data),
+                "--config",
+                str(config),
+                "--workspace",
+                str(workspace),
+                "serve",
+                role,
+                "--port",
+                str(port),
+                cwd=root,
+                env={"PYTHONPATH": str(root), "PATH": os.environ["PATH"]},
+                stdout=log,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            children[role] = child
+            path = "/v1/decisions/readiness" if role == "decisions" else "/health"
+            async with httpx.AsyncClient(
+                base_url=f"http://127.0.0.1:{port}",
+                trust_env=False,
+                timeout=1,
+                headers={"Authorization": "Bearer " + tokens["owner"]},
+            ) as http:
+                async with asyncio.timeout(10):
+                    while True:
+                        assert child.returncode is None, log_path.read_text()
+                        try:
+                            response = await http.get(path)
+                            if response.status_code == 200 and (
+                                role != "decisions" or response.json()["ready"]
+                            ):
+                                break
+                        except httpx.HTTPError:
+                            pass
+                        await asyncio.sleep(0.02)
+        yield children
+    finally:
+        for child in reversed(tuple(children.values())):
+            if child.returncode is None:
+                child.terminate()
+        forced = []
+        for child in reversed(tuple(children.values())):
+            try:
+                await asyncio.wait_for(child.wait(), 8)
+            except TimeoutError:
+                child.kill()
+                await child.wait()
+                forced.append(child.pid)
+            assert not Path(f"/proc/{child.pid}").exists()
+        for log in logs:
+            log.close()
+        assert not forced, f"Temporary services needed forced cleanup: {forced}"
 
 
 @pytest.fixture
@@ -58,9 +127,12 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, o
     manager = WorkerManager(
         [WorkerSpec("voice", (sys.executable, str(worker)), tmp_path)], readiness=ready
     )
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
+    ports = {}
+    for role in ("session", "decisions", "converse"):
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            ports[role] = sock.getsockname()[1]
+    port = ports["converse"]
     url = f"http://127.0.0.1:{port}"
     coordinator = ResourceCoordinator(
         manager,
@@ -73,7 +145,11 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, o
     config.write_text(
         json.dumps(
             {
-                "session_url": "http://127.0.0.1:9",  # No journal/inference is used in this probe.
+                "session_url": f"http://127.0.0.1:{ports['session']}",
+                "decisions_url": f"http://127.0.0.1:{ports['decisions']}",
+                "agent_url": "http://127.0.0.1:9",
+                "agent_enabled": False,
+                "distribution": {"agent": False, "converse": True, "decisions": True},
                 "providers": {
                     "converse": {
                         # Nonlocal metadata avoids claiming ownership of an unmanaged
@@ -82,7 +158,13 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, o
                         "base_url": "https://provider-fixture.invalid/v1",
                         "model": "synthetic-unavailable",
                         "allow_cloud": True,
-                    }
+                    },
+                    "decisions": {
+                        "kind": "compatible",
+                        "base_url": "https://provider-fixture.invalid/v1",
+                        "model": "synthetic-unavailable",
+                        "allow_cloud": True,
+                    },
                 },
                 "resources": {"enabled": True},
                 "streaming_windows": {"enabled": False},
@@ -90,25 +172,11 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, o
         )
     )
     root = Path(__file__).resolve().parents[2]
-    server = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "services.launcher",
-        "--data-dir",
-        str(data),
-        "--config",
-        str(config),
-        "--workspace",
-        str(tmp_path / "workspace"),
-        "serve",
-        "converse",
-        "--port",
-        str(port),
-        cwd=root,
-        env={"PYTHONPATH": str(root), "PATH": os.environ["PATH"]},
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
+    services = AsyncExitStack()
+    children = await services.enter_async_context(
+        native_services(root, data, config, tmp_path / "workspace", ports, tokens)
     )
+    server = children["converse"]
     release = asyncio.Event()
     restoration = None
     proof = {
@@ -131,6 +199,7 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, o
             cold = response.json()
             assert cold["owner_enabled"] and not cold["enabled"]
             assert not cold["resource_enabled"]
+            assert cold["decisions"]["required"] and cold["decisions"]["ready"]
             await coordinator.initialize()
             assert coordinator.state.record.phase == "ready"
             initial_pid = manager.status()["workers"]["voice"]["owned_pid"]
@@ -204,21 +273,25 @@ async def test_native_owner_off_during_restore_and_later_explicit_on(tmp_path, o
             try:
                 await coordinator.close()
             finally:
-                if server.returncode is None:
-                    server.terminate()
-                try:
-                    await asyncio.wait_for(server.wait(), 8)
-                except TimeoutError:
-                    server.kill()
-                    await server.wait()
+                await services.aclose()
     proof["cleanup"] = {
         "converse_returncode": server.returncode,
         "converse_reaped": not Path(f"/proc/{server.pid}").exists(),
         "initial_worker_reaped": not Path(f"/proc/{initial_pid}").exists(),
         "final_worker_reaped": not Path(f"/proc/{fresh['owned_pid']}").exists(),
+        "core_session_reaped": not Path(f"/proc/{children['session'].pid}").exists(),
+        "decisions_reaped": not Path(f"/proc/{children['decisions'].pid}").exists(),
+        "core_session_returncode": children["session"].returncode,
+        "decisions_returncode": children["decisions"].returncode,
     }
     assert all(
         proof["cleanup"][key]
-        for key in ("converse_reaped", "initial_worker_reaped", "final_worker_reaped")
+        for key in (
+            "converse_reaped",
+            "initial_worker_reaped",
+            "final_worker_reaped",
+            "core_session_reaped",
+            "decisions_reaped",
+        )
     )
     (tmp_path / "owner-intent-native-proof.json").write_text(json.dumps(proof, indent=2) + "\n")

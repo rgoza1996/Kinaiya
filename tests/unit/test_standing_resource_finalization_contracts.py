@@ -389,6 +389,13 @@ def schema_pin():
     }
     # #558 independently pins this exact additive host-prompt schema.
     additive |= {"DecisionsPromptConfig"}
+    # #566 adds exactly this readiness record. Pin its complete bytes before
+    # excluding it; every original184 schema byte remains in the old digest.
+    assert (
+        hashlib.sha256((root / "DecisionsReadiness.json").read_bytes()).hexdigest()
+        == "93f86b821e0ee864b95ace0e1b8f87d8f1fa862b6274017fad6bb8c30d38eb3d"
+    )
+    additive |= {"DecisionsReadiness"}
     # The first media intake family is additive too. Exclude only these exact
     # 75 names; test_media_schema_exports separately pins their complete bytes.
     additive |= {
@@ -540,6 +547,15 @@ def schema_pin():
             "LocalExchangeRegistrationV2",
             "LocalExchangeBundleV2",
         )
+    }
+    # #566 adds exactly five Core selector records with an independent byte pin
+    # in test_core_subsystem_schema_exports; preserve this original184 pin.
+    additive |= {
+        "CoreSubsystemSelection",
+        "CoreSubsystemChange",
+        "CoreSubsystemSnapshot",
+        "CoreSubsystemReceipt",
+        "CoreSubsystemLookup",
     }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),

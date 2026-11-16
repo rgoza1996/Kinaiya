@@ -1,0 +1,57 @@
+"""Actual private CLI mode setup; no mocks or model/provider calls."""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+from services.common.topology import SubsystemTopology
+
+root = Path('/work')
+modes = [('core', False, False, False), ('agent', True, False, False),
+         ('decisions', False, False, True), ('agent-decisions', True, False, True),
+         ('converse-decisions', False, True, True), ('all', True, True, True)]
+report = {'scope': 'Actual CPU CLI setup/save paths in private network-isolated namespace; no running service/inference/resource qualification', 'cases': []}
+for name, agent, converse, decisions in modes:
+    home = root / 'homes' / name
+    home.mkdir(parents=True)
+    env = {'HOME': str(home), 'PATH': '/usr/bin:/bin', 'PYTHONPATH': '/source', 'PYTHONDONTWRITEBYTECODE': '1', 'PYTHONNOUSERSITE': '1'}
+    args = ['setup', '--yes', '--services', name]
+    if agent:
+        args += ['--endpoint', 'http://127.0.0.1:1234', '--model', 'synthetic-agent']
+    for role, enabled in (('converse', converse), ('decisions', decisions)):
+        if enabled:
+            args += [f'--{role}-endpoint', 'http://127.0.0.1:1235', f'--{role}-model', f'synthetic-{role}']
+    record = {'mode': name, 'calls': []}
+    report['cases'].append(record)
+    for index, arguments in enumerate((args, ['setup', 'services', '--yes', '--services', 'core'], ['setup', 'services', '--yes', '--services', name])):
+        started = time.monotonic()
+        result = subprocess.run([sys.executable, '-m', 'services.launcher', *arguments], env=env, cwd='/source', capture_output=True, timeout=30)
+        (root / f'{name}-{index}.stdout').write_bytes(result.stdout)
+        (root / f'{name}-{index}.stderr').write_bytes(result.stderr)
+        call = {'arguments': arguments, 'exit': result.returncode, 'elapsed_s': time.monotonic() - started}
+        record['calls'].append(call)
+        (root / 'result.json').write_text(json.dumps(report, indent=2)+'\n')
+        assert result.returncode == 0, (name, index, result.stderr.decode())
+        receipt = json.loads(result.stdout)
+        expected = SubsystemTopology(False, False, False) if index == 1 else SubsystemTopology(agent, converse, decisions)
+        flags = {'agent': expected.agent, 'converse': expected.converse, 'decisions': expected.decisions}
+        assert receipt['ready'] is False and receipt['provider_connection'] == 'not_checked'
+        assert receipt['subsystems'] == flags
+        if index:
+            assert receipt['activation'] == 'restart_required'
+        config = json.loads((home / '.config/kinaiya/config.json').read_text())
+        assert SubsystemTopology.from_config(config) == expected
+        tokens = (home / '.local/share/kinaiya/data/service-tokens.json').read_bytes()
+        if index == 0:
+            original_providers, original_tokens = config['providers'], tokens
+        else:
+            assert config['providers'] == original_providers
+            assert tokens == original_tokens
+        call['native_config_matches'] = True
+        call['saved_profiles_and_tokens_preserved'] = True
+    record['passed'] = True
+report.update(passed=True, cli_processes_waited=18, network='unshared namespace, no provider access', inference_exercised=False)
+(root / 'result.json').write_text(json.dumps(report, indent=2)+'\n')
+print(json.dumps({'passed': True, 'modes': len(modes), 'native_cli_processes': 18}))

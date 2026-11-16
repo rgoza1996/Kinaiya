@@ -1,11 +1,19 @@
 import asyncio
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from packages.contracts.subsystem_readiness import DecisionsReadiness
+from packages.providers.decision_capture import CaptureNativeUnavailable
 
 
 def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, model_settings=None):
+    instance_id = secrets.token_hex(16)
+    state = {"started": False, "stopped": False, "tasks": ()}
+
     def window_status():
         return {
             "window_agent_available": window_worker.agent_available if window_worker else None,
@@ -21,9 +29,11 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
             for w in (window_worker, window_dispatcher)
             if w is not None
         ]
+        state.update(started=True, tasks=(task, *extras))
         try:
             yield
         finally:
+            state["stopped"] = True
             task.cancel()
             for extra in extras:
                 extra.cancel()
@@ -34,6 +44,54 @@ def create_app(worker, auth, window_worker=None, window_dispatcher=None, *, mode
                     await model_settings.close()
 
     app = FastAPI(title="Kinaiya Decisions", lifespan=lifespan)
+
+    def routing_phase():
+        # This is routing-runtime readiness, not a model/GPU probe or an Agent
+        # availability assertion. Inspection must not acquire an inference lease.
+        phase = "starting"
+        if state["stopped"]:
+            phase = "stopped"
+        elif state["started"]:
+            workers = (worker, *([window_worker] if window_worker is not None else []))
+            active = all(not task.done() for task in state["tasks"]) and all(
+                item.running is True and item.ready is True for item in workers
+            )
+            try:
+                if model_settings is not None:
+                    stamp = model_settings.cache_stamp()
+                    configured = (
+                        type(stamp) is str
+                        and len(stamp) == 64
+                        and all(c in "0123456789abcdef" for c in stamp)
+                    )
+                else:
+                    configured = worker.classifier.provider.info is not None
+            except (CaptureNativeUnavailable, OSError, ValueError, RuntimeError):
+                configured = False
+            phase = "ready" if active and configured else "unavailable"
+        return phase
+
+    @app.get("/health/runtime")
+    async def runtime_health():
+        # Startup must not enter the broader provider-health lease/probe path.
+        return JSONResponse(
+            {"service": "decisions", "routing_runtime_ready": routing_phase() == "ready"},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/v1/decisions/readiness", dependencies=[Depends(auth.require("owner", "converse"))])
+    async def routing_readiness():
+        phase = routing_phase()
+        result = DecisionsReadiness(
+            contract_version=1,
+            service="decisions",
+            consumer="converse",
+            instance_id=instance_id,
+            phase=phase,
+            ready=phase == "ready",
+        )
+        return JSONResponse(result.model_dump(), headers={"Cache-Control": "no-store"})
+
     if model_settings is not None:
         from services.decisions.model_api import router
 

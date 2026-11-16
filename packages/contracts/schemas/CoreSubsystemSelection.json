@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "enum": [
+        "host",
+        "saved"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "core",
+            "agent",
+            "decisions",
+            "agent-decisions",
+            "converse-decisions",
+            "all"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mode"
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "title": "CoreSubsystemSelection",
+  "type": "object"
+}

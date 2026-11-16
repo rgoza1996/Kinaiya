@@ -377,11 +377,11 @@ async def test_healthy_synthetic_endpoint_with_unsupported_adapter_interface_is_
         [
             "",
             "",
+            "no",  # select Agent before its model
             "compatible=http://127.0.0.1:8080/v1",
             "healthy-local-model",
             "no",
             "",
-            "no",
             "yes",
         ]
     )
@@ -501,11 +501,11 @@ def test_interactive_and_noninteractive_setup_preserve_independent_roles_and_exi
         [
             "",
             "",
+            "yes",  # select all three before their independent models
             "lmstudio=http://127.0.0.1:1234",
             "agent-local-model",
             "no",
             "",
-            "yes",
             "compatible",
             "http://127.0.0.1:8081/v1",
             "converse-local-model",

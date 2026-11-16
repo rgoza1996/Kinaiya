@@ -6,6 +6,13 @@ enum OptionsPage {
     description: 'Browse settings categories and workspace configuration.',
     keywords: 'overview home settings options',
   ),
+  subsystems(
+    'Subsystems',
+    description:
+        'Choose Core-owned subsystem selection for the next managed host launch.',
+    keywords:
+        'core subsystems services mode startup launch converse decisions agent dependency',
+  ),
   models(
     'Models',
     description: 'Select Converse, Agent, Decisions, STT, and TTS model roles.',
@@ -175,6 +182,7 @@ class OptionsCategory {
 }
 
 const optionsCategories = [
+  OptionsCategory('Core', Icons.hub_outlined, [OptionsPage.subsystems]),
   OptionsCategory('Models & providers', Icons.diamond_outlined, [
     OptionsPage.models,
     OptionsPage.providers,

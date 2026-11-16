@@ -23,11 +23,18 @@ Map<String, Object?> availability(
   bool owner,
   int revision, {
   bool resource = true,
+  bool? decisions,
 }) => {
-  'enabled': owner && resource,
+  'enabled': owner && resource && decisions != false,
   'owner_enabled': owner,
   'owner_intent_revision': revision,
   'resource_enabled': resource,
+  if (decisions != null)
+    'decisions': {
+      'required': true,
+      'ready': decisions,
+      'state': decisions ? 'ready' : 'unavailable',
+    },
 };
 
 class SleepApi extends KinaiyaClient {
@@ -168,6 +175,82 @@ Future<void> pumpHome(
 }
 
 void main() {
+  test(
+    'required Decisions outage preserves owner intent and stops availability',
+    () {
+      final state = wired(SleepApi());
+      final oldVoice = state.voiceNonce;
+      expect(
+        () =>
+            state.applyConverseHealth(availability(true, 1, decisions: false)),
+        returnsNormally,
+      );
+      expect(state.converseEnabled, isFalse);
+      expect(state.converseOwnerEnabled, isTrue);
+      expect(state.converseOwnerStatusStale, isFalse);
+      expect(state.converseSleeping, isFalse);
+      expect(state.voiceNonce, greaterThan(oldVoice));
+      state.applyConverseHealth(availability(true, 1, decisions: true));
+      expect(state.converseEnabled, isTrue);
+      state.applyConverseHealth(availability(false, 2, decisions: true));
+      expect(state.converseEnabled, isFalse);
+      expect(state.converseSleeping, isTrue);
+      state.dispose();
+    },
+  );
+
+  test(
+    'required Decisions outage does not make a confirmed Wake uncertain',
+    () async {
+      final api = SleepApi()..pendingWrite = Completer<Map<String, Object?>>();
+      final state = wired(api);
+      state.applyConverseHealth(availability(false, 1, decisions: false));
+      final wake = state.setConverseEnabled(true);
+      api.pendingWrite!.complete(availability(true, 2, decisions: false));
+      await wake;
+      expect(api.writes, [true]);
+      expect(state.converseOwnerEnabled, isTrue);
+      expect(state.converseEnabled, isFalse);
+      expect(state.converseControlUncertain, isFalse);
+      expect(state.converseOwnerStatusStale, isFalse);
+      expect(state.converseSleeping, isFalse);
+      state.dispose();
+    },
+  );
+
+  final malformedDecisions = <Object?>[
+    null,
+    false,
+    [],
+    {},
+    {'required': false, 'ready': true, 'state': 'ready'},
+    {'required': true, 'ready': 1, 'state': 'ready'},
+    {'required': true, 'ready': false, 'state': 'ready'},
+    {'required': true, 'ready': true, 'state': 'stopped'},
+    {'required': true, 'ready': false, 'state': 'invented'},
+    {'required': true, 'ready': false, 'state': 'unavailable', 'extra': true},
+  ];
+  for (var index = 0; index < malformedDecisions.length; index++) {
+    test('malformed required Decisions state $index fails closed', () {
+      final state = wired(SleepApi());
+      final health = availability(false, 1, decisions: false)
+        ..['decisions'] = malformedDecisions[index];
+      expect(() => state.applyConverseHealth(health), throwsFormatException);
+      expect(state.converseEnabled, isFalse);
+      expect(state.converseSleeping, isFalse);
+      expect(state.converseOwnerStatusStale, isTrue);
+      state.dispose();
+    });
+  }
+
+  test('required Decisions false cannot accompany effective true', () {
+    final state = wired(SleepApi());
+    final health = availability(true, 1, decisions: false)..['enabled'] = true;
+    expect(() => state.applyConverseHealth(health), throwsFormatException);
+    expect(state.converseEnabled, isFalse);
+    state.dispose();
+  });
+
   testWidgets('sleeping sprite opens setup and respects reduced motion', (
     tester,
   ) async {

@@ -101,8 +101,15 @@ def _start_health_server(
 ) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
-            if self.path == "/health" or (service_name == "web" and self.path == "/"):
-                body = json.dumps({"service": service_name, "status": "ready"}).encode("utf-8")
+            if (
+                self.path == "/health"
+                or (service_name == "decisions" and self.path == "/health/runtime")
+                or (service_name == "web" and self.path == "/")
+            ):
+                payload = {"service": service_name, "status": "ready"}
+                if service_name == "decisions":
+                    payload["routing_runtime_ready"] = True
+                body = json.dumps(payload).encode("utf-8")
                 self.send_response(status_code)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
@@ -128,11 +135,12 @@ def _prepare_fixture_layout(
     with_config: bool = True,
 ) -> tuple[Layout, dict[str, int]]:
     layout = Layout.for_home(tmp_path)
-    session_port, agent_port, converse_port, web_port = _free_ports(4)
+    session_port, agent_port, converse_port, decisions_port, web_port = _free_ports(5)
     ports = {
         "session": session_port,
         "agent": agent_port,
         "converse": converse_port,
+        "decisions": decisions_port,
         "web": web_port,
     }
     for directory in (
@@ -157,6 +165,7 @@ def _prepare_fixture_layout(
             "session_url": f"http://127.0.0.1:{session_port}",
             "agent_url": f"http://127.0.0.1:{agent_port}",
             "converse_url": f"http://127.0.0.1:{converse_port}",
+            "decisions_url": f"http://127.0.0.1:{decisions_port}",
             "providers": {
                 "agent": {
                     "kind": "lmstudio",
@@ -315,6 +324,7 @@ def test_start_headless_no_browser_and_json_modes_print_working_url_without_fail
                 {
                     "session": ports["session"],
                     "agent": ports["agent"],
+                    "decisions": ports["decisions"],
                     "converse": ports["converse"],
                 },
             )
@@ -337,7 +347,7 @@ def test_start_headless_no_browser_and_json_modes_print_working_url_without_fail
     assert parsed["browser_opened"] is False
     assert parsed["converse_enabled"] is True
     assert parsed["web_url"] == f"http://127.0.0.1:{ports['web']}"
-    assert res_json["services"] == ["session", "agent", "converse", "web"]
+    assert res_json["services"] == ["session", "agent", "decisions", "converse", "web"]
 
     # 2. Explicit --no-browser mode with human-readable output
     text_out = io.StringIO()

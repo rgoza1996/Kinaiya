@@ -359,11 +359,11 @@ def test_wizard_with_opt_in_connection_check(
         [
             "",  # workspace
             "",  # data
+            "no",  # Agent-only service selection
             "http://127.0.0.1:1234",  # endpoint
             "qwen2.5-coder-7b",  # model
             "no",  # allow_cloud
             "",  # credential_env
-            "no",  # converse
             "yes",  # confirm write
             "metadata",  # run GET /models check only
         ]

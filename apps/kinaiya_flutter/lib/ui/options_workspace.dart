@@ -18,6 +18,7 @@ import 'design_tokens.dart';
 import 'mcp_settings.dart';
 import 'options_model_editor.dart';
 import 'options_runtime_editor.dart';
+import 'options_subsystems.dart';
 import 'options_workspace_settings.dart';
 import 'options_capabilities.dart';
 import 'agent_runtime_writes.dart';
@@ -1086,6 +1087,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
 
   Widget _content() => switch (_page) {
     OptionsPage.overview => _overview(),
+    OptionsPage.subsystems => _subsystems(),
     OptionsPage.models => _modelDefaults(),
     OptionsPage.harnesses => _harnesses(),
     OptionsPage.providers => _providers(),
@@ -1151,6 +1153,19 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       const BuildAndUpdatesPanel(app: DistributedApp.kinaiya),
     ]),
   };
+
+  Widget _subsystems() {
+    final owner = widget.state, client = owner.client;
+    final generation = owner.connectionGeneration;
+    return _scroll([
+      OptionsSubsystems(
+        key: ObjectKey(client?.coreSubsystems),
+        api: client?.coreSubsystems,
+        active: () =>
+            client != null && owner.ownsConnection(generation, client),
+      ),
+    ]);
+  }
 
   Widget _scroll(List<Widget> children) => SingleChildScrollView(
     child: Align(

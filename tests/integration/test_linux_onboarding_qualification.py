@@ -330,11 +330,11 @@ async def test_clean_linux_install_to_first_session_end_to_end_journey(tmp_path,
         [
             "",  # default workspace
             "",  # default data dir
+            "no",  # Agent-only mode before model setup
             "lmstudio=http://127.0.0.1:1234",
             "qwen2.5-coder-7b",
             "no",  # allow_cloud
             "",  # credential_env
-            "no",  # converse
             "yes",  # confirm write
         ]
     )

@@ -10,7 +10,14 @@ import '../config/connection.dart';
 import '../config/service_root.dart';
 import 'provider_settings.dart' show providerJsonDecode;
 
-enum SettingsDomain { model, runtime, control, standing, standingDispatch }
+enum SettingsDomain {
+  model,
+  runtime,
+  control,
+  standing,
+  standingDispatch,
+  coreSubsystems,
+}
 
 class OwnedSettingsFailure implements Exception {
   const OwnedSettingsFailure(
@@ -53,6 +60,7 @@ class OwnedSettingsTransport {
     SettingsDomain.control => 'Agent mode',
     SettingsDomain.standing => 'Standing work',
     SettingsDomain.standingDispatch => 'Standing dispatch',
+    SettingsDomain.coreSubsystems => 'Core subsystem settings',
   };
   String get _connectionLabel => switch (domain) {
     SettingsDomain.model => 'model',
@@ -60,6 +68,7 @@ class OwnedSettingsTransport {
     SettingsDomain.control => 'Agent mode',
     SettingsDomain.standing => 'standing work',
     SettingsDomain.standingDispatch => 'standing dispatch',
+    SettingsDomain.coreSubsystems => 'Core subsystem settings',
   };
   int get _requestBytes => domain == SettingsDomain.standing ? 131072 : 4096;
   int get _responseBytes => switch (domain) {

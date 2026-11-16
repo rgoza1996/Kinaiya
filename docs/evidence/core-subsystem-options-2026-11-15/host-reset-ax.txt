@@ -1,0 +1,12 @@
+Browser tab: 14, Title: "Kinaiya", URL: "http://127.0.0.1:37165/".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 27-31
++				36 text Selection source: Host defaults
++				37 text Selected for next launch: Agent
++				38 text Host defaults: Agent
++				39 text Startup declaration: Unknown
++				40 text Running services: Not observed
++				41 text Selection saved for the next managed host launch. Running services are not observed here.
+~				33 button (disabled) Save for next launch, ID: flt-semantic-node-124
+~				34 button (disabled) Use inspected selection, ID: flt-semantic-node-125
+The focused UI element is 33 button (disabled) Save for next launch, ID: flt-semantic-node-124

@@ -264,11 +264,11 @@ def test_intro_uses_approved_moon_renderer_and_wizard_wires_bounded_activity_ind
         [
             "",
             "",
+            "no",  # Agent-only mode before model setup
             "http://127.0.0.1:1234",
             "qwen2.5-coder-7b",
             "no",
             "",
-            "no",
             "yes",
             "metadata",
         ]

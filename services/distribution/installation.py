@@ -1018,6 +1018,7 @@ def reconfigure_section(
     credential_env=None,
     converse=False,
     agent=True,
+    decisions=None,
     context_tokens=None,
     converse_profile=None,
     decisions_profile=None,
@@ -1037,6 +1038,36 @@ def reconfigure_section(
     if kind is not None and adapter is not None and kind != adapter:
         raise InstallError("Conflicting Agent adapter kind arguments")
     selected_kind = adapter if adapter is not None else kind
+
+    from services.common.topology import SubsystemTopology
+
+    if target_section == "services":
+        try:
+            topology = SubsystemTopology(agent, converse, decisions)
+        except ValueError as exc:
+            raise InstallError(str(exc)) from None
+        if not layout.config.exists():
+            raise InstallError("Existing configuration required; run full setup first")
+        from services.settings.subsystems import (
+            CoreSubsystemConflict,
+            CoreSubsystemUnavailable,
+            CoreSubsystemUnavailableWithRequest,
+            save_local_mode,
+        )
+
+        try:
+            return save_local_mode(layout.config, layout.data, layout.workspace, topology.mode)
+        except CoreSubsystemUnavailableWithRequest as exc:
+            raise InstallError(
+                "Core subsystem save is unconfirmed; reconcile with "
+                f"kinaiya setup services --lookup-service-change {exc.key}"
+            ) from None
+        except CoreSubsystemConflict:
+            raise InstallError(
+                "Core subsystem authority changed; inspect the original selection"
+            ) from None
+        except (CoreSubsystemUnavailable, OSError, ValueError):
+            raise InstallError("Core subsystem selection authority is unavailable") from None
 
     if not os.path.lexists(layout.config):
         if target_section == "model":
@@ -1151,14 +1182,28 @@ def reconfigure_section(
                 providers_map["converse"] = dict(converse_built)
                 providers_map["decisions"] = dict(decisions_built)
                 config["providers"] = providers_map
+            elif decisions_profile is not None:
+                providers_map["decisions"] = _build_role_from_mapping(
+                    "decisions", decisions_profile
+                )
+                config["providers"] = providers_map
             dist = config.get("distribution")
             dist_map = dict(dist) if isinstance(dist, dict) else {}
             dist_map["converse"] = enable_converse
-            if not agent:
+            if enable_converse:
+                dist_map["decisions"] = True
+            if decisions is not None:
+                try:
+                    topology = SubsystemTopology(agent, enable_converse, decisions)
+                except ValueError as exc:
+                    raise InstallError(str(exc)) from None
+                dist_map.update(agent=topology.agent, decisions=topology.decisions)
+            elif not agent:
                 dist_map["agent"] = False
-                config["providers"].pop("agent", None)
             config["distribution"] = dist_map
 
+        if target_section == "converse":
+            _preserve_core_selection(layout, SubsystemTopology.from_config(config))
         atomic_json(layout.config, config)
         if target_section == "workspace" and layout_marker.exists():
             atomic_json(
@@ -1176,12 +1221,26 @@ def reconfigure_section(
         if layout_backup is not None:
             layout_backup.unlink(missing_ok=True)
 
-    return {
+    result = {
         "ready": False,
         "provider_connection": "not_checked",
         "section": target_section,
         "next": "kinaiya serve host",
     }
+    return result
+
+
+def _preserve_core_selection(layout, topology):
+    from services.settings.subsystems import CoreSubsystemUnavailable, read_selection
+
+    try:
+        selection = read_selection(layout.data, layout.workspace)
+    except (CoreSubsystemUnavailable, ValueError, OSError):
+        raise InstallError("Core subsystem selection is invalid or unavailable") from None
+    if selection is not None and selection.source == "saved" and selection.mode != topology.mode:
+        raise InstallError(
+            "Core subsystem selection differs; change it explicitly in Core Options or setup services first"
+        )
 
 
 def setup(
@@ -1195,6 +1254,7 @@ def setup(
     credential_env=None,
     converse=False,
     agent=True,
+    decisions=None,
     context_tokens=None,
     roles=None,
     converse_profile=None,
@@ -1215,6 +1275,7 @@ def setup(
             credential_env=credential_env,
             converse=converse,
             agent=agent,
+            decisions=decisions,
             context_tokens=context_tokens,
             converse_profile=converse_profile,
             decisions_profile=decisions_profile,
@@ -1225,7 +1286,8 @@ def setup(
     layout.validate()
     if (layout.install / "layout.json").exists():
         verify_layout(layout)
-    if os.path.lexists(layout.config) and not allow_existing:
+    had_existing_config = os.path.lexists(layout.config)
+    if had_existing_config and not allow_existing:
         raise InstallError("Preserving existing configuration; edit it explicitly instead")
     if kind is not None and adapter is not None and kind != adapter:
         raise InstallError("Conflicting Agent adapter kind arguments")
@@ -1244,19 +1306,35 @@ def setup(
             raise InstallError("Conflicting decisions role configuration")
         role_map["decisions"] = decisions_profile
 
-    if agent:
-        if "agent" in role_map:
-            agent_built = _build_role_from_mapping("agent", role_map["agent"])
-        else:
-            agent_built = _build_role_profile(
-                "agent",
-                endpoint=endpoint,
-                model=model,
-                kind=selected_kind,
-                allow_cloud=allow_cloud,
-                credential_env=credential_env,
-                context_tokens=context_tokens,
-            )
+    from services.common.topology import SubsystemTopology
+
+    try:
+        if type(converse) is not bool:
+            raise ValueError("Subsystem selections must be booleans")
+        topology = SubsystemTopology(
+            agent,
+            (converse or "converse" in role_map) if decisions is None else converse,
+            (converse or "converse" in role_map or "decisions" in role_map)
+            if decisions is None
+            else decisions,
+        )
+    except ValueError as exc:
+        raise InstallError(str(exc)) from None
+
+    _preserve_core_selection(layout, topology)
+
+    if "agent" in role_map:
+        agent_built = _build_role_from_mapping("agent", role_map["agent"])
+    elif agent:
+        agent_built = _build_role_profile(
+            "agent",
+            endpoint=endpoint,
+            model=model,
+            kind=selected_kind,
+            allow_cloud=allow_cloud,
+            credential_env=credential_env,
+            context_tokens=context_tokens,
+        )
     else:
         agent_built = None
 
@@ -1325,16 +1403,24 @@ def setup(
 
     if agent_built is not None:
         config["providers"]["agent"] = dict(agent_built)
-    else:
+    elif not had_existing_config:
         config["providers"].pop("agent", None)
     if effective_converse is not None:
         config["providers"]["converse"] = dict(effective_converse)
     if effective_decisions is not None:
         config["providers"]["decisions"] = dict(effective_decisions)
 
-    dist_map: dict[str, Any] = {"converse": bool(converse or converse_built is not None)}
-    if not agent:
-        dist_map["agent"] = False
+    existing_distribution = config.get("distribution", {})
+    if not isinstance(existing_distribution, dict):
+        raise InstallError("Subsystem distribution selection must be an object")
+    dist_map: dict[str, Any] = {**existing_distribution, "converse": topology.converse}
+    # Retain the historical first Agent-only shape; documented missing-field
+    # defaults express the same validated graph. Existing explicit selectors
+    # are always updated, including turning a formerly enabled role off.
+    if topology.decisions or "decisions" in dist_map:
+        dist_map["decisions"] = topology.decisions
+    if not topology.agent or "agent" in dist_map:
+        dist_map["agent"] = topology.agent
     config["distribution"] = dist_map
     atomic_json(layout.config, config)
     return {"ready": False, "provider_connection": "not_checked", "next": "kinaiya serve host"}

@@ -214,7 +214,7 @@ def test_rendering_never_mutates_files_and_wizard_outputs_summary(
 
     class Terminal:
         def __init__(self) -> None:
-            self.answers = iter(["", "", "", "summary-test-model", "no", "", "no", "yes"])
+            self.answers = iter(["", "", "no", "", "summary-test-model", "no", "", "yes"])
             self.output = ""
 
         def write(self, value: str) -> None:

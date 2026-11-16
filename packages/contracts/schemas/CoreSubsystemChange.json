@@ -1,0 +1,125 @@
+{
+  "$defs": {
+    "CoreSubsystemSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "core",
+                "agent",
+                "decisions",
+                "agent-decisions",
+                "converse-decisions",
+                "all"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "CoreSubsystemSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "core_subsystems.v1",
+      "default": "core_subsystems.v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "authority_epoch": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Authority Epoch",
+      "type": "string"
+    },
+    "authority_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Authority Generation",
+      "type": "integer"
+    },
+    "expected_revision": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "state_token": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "State Token",
+      "type": "string"
+    },
+    "expected_host_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "core",
+            "agent",
+            "decisions",
+            "agent-decisions",
+            "converse-decisions",
+            "all"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Expected Host Mode"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9:._-]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CoreSubsystemSelection"
+    }
+  },
+  "required": [
+    "backend_id",
+    "authority_epoch",
+    "authority_generation",
+    "expected_revision",
+    "state_token",
+    "expected_host_mode",
+    "idempotency_key",
+    "selection"
+  ],
+  "title": "CoreSubsystemChange",
+  "type": "object"
+}

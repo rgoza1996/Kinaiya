@@ -1,0 +1,321 @@
+{
+  "scope": "Actual CPU CLI setup/save paths in private network-isolated namespace; no running service/inference/resource qualification",
+  "cases": [
+    {
+      "mode": "core",
+      "calls": [
+        {
+          "arguments": [
+            "setup",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.41056355999899097,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.37968291599827353,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3547280339989811,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "mode": "agent",
+      "calls": [
+        {
+          "arguments": [
+            "setup",
+            "--yes",
+            "--services",
+            "agent",
+            "--endpoint",
+            "http://127.0.0.1:1234",
+            "--model",
+            "synthetic-agent"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3480345450079767,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3717400970053859,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "agent"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3629012190067442,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "mode": "decisions",
+      "calls": [
+        {
+          "arguments": [
+            "setup",
+            "--yes",
+            "--services",
+            "decisions",
+            "--decisions-endpoint",
+            "http://127.0.0.1:1235",
+            "--decisions-model",
+            "synthetic-decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3722133830015082,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.37317374200210907,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3630825120053487,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "mode": "agent-decisions",
+      "calls": [
+        {
+          "arguments": [
+            "setup",
+            "--yes",
+            "--services",
+            "agent-decisions",
+            "--endpoint",
+            "http://127.0.0.1:1234",
+            "--model",
+            "synthetic-agent",
+            "--decisions-endpoint",
+            "http://127.0.0.1:1235",
+            "--decisions-model",
+            "synthetic-decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.370043026006897,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.36572199800866656,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "agent-decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.35648084699641913,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "mode": "converse-decisions",
+      "calls": [
+        {
+          "arguments": [
+            "setup",
+            "--yes",
+            "--services",
+            "converse-decisions",
+            "--converse-endpoint",
+            "http://127.0.0.1:1235",
+            "--converse-model",
+            "synthetic-converse",
+            "--decisions-endpoint",
+            "http://127.0.0.1:1235",
+            "--decisions-model",
+            "synthetic-decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.38646959500329103,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3726856430002954,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "converse-decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3549972250038991,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "mode": "all",
+      "calls": [
+        {
+          "arguments": [
+            "setup",
+            "--yes",
+            "--services",
+            "all",
+            "--endpoint",
+            "http://127.0.0.1:1234",
+            "--model",
+            "synthetic-agent",
+            "--converse-endpoint",
+            "http://127.0.0.1:1235",
+            "--converse-model",
+            "synthetic-converse",
+            "--decisions-endpoint",
+            "http://127.0.0.1:1235",
+            "--decisions-model",
+            "synthetic-decisions"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3865666380006587,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "core"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3702806630026316,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        },
+        {
+          "arguments": [
+            "setup",
+            "services",
+            "--yes",
+            "--services",
+            "all"
+          ],
+          "exit": 0,
+          "elapsed_s": 0.3597886799980188,
+          "original_receipt_lookup_readonly": true,
+          "native_config_matches": true,
+          "saved_profiles_and_tokens_preserved": true
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "cli_processes_waited": 30,
+  "network": "unshared namespace, no provider access",
+  "inference_exercised": false
+}
