@@ -236,6 +236,9 @@ class Store:
         from services.session.live_decisions_attempts import LiveDecisionsAttemptStore
 
         self.live_decisions_attempts = LiveDecisionsAttemptStore(self, decisions_max_attempts)
+        from services.session.live_effects import LiveEffectStore
+
+        self.live_effects = LiveEffectStore(self)
 
     def register_converse_context_validator(self, implementation_id, callback):
         """Trusted startup only; registration never imports a memory backend."""
@@ -1994,6 +1997,20 @@ class LocalJournal:
         if self.role != "decisions":
             raise PermissionError("Native live inference requires Decisions")
         return self.store.live_decisions_attempts.lookup(request)
+
+    async def live_effect_lookup(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native live consumption lookup requires an authorized role")
+        return self.store.live_effects.lookup(request)
+
+    async def live_effect_admit(self, request):
+        return self.store.live_effects.admit(request, self.role)
+
+    async def live_effect_finish(self, request):
+        return self.store.live_effects.finish(request, self.role)
+
+    async def live_effect_start(self, request):
+        return self.store.live_effects.start(request, self.role)
 
     async def pending_live_decisions(self, request):
         if self.role != "decisions":

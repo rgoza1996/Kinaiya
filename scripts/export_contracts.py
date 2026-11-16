@@ -30,6 +30,7 @@ from packages.contracts import (
     live_decisions,
     live_decisions_attempts,
     live_decisions_pending,
+    live_effects,
     live_readiness,
     live_streams,
     live_windows,
@@ -153,6 +154,20 @@ for name in (
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Bounded live discovery is a recheck hint, never inference or effect authority.
+for name in (
+    "LiveEffectQuery",
+    "LiveEffectAdmit",
+    "LiveEffectReceipt",
+    "LiveEffectEvidence",
+    "LiveEffectStart",
+    "LiveEffectStarted",
+    "LiveEffectFinish",
+    "LiveEffectRecord",
+    "LiveEffectState",
+):
+    cls = getattr(live_effects, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
 for name in ("LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"):
     cls = getattr(live_decisions_pending, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")

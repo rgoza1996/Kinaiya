@@ -1,0 +1,350 @@
+{
+  "issue": 623,
+  "branch": "codex/623-live-consumers",
+  "base": "04659d966d75afe4afd51c65abafdd4743adf824",
+  "status": "Gatednativeconsumptionledger/API/clients only; actualConverse/Agentv2consumers stillunimplemented",
+  "input_count": 903,
+  "checks": [
+    {
+      "utc": "2026-11-16T22:56:49.119948+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_mic_capture.py",
+        "tests/integration/test_live_stream_api.py",
+        "tests/integration/test_live_stream_capture.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/integration/test_session.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 132.352296887002,
+      "input_count": 903,
+      "inputs_unchanged": true,
+      "log_sha256": "6072552b9df81024b596a2169d04063b185ffcdad578c3339273e0d270f827c9",
+      "result": "582passed;oneexistingStarlettewarning;131.21s",
+      "original_receipt_sha256": "4fa1174afff37e44162d9a2f31af56704c8d37baf94766008633578eaa36a71c"
+    },
+    {
+      "utc": "2026-11-16T22:55:00.858038+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 24.10902274899854,
+      "input_count": 903,
+      "inputs_unchanged": true,
+      "log_sha256": "09ab6140939e2ec2ded9960dbc2419929fe8980b7c9e3b375bbab8b787404d74",
+      "result": "152passed;23.26s",
+      "original_receipt_sha256": "0753a8cde9bfecd0ebc2f74024b649cc8c4c6a25c6621a6bee4611bc00d25b63"
+    }
+  ],
+  "first_failures": [
+    {
+      "utc": "2026-11-16T21:56:17.531635+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 2.2835251599972253,
+      "input_count": 899,
+      "inputs_unchanged": true,
+      "log_sha256": "c089c5a0abe886bfa6b86a5bd32872c6e10c2cef6e214c23dbcd2de86ed3af46",
+      "result": "4failed8passed; fixturewake/attemptID and actualrevocation/wrongbehavior faults",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6930622874",
+      "original_receipt_sha256": "b72e1864c5d9604f17f64f009f30e041c6e7aa858a77fff9c3ed6375b7e56da0",
+      "input_manifest": "python-input-sha256.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_effect_client.py",
+        "services/session/live_effect_api.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/unit/test_live_effect_contracts.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "bb7ec7738266b51ac557717119750983f3a979b1366013f61fa9df98d4f54876",
+        "packages/contracts/live_effects.py": "23ee9a0ba5729bd8b73201427642beb8f0997d2ac6b73f5aec79303a1f8bcfe5",
+        "services/session/api.py": "86a5aa6d672918e5e21e4939389370e5cb515f74fc49a4f3fa66a911ee37ee10",
+        "services/session/live_effects.py": "8a126af06620a1fa2a7cc876940c821059ae422f6093aea602c0b44c50eb7cf6",
+        "services/session/store.py": "f1c6ed65063f32312cee71ed53489edf5debde485c4911393d9b2bcf3a773cde",
+        "tests/integration/test_live_effects.py": "0a157f6c86cf5ae31281715cbdc1144717036df704058447767569046ea79cd1",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+        "scripts/export_contracts.py": "05a0edfba84433ba33611ab9cfd150d9469e7e791a23dd3ec1d2fc337b3d1174"
+      },
+      "log_file": "issue-623-live-effects-first.log.json"
+    },
+    {
+      "utc": "2026-11-16T21:58:20.861288+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 2.2466878829945927,
+      "input_count": 899,
+      "inputs_unchanged": true,
+      "log_sha256": "1e466346679fc8443fbfc8d95e2fc3862b3b3abba6ba6eb415b314041c877174",
+      "result": "2failed10passed; oldparserstructure and uncertaincapacityfaults",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6930664010",
+      "original_receipt_sha256": "a4e05fea7684d079c113d977507986905b8dd363917abbeeeb3915d6b652bd3d",
+      "input_manifest": "python-input-sha256.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_effect_client.py",
+        "services/session/live_effect_api.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/unit/test_live_effect_contracts.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "bb7ec7738266b51ac557717119750983f3a979b1366013f61fa9df98d4f54876",
+        "packages/contracts/live_effects.py": "23ee9a0ba5729bd8b73201427642beb8f0997d2ac6b73f5aec79303a1f8bcfe5",
+        "services/session/api.py": "86a5aa6d672918e5e21e4939389370e5cb515f74fc49a4f3fa66a911ee37ee10",
+        "services/session/live_effects.py": "80bbd6648fc43032977eb73883f49b4fbf17e81eab540ae7a5908b3e6386c40b",
+        "services/session/store.py": "f1c6ed65063f32312cee71ed53489edf5debde485c4911393d9b2bcf3a773cde",
+        "tests/integration/test_live_effects.py": "30671d5e84e1fcc488a1bab5cd6d9d657d51254a4aedfc6cc08af58a018c33bb",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+        "scripts/export_contracts.py": "05a0edfba84433ba33611ab9cfd150d9469e7e791a23dd3ec1d2fc337b3d1174"
+      },
+      "log_file": "issue-623-live-effects-capacity-control.log.json"
+    },
+    {
+      "utc": "2026-11-16T22:08:26.275332+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 2.6275853540064418,
+      "input_count": 902,
+      "inputs_unchanged": true,
+      "log_sha256": "53a5e9a0b10c1692405bc7070df3c2fcc7ac7a31cc8f8a4aebab0d03713b8ba0",
+      "result": "2failed12passed; positiveuncertainrecovery and foreignoperationevidencefaults",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6930887400",
+      "original_receipt_sha256": "ff5ab9079d555f664f9d1811a3cbaa62311d2e3720fecffb33440b34e43b2856",
+      "input_manifest": "python-input-sha256.json",
+      "absent_from_manifest": [
+        "tests/unit/test_live_effect_contracts.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "a413458c5b7678ded279148c76e238b9b71fee6df639b800ccef9705d0c02d1e",
+        "packages/contracts/live_effect_client.py": "8cc7a6cc33ad4b9a1b0cd9892c400da17fe294cbac61e790ecc77b17402fa4a4",
+        "packages/contracts/live_effects.py": "0007594d0e8c9701d720a2771be008cee17dbb0f5b9a0c22d93d4c2a9d492ebe",
+        "services/session/live_effect_api.py": "25e5c83917c356c42892b515bb6592f02f933056fb8eda677d2733bc61c8d18c",
+        "services/session/live_effects.py": "f743c8eb8b8dfdb9fada5c17850bf2980e56ef0fbf8ecb0eb308de2df4d5e528",
+        "services/session/store.py": "109104df3688c0d2d3fdd4e5bb95089432af7380d40ba702c2353f439736d797",
+        "tests/integration/test_live_effect_http.py": "614717442b14be09b7e237800fa9c6dff36e866edc90508cecc2da504fd289a8",
+        "tests/integration/test_live_effects.py": "c7383201e8a69054bd01380d5be18059e9409c826c50c744bb9e94cbbb60328b",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+        "scripts/export_contracts.py": "05a0edfba84433ba33611ab9cfd150d9469e7e791a23dd3ec1d2fc337b3d1174"
+      },
+      "log_file": "issue-623-live-effect-recovery-first.log.json"
+    },
+    {
+      "utc": "2026-11-16T22:46:51.829606+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py::test_later_native_interrupt_fences_a_reserved_queue_from_another_utterance",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.703618853003718,
+      "input_count": 902,
+      "inputs_unchanged": true,
+      "log_sha256": "386c20d64e35fa0e831750702f119240a78244be608f1b896d20c6903c44949d",
+      "result": "1failed; laternativeinterruptdidnotfencequeue",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6931691533",
+      "original_receipt_sha256": "6fa566d361a4c6f45c4b3f9dfab6fb1840eebccf90e8b04cc1a2929abce627e8",
+      "input_manifest": "python-input-sha256.json",
+      "absent_from_manifest": [
+        "tests/unit/test_live_effect_contracts.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "fa866707463245bdcceb788489dee7e458ada5ce9dd911b6b05845538792a9d4",
+        "services/session/live_effects.py": "529f5b10c4e405360255e1e6a0230a187a9b04ef279983653085a188b57dac3e",
+        "tests/integration/test_live_effects.py": "55c991d811925e54b78a5679c099bd62a61dc2357c7b3e0914025284ac95626c",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+        "scripts/export_contracts.py": "05a0edfba84433ba33611ab9cfd150d9469e7e791a23dd3ec1d2fc337b3d1174"
+      },
+      "log_file": "issue-623-live-effect-interrupt-first.log.json"
+    },
+    {
+      "utc": "2026-11-16T22:48:02.824197+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 21.93779299200105,
+      "input_count": 902,
+      "inputs_unchanged": true,
+      "log_sha256": "bdeeb8fab3f1a9dd4d29699eba977fcabf5f7349e9f4fd5f0a52ebc322c9391e",
+      "result": "1failed49passed; postconditionfixtureusedAdmitinsteadclosedQuery",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6931723000",
+      "original_receipt_sha256": "f3906d28c05909dabff41c57b697abf5a48f95a6bb61b291718e7b2a6b707970",
+      "input_manifest": "python-input-sha256.json",
+      "absent_from_manifest": [
+        "tests/unit/test_live_effect_contracts.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "fa866707463245bdcceb788489dee7e458ada5ce9dd911b6b05845538792a9d4",
+        "tests/integration/test_live_effects.py": "190ad6108eea346251fa1ded4eee4f6695ccd639c694be6d8aa9971578d233ea",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+        "scripts/export_contracts.py": "05a0edfba84433ba33611ab9cfd150d9469e7e791a23dd3ec1d2fc337b3d1174"
+      },
+      "log_file": "issue-623-live-effect-interrupt-repaired-313.log.json"
+    },
+    {
+      "utc": "2026-11-16T22:48:03.358710+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 22.485844870003348,
+      "input_count": 902,
+      "inputs_unchanged": true,
+      "log_sha256": "40749d43a23a6945b67570557bbdd3dbd45eac956733e5e075d85e56ac3f176b",
+      "result": "1failed49passed; samequeryfixtureerror",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6931723000",
+      "original_receipt_sha256": "7fb960ed4e32e60a42c7ced9f06a9b3c3089ac96842d19d97d218194742c93c4",
+      "input_manifest": "python-input-sha256.json",
+      "absent_from_manifest": [
+        "tests/unit/test_live_effect_contracts.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "fa866707463245bdcceb788489dee7e458ada5ce9dd911b6b05845538792a9d4",
+        "tests/integration/test_live_effects.py": "190ad6108eea346251fa1ded4eee4f6695ccd639c694be6d8aa9971578d233ea",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+        "scripts/export_contracts.py": "05a0edfba84433ba33611ab9cfd150d9469e7e791a23dd3ec1d2fc337b3d1174"
+      },
+      "log_file": "issue-623-live-effect-interrupt-repaired-314.log.json"
+    }
+  ],
+  "source_snapshots": [
+    {
+      "file": "issue-623-live-effects-first-contracts.py.txt",
+      "sha256": "23ee9a0ba5729bd8b73201427642beb8f0997d2ac6b73f5aec79303a1f8bcfe5"
+    },
+    {
+      "file": "issue-623-live-effects-first-controls.py.txt",
+      "sha256": "0a157f6c86cf5ae31281715cbdc1144717036df704058447767569046ea79cd1"
+    },
+    {
+      "file": "issue-623-live-effects-first-store.py.txt",
+      "sha256": "8a126af06620a1fa2a7cc876940c821059ae422f6093aea602c0b44c50eb7cf6"
+    },
+    {
+      "file": "issue-623-live-effects-capacity-control-first-controls.py.txt",
+      "sha256": "30671d5e84e1fcc488a1bab5cd6d9d657d51254a4aedfc6cc08af58a018c33bb"
+    },
+    {
+      "file": "issue-623-live-effects-capacity-control-first-store.py.txt",
+      "sha256": "80bbd6648fc43032977eb73883f49b4fbf17e81eab540ae7a5908b3e6386c40b"
+    },
+    {
+      "file": "issue-623-live-effect-recovery-first-controls.py.txt",
+      "sha256": "c7383201e8a69054bd01380d5be18059e9409c826c50c744bb9e94cbbb60328b"
+    },
+    {
+      "file": "issue-623-live-effect-recovery-first-store.py.txt",
+      "sha256": "f743c8eb8b8dfdb9fada5c17850bf2980e56ef0fbf8ecb0eb308de2df4d5e528"
+    },
+    {
+      "file": "issue-623-live-effect-interrupt-first-controls.py.txt",
+      "sha256": "55c991d811925e54b78a5679c099bd62a61dc2357c7b3e0914025284ac95626c"
+    },
+    {
+      "file": "issue-623-live-effect-interrupt-first-store.py.txt",
+      "sha256": "529f5b10c4e405360255e1e6a0230a187a9b04ef279983653085a188b57dac3e"
+    },
+    {
+      "file": "issue-623-live-effect-interrupt-query-first-controls.py.txt",
+      "sha256": "190ad6108eea346251fa1ded4eee4f6695ccd639c694be6d8aa9971578d233ea"
+    },
+    {
+      "file": "issue-623-live-effect-interrupt-query-first-store.py.txt",
+      "sha256": "181cf5569f6d975b9d0216c6b61a7181fafe035c07abda2d1b04ea83be1be052"
+    }
+  ],
+  "schemas": {
+    "old_count": 579,
+    "old_changed": [],
+    "new_count": 9,
+    "new_sha256": "1044614df72ec0f52a38947ce3063745030401ec9baa6d2144cfdbdc13e2daf9"
+  },
+  "static_checks": {
+    "ruff": "passed: python -m ruff check .",
+    "format": "passed: python -m ruff format --check .;1181files",
+    "diff": "passed: git diff --cached --check, including source snapshots and lossless JSON log envelopes"
+  },
+  "limits": [
+    "Noactualv2consumers/discovery/Agentadmission/Converseplayback/Call/defaultrollout",
+    "NoactualAgentcommandshapequalification",
+    "Nophysicalaudioormodelqualitygate",
+    "NoCIqualificationofthischildincrementyet"
+  ]
+}

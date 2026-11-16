@@ -1,0 +1,90 @@
+"""Original live-result consumption; never an execution or physical-success grant."""
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from packages.contracts.live_decisions_attempts import LiveDecisionsPublication
+
+PROTOCOL = "native_live_effect_v2"
+MAX_REQUEST_BYTES = 16384
+MAX_RESPONSE_BYTES = 32768
+MAX_RECORDS = 10000
+MAX_ACTIVE = 64
+
+
+class _Closed(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, frozen=True,
+        revalidate_instances="always", hide_input_in_errors=True)
+
+
+class LiveEffectQuery(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_effect_v2"]
+    publication: LiveDecisionsPublication
+    effect: Literal["converse_reply", "converse_backchannel", "agent_route"]
+
+
+class LiveEffectAdmit(LiveEffectQuery):
+    owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$")
+    operation_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+
+
+class LiveEffectReceipt(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_effect_v2"]
+    original: LiveEffectAdmit
+    receipt_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    through_sequence: int = Field(ge=1, le=(1 << 53) - 1)
+
+
+class LiveEffectEvidence(_Closed):
+    event_id: str = Field(min_length=1, max_length=128)
+    sequence: int = Field(ge=1, le=(1 << 53) - 1)
+
+
+class LiveEffectFinish(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_effect_v2"]
+    original: LiveEffectReceipt
+    status: Literal["recorded", "declined", "refused", "uncertain"]
+    evidence: LiveEffectEvidence | None
+    reason_code: str = Field(min_length=1, max_length=120)
+
+    @model_validator(mode="after")
+    def exact_evidence(self):
+        if (self.status == "recorded") != (self.evidence is not None):
+            raise ValueError("A recorded consumer effect requires its native journal evidence")
+        if not self.reason_code.strip() or "\x00" in self.reason_code:
+            raise ValueError("A consumer result requires a bounded reason code")
+        self.reason_code.encode("utf-8")
+        return self
+
+
+class LiveEffectRecord(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_effect_v2"]
+    receipt: LiveEffectReceipt
+    completion: LiveEffectFinish | None
+
+    @model_validator(mode="after")
+    def original_completion(self):
+        if self.completion is not None and self.completion.original != self.receipt:
+            raise ValueError("Consumer completion changed its original receipt")
+        return self
+
+
+class LiveEffectState(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_effect_v2"]
+    original: LiveEffectQuery
+    record: LiveEffectRecord | None
+    source_current: bool
+
+    @model_validator(mode="after")
+    def exact_query(self):
+        if self.record is not None:
+            original = self.record.receipt.original
+            if original.publication != self.original.publication or original.effect != self.original.effect:
+                raise ValueError("Consumer lookup changed its original live result")
+        return self

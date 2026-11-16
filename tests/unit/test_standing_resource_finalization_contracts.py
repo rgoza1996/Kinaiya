@@ -618,6 +618,29 @@ def schema_pin():
     }
     # Bounded pending discovery has a separately pinned additive pair.
     additive |= {"LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"}
+    # #669: preserve the frozen184 aggregate while pinning each new family.
+    additive |= {
+        "LiveDecisionsReadiness",
+        "LiveStreamCapability",
+        "LiveStreamIdentity",
+        "LiveStreamScope",
+        "LiveStreamBegin",
+        "LiveStreamPcm",
+        "LiveStreamFinish",
+        "LiveStreamCancel",
+        "LiveStreamLookup",
+        "LiveStreamProof",
+        "LiveStreamCancellation",
+        "LiveEffectQuery",
+        "LiveEffectAdmit",
+        "LiveEffectReceipt",
+        "LiveEffectEvidence",
+        "LiveEffectStart",
+        "LiveEffectStarted",
+        "LiveEffectFinish",
+        "LiveEffectRecord",
+        "LiveEffectState",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,
