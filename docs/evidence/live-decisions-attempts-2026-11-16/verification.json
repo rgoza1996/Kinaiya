@@ -1,0 +1,391 @@
+{
+  "issues": [
+    623,
+    665
+  ],
+  "branch": "codex/623-live-inference",
+  "base": "f48d67199ffc18035c2a9100e65897295f0e9caa",
+  "environment": {
+    "313": "Python 3.13.18",
+    "314": "Python 3.14.10"
+  },
+  "lockfiles": {
+    "requirements-runtime.lock": "75ac9da4ae40fd46d241c12d2523f7b5d7b661befa12b4c3e2dc7b27fbc220d1",
+    "requirements-dev.lock": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "requirements-meta-speech.lock": "be8cd8060c8f2f33d39b3b194218a0c66e7e9b73cd26f597545da1ef44c40677",
+    "requirements-vibevoice.lock": "dc68011eac9f046e02a8281c0408cf86b84b829d4ca63188a7f2cda096ca9407",
+    "requirements-supertonic.lock": "8ecf40ae6a1e9d755f303a7ac74e78d629c6c0d9e894cdefde5c90531c54b1ae",
+    "requirements-whistle.lock": "6d22464de9f0ff308deee728f9dee3ff7acb14c7f3bd36c1fb0c9304602de613"
+  },
+  "qualification": "158 focused passed on Python3.13.18/3.14.10;1008 broader passed/one existing Starlette warning. Full623 remains open and Adaptive Live off.",
+  "python_inputs": {
+    "count": 877,
+    "file": "python-inputs.json",
+    "sha256": "b57d37708e39f9cd09cf3b299d7ea2b2e5253dbeee3fe292dfda0ae5ccfbe612"
+  },
+  "schemas": {
+    "original_count": 557,
+    "changed": [],
+    "new_count": 9,
+    "new_names": [
+      "LiveDecisionsAttempt.json",
+      "LiveDecisionsAttemptAdmit.json",
+      "LiveDecisionsAttemptFinish.json",
+      "LiveDecisionsAttemptLookup.json",
+      "LiveDecisionsAttemptState.json",
+      "LiveDecisionsOutcome.json",
+      "LiveDecisionsPublication.json",
+      "LiveDecisionsPublicationState.json",
+      "LiveDecisionsSource.json"
+    ],
+    "new_sha256": "66c476073f97a5bdf9ebd4131f7dbad81106918601ef7c8d30cdde206114f9d7"
+  },
+  "checks": [
+    {
+      "name": "issue-623-live-inference-first",
+      "utc": "2026-11-16T18:19:14.898948+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 1,
+      "elapsed": 5.061999124001886,
+      "input_count": 872,
+      "inputs_unchanged": true,
+      "log_sha256": "ccd5c72e6934ac1bab2b77d8c5547c27746cff89649ead2b474327bdf70d70c9"
+    },
+    {
+      "name": "issue-665-finalized-first",
+      "utc": "2026-11-16T18:21:24.527718+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py::test_finalized_refusal_preserves_the_original_caller_transaction",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 1,
+      "elapsed": 0.8163300320011331,
+      "input_count": 872,
+      "inputs_unchanged": true,
+      "log_sha256": "dce56764687889def6d50c4893088269699d28578e35d3e057cf147126cfc230"
+    },
+    {
+      "name": "issue-665-transaction-repaired",
+      "utc": "2026-11-16T18:22:20.810574+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 5.408209049994184,
+      "input_count": 872,
+      "inputs_unchanged": true,
+      "log_sha256": "0f6af8c80c4ccb65aeae1ad4299b99605dad5d3f1c391eb8910fabbb1207babf"
+    },
+    {
+      "name": "issue-623-live-result-proof-first",
+      "utc": "2026-11-16T18:27:45.890554+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py::test_positive_publication_proof_rejects_replaced_original_result",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 1,
+      "elapsed": 0.7485578260020702,
+      "input_count": 872,
+      "inputs_unchanged": true,
+      "log_sha256": "01e8dc7f6b4ccc95e13320730a4baf1c939ba29e6fc1c6ad190aa91f8bddfec1"
+    },
+    {
+      "name": "issue-623-live-result-proof-repaired",
+      "utc": "2026-11-16T18:28:41.503357+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 5.6130807580047986,
+      "input_count": 872,
+      "inputs_unchanged": true,
+      "log_sha256": "f46368a395a3acaea70991c7d7eb2d30fce1617730d22b1ea13aa9ae254ce234"
+    },
+    {
+      "name": "issue-623-live-inference-http-first",
+      "utc": "2026-11-16T18:40:44.616798+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 1,
+      "elapsed": 5.9175747749977745,
+      "input_count": 876,
+      "inputs_unchanged": true,
+      "log_sha256": "4a1a799c13f63fa29f27f46fb7bb9756a4a4bf52b41edf9d781778d581d4b3db"
+    },
+    {
+      "name": "issue-623-live-inference-http-fixture-repaired",
+      "utc": "2026-11-16T18:45:39.010739+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 8.96691442700103,
+      "input_count": 876,
+      "inputs_unchanged": true,
+      "log_sha256": "a4112d36273ec5670efccbdc313a41d773f813cd3ee26dd17a4e71e536a828f6"
+    },
+    {
+      "name": "issue-623-live-inference-recovery-first",
+      "utc": "2026-11-16T18:49:52.378904+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 1,
+      "elapsed": 19.492214061996492,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "f5626692525d97f92abf1074f649ad5641650d80bc0a11ca566eed3d1d713555"
+    },
+    {
+      "name": "issue-623-live-inference-recovery-repaired",
+      "utc": "2026-11-16T18:50:36.502271+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 21.605912283004727,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "e8b0ecf99c0cf898b544201d9f38b2222197d89dc4d44a3cd9a3a27f7f4493eb"
+    },
+    {
+      "name": "issue-623-live-inference-disclosure-first",
+      "utc": "2026-11-16T18:51:30.976947+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py::test_publication_rechecks_every_original_disclosure_floor",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 1,
+      "elapsed": 1.0592056250025053,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "d545fd26a81d6bcc2e188d2f87ed08f79d673c92672ab8335687f481dee56829"
+    },
+    {
+      "name": "issue-623-live-inference-disclosure-repaired",
+      "utc": "2026-11-16T18:52:16.477664+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py::test_publication_rechecks_every_original_disclosure_floor",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 0.9394174660046701,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "a469a5e7cce5ca5537b9826f25fd0934548c00eaea63709fd909af84354078f8"
+    },
+    {
+      "name": "issue-623-live-inference-final-313",
+      "utc": "2026-11-16T18:54:11.866323+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 27.1104152370026,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "8f8a30a6aa8dfeacc3827f06976401ea2856da7231c6a72a83131dcc05baca97"
+    },
+    {
+      "name": "issue-623-live-inference-final-314",
+      "utc": "2026-11-16T18:54:11.898508+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 27.143237944997963,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "da5062c2c5b07c57dae75f39e8d36f16475c257a0f890e3de5daa758431deb2b"
+    },
+    {
+      "name": "issue-623-live-inference-final-regression",
+      "utc": "2026-11-16T18:59:42.697508+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_compatible_decisions_refusal.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_decisions_finalized_refusal.py",
+        "tests/integration/test_decisions_finalized_refusal_recovery.py",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_decisions_low_confidence.py",
+        "tests/integration/test_decisions_native_attempts.py",
+        "tests/integration/test_decisions_selection_capture_unknown.py",
+        "tests/integration/test_decisions_task_descriptions.py",
+        "tests/integration/test_decisions_task_status_context.py",
+        "tests/integration/test_decisions_typed_disclosure.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/integration/test_laya_decisions.py",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/integration/test_openrouter_decisions_selection.py",
+        "tests/integration/test_required_decisions_readiness.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_window_bound_refusal.py",
+        "tests/integration/test_window_cache_identity.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_decisions_d1_overflow_evidence.py",
+        "tests/unit/test_decisions_local_d1_evidence.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_decisions_prompt_config.py",
+        "tests/unit/test_disclosure_scopes.py",
+        "tests/unit/test_journal_wake_contracts.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/unit/test_openrouter_decisions_provider.py",
+        "tests/unit/test_provider_disclosure_policy.py",
+        "tests/integration/test_standing_owner.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-inference-623",
+      "exit_code": 0,
+      "elapsed": 303.2780230299977,
+      "input_count": 877,
+      "inputs_unchanged": true,
+      "log_sha256": "2c1b04f9493f8f8419aba902652133ea9e124b5c3d7c11eb3a520334e20400df"
+    }
+  ],
+  "first_artifacts": {
+    "first-transaction-ledger.py.txt": "ea493c6ddefaef79a42b8abba7d93fd1ef2abc37e12c9f4835193e7710a4352e",
+    "first-transaction-controls.py.txt": "f05b0df9c5c3a601354b0c06626ba2991116c2290f07805dff617e1cac5783b6",
+    "first-disclosure-publisher.py.txt": "a4db759e56f5eee0983fd3932ffa5d03abcd6b780b22050e0179b8e883431fe7",
+    "first-disclosure-controls.py.txt": "e2b8f13fe480b761db540c5120d9e7d2c0ed5a171ec46b6d5baf0744c81ad126",
+    "first-recovery-controls.py.txt": "61971577fae49d9872062891c95afc904a99a609778d4d91bcc444aab9175bc8",
+    "first-result-proof-contract.py.txt": "db01d5378275864f1fed737042bc6a3a71565b63aa767d637fad565829fb09b8",
+    "first-result-proof-controls.py.txt": "5fb820822433250bde259aab12e3aaa02950aea8e662307f73ff372617c5d6bd",
+    "prior-schemas.json": "e6172cf83ef0203e025e364da78b28966ea08fa07b8ce21b271f1511ff754c27"
+  },
+  "remaining": [
+    "completion/fresh-input scheduler",
+    "same-capture decoder rollover",
+    "Converse/Agent consumers and native deduplication",
+    "backchannel microphone/echo/mute ownership",
+    "representative timing and comparison evidence",
+    "qualified default rollout"
+  ],
+  "model_quality_gate": false,
+  "static_checks": [
+    {
+      "command": "python -m ruff check packages services tests scripts",
+      "result": "passed"
+    },
+    {
+      "command": "python -m ruff format --check packages services tests scripts",
+      "result": "869 files already formatted"
+    },
+    {
+      "command": "git diff --cached --check",
+      "result": "passed"
+    }
+  ]
+}

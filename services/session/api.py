@@ -283,6 +283,9 @@ def create_app(
     from services.session.live_capture_api import install_live_captures
 
     install_live_captures(app, store, auth)
+    from services.session.live_decisions_api import install_live_decisions
+
+    install_live_decisions(app, store, auth)
     from services.settings.subsystem_api import router as subsystem_router
 
     app.include_router(subsystem_router(subsystem_settings, auth))

@@ -1,0 +1,955 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "DecisionsAttemptProvider": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "local"
+      ],
+      "title": "DecisionsAttemptProvider",
+      "type": "object"
+    },
+    "DecisionsModelPin": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "const": "decisions",
+          "default": "decisions",
+          "title": "Role",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "instance_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "settings_revision": {
+          "maximum": 9007199254740990,
+          "minimum": 0,
+          "title": "Settings Revision",
+          "type": "integer"
+        },
+        "selection": {
+          "$ref": "#/$defs/DecisionsModelSelection"
+        },
+        "catalog_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740990,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Catalog Revision"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "protocol": {
+          "enum": [
+            "laya_systemone",
+            "native_d1_systemone",
+            "host_configured"
+          ],
+          "title": "Protocol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "backend_id",
+        "instance_id",
+        "settings_revision",
+        "selection",
+        "catalog_revision",
+        "provider",
+        "model",
+        "local",
+        "protocol"
+      ],
+      "title": "DecisionsModelPin",
+      "type": "object"
+    },
+    "DecisionsModelSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "catalog"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CatalogModelBinding"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "catalog_binding"
+      ],
+      "title": "DecisionsModelSelection",
+      "type": "object"
+    },
+    "DecisionsSource": {
+      "additionalProperties": false,
+      "properties": {
+        "source_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "source_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Sequence",
+          "type": "integer"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_event_id",
+        "source_sequence",
+        "source_revision",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "DecisionsSource",
+      "type": "object"
+    },
+    "LiveCaptureBackend": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "controller_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Controller Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend_id",
+        "controller_id"
+      ],
+      "title": "LiveCaptureBackend",
+      "type": "object"
+    },
+    "LiveCaptureReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "registration_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Registration Id",
+          "type": "string"
+        },
+        "registered_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Registered Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "registration_id",
+        "registered_sequence"
+      ],
+      "title": "LiveCaptureReceipt",
+      "type": "object"
+    },
+    "LiveCaptureRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend": {
+          "$ref": "#/$defs/LiveCaptureBackend"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "capture_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend",
+        "owner_instance",
+        "capture_id",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "LiveCaptureRegistration",
+      "type": "object"
+    },
+    "LiveDecisionsAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "admission": {
+          "$ref": "#/$defs/LiveDecisionsAttemptAdmit"
+        },
+        "admission_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Admission Sha256",
+          "type": "string"
+        },
+        "attempt": {
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveDecisionsAttemptFinish"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "admission",
+        "admission_sha256",
+        "attempt",
+        "completion"
+      ],
+      "title": "LiveDecisionsAttempt",
+      "type": "object"
+    },
+    "LiveDecisionsAttemptAdmit": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 2,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/LiveDecisionsSource"
+        },
+        "attempt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "expected_attempts": {
+          "maximum": 16,
+          "minimum": 0,
+          "title": "Expected Attempts",
+          "type": "integer"
+        },
+        "max_attempts": {
+          "anyOf": [
+            {
+              "maximum": 16,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Attempts"
+        },
+        "provider": {
+          "$ref": "#/$defs/DecisionsAttemptProvider"
+        },
+        "model_pin": {
+          "$ref": "#/$defs/DecisionsModelPin"
+        },
+        "request_format": {
+          "enum": [
+            "laya_systemone",
+            "native_d1_systemone",
+            "chat_completions",
+            "responses"
+          ],
+          "title": "Request Format",
+          "type": "string"
+        },
+        "request_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "transport_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Transport Sha256",
+          "type": "string"
+        },
+        "disclosure_sources": {
+          "items": {
+            "$ref": "#/$defs/DecisionsSource"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Disclosure Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "source",
+        "attempt_id",
+        "owner_id",
+        "expected_attempts",
+        "provider",
+        "model_pin",
+        "request_format",
+        "request_sha256",
+        "transport_sha256",
+        "disclosure_sources"
+      ],
+      "title": "LiveDecisionsAttemptAdmit",
+      "type": "object"
+    },
+    "LiveDecisionsAttemptFinish": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 2,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/LiveDecisionsSource"
+        },
+        "attempt_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "owner_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Id",
+          "type": "string"
+        },
+        "admission_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Admission Sha256",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "refused",
+            "error",
+            "uncertain"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "raw_response": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Response"
+        },
+        "validated_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveWindowDecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error_type": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,120}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Type"
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.:-]{1,120}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason Code"
+        }
+      },
+      "required": [
+        "contract_version",
+        "source",
+        "attempt_id",
+        "owner_id",
+        "admission_sha256",
+        "status"
+      ],
+      "title": "LiveDecisionsAttemptFinish",
+      "type": "object"
+    },
+    "LiveDecisionsSource": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_decisions_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/DecisionsSource"
+        },
+        "capture": {
+          "$ref": "#/$defs/LiveCaptureReceipt"
+        },
+        "publication": {
+          "$ref": "#/$defs/LiveWindowPublicationRef"
+        },
+        "eligible_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Eligible Revision",
+          "type": "integer"
+        },
+        "input_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Input Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "capture",
+        "publication",
+        "eligible_revision",
+        "input_sha256"
+      ],
+      "title": "LiveDecisionsSource",
+      "type": "object"
+    },
+    "LiveWindowDecision": {
+      "additionalProperties": false,
+      "description": "Native bindings are added after validation, never accepted from a model.",
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "conversation": {
+          "enum": [
+            "IGNORE",
+            "WAIT_FOR_NEXT_WINDOW",
+            "RESPOND_INTERRUPT_USER",
+            "RESPOND_WITHOUT_INTERRUPTING_USER",
+            "WAIT_WITH_BACKCHANNEL"
+          ],
+          "title": "Conversation",
+          "type": "string"
+        },
+        "agent_route": {
+          "enum": [
+            "IGNORE_FOR_IMMEDIATE_ROUTING",
+            "STEER_CURRENT_TASK",
+            "INTERRUPT_CURRENT_TASK",
+            "QUEUE_UNTIL_TASK_DONE"
+          ],
+          "title": "Agent Route",
+          "type": "string"
+        },
+        "target_task_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Task Id"
+        },
+        "expected_objective_revision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expected Objective Revision"
+        },
+        "reason_code": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "decision_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "utterance_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
+          "title": "Utterance Id",
+          "type": "string"
+        },
+        "window_index": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Window Index",
+          "type": "integer"
+        },
+        "source_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "source_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Sequence",
+          "type": "integer"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "prompt_chars": {
+          "maximum": 200000,
+          "minimum": 0,
+          "title": "Prompt Chars",
+          "type": "integer"
+        },
+        "history_chars": {
+          "maximum": 48000,
+          "minimum": 0,
+          "title": "History Chars",
+          "type": "integer"
+        },
+        "context_entries": {
+          "maximum": 12,
+          "minimum": 0,
+          "title": "Context Entries",
+          "type": "integer"
+        },
+        "classifier_ms": {
+          "minimum": 0,
+          "title": "Classifier Ms",
+          "type": "number"
+        }
+      },
+      "required": [
+        "schema_version",
+        "conversation",
+        "agent_route",
+        "target_task_id",
+        "expected_objective_revision",
+        "reason_code",
+        "decision_id",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "utterance_id",
+        "window_index",
+        "source_event_id",
+        "source_sequence",
+        "source_revision",
+        "prompt_chars",
+        "history_chars",
+        "context_entries",
+        "classifier_ms"
+      ],
+      "title": "LiveWindowDecision",
+      "type": "object"
+    },
+    "LiveWindowPublicationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "live_window_publication_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "capture_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "utterance_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
+          "title": "Utterance Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "owner_instance",
+        "capture_id",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "utterance_id",
+        "idempotency_key",
+        "request_sha256"
+      ],
+      "title": "LiveWindowPublicationRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 2,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "#/$defs/LiveDecisionsSource"
+    },
+    "state": {
+      "enum": [
+        "known_absent",
+        "admitted",
+        "completed",
+        "refused",
+        "retryable_error",
+        "exhausted",
+        "uncertain",
+        "legacy_uncertain"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "max_attempts": {
+      "maximum": 16,
+      "minimum": 1,
+      "title": "Max Attempts",
+      "type": "integer"
+    },
+    "charged_attempts": {
+      "maximum": 16,
+      "minimum": 0,
+      "title": "Charged Attempts",
+      "type": "integer"
+    },
+    "last_attempt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveDecisionsAttempt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "contract_version",
+    "source",
+    "state",
+    "max_attempts",
+    "charged_attempts",
+    "last_attempt"
+  ],
+  "title": "LiveDecisionsAttemptState",
+  "type": "object"
+}

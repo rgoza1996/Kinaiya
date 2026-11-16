@@ -1,0 +1,331 @@
+"""Real SQLite live ledger, current permission and exact five-outcome publication."""
+
+import concurrent.futures
+import sqlite3
+from types import SimpleNamespace
+
+import pytest
+
+from packages.contracts.decisions_attempts import (
+    DecisionsAttemptAdmit,
+    DecisionsAttemptFinish,
+    DecisionsAttemptLookup,
+    DecisionsSource,
+)
+from packages.contracts.decisions_models import DecisionsModelPin, DecisionsModelSelection
+from packages.contracts.live_decisions import LiveWindowDecision
+from packages.contracts.live_decisions_attempts import (
+    OUTCOME_KIND,
+    PROTOCOL,
+    LiveDecisionsAttemptAdmit,
+    LiveDecisionsAttemptFinish,
+    LiveDecisionsAttemptLookup,
+    LiveDecisionsPublication,
+    LiveDecisionsSource,
+)
+from packages.contracts.models import AppendRequest
+from packages.contracts.stt_settlement import digest
+from services.session.live_windows import publish
+from tests.integration.test_live_capture_permission import env as env
+from tests.integration.test_live_capture_permission import fence, registration
+from tests.integration.test_live_window_publication import original
+
+
+@pytest.fixture
+def live(env):
+    permission = env.store.live_captures.register(registration(env))
+    pair = publish(env.store, original(env))
+    source = LiveDecisionsSource.of(pair, permission.receipt)
+    yield SimpleNamespace(
+        **vars(env), pair=pair, source=source, owner=env.store.live_decisions_attempts
+    )
+
+
+def admission(live, **change):
+    pin = DecisionsModelPin(
+        backend_id="d" * 32,
+        instance_id="e" * 32,
+        settings_revision=0,
+        selection=DecisionsModelSelection(source="host", catalog_binding=None),
+        catalog_revision=None,
+        provider="public_fixture",
+        model="public-model",
+        local=True,
+        protocol="host_configured",
+    )
+    body = dict(
+        contract_version=2,
+        source=live.source.model_dump(mode="json"),
+        attempt_id="a" * 32,
+        owner_id="b" * 32,
+        expected_attempts=0,
+        max_attempts=None,
+        provider=dict(provider="public_fixture", model="public-model", local=True),
+        model_pin=pin.model_dump(mode="json"),
+        request_format="chat_completions",
+        request_sha256="c" * 64,
+        transport_sha256="d" * 64,
+        disclosure_sources=[live.source.original.model_dump(mode="json")],
+    )
+    return LiveDecisionsAttemptAdmit.model_validate(body | change, strict=True)
+
+
+def output(live, conversation="WAIT_WITH_BACKCHANNEL", route="IGNORE_FOR_IMMEDIATE_ROUTING"):
+    targeted = route in {"STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"}
+    source = live.source.original
+    return LiveWindowDecision(
+        schema_version="2.0",
+        conversation=conversation,
+        agent_route=route,
+        target_task_id="public-task" if targeted else None,
+        expected_objective_revision=4 if targeted else None,
+        reason_code="public_synthetic_labels",
+        decision_id="public-decision",
+        session_id=source.session_id,
+        thread_id=source.thread_id,
+        epoch=source.epoch,
+        utterance_id=live.source.publication.utterance_id,
+        window_index=live.pair.source.payload["window_index"],
+        source_event_id=source.source_event_id,
+        source_sequence=source.source_sequence,
+        source_revision=source.source_revision,
+        prompt_chars=100,
+        history_chars=0,
+        context_entries=0,
+        classifier_ms=1.25,
+    )
+
+
+def finish(live, attempt, decision=None, status="completed"):
+    return LiveDecisionsAttemptFinish(
+        contract_version=2,
+        source=live.source,
+        attempt_id=attempt.admission.attempt_id,
+        owner_id=attempt.admission.owner_id,
+        admission_sha256=attempt.admission_sha256,
+        status=status,
+        raw_response="PUBLIC SYNTHETIC RAW RESPONSE",
+        validated_output=(output(live) if decision is None else decision)
+        if status == "completed"
+        else None,
+    )
+
+
+def publication(live, completed):
+    return LiveDecisionsPublication(
+        schema_version="2.0",
+        protocol=PROTOCOL,
+        source=live.source,
+        attempt_id=completed.admission.attempt_id,
+        owner_id=completed.admission.owner_id,
+        admission_sha256=completed.admission_sha256,
+        completion_sha256=digest(completed.completion.model_dump(mode="json")),
+    )
+
+
+@pytest.mark.parametrize(
+    "conversation",
+    [
+        "IGNORE",
+        "WAIT_FOR_NEXT_WINDOW",
+        "RESPOND_INTERRUPT_USER",
+        "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "WAIT_WITH_BACKCHANNEL",
+    ],
+)
+@pytest.mark.parametrize(
+    "route",
+    [
+        "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "STEER_CURRENT_TASK",
+        "INTERRUPT_CURRENT_TASK",
+        "QUEUE_UNTIL_TASK_DONE",
+    ],
+)
+def test_native_live_publication_preserves_all_independent_labels(live, conversation, route):
+    request = admission(live)
+    assert (
+        live.owner.lookup(LiveDecisionsAttemptLookup(contract_version=2, source=live.source)).state
+        == "known_absent"
+    )
+    attempt = live.owner.admit(request)
+    decision = output(live, conversation, route)
+    completed = live.owner.finish(finish(live, attempt, decision))
+    original = publication(live, completed)
+    event = live.owner.publish_result(original).receipt
+    assert event.kind == OUTCOME_KIND and event.payload["decision"] == decision.model_dump(
+        mode="json"
+    )
+    assert event.payload["source"] == live.source.model_dump(mode="json")
+    assert live.owner.lookup_publication(original).receipt == event
+    assert live.owner.publish_result(original).receipt == event
+    assert live.owner.admit(request) == completed  # Exact original readback, never another charge.
+    assert live.store.db.execute("SELECT count(*) FROM decisions_attempts").fetchone()[0] == 1
+    with pytest.raises(ValueError):
+        live.store.append(
+            AppendRequest(
+                **event.model_dump(exclude={"event_id", "sequence", "origin", "created_at"})
+            ),
+            "decisions",
+        )
+
+
+@pytest.mark.parametrize("same_slot", [False, True])
+def test_duplicate_raw_windows_preserve_canonical_original_for_admission_and_publication(
+    live, same_slot
+):
+    duplicate = original(live, 0 if same_slot else 1, **({"revision": 2} if same_slot else {}))
+    publish(live.store, duplicate)
+    attempt = live.owner.admit(admission(live))
+    completed = live.owner.finish(finish(live, attempt))
+    event = live.owner.publish_result(publication(live, completed)).receipt
+    assert event.causes == [live.pair.source.event_id]
+    assert event.payload["decision"]["source_revision"] == 1
+
+
+@pytest.mark.parametrize("stage", ["before-admission", "before-publication"])
+@pytest.mark.parametrize("cause", ["new-input", "owner-off", "reset"])
+def test_native_currentness_fences_effects_but_retains_original_completion(live, stage, cause):
+    attempt = live.owner.admit(admission(live)) if stage == "before-publication" else None
+    if cause == "new-input":
+        publish(live.store, original(live, 1, text="Public corrected native input"))
+    elif cause == "owner-off":
+        live.store.live_captures.fence(fence(live.source.capture.original))
+    else:
+        live.store.reset(live.session.session_id)
+    if attempt is None:
+        with pytest.raises(ValueError):
+            live.owner.admit(admission(live))
+        assert live.store.db.execute("SELECT count(*) FROM decisions_attempts").fetchone()[0] == 0
+    else:
+        completed = live.owner.finish(finish(live, attempt))
+        assert completed.completion.validated_output == output(live)
+        with pytest.raises(ValueError):
+            live.owner.publish_result(publication(live, completed))
+        assert (
+            live.owner.lookup(
+                LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
+            ).last_attempt
+            == completed
+        )
+    assert live.store.read(kinds=[OUTCOME_KIND]) == []
+
+
+def test_live_and_finalized_protocols_refuse_cross_admission(live):
+    with pytest.raises(ValueError):
+        live.store.decisions_attempts.lookup(
+            DecisionsAttemptLookup(source=DecisionsSource.of(live.pair.source))
+        )
+    request = admission(live).model_dump(mode="json")
+    with pytest.raises(ValueError):
+        DecisionsAttemptAdmit.model_validate(request)
+    for change in ({"contract_version": 1}, {"model_pin": None}):
+        with pytest.raises(ValueError):
+            LiveDecisionsAttemptAdmit.model_validate(request | change)
+    del request["contract_version"]
+    with pytest.raises(ValueError):
+        LiveDecisionsAttemptAdmit.model_validate(request)
+
+
+def test_simultaneous_admissions_keep_one_original_charge(live):
+    requests = [
+        admission(live, attempt_id=f"{i:032x}", owner_id=f"{i + 50:032x}") for i in range(8)
+    ]
+
+    def enter(request):
+        try:
+            return live.owner.admit(request)
+        except ValueError:
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        outcomes = list(pool.map(enter, requests))
+    assert sum(item is not None for item in outcomes) == 1
+    assert live.store.db.execute("SELECT count(*) FROM decisions_attempts").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("method", ["admit", "finish", "publish_result"])
+def test_live_refusal_does_not_rollback_another_journal_transaction(live, method):
+    request = admission(live)
+    if method != "admit":
+        attempt = live.owner.admit(request)
+        request = finish(live, attempt)
+        if method == "publish_result":
+            request = publication(live, live.owner.finish(request))
+    db = live.store.db
+    db.execute("BEGIN IMMEDIATE")
+    db.execute(
+        "UPDATE sessions SET value=json_set(value,'$.name','public-original-transaction') WHERE session_id=?",
+        (live.session.session_id,),
+    )
+    try:
+        with pytest.raises((ValueError, sqlite3.Error)):
+            getattr(live.owner, method)(request)
+        assert db.in_transaction
+        assert live.store.session(live.session.session_id).name == "public-original-transaction"
+    finally:
+        db.rollback()
+
+
+@pytest.mark.parametrize("method", ["admit", "finish", "publish"])
+def test_finalized_refusal_preserves_the_original_caller_transaction(live, method):
+    source = live.store.append(
+        AppendRequest(
+            session_id=live.session.session_id,
+            thread_id=live.session.thread_id,
+            epoch=live.session.epoch,
+            kind="conversation.user",
+            payload={
+                "text": "Public finalized input",
+                "final": True,
+                "content_scope": "public_synthetic",
+            },
+            idempotency_key="public-finalized-tx-control",
+        ),
+        "owner",
+    )
+    bare = DecisionsSource.of(source)
+    if method == "admit":
+        data = admission(live).model_dump(mode="json") | {
+            "contract_version": 1,
+            "source": bare.model_dump(mode="json"),
+            "disclosure_sources": [bare.model_dump(mode="json")],
+        }
+        request = DecisionsAttemptAdmit.model_validate(data)
+    elif method == "finish":
+        request = DecisionsAttemptFinish(
+            source=bare,
+            attempt_id="a" * 32,
+            owner_id="b" * 32,
+            admission_sha256="c" * 64,
+            status="error",
+        )
+    else:
+        request = AppendRequest(
+            session_id=source.session_id,
+            thread_id=source.thread_id,
+            epoch=source.epoch,
+            kind="routing.classification_refused",
+            payload={"source_event_id": source.event_id},
+            causes=[source.event_id],
+            idempotency_key="public-native-tx-outcome",
+        )
+    db = live.store.db
+    db.execute("BEGIN IMMEDIATE")
+    db.execute(
+        "UPDATE sessions SET value=json_set(value,'$.name','public-original-finalized-transaction') WHERE session_id=?",
+        (live.session.session_id,),
+    )
+    try:
+        with pytest.raises((ValueError, sqlite3.Error)):
+            if method == "publish":
+                live.store.decisions_attempts.publish(request, "decisions")
+            else:
+                getattr(live.store.decisions_attempts, method)(request)
+        assert db.in_transaction
+        assert (
+            live.store.session(live.session.session_id).name
+            == "public-original-finalized-transaction"
+        )
+    finally:
+        db.rollback()

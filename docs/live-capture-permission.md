@@ -76,7 +76,8 @@ for actual SQLite/ASGI/client controls, source and log pins, and the retained fi
 transaction failure. All prior schema bytes remain unchanged; seven additive
 permission schemas have an independent byte pin.
 
-Still required for full #623: charged v2 inference admission and exact result
-publication, completion/wake scheduling, same-capture decoder rollover, Converse/
+The [native v2 inference increment](live-decisions-attempts.md) implements charged
+admission and exact result publication against these original capture receipts.
+Still required for full #623: completion/wake scheduling, same-capture decoder rollover, Converse/
 Agent consumers, backchannel/echo/mute ownership, timings and qualified rollout.
 Synthetic permission checks do not qualify physical audio or model quality.

@@ -17,6 +17,32 @@ def digest(value):
     return hashlib.sha256(encoded(value)).hexdigest()
 
 
+def admission_binding(value, source):
+    """Shared wire invariants; each explicit protocol supplies its bare source."""
+    if value.disclosure_sources[0] != source:
+        raise ValueError("The original source must be disclosed first")
+    if any(
+        (s.session_id, s.thread_id, s.epoch) != (source.session_id, source.thread_id, source.epoch)
+        for s in value.disclosure_sources
+    ):
+        raise ValueError("Attempt disclosure crossed native scope")
+    if value.model_pin is not None and (
+        value.model_pin.provider,
+        value.model_pin.model,
+        value.model_pin.local,
+    ) != (value.provider.provider, value.provider.model, value.provider.local):
+        raise ValueError("Attempt model pin mismatch")
+    if (
+        value.model_pin is not None
+        and value.model_pin.protocol != "host_configured"
+        and value.request_format != value.model_pin.protocol
+    ):
+        raise ValueError("Attempt protocol mismatch")
+    if len(encoded(value.model_dump(mode="json"))) > MAX_ADMISSION_BYTES:
+        raise ValueError("Attempt admission exceeds its byte bound")
+    return value
+
+
 class _Wire(BaseModel):
     model_config = ConfigDict(
         extra="forbid", strict=True, frozen=True, revalidate_instances="always"
@@ -72,29 +98,7 @@ class DecisionsAttemptAdmit(DecisionsAttemptLookup):
 
     @model_validator(mode="after")
     def binding(self):
-        if self.disclosure_sources[0] != self.source:
-            raise ValueError("The original source must be disclosed first")
-        if any(
-            (s.session_id, s.thread_id, s.epoch)
-            != (self.source.session_id, self.source.thread_id, self.source.epoch)
-            for s in self.disclosure_sources
-        ):
-            raise ValueError("Attempt disclosure crossed native scope")
-        if self.model_pin is not None and (
-            self.model_pin.provider,
-            self.model_pin.model,
-            self.model_pin.local,
-        ) != (self.provider.provider, self.provider.model, self.provider.local):
-            raise ValueError("Attempt model pin mismatch")
-        if (
-            self.model_pin is not None
-            and self.model_pin.protocol != "host_configured"
-            and self.request_format != self.model_pin.protocol
-        ):
-            raise ValueError("Attempt protocol mismatch")
-        if len(encoded(self.model_dump(mode="json"))) > MAX_ADMISSION_BYTES:
-            raise ValueError("Attempt admission exceeds its byte bound")
-        return self
+        return admission_binding(self, self.source)
 
 
 class DecisionsAttemptFinish(DecisionsAttemptLookup):

@@ -56,6 +56,12 @@ the original eligible source across identical raw snapshots. It provides source
 partitioning and positive-only original lookup; it does not enable the future
 completion-driven worker or microphone path.
 
+The [native live inference contract](live-decisions-attempts.md) binds charged
+admission and exact result publication to that canonical source and original
+capture permission. It retains raw/completed outcomes, rechecks all original
+disclosure floors at publication, and preserves existing finalized-v1 behavior.
+It supplies no scheduler, consumer or playback integration by itself.
+
 Only fresh eligible transcript or speaking/capture-state changes can admit new
 Adaptive inference. Persisted duplicate hypotheses do not spin the worker.
 Keep one in-flight inference per worker by default, coalesce pending work to the

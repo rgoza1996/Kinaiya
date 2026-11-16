@@ -38,6 +38,7 @@ class DecisionCapture:
         model_pin=None,
         current=None,
         admission=None,
+        live_source_current=None,
     ):
         self.journal, self.source = journal, source
         self.call_id, self.attempt_id = str(uuid4()), str(uuid4())
@@ -45,6 +46,7 @@ class DecisionCapture:
         self.provider = provider
         self.model_pin, self.model_current = model_pin, current
         self.admission = admission
+        self.live_source_current = live_source_current
         self.started = False
         self.raw_response, self.validated_output = None, None
         self.artifact_sha256 = None
@@ -124,14 +126,17 @@ class DecisionCapture:
                 )
                 resolved = await self.journal.resolve(source_id)
                 if bound.kind == "conversation.window":
-                    latest = await self.journal.latest_window(
-                        bound.session_id,
-                        bound.epoch,
-                        bound.payload["utterance_id"],
-                        None if index == 0 else bound.payload["window_index"],
-                    )
-                    if latest is None or latest.event_id != bound.event_id:
-                        raise ProviderRefusal("Decisions window is obsolete")
+                    if index == 0 and self.live_source_current is not None:
+                        await self.live_source_current(bound)
+                    else:
+                        latest = await self.journal.latest_window(
+                            bound.session_id,
+                            bound.epoch,
+                            bound.payload["utterance_id"],
+                            None if index == 0 else bound.payload["window_index"],
+                        )
+                        if latest is None or latest.event_id != bound.event_id:
+                            raise ProviderRefusal("Decisions window is obsolete")
                 elif index == 0 and resolved.payload.get("revision", 1) != bound.payload.get(
                     "revision", 1
                 ):
@@ -197,9 +202,18 @@ async def decision_attempt(
     model_pin=None,
     current=None,
     admission=None,
+    live_source_current=None,
 ):
     capture = DecisionCapture(
-        journal, source, provider, attempt, reused_from, model_pin, current, admission
+        journal,
+        source,
+        provider,
+        attempt,
+        reused_from,
+        model_pin,
+        current,
+        admission,
+        live_source_current,
     )
     token = _capture.set(capture)
     try:

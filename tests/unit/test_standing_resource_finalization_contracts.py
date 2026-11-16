@@ -604,6 +604,18 @@ def schema_pin():
         "LiveCaptureState",
         "LiveCaptureSourceState",
     }
+    # Explicit v2 inference has a separate nine-file byte pin; retain old184.
+    additive |= {
+        "LiveDecisionsSource",
+        "LiveDecisionsAttemptLookup",
+        "LiveDecisionsAttemptAdmit",
+        "LiveDecisionsAttemptFinish",
+        "LiveDecisionsAttempt",
+        "LiveDecisionsAttemptState",
+        "LiveDecisionsPublication",
+        "LiveDecisionsOutcome",
+        "LiveDecisionsPublicationState",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

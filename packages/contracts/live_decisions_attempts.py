@@ -1,0 +1,317 @@
+"""Explicit live native inference protocol; all model labels remain advisory."""
+
+import json
+import math
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from packages.contracts.decisions import MAX_OUTPUT_BYTES, MAX_RESPONSE_BYTES, encoded
+from packages.contracts.decisions_attempts import (
+    MAX_ATTEMPT_BYTES,
+    DecisionsAttempt,
+    DecisionsAttemptAdmit,
+    DecisionsAttemptFinish,
+    DecisionsAttemptLookup,
+    DecisionsAttemptState,
+    DecisionsSource,
+    admission_binding,
+)
+from packages.contracts.decisions_models import DecisionsModelPin
+from packages.contracts.live_captures import LiveCaptureReceipt
+from packages.contracts.live_decisions import LiveWindowDecision
+from packages.contracts.live_windows import (
+    MAX_INTEGER,
+    LiveWindowCapture,
+    LiveWindowPublicationRef,
+    entry_request,
+)
+from packages.contracts.models import JournalEntry
+from packages.contracts.stt_settlement import digest
+
+PROTOCOL = "native_live_decisions_v2"
+OUTCOME_KIND = "routing.live_window_decided"
+
+
+def live_attempt_json(raw, maximum=MAX_ATTEMPT_BYTES):
+    if type(raw) is not bytes or not 1 <= len(raw) <= maximum:
+        raise ValueError("Native live decision metadata exceeds its bound")
+
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("Duplicate native live decision field")
+            result[key] = value
+        return result
+
+    def invalid(_):
+        raise ValueError("Nonfinite native live decision number")
+
+    def finite(value):
+        result = float(value)
+        if not math.isfinite(result):
+            invalid(value)
+        return result
+
+    result = json.loads(raw, object_pairs_hook=pairs, parse_constant=invalid, parse_float=finite)
+    pending, count = [(result, 0)], 0
+    while pending:
+        item, depth = pending.pop()
+        count += 1
+        if depth > 16 or count > 4096:
+            raise ValueError("Native live decision structure exceeds its bound")
+        if type(item) is dict:
+            pending.extend((value, depth + 1) for value in item.values())
+        elif type(item) is list:
+            pending.extend((value, depth + 1) for value in item)
+    if type(result) is not dict:
+        raise ValueError("Native live decision requires an object")
+    return result
+
+
+class _Closed(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        frozen=True,
+        revalidate_instances="always",
+        hide_input_in_errors=True,
+    )
+
+
+class LiveDecisionsSource(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_decisions_v2"]
+    original: DecisionsSource
+    capture: LiveCaptureReceipt
+    publication: LiveWindowPublicationRef
+    eligible_revision: int = Field(ge=1, le=MAX_INTEGER)
+    input_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def native_binding(self):
+        source, capture, publication = self.original, self.capture.original, self.publication
+        if (
+            (source.session_id, source.thread_id, source.epoch)
+            != (capture.session_id, capture.thread_id, capture.epoch)
+            or (
+                capture.session_id,
+                capture.thread_id,
+                capture.epoch,
+                capture.owner_instance,
+                capture.capture_id,
+            )
+            != (
+                publication.session_id,
+                publication.thread_id,
+                publication.epoch,
+                publication.owner_instance,
+                publication.capture_id,
+            )
+            or source.source_sequence <= self.capture.registered_sequence
+        ):
+            raise ValueError(
+                "Live inference source changed its original capture or registration boundary"
+            )
+        return self
+
+    @classmethod
+    def of(cls, pair, capture):
+        marker = LiveWindowCapture.model_validate(pair.capture.payload, strict=True)
+        if marker.eligible_source_event_id != pair.source.event_id:
+            raise ValueError("Live inference requires the original eligible source")
+        return cls(
+            schema_version="2.0",
+            protocol=PROTOCOL,
+            original=DecisionsSource.of(pair.source),
+            capture=capture,
+            publication=pair.original,
+            eligible_revision=marker.eligible_revision,
+            input_sha256=marker.input_sha256,
+        )
+
+    def check_entry(self, source):
+        if (
+            DecisionsSource.of(source) != self.original
+            or digest(entry_request(source)) != self.publication.request_sha256
+        ):
+            raise ValueError("Live inference entry changed its full original source")
+
+    @property
+    def source_event_id(self):
+        return self.original.source_event_id
+
+    @property
+    def source_sequence(self):
+        return self.original.source_sequence
+
+    @property
+    def source_revision(self):
+        return self.original.source_revision
+
+    @property
+    def session_id(self):
+        return self.original.session_id
+
+    @property
+    def thread_id(self):
+        return self.original.thread_id
+
+    @property
+    def epoch(self):
+        return self.original.epoch
+
+
+class LiveDecisionsAttemptLookup(DecisionsAttemptLookup):
+    contract_version: Literal[2] = Field(...)
+    source: LiveDecisionsSource
+
+
+class LiveDecisionsAttemptAdmit(DecisionsAttemptAdmit):
+    contract_version: Literal[2] = Field(...)
+    source: LiveDecisionsSource
+    model_pin: DecisionsModelPin
+
+    @model_validator(mode="after")
+    def binding(self):
+        return admission_binding(self, self.source.original)
+
+
+class LiveDecisionsAttemptFinish(DecisionsAttemptFinish):
+    contract_version: Literal[2] = Field(...)
+    source: LiveDecisionsSource
+    validated_output: LiveWindowDecision | None = None
+
+    @model_validator(mode="after")
+    def bounds(self):
+        output = (
+            None if self.validated_output is None else self.validated_output.model_dump(mode="json")
+        )
+        if (
+            len(encoded(self.raw_response)) > MAX_RESPONSE_BYTES + 2
+            or len(encoded(output)) > MAX_OUTPUT_BYTES
+        ):
+            raise ValueError("Live attempt completion exceeds its byte bound")
+        if (self.status == "completed") != (output is not None):
+            raise ValueError("Only completed live attempts have their exact validated result")
+        if output is not None:
+            decision = self.validated_output
+            source = self.source.original
+            if (
+                decision.source_event_id,
+                decision.source_sequence,
+                decision.source_revision,
+                decision.session_id,
+                decision.thread_id,
+                decision.epoch,
+                decision.utterance_id,
+            ) != (
+                source.source_event_id,
+                source.source_sequence,
+                source.source_revision,
+                source.session_id,
+                source.thread_id,
+                source.epoch,
+                self.source.publication.utterance_id,
+            ):
+                raise ValueError("Live result changed its original inference source")
+        return self
+
+
+class LiveDecisionsAttempt(DecisionsAttempt):
+    admission: LiveDecisionsAttemptAdmit
+    completion: LiveDecisionsAttemptFinish | None
+
+
+class LiveDecisionsAttemptState(DecisionsAttemptState):
+    contract_version: Literal[2] = Field(...)
+    source: LiveDecisionsSource
+    last_attempt: LiveDecisionsAttempt | None
+
+
+class LiveDecisionsPublication(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_decisions_v2"]
+    source: LiveDecisionsSource
+    attempt_id: str = Field(pattern=r"^[a-f0-9]{32}$", min_length=32, max_length=32)
+    owner_id: str = Field(pattern=r"^[a-f0-9]{32}$", min_length=32, max_length=32)
+    admission_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    completion_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    decision_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @classmethod
+    def of(cls, attempt):
+        completion = attempt.completion
+        if (
+            completion is None
+            or completion.status != "completed"
+            or completion.validated_output is None
+        ):
+            raise ValueError("Live publication requires its exact positive completed result")
+        return cls(
+            schema_version="2.0",
+            protocol=PROTOCOL,
+            source=attempt.admission.source,
+            attempt_id=attempt.admission.attempt_id,
+            owner_id=attempt.admission.owner_id,
+            admission_sha256=attempt.admission_sha256,
+            completion_sha256=digest(completion.model_dump(mode="json")),
+            decision_sha256=digest(completion.validated_output.model_dump(mode="json")),
+        )
+
+
+class LiveDecisionsOutcome(LiveDecisionsPublication):
+    decision: LiveWindowDecision
+
+    @model_validator(mode="after")
+    def exact_decision(self):
+        source, decision = self.source.original, self.decision
+        if digest(decision.model_dump(mode="json")) != self.decision_sha256 or (
+            decision.source_event_id,
+            decision.source_sequence,
+            decision.source_revision,
+            decision.session_id,
+            decision.thread_id,
+            decision.epoch,
+            decision.utterance_id,
+        ) != (
+            source.source_event_id,
+            source.source_sequence,
+            source.source_revision,
+            source.session_id,
+            source.thread_id,
+            source.epoch,
+            self.source.publication.utterance_id,
+        ):
+            raise ValueError("Live outcome changed its original validated decision")
+        return self
+
+
+class LiveDecisionsPublicationState(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_decisions_v2"]
+    original: LiveDecisionsPublication
+    receipt: JournalEntry | None
+
+    @model_validator(mode="after")
+    def exact_publication(self):
+        if self.receipt is None:
+            return self
+        entry = self.receipt
+        outcome = LiveDecisionsOutcome.model_validate(entry.payload, strict=True)
+        source = self.original.source.original
+        if (
+            outcome.model_dump(mode="json", exclude={"decision"})
+            != self.original.model_dump(mode="json")
+            or entry.kind != OUTCOME_KIND
+            or entry.origin != "decisions"
+            or (entry.session_id, entry.thread_id, entry.epoch)
+            != (source.session_id, source.thread_id, source.epoch)
+            or entry.causes != [source.source_event_id]
+            or entry.task_refs
+            != ([outcome.decision.target_task_id] if outcome.decision.target_task_id else [])
+            or entry.idempotency_key != "live-window-decision:" + source.source_event_id
+        ):
+            raise ValueError("Live outcome did not bind its exact original publication")
+        return self
