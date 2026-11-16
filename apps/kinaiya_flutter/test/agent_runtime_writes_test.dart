@@ -49,22 +49,34 @@ void main() {
         displayDeadline: const Duration(milliseconds: 2),
       );
       final held = Completer<http.StreamedResponse>();
-      final original = runtimeApi(
-        () => ModelTestClient((_) => held.future),
-        timeoutMs: 15,
-      );
+      // This scope/recovery control requires an actual sent original (#660).
+      // Late acquisition has a separate explicit no-send control.
+      final client = ModelTestClient((_) => held.future);
+      final original = runtimeApi(() => client);
       final scope = registry.open(original, runtimeSnapshot())!;
       scope.draft.directory = './folder//./name/';
       scope.draft.yolo = true;
       final draft = scope.draft;
       final operation = registry.begin(scope, original, draftRequest(scope))!;
+      addTearDown(() async {
+        if (!held.isCompleted) {
+          held.complete(
+            modelResponse(runtimeReceiptJson(operation.request.body)),
+          );
+        }
+        await awaitRuntimeOwners(operation, mutations: 0, lookups: 0);
+        await original.close();
+        registry.dispose();
+      });
       await registry.retry(operation, original, scope.snapshot.writeAuthority);
+      expect(client.sends, 1);
       expect(operation.uncertain, isTrue);
       expect(operation.mutationOwners, 1);
       final otherOwner = runtimeApi(
         () => throw StateError('No dispatch'),
         token: 'other-synthetic-owner',
       );
+      addTearDown(otherOwner.close);
       final other = registry.open(otherOwner, runtimeSnapshot())!;
       expect(other.pending, isNull);
       expect(other.draft.dirty, isFalse);
@@ -82,6 +94,7 @@ void main() {
         ),
         base: 'https://runtime-host.invalid/agent/',
       );
+      addTearDown(reconnect.close);
       expect(registry.open(reconnect, runtimeSnapshot()), same(scope));
       expect(scope.pending, same(operation));
       expect(scope.draft, same(draft));
@@ -114,15 +127,11 @@ void main() {
       )!;
       scope.notice = 'replacement scoped notice';
       held.complete(modelResponse(runtimeReceiptJson(operation.request.body)));
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await awaitRuntimeOwners(operation, mutations: 0, lookups: 0);
       expect(scope.pending, same(next));
       expect(scope.notice, 'replacement scoped notice');
       expect(operation.mutationOwners, 0);
       await registry.retry(next, reconnect, scope.snapshot.writeAuthority);
-      await original.close();
-      await reconnect.close();
-      await otherOwner.close();
-      registry.dispose();
     },
   );
 
@@ -276,13 +285,26 @@ void main() {
             if (calls == 1) return held.future;
             return modelResponse({}, status: status);
           }),
-          timeoutMs: 15,
+          // Healthy positive lookups must reach the native fence (#660).
+          // The separate boundary control retains a genuinely unobserved fence.
+          timeoutMs: 1000,
         );
         final scope = registry.open(api, runtimeSnapshot())!;
         scope.draft.yolo = true;
         final draft = scope.draft;
         final operation = registry.begin(scope, api, draftRequest(scope))!;
+        addTearDown(() async {
+          if (!held.isCompleted) {
+            held.complete(
+              modelResponse(runtimeReceiptJson(operation.request.body)),
+            );
+          }
+          await awaitRuntimeOwners(operation, mutations: 0, lookups: 0);
+          await api.close();
+          registry.dispose();
+        });
         await registry.retry(operation, api, scope.snapshot.writeAuthority);
+        expect(calls, 1);
         await registry.retry(operation, api, scope.snapshot.writeAuthority);
         expect(operation.uncertain, isTrue);
         expect(scope.pending, same(operation));
@@ -308,11 +330,9 @@ void main() {
         held.complete(
           modelResponse(runtimeReceiptJson(operation.request.body)),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 5));
+        await awaitRuntimeOwners(operation, mutations: 0, lookups: 0);
         expect(scope.pending, isNull);
         expect(scope.notice, contains('permanently fenced'));
-        await api.close();
-        registry.dispose();
       }
     },
   );

@@ -1,0 +1,145 @@
+{
+  "issue": 660,
+  "parent_issue": 624,
+  "baseline": "5dab6b0a77cb50be317fb389dc6210bdcb5eb05d",
+  "current_parent": "fa0f82337c394b9901bef58af896a1f03eed81c9",
+  "environment": {
+    "flutter": "3.47.8",
+    "dart": "3.13.7",
+    "pubspec_lock_sha256": "de83a37ef60bc743efbb89f0d09c540d2049bed7ba5e81edd02999976430b882",
+    "dependencies": "existing exact-lock metadata reused; --no-pub; no install or resolution"
+  },
+  "assertions": {
+    "original_expect_count": 77,
+    "current_expect_count": 79,
+    "all_original_expressions_preserved": true,
+    "original_sha256": "8308c6c6e5668999e98d1156c4315cbcc71ef00d3339186c1ce1b8e01c413d7b",
+    "current_sha256": "ef2ac39b84734d8a95a557eedb8516c73ba09c5fe95169af81dfab037acf34d0",
+    "unchanged_production_lib_tree_listing_sha256": "41eec078f6ea46138eb9ff3e79ea58d65258fb823e08b7d4329a0831b42a3102",
+    "production_files_changed": []
+  },
+  "checks": {
+    "preparation_no_tests": {
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded",
+        "test/agent_runtime_writes_test.dart"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/runtime-fixtures-660/apps/kinaiya_flutter",
+      "exit_code": 1,
+      "elapsed": 0.3325077319968841,
+      "inputs_unchanged": true,
+      "log_sha256": "a6b0635ef6656b1287b79543aef3da070e7a4c41981254cd92f1bf88a3439ce8",
+      "input_count": 303,
+      "input_manifest_sha256": "00ebf7002f285c010b60131b46ddfe77bea444b988ddd3c00ed4c6c566e79c64",
+      "local_receipt": "output/issue-660-flutter-baseline-receipt.json"
+    },
+    "original_baseline": {
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded",
+        "test/agent_runtime_writes_test.dart"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/runtime-fixtures-660/apps/kinaiya_flutter",
+      "exit_code": 0,
+      "elapsed": 6.651904409001872,
+      "inputs_unchanged": true,
+      "log_sha256": "6a52fd5e70e0d8675c382cd11aa486a2a95572f7d6ecffe1ed2a1331e6d87f99",
+      "input_count": 304,
+      "input_manifest_sha256": "de6592dbbf020856bc52ffab6fe55a59446f1149b18f517ae83de5a1719af330",
+      "local_receipt": "output/issue-660-flutter-baseline-corrected-env-receipt.json"
+    },
+    "controlled_first": {
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded",
+        "test/agent_runtime_fixture_boundaries_test.dart"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/runtime-fixtures-660/apps/kinaiya_flutter",
+      "exit_code": 1,
+      "elapsed": 2.7383784759949776,
+      "inputs_unchanged": true,
+      "log_sha256": "4c6a323cc03b1cd64d38f06a8d9b0d8bb7b9efb3ba2987ac378e3f235a257ba2",
+      "input_count": 305,
+      "input_manifest_sha256": "eea95d15277fe0569ce0651d49641205d4ec433b6b67180cb4155da4e95343c8",
+      "local_receipt": "output/issue-660-controlled-first-receipt.json"
+    },
+    "focused": {
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded",
+        "test/agent_runtime_writes_test.dart",
+        "test/agent_runtime_fixture_boundaries_test.dart",
+        "test/agent_runtime_transport_test.dart",
+        "test/agent_runtime_settings_test.dart"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/runtime-fixtures-660/apps/kinaiya_flutter",
+      "exit_code": 0,
+      "elapsed": 5.887049866003508,
+      "inputs_unchanged": true,
+      "log_sha256": "205619e40a8a0649d66a9739bbf34b388306b2f2bbf2d271ab471a1a8635ccef",
+      "input_count": 305,
+      "input_manifest_sha256": "5e8393a70da2981feaaeed0141029e9751cb5e89f412b0687cce065cd11b32e7",
+      "local_receipt": "output/issue-660-focused-first-fix-receipt.json"
+    },
+    "full_flutter": {
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "--reporter",
+        "expanded"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/runtime-fixtures-660/apps/kinaiya_flutter",
+      "exit_code": 0,
+      "elapsed": 73.33398179199867,
+      "inputs_unchanged": true,
+      "log_sha256": "1dcef58cd0219524d04740e31588d19a4f99d1164d06305d89083cd05fa8302c",
+      "input_count": 305,
+      "input_manifest_sha256": "5e8393a70da2981feaaeed0141029e9751cb5e89f412b0687cce065cd11b32e7",
+      "local_receipt": "output/issue-660-full-flutter-receipt.json"
+    },
+    "analyze": {
+      "command": [
+        "flutter",
+        "analyze",
+        "--no-pub"
+      ],
+      "exit_code": 0,
+      "result": "No issues found! (ran in4.8s)",
+      "log_sha256": "a6bca056cec6962ff324c068930c5da947ef520e580527aba2e980abcbf5820b"
+    },
+    "format": {
+      "command": [
+        "dart",
+        "format",
+        "--output",
+        "none",
+        "--set-exit-if-changed",
+        "lib",
+        "test"
+      ],
+      "exit_code": 0,
+      "result": "Formatted301files(0changed)in1.37s"
+    }
+  },
+  "after_main_fast_forward": "All full-suite Dart and dependency-metadata pins unchanged; only already-merged Python journal-wake increment added",
+  "limits": [
+    "No production library, timeout, capacity or authority changes",
+    "Native guarded-runner failure cause not directly observed; controlled boundaries prove missing fixture preconditions",
+    "Original physical run remains1463passed/2failed; full local suite1525passed/2opt-in-skipped is not replacement native evidence",
+    "Issue660 remains open pending original-platform confirmation after integration"
+  ]
+}
