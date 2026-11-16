@@ -272,12 +272,17 @@ def create_app(
                     raise
 
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
+    # Explicit trusted startup owns live permission; Store readers remain passive.
+    store.live_captures.activate()
     from services.session.journal_wake_api import install_journal_wake
 
     install_journal_wake(app, store, auth)
     from services.session.live_window_api import install_live_windows
 
     install_live_windows(app, store, auth)
+    from services.session.live_capture_api import install_live_captures
+
+    install_live_captures(app, store, auth)
     from services.settings.subsystem_api import router as subsystem_router
 
     app.include_router(subsystem_router(subsystem_settings, auth))

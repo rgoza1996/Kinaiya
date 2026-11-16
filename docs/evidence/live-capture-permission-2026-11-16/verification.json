@@ -1,0 +1,203 @@
+{
+  "issue": 623,
+  "status": "current170focusedchecks pass313/314 and229broaderregressionpass;permissiononly;AdaptiveLiveoff",
+  "parent": "4c548cbb226cb038fbbbc2cf656848643fd1475f",
+  "environment": {
+    "python313": "3.13.18",
+    "python314": "3.14.10",
+    "dev_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "dependency_changes": false
+  },
+  "checks": {
+    "first_transaction": {
+      "utc": "2026-11-16T17:42:42.845443+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_capture_permission.py::test_refusing_an_existing_transaction_never_rolls_back_the_original_owner",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-worker-623",
+      "exit_code": 1,
+      "elapsed": 0.838144449997344,
+      "input_count": 869,
+      "inputs_unchanged": true,
+      "log_sha256": "ce48271171b8c86c4c5b07049eaf823e52d8b632de79c798c9bbd5297c781d77",
+      "input_manifest_sha256": "bddeff8776a6cb9040415c0e66e9c72ad0883fa9daaaa702d9b1c225e8d7ece9",
+      "local_receipt": "output/issue-623-live-capture-transaction-first-receipt.json"
+    },
+    "first_broader_passive_failure": {
+      "utc": "2026-11-16T17:48:02.997821+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_session.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/unit/test_journal_wake_contracts.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/integration/test_standing_owner.py",
+        "tests/integration/test_decisions_native_attempts.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-worker-623",
+      "exit_code": 1,
+      "elapsed": 151.91927542699705,
+      "input_count": 869,
+      "inputs_unchanged": true,
+      "log_sha256": "64a55df5bd3047a00a0bb4856890789b312c6a990efc9c844dbd92011d18f346",
+      "input_manifest_sha256": "c6d4b43bdf8f30286a972f06e80cef0c7005980272a40a5bc0ced6c50ad4012d",
+      "local_receipt": "output/issue-623-live-capture-regression-receipt.json"
+    },
+    "preliminary_fixture_error": {
+      "utc": "2026-11-16T17:50:43.568552+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/integration/test_standing_owner.py::test_passive_store_journal_owner_reads_never_initialize_or_register",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-worker-623",
+      "exit_code": 1,
+      "elapsed": 5.981771052996919,
+      "input_count": 869,
+      "inputs_unchanged": true,
+      "log_sha256": "dd82554872400ebb9399012da8622f4b5853bc5064263cc041ed8c1b412489af",
+      "input_manifest_sha256": "7fd1b4a57c4d8f3a93ddf27d901d5eb603f08f52bc31ab17e6c62641d5e364af",
+      "local_receipt": "output/issue-623-live-capture-passive-repaired-receipt.json"
+    },
+    "final_python313": {
+      "utc": "2026-11-16T17:52:29.341160+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/integration/test_standing_owner.py::test_passive_store_journal_owner_reads_never_initialize_or_register",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-worker-623",
+      "exit_code": 0,
+      "elapsed": 26.45108378299483,
+      "input_count": 869,
+      "inputs_unchanged": true,
+      "log_sha256": "fcf069ab73b5c2f49e8465d0f87d0c129e7a7e458e44794e6c8392ff572d090a",
+      "input_manifest_sha256": "1523abc8e0499da57d3dcc2b0b07f310dd58b7a24c3b244182f104b6fd88b2fc",
+      "local_receipt": "output/issue-623-live-capture-final-313-receipt.json"
+    },
+    "final_python314": {
+      "utc": "2026-11-16T17:52:30.607623+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/integration/test_standing_owner.py::test_passive_store_journal_owner_reads_never_initialize_or_register",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-worker-623",
+      "exit_code": 0,
+      "elapsed": 26.618813691995456,
+      "input_count": 869,
+      "inputs_unchanged": true,
+      "log_sha256": "80d42918647190c3a39769b615c8318a930b9aeeeb0f32eb5502e22d108106e5",
+      "input_manifest_sha256": "1523abc8e0499da57d3dcc2b0b07f310dd58b7a24c3b244182f104b6fd88b2fc",
+      "local_receipt": "output/issue-623-live-capture-final-314-receipt.json"
+    },
+    "final_broader_regression": {
+      "utc": "2026-11-16T17:55:24.814919+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_session.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/unit/test_journal_wake_contracts.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/integration/test_standing_owner.py",
+        "tests/integration/test_decisions_native_attempts.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-worker-623",
+      "exit_code": 0,
+      "elapsed": 150.13935524800036,
+      "input_count": 869,
+      "inputs_unchanged": true,
+      "log_sha256": "11f8444056a131687db00144e01b31622bd00ee27e32ec61edfb81dff80f25b9",
+      "input_manifest_sha256": "1523abc8e0499da57d3dcc2b0b07f310dd58b7a24c3b244182f104b6fd88b2fc",
+      "local_receipt": "output/issue-623-live-capture-final-regression-receipt.json"
+    }
+  },
+  "schemas": {
+    "old_files": 550,
+    "old_unchanged": true,
+    "new_names": [
+      "LiveCaptureBackend.json",
+      "LiveCaptureFence.json",
+      "LiveCaptureFenceReceipt.json",
+      "LiveCaptureReceipt.json",
+      "LiveCaptureRegistration.json",
+      "LiveCaptureSourceState.json",
+      "LiveCaptureState.json"
+    ],
+    "new_family_sha256": "80eff6408bf5a3562cf4a4c05f8e9fdc7c50e73447010e2d1aea287f91d52dfc",
+    "old_manifest_sha256": "521c5ae35b36336d8738f256475a6562119ef9e125f089ae18658f54c18ecb5e"
+  },
+  "original_passive_oracle": "tests/integration/test_standing_owner.py byte-identical to parent; no fixtures or assertions edited",
+  "first_tracker_comments": [
+    6923931018,
+    6924248544,
+    6924392174
+  ],
+  "limits": [
+    "No capture/model/inference/playback/default enabled",
+    "capture_open/capture_permits_source are only logical permission prerequisites; not process/HTTP/audio-stop or provider authority",
+    "Missing original remains unknown; no replay/poll/re-registration upgrades a fenced original",
+    "Full623stillrequireschargedv2attempts,resultpublication,completion/wakescheduler,same-microllover,consumers,backchannel/echo/mute,timingsandrollout"
+  ],
+  "static_checks": {
+    "commands": [
+      "python -m ruff check packages services tests scripts",
+      "python -m ruff format --check packages services tests scripts",
+      "git diff --cached --check"
+    ],
+    "results": [
+      "All checks passed",
+      "861 files already formatted",
+      "pass"
+    ]
+  }
+}

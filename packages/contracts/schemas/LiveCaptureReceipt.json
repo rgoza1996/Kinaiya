@@ -1,0 +1,141 @@
+{
+  "$defs": {
+    "LiveCaptureBackend": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "controller_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Controller Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend_id",
+        "controller_id"
+      ],
+      "title": "LiveCaptureBackend",
+      "type": "object"
+    },
+    "LiveCaptureRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend": {
+          "$ref": "#/$defs/LiveCaptureBackend"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "capture_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend",
+        "owner_instance",
+        "capture_id",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "LiveCaptureRegistration",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_capture_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "original": {
+      "$ref": "#/$defs/LiveCaptureRegistration"
+    },
+    "registration_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Registration Id",
+      "type": "string"
+    },
+    "registered_sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Registered Sequence",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "original",
+    "registration_id",
+    "registered_sequence"
+  ],
+  "title": "LiveCaptureReceipt",
+  "type": "object"
+}

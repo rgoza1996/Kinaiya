@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_capture_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "controller_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Controller Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "backend_id",
+    "controller_id"
+  ],
+  "title": "LiveCaptureBackend",
+  "type": "object"
+}

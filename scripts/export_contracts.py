@@ -26,6 +26,7 @@ from packages.contracts import (
     decisions_models,
     decisions_prompts,
     journal_wake,
+    live_captures,
     live_decisions,
     live_windows,
     media,
@@ -117,6 +118,19 @@ for name in (
     "LiveWindowCandidate",
 ):
     cls = getattr(live_windows, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+# Native capture permission has no model/provider or physical-stop authority.
+for name in (
+    "LiveCaptureBackend",
+    "LiveCaptureRegistration",
+    "LiveCaptureReceipt",
+    "LiveCaptureFence",
+    "LiveCaptureFenceReceipt",
+    "LiveCaptureState",
+    "LiveCaptureSourceState",
+):
+    cls = getattr(live_captures, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Owner policy requests are strict frozen models, separate from journal events.

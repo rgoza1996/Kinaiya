@@ -594,6 +594,16 @@ def schema_pin():
         "LiveWindowPublicationState",
         "LiveWindowCandidate",
     }
+    # Native capture permission uses its own seven-file export pin.
+    additive |= {
+        "LiveCaptureBackend",
+        "LiveCaptureRegistration",
+        "LiveCaptureReceipt",
+        "LiveCaptureFence",
+        "LiveCaptureFenceReceipt",
+        "LiveCaptureState",
+        "LiveCaptureSourceState",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,
