@@ -46,6 +46,7 @@ from packages.providers.disclosure import (
     scope_allowed,
     validate_context_source,
 )
+from services.session.journal_wake import JournalWake, WakeConnection
 
 ALLOWED_KINDS = {
     "owner": {
@@ -107,7 +108,9 @@ class Store:
         self._converse_context_validators = {}
         self._media_owner = None
         self._media_operations = None
-        self.db = sqlite3.connect(self.path, check_same_thread=False)
+        self.journal_wake = JournalWake()
+        self.db = sqlite3.connect(self.path, check_same_thread=False, factory=WakeConnection)
+        self.db.wake_owner = self.journal_wake
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -2028,6 +2031,25 @@ class LocalJournal:
         from services.session.stream_publications import lookup_publication
 
         return lookup_publication(self.store, original)
+
+    async def journal_wake_cursor(self):
+        if self.role not in {"owner", "converse", "decisions"}:
+            raise PermissionError("Journal wake inspection is unavailable for this role")
+        return self.store.journal_wake.snapshot()
+
+    async def wait_for_journal_change(self, cursor, *, wait_ms=1000):
+        if self.role not in {"owner", "converse", "decisions"}:
+            raise PermissionError("Journal wake inspection is unavailable for this role")
+        from packages.contracts.journal_wake import JournalWakeWait
+
+        return await self.store.journal_wake.wait(
+            JournalWakeWait(
+                schema_version="1.0",
+                protocol="journal_wake_v1",
+                cursor=cursor,
+                wait_ms=wait_ms,
+            )
+        )
 
     async def window_decision(self, source_event_id):
         return self.store.window_decision(source_event_id)

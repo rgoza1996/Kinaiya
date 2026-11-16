@@ -1,0 +1,180 @@
+"""Actual SQLite transitions and bounded event ownership; no polling or inference."""
+
+import asyncio
+import sqlite3
+
+import pytest
+
+from packages.contracts.journal_wake import JournalWakeWait
+from packages.contracts.models import AppendRequest, SessionRequest
+from services.session.journal_wake import WakeUnavailable
+from services.session.store import Store
+
+
+@pytest.fixture
+def store(tmp_path):
+    value = Store(tmp_path / "wake.sqlite")
+    yield value
+    if not value.journal_wake.closed:
+        value.close()
+
+
+def waiting(store, cursor=None, wait_ms=1000):
+    return JournalWakeWait(
+        schema_version="1.0",
+        protocol="journal_wake_v1",
+        cursor=store.journal_wake.snapshot() if cursor is None else cursor,
+        wait_ms=wait_ms,
+    )
+
+
+async def registered(store):
+    task = asyncio.create_task(store.journal_wake.wait(waiting(store)))
+    await asyncio.sleep(0)
+    assert len(store.journal_wake.waiters) == 1 and not task.done()
+    return task
+
+
+async def test_only_transaction_exit_wakes_and_committed_rows_are_visible(store):
+    original = store.journal_wake.snapshot()
+    task = await registered(store)
+    with store.lock, store.db:
+        store.db.execute("INSERT INTO cursors VALUES('decisions','public-wake',0)")
+        assert store.journal_wake.snapshot() == original and not task.done()
+    observed = await asyncio.wait_for(asyncio.shield(task), 3)
+    assert observed.changed is True and observed.cursor.revision == original.revision + 1
+    assert (
+        store.db.execute("SELECT sequence FROM cursors WHERE consumer='public-wake'").fetchone()[0]
+        == 0
+    )
+    assert not store.journal_wake.waiters
+
+
+async def test_change_before_registration_is_immediate_and_thread_commit_is_not_lost(store):
+    original = store.journal_wake.snapshot()
+    store.create_session(SessionRequest(channel="converse"))
+    observed = await store.journal_wake.wait(waiting(store, original))
+    assert observed.changed is True and observed.cursor.revision > original.revision
+    task = await registered(store)
+    await asyncio.to_thread(store.create_session, SessionRequest(channel="converse"))
+    assert (await asyncio.wait_for(asyncio.shield(task), 3)).changed is True
+    assert not store.journal_wake.waiters
+
+
+@pytest.mark.parametrize("operation", ["explicit_commit", "sql_commit", "rollback"])
+async def test_explicit_transaction_end_and_rollback_are_only_recheck_hints(store, operation):
+    task = await registered(store)
+    store.db.execute("BEGIN IMMEDIATE")
+    store.db.execute("INSERT INTO cursors VALUES('decisions','public-wake',0)")
+    assert not task.done()
+    if operation == "explicit_commit":
+        store.db.commit()
+    elif operation == "sql_commit":
+        store.db.execute("COMMIT")
+    else:
+        store.db.rollback()
+    observed = await asyncio.wait_for(asyncio.shield(task), 3)
+    assert observed.changed is True
+    row = store.db.execute("SELECT sequence FROM cursors WHERE consumer='public-wake'").fetchone()
+    assert (row is None) == (operation == "rollback")
+    # The signal cannot claim that a publication committed, even after a wake.
+    assert set(observed.model_dump()) == {
+        "schema_version",
+        "protocol",
+        "original",
+        "cursor",
+        "changed",
+    }
+
+
+async def test_reads_empty_transactions_and_idle_heartbeats_do_not_wake_themselves(store):
+    original = store.journal_wake.snapshot()
+    for _ in range(3):
+        with store.lock, store.db:
+            store.db.execute("SELECT count(*) FROM entries").fetchone()
+        observed = await store.journal_wake.wait(waiting(store, original, wait_ms=1))
+        assert observed.changed is False and observed.cursor == original
+    assert not store.journal_wake.waiters and store.journal_wake.snapshot() == original
+
+
+def test_script_error_cannot_hide_its_already_committed_prefix_or_defer_wake_to_read(store):
+    original = store.journal_wake.snapshot()
+    with pytest.raises(sqlite3.OperationalError):
+        store.db.executescript(
+            "INSERT INTO cursors VALUES('decisions','public-script-prefix',0);"
+            "SELECT * FROM public_nonexistent_table;"
+        )
+    settled = store.journal_wake.snapshot()
+    row = store.db.execute("SELECT sequence FROM cursors WHERE consumer='public-script-prefix'").fetchone()
+    assert row is not None and row[0] == 0
+    assert settled.revision > original.revision
+    assert store.journal_wake.snapshot() == settled
+
+
+async def test_reset_and_delete_wake_even_without_a_new_transcript_sequence(store):
+    session = store.create_session(SessionRequest(channel="converse"))
+    store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind="conversation.user",
+            payload={"text": "PUBLIC FIXTURE", "final": True},
+            idempotency_key="public-wake",
+        ),
+        "owner",
+    )
+    latest = store.db.execute("SELECT max(sequence) FROM entries").fetchone()[0]
+    task = await registered(store)
+    reset = store.reset(session.session_id)
+    assert (await asyncio.wait_for(asyncio.shield(task), 3)).changed is True
+    assert reset.epoch == session.epoch + 1
+    assert store.db.execute("SELECT max(sequence) FROM entries").fetchone()[0] == latest
+    task = await registered(store)
+    store.delete(session.session_id)
+    assert (await asyncio.wait_for(asyncio.shield(task), 3)).changed is True
+    assert store.read() == []
+
+
+async def test_cancelled_wait_releases_only_its_slot_and_close_wakes_original_owner(store):
+    task = await registered(store)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not store.journal_wake.waiters
+    original = store.journal_wake.snapshot()
+    task = await registered(store)
+    store.close()
+    with pytest.raises(WakeUnavailable):
+        await task
+    assert not store.journal_wake.waiters
+    with pytest.raises(WakeUnavailable):
+        store.journal_wake.snapshot()
+    replacement = Store(store.path)
+    try:
+        with pytest.raises(WakeUnavailable):
+            await replacement.journal_wake.wait(waiting(replacement, original))
+    finally:
+        replacement.close()
+
+
+async def test_full_waiter_capacity_stays_owned_until_actual_waits_exit(store):
+    original = waiting(store)
+    tasks = [asyncio.create_task(store.journal_wake.wait(original)) for _ in range(64)]
+    try:
+        await asyncio.sleep(0)
+        assert len(store.journal_wake.waiters) == 64
+        with pytest.raises(WakeUnavailable, match="capacity"):
+            await store.journal_wake.wait(original)
+        tasks[0].cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await tasks[0]
+        assert len(store.journal_wake.waiters) == 63
+        store.create_session(SessionRequest(channel="converse"))
+        results = await asyncio.gather(*tasks[1:])
+        assert len(results) == 63 and all(value.changed for value in results)
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+    assert not store.journal_wake.waiters

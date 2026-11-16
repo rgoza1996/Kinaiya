@@ -272,6 +272,9 @@ def create_app(
                     raise
 
     app = FastAPI(title="Kinaiya shared session journal", version="1.0", lifespan=lifespan)
+    from services.session.journal_wake_api import install_journal_wake
+
+    install_journal_wake(app, store, auth)
     from services.settings.subsystem_api import router as subsystem_router
 
     app.include_router(subsystem_router(subsystem_settings, auth))

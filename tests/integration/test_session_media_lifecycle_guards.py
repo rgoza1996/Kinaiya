@@ -577,13 +577,25 @@ async def _native_stack(tmp_path, native_root, *, count, allow_unknown_shutdown)
     connect = sqlite3.connect
 
     def native_connection(*args, **kwargs):
-        assert "factory" not in kwargs
-        return connect(*args, factory=_ObservedConnection, **kwargs)
+        factory = kwargs.pop("factory", sqlite3.Connection)
+        assert isinstance(factory, type) and issubclass(factory, sqlite3.Connection)
+        # Observe the actual first-party connection, including its wake hooks;
+        # do not replace either the native driver or the original fault observer.
+        observed = (
+            _ObservedConnection
+            if factory is sqlite3.Connection
+            else type("ObservedWakeConnection", (_ObservedConnection, factory), {})
+        )
+        return connect(*args, factory=observed, **kwargs)
 
     with patch("services.session.store.sqlite3.connect", side_effect=native_connection):
         store = Store(native_root / "session.sqlite")
     db = store.db
     assert isinstance(db, _ObservedConnection)
+    if hasattr(store, "journal_wake"):
+        from services.session.journal_wake import WakeConnection
+
+        assert isinstance(db, WakeConnection) and db.wake_owner is store.journal_wake
     limits = _limits()
     profile = _profile(limits)
     spool = MediaSpool(spool_root, limits)
