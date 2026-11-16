@@ -47,6 +47,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from packages.resources._bootstrap_protocol import BOOTSTRAP_ENTRY, BOOTSTRAP_ENTRY_FLAG
+
 __all__ = ["MAX_WORKERS", "TAIL_MAX_BYTES", "WorkerIdentity", "WorkerManager", "WorkerSpec"]
 
 LOG = logging.getLogger(__name__)
@@ -1060,6 +1062,7 @@ class WorkerManager:
                 str(grant_r),
                 str(config_fd),
                 nonce,
+                BOOTSTRAP_ENTRY_FLAG,
                 cwd=str(spec.cwd),
                 env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
                 stdin=asyncio.subprocess.DEVNULL,
@@ -1105,6 +1108,31 @@ class WorkerManager:
         managed.process = proc
         managed.pgid = proc.pid
         managed.grant_w = grant_w
+        try:
+            # Exec-error-pipe EOF precedes complete Linux argv initialization.
+            # Only trusted userland entry schedules the unchanged verifier;
+            # the prefix itself grants no process or execution authority.
+            remaining = t0 + float(spec.startup_timeout_s) - time.monotonic()
+            if remaining <= 0 or proc.stdout is None:
+                raise ValueError
+            async with asyncio.timeout(remaining):
+                entry = await proc.stdout.readexactly(len(BOOTSTRAP_ENTRY))
+            if entry != BOOTSTRAP_ENTRY or self._closed:
+                raise ValueError
+        except asyncio.CancelledError:
+            await self._settle_cancelled_spawn(managed, spawn_task, t0, grant_w, None, None, None)
+            raise
+        except Exception:
+            before_grant_close = _cached_bootstrap_exit(proc)
+            try:
+                os.close(grant_w)
+            except OSError:
+                pass
+            managed.grant_w = None
+            try:
+                return await self._fail_unverified(managed, t0)
+            finally:
+                _bootstrap_refusal_exit(before_grant_close, proc)
         fd, start = _verify_bootstrap(proc.pid, nonce, bootstrap)
         if fd is None:
             before_grant_close = _cached_bootstrap_exit(proc)
@@ -1187,8 +1215,8 @@ class WorkerManager:
         spawn_task: asyncio.Task[Any],
         t0: float,
         grant_w: int,
-        grant_r: int,
-        config_fd: int,
+        grant_r: int | None,
+        config_fd: int | None,
         config_obj: Any | None,
     ) -> None:
         """Settle a cancelled spawn without ever granting execution.
