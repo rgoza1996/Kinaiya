@@ -719,6 +719,44 @@ def create_app(
             ) from None
 
     @app.post(
+        "/v1/transcript/stream-publications/lookup",
+        dependencies=[Depends(auth.require("converse"))],
+    )
+    async def stream_publication_lookup(request: Request):
+        from fastapi.responses import JSONResponse
+
+        from packages.contracts.whistle_stream_owner import StreamPublication
+        from packages.providers.whistle_ipc import decode_json
+        from services.session.stream_publications import lookup_publication
+
+        if request.query_params or any(
+            len(request.headers.getlist(name)) > 1
+            for name in ("content-type", "content-length", "content-encoding")
+        ):
+            raise HTTPException(400, "Invalid stream publication lookup envelope")
+        if request.headers.get("content-type", "").split(";")[
+            0
+        ].strip().lower() != "application/json" or request.headers.get(
+            "content-encoding", "identity"
+        ).strip().lower() not in {"", "identity"}:
+            raise HTTPException(415, "Stream publication lookup requires identity JSON")
+        raw = bytearray()
+        try:
+            async with asyncio.timeout(5):
+                async for chunk in request.stream():
+                    if len(raw) + len(chunk) > 4096:
+                        raise HTTPException(413, "Stream publication identity exceeds its bound")
+                    raw.extend(chunk)
+            original = StreamPublication.model_validate(decode_json(bytes(raw), 4096))
+            return JSONResponse(
+                lookup_publication(store, original), headers={"Cache-Control": "no-store"}
+            )
+        except TimeoutError:
+            raise HTTPException(408, "Stream publication lookup deadline expired") from None
+        except (ValueError, TypeError, RecursionError):
+            raise HTTPException(503, "Exact stream publication proof is unavailable") from None
+
+    @app.post(
         "/v1/transcript/agent-export-admission",
         response_model=AgentExportAdmission,
         dependencies=[Depends(auth.require("agent"))],

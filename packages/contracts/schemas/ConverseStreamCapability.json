@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_stream_owner_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance"
+  ],
+  "title": "ConverseStreamCapability",
+  "type": "object"
+}

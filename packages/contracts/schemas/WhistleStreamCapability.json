@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "whistle_stream_owner_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "broker_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Broker Instance",
+      "type": "string"
+    },
+    "active_limit": {
+      "const": 64,
+      "title": "Active Limit",
+      "type": "integer"
+    },
+    "history_limit": {
+      "const": 1024,
+      "title": "History Limit",
+      "type": "integer"
+    },
+    "reservation_seconds": {
+      "const": 30,
+      "title": "Reservation Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "broker_instance",
+    "active_limit",
+    "history_limit",
+    "reservation_seconds"
+  ],
+  "title": "WhistleStreamCapability",
+  "type": "object"
+}

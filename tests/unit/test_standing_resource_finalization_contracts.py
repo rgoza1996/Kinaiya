@@ -566,6 +566,19 @@ def schema_pin():
         "CaptureModeReceipt",
         "CaptureModeLookup",
     }
+    # #654's separately pinned incremental protocol does not alter unary STT.
+    additive |= {
+        "WhistleStreamCapability",
+        "WhistleStreamReservation",
+        "WhistleStreamOriginal",
+        "WhistleStreamAcknowledgment",
+        "WhistleStreamProof",
+        "ConverseStreamLookup",
+        "ConverseStreamCapability",
+        "ConverseStreamProof",
+        "StreamPublication",
+        "StreamPublicationProof",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

@@ -1,0 +1,39 @@
+"""Exact retried native cleanup must preserve independent transport failures."""
+
+from tests.integration.test_incremental_whistle_converse import (
+    converse_incremental_env as converse_incremental_env,
+)
+from tests.integration.test_whistle_stream_originals import BASE, acknowledge, begin, client_for
+
+
+async def test_positive_retry_reports_original_process_release_after_unconfirmed_stop(
+    converse_incremental_env, monkeypatch
+):
+    env = converse_incremental_env
+    original_stop = env.broker.manager.stop_if_current
+    calls = []
+
+    async def unconfirmed_once(identity):
+        calls.append(identity)
+        if len(calls) == 1:
+            return {
+                "ok": True,
+                "release_confirmed": False,
+                "stop_evidence": {"reaped": False, "group_empty": False},
+            }
+        return await original_stop(identity)
+
+    monkeypatch.setattr(env.broker.manager, "stop_if_current", unconfirmed_once)
+    async with client_for(env) as client:
+        original, _, proof = await begin(client, env)
+        await acknowledge(client, original, proof)
+        owned = env.broker.operation
+        first = await client.post(BASE + "/ownership/abort", json=original)
+        assert first.status_code == 200 and first.json()["process_released"] is False
+        assert env.broker.operation is owned and owned.cleanup_failed
+        second = await client.post(BASE + "/ownership/abort", json=original)
+        assert second.status_code == 200
+        assert len(calls) == 2 and calls[0] == calls[1] == owned.identity
+        assert env.broker.operation is None and owned.cleanup_confirmed
+        assert second.json()["process_released"] is True
+        assert env.engine.begin_calls == 1 and env.engine.step == env.engine.finish_calls == 0

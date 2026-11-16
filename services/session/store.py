@@ -2022,6 +2022,13 @@ class LocalJournal:
         original = STTPublication.model_validate(original)
         return validate_publication_proof(lookup_publication(self.store, original), original)
 
+    async def lookup_stream_publication(self, original):
+        if self.role != "converse":
+            raise PermissionError("Stream publication proof requires Converse")
+        from services.session.stream_publications import lookup_publication
+
+        return lookup_publication(self.store, original)
+
     async def window_decision(self, source_event_id):
         return self.store.window_decision(source_event_id)
 

@@ -1,0 +1,271 @@
+{
+  "issues": [
+    654,
+    656
+  ],
+  "parent": 623,
+  "base": "3ac6e184b05bb9c9cc271531e48b1e544330fd87",
+  "status": "native source qualified locally; hosted CI and integration pending; Adaptive Live off",
+  "development_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+  "source_sha256": {
+    "docs/evidence/incremental-stream-lifecycle-2026-11-16/README.md": "3f7107ae08d2972b1182dc1352ff59728a63515dd6e7d4c95617d0da1bb7ef32",
+    "docs/evidence/incremental-stream-lifecycle-2026-11-16/first-cleanup-retry-control.py.txt": "2240541230f2b931d0a0338842e7e9b0f5a6fec809226181f63594f0a94f2046",
+    "docs/evidence/incremental-stream-lifecycle-2026-11-16/first-lifecycle-control.py.txt": "511b07289d4fcf552d00a5f3099d16a3cfddc078931c96a36c84565d25f237b5",
+    "docs/evidence/incremental-stream-lifecycle-2026-11-16/first-policy-refusal-control.py.txt": "5ed4780c40725e381a06f662776745f6729e6e0a550090530b0e5db212e5e6e7",
+    "docs/evidence/incremental-stream-lifecycle-2026-11-16/first-publication-bounds-control.py.txt": "d1b91401b951ebc77aa5cb19a3a913074d59d4cc16e51d1918d9798cee04d185",
+    "docs/incremental-stream-lifecycle.md": "517bff35212dfaec45d32973c9d19ffca41c1d820a904da412025acfc357f39f",
+    "packages/contracts/client.py": "f2cbdf65e494c9a540a3b97c0b8f4be883be281e89c612eaf94f91291a31c6f3",
+    "packages/contracts/schemas/ConverseStreamCapability.json": "80784e237a4e1b226be3ff6eea0469c7417b3af7d4a2b02e767a3b60459c5f5b",
+    "packages/contracts/schemas/ConverseStreamLookup.json": "88dbbb4f66f6c43f0de2d5a139a1425ebe6eadf06850b99aa0a97c6de7737f6d",
+    "packages/contracts/schemas/ConverseStreamProof.json": "8ca6e293d18dab4b319bd216e277bdef4ebfe68ac58e2dba2d58c52e434dc1b9",
+    "packages/contracts/schemas/StreamPublication.json": "c239c954fe866893ee94586143e98e510af18c94b40e38717b8dc3bd35b5af22",
+    "packages/contracts/schemas/StreamPublicationProof.json": "ea525d93aad57ddaa85030b8afc6c4e6a0f54814e3a750a9d68f12ed536f5b4b",
+    "packages/contracts/schemas/WhistleStreamAcknowledgment.json": "c44f5ad0ba8418181f540bbadf1a7d601af2b127a74f74e4da5a395bdc70b696",
+    "packages/contracts/schemas/WhistleStreamCapability.json": "2c2eca613036843b2e4182f1f128e02f9d2c8dd1be47d54a0ea58a940e37aab2",
+    "packages/contracts/schemas/WhistleStreamOriginal.json": "aae3284820c7afd3b70b8f60a0ddf92fdf887a8996ba80d7d6edbb4330e7bc99",
+    "packages/contracts/schemas/WhistleStreamProof.json": "d95cc8b3f8ff0bac21add6a94bffe0122f7963eb3fe13a19e13760422afaf3ce",
+    "packages/contracts/schemas/WhistleStreamReservation.json": "b0baa3b4b2ccd04b9411649c3dfdf173c9b4d821a75a88f91fd934a42a9347af",
+    "packages/contracts/whistle_stream_owner.py": "846f2642bb57e4703b90bceef186ab3c67cd940cfd8d2f629b61e78fb6353c08",
+    "packages/providers/whistle_stream.py": "fb796e3f31112b010c5812dc5741846610238d50f981bb77f708314811924237",
+    "packages/providers/whistle_stream_owner.py": "0d3e40cf9bc3c46504fd13d2690a18f628b44b02119e7d8df6c88b50af3ccc4a",
+    "scripts/export_contracts.py": "e4da3a56d36a1cda56d264f9acd0c00b3392519c0e313ea01860d9723636b07c",
+    "services/converse/api.py": "9adf54c4e02bcca08bf66cc3d509968a662399c7c109d978e95a620a22280784",
+    "services/converse/incremental_streams.py": "61f5456a3e71d95bb755bff0c5f17d2e04ff0a33d4e0345f1993ab90f7b6e405",
+    "services/converse/runtime.py": "02ec0195a91fe42600b8d90299e3791f248f099107f0d5481251e4add1f4e6a7",
+    "services/converse/stt_operations.py": "5ad6fc58c831e3e3d4cae51cd8ed91e4613e9f06b7f38c61ce4a57f61f4a8ba2",
+    "services/resources/api.py": "f43df3234991b9b8ca3c52637a0e72dbfacdb6c091acf9e9250227b2c15a4050",
+    "services/resources/whistle.py": "6b623a7cd0a12de3f6bc69814d3606f182d4cb9411d17da9f75ba8cc91531849",
+    "services/resources/whistle_stream_owner.py": "d3eadbeae1d6b4ed1ea490a91b581ee9d27a899468014b13fd459cf55a40f616",
+    "services/session/api.py": "b1514e481f6b95fb2c80ae76d0e1449a12b3e4e045b154fcc374ffed43f544c2",
+    "services/session/store.py": "3663d443eb53649e51dbc35320d44c88e353c6913aaca8e1f2ceefaf49c31ac5",
+    "services/session/stream_publications.py": "ebd6f96deeda9b24ddf202226ac0080acac083522d338663bc4ae3e7831df4f1",
+    "tests/integration/test_incremental_stream_no_dispatch.py": "da66376e3d0a83246606ea2e1c071c2d9ce67cde50df76aa1bb6e51c6c9a8fcb",
+    "tests/integration/test_incremental_stream_ownership.py": "b3a3db251af9c481c09f74bd9d63277d95f3e6d66ec1abab7d42994b1fbf3e87",
+    "tests/integration/test_incremental_stream_publications.py": "41864897a1a0a6463781cfac530fc2b98b2a7c9c0fe2a0bc05b8f48f0f09f381",
+    "tests/integration/test_incremental_stream_transport_cleanup.py": "e438795291e0b0a7a13376215c752175b0d279329749c70b39bfc1ad8c24df93",
+    "tests/integration/test_incremental_whistle_converse.py": "7e9e693838b65b695e32b89a899460abfc755aa2849000d600abd8e14bf94bfb",
+    "tests/integration/test_whistle_stream_cleanup_retry.py": "af87cb10724b86bbfa709e73e9d2faffd9c80fd72dfa8f5f2fb5c15f5e1dafce",
+    "tests/integration/test_whistle_stream_originals.py": "5ed4780c40725e381a06f662776745f6729e6e0a550090530b0e5db212e5e6e7",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "b55c023115261ede76e06304de5ffd4cafc63fe8b18a8eb96d9179c1a003b02a",
+    "tests/unit/test_whistle_stream_owner_contracts.py": "a9775c2d13ec72d83071b76ee37e12fabe0c56d24d1d87c110c37f34f81578fc"
+  },
+  "checks": [
+    {
+      "base": "3ac6e184b05bb9c9cc271531e48b1e544330fd87",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/unit/test_whistle_stream_owner_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_whistle_streaming_broker.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/integration/test_whistle_stream_originals.py",
+        "tests/integration/test_incremental_stream_ownership.py",
+        "tests/integration/test_incremental_stream_transport_cleanup.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "tests/integration/test_incremental_stream_no_dispatch.py",
+        "tests/integration/test_whistle_stream_cleanup_retry.py"
+      ],
+      "exit_code": 0,
+      "seconds": 10.33,
+      "inputs": 847,
+      "changed_inputs": [],
+      "log_sha256": "d890d465e4d06e80e9436ecb15074a57aa3f2b66ece49798a6c3f630f398b3c5",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/native-stream-654",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/home/roggoz/.local/bin:/home/roggoz/bin:/home/roggoz/.codex/tmp/arg0-linux/codex-arg0HdSvxt:/home/roggoz/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/home/roggoz/.local/bin:/home/roggoz/bin:/home/roggoz/.dotnet:/home/roggoz/miniconda3/bin:/home/roggoz/miniconda3/condabin:/home/roggoz/.nvm/versions/node/v22.22.1/bin:/home/roggoz/.cargo/bin:/home/roggoz/.local/bin:/home/roggoz/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin:/home/roggoz/.lmstudio/bin:/home/roggoz/.lmstudio/bin:/opt/rocm/bin:/home/roggoz/.lmstudio/bin:/home/roggoz/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/usr/lib/chatgpt/resources:/home/roggoz/.lmstudio/bin",
+      "input_manifest_sha256": "312491b2366e812c00d8ea2a57513fcab9155cc3d18b6b773fe804de8e6f27e5",
+      "result": "118 passed in 9.30s",
+      "log": "output/issue-654-final-focused313.log",
+      "receipt": "output/issue-654-final-focused313-receipt.json"
+    },
+    {
+      "base": "3ac6e184b05bb9c9cc271531e48b1e544330fd87",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/unit/test_whistle_stream_owner_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_whistle_streaming_broker.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/integration/test_whistle_stream_originals.py",
+        "tests/integration/test_incremental_stream_ownership.py",
+        "tests/integration/test_incremental_stream_transport_cleanup.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "tests/integration/test_incremental_stream_no_dispatch.py",
+        "tests/integration/test_whistle_stream_cleanup_retry.py"
+      ],
+      "exit_code": 0,
+      "seconds": 10.54,
+      "inputs": 847,
+      "changed_inputs": [],
+      "log_sha256": "9464e77d0e5e231767d9931ee3e738b0e48dc0bd52b095e08cd1282b5d7bb5c7",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/native-stream-654",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "input_manifest_sha256": "312491b2366e812c00d8ea2a57513fcab9155cc3d18b6b773fe804de8e6f27e5",
+      "result": "118 passed in 9.51s",
+      "log": "output/issue-654-final-focused314.log",
+      "receipt": "output/issue-654-final-focused314-receipt.json"
+    },
+    {
+      "base": "3ac6e184b05bb9c9cc271531e48b1e544330fd87",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "tests/integration/test_capture_mode_api.py",
+        "tests/integration/test_capture_mode_dart.py",
+        "tests/integration/test_converse_owner_controls.py",
+        "tests/integration/test_converse_owner_processes.py",
+        "tests/integration/test_converse_speech_cancel.py",
+        "tests/integration/test_converse_start_paused.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_core_subsystem_dart.py",
+        "tests/integration/test_core_subsystem_mode_owner.py",
+        "tests/integration/test_incremental_stream_no_dispatch.py",
+        "tests/integration/test_incremental_stream_ownership.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "tests/integration/test_incremental_stream_transport_cleanup.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/integration/test_managed_whistle.py",
+        "tests/integration/test_meta_speech_scope.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_speech_boundary.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_voice_backends.py",
+        "tests/integration/test_voice_disconnect_completion.py",
+        "tests/integration/test_voice_producer.py",
+        "tests/integration/test_voice_resource_config.py",
+        "tests/integration/test_whistle_startup_ordering.py",
+        "tests/integration/test_whistle_stream_cleanup_retry.py",
+        "tests/integration/test_whistle_stream_originals.py",
+        "tests/unit/test_capture_mode_schema_exports.py",
+        "tests/unit/test_capture_mode_settings.py",
+        "tests/unit/test_cloud_speech_composition.py",
+        "tests/unit/test_core_subsystem_schema_exports.py",
+        "tests/unit/test_core_subsystem_settings.py",
+        "tests/unit/test_meta_speech.py",
+        "tests/unit/test_native_audio_capacity.py",
+        "tests/unit/test_native_audio_connection.py",
+        "tests/unit/test_native_audio_converse.py",
+        "tests/unit/test_native_audio_history_metadata.py",
+        "tests/unit/test_native_audio_operation_contract.py",
+        "tests/unit/test_native_audio_transport_readiness.py",
+        "tests/unit/test_openrouter_speech.py",
+        "tests/unit/test_retained_voice_probe.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_vibevoice_backend.py",
+        "tests/unit/test_vibevoice_runtime_build.py",
+        "tests/unit/test_whistle_boundaries.py",
+        "tests/unit/test_whistle_config.py",
+        "tests/unit/test_whistle_native_boundary.py",
+        "tests/unit/test_whistle_speech_selection.py",
+        "tests/unit/test_whistle_stream_backend.py",
+        "tests/unit/test_whistle_stream_owner_contracts.py",
+        "tests/unit/test_whistle_streaming_broker.py",
+        "tests/unit/test_whistle_transport.py",
+        "tests/unit/test_whistle_worker_construction.py"
+      ],
+      "exit_code": 0,
+      "seconds": 214.18,
+      "inputs": 847,
+      "changed_inputs": [],
+      "log_sha256": "4d69e23f0a0f8ce4765889bcb592a46660d3f5a519daf65a01fba821a00fbe00",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/native-stream-654",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/home/roggoz/.local/bin:/home/roggoz/bin:/home/roggoz/.codex/tmp/arg0-linux/codex-arg0HdSvxt:/home/roggoz/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/home/roggoz/.local/bin:/home/roggoz/bin:/home/roggoz/.dotnet:/home/roggoz/miniconda3/bin:/home/roggoz/miniconda3/condabin:/home/roggoz/.nvm/versions/node/v22.22.1/bin:/home/roggoz/.cargo/bin:/home/roggoz/.local/bin:/home/roggoz/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin:/home/roggoz/.lmstudio/bin:/home/roggoz/.lmstudio/bin:/opt/rocm/bin:/home/roggoz/.lmstudio/bin:/home/roggoz/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/usr/lib/chatgpt/resources:/home/roggoz/.lmstudio/bin",
+      "input_manifest_sha256": "312491b2366e812c00d8ea2a57513fcab9155cc3d18b6b773fe804de8e6f27e5",
+      "result": "1190 passed in 212.86s",
+      "log": "output/issue-654-final-broad.log",
+      "receipt": "output/issue-654-final-broad-receipt.json"
+    },
+    {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "scripts/export_contracts.py"
+      ],
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/native-stream-654",
+      "result": "passed; ten additive schemas, 528 previous files byte-identical to base"
+    },
+    {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "result": "All checks passed"
+    },
+    {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "result": "1110 files already formatted"
+    },
+    {
+      "command": "git diff --check && git diff --cached --check",
+      "result": "passed"
+    }
+  ],
+  "first_failures": [
+    {
+      "log": "output/issue-654-lifecycle-first.log",
+      "sha256": "02624f44a27c2eefc5cd8f0acb374b8cc2dd9011ebbca2d14dfdd455c458cb7e",
+      "meaning": "preliminary fixture Store.read argument error; not target proof"
+    },
+    {
+      "log": "output/issue-654-lifecycle-controlled-first.log",
+      "sha256": "6e0f4c7ccba530d788bace50d58e3ce74ae6eebe413a8eabfbb1045dfa03f39b",
+      "meaning": "five404exact-lookup failures after original effects, one successful baseline"
+    },
+    {
+      "log": "output/issue-654-positive-cleanup-retry-first.log",
+      "sha256": "742d63b3d0e673850c899ddef08797f82ce902c815bef4c0b3fcd2db5e96a672",
+      "meaning": "one positive retry proof failure0.83s; before656 repair"
+    },
+    {
+      "log": "output/issue-654-pending-fence-observer-first.log",
+      "sha256": "a3ececf2d4d2be1a023840ad97501dfc02bc9285b27c50f84482107162602f6b",
+      "meaning": "private release-event assumption fails after stronger explicit pending-reservation fence; replaced with actual lifetime/model-busy/transport-exit controls"
+    },
+    {
+      "log": "output/issue-654-policy-before-entry-first.log",
+      "sha256": "15243f94a1a16d74526c914b1743e43b4ffd576bffa768a145a075e7fc6490ad",
+      "meaning": "one failed in0.61s: unknown rather than irreversible no-dispatch after native policy refusal"
+    },
+    {
+      "log": "output/issue-654-publication-bounds-first.log",
+      "sha256": "3e1a5997cd8ff6241cffd740872b8e551e63251c4149d2ce4df0ea5236521c24",
+      "meaning": "preliminary: two target bounds failures plus one impossible noninteger SQLite primary-key fixture error; not three target failures"
+    },
+    {
+      "log": "output/issue-654-publication-bounds-controlled-first.log",
+      "sha256": "3fae0454429615ebe863bc2fae18b6f605314bf037a8a965b57e208264d5c218",
+      "meaning": "two failed in0.77s:129 ASCII or130 UTF-8 event-ID bytes materialized before validation"
+    }
+  ],
+  "schema_family": {
+    "new": 10,
+    "sha256": "02e12dd7abc249efd3e7d09ebfa11ece050333d1582e04ed8f898699c86a6268",
+    "previous_files_unchanged": 528,
+    "pin_algorithm": "SHA256 of sorted filename + NUL + exact file bytes for each of the ten new schemas"
+  },
+  "frozen_original_assertion_audit": {
+    "original_assertions": 18,
+    "current_assertions": 26,
+    "all_originals_retained": true
+  },
+  "moved_validator_arguments_and_body_unchanged": true,
+  "limits": "synthetic engine/manager with actual ASGI/IPC/SQLite and pinned local environments; no real ASR/mic/physical device/default/installed-owner qualification. NULL durable stream admission remains unknown after controller restart; full623 incomplete."
+}

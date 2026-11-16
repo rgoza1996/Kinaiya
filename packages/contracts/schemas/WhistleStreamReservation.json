@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "whistle_stream_owner_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "broker_instance": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Broker Instance",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "begin",
+        "pcm",
+        "finish",
+        "cancel"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "broker_instance",
+    "phase",
+    "request_sha256"
+  ],
+  "title": "WhistleStreamReservation",
+  "type": "object"
+}
