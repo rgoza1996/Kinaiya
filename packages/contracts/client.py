@@ -294,6 +294,46 @@ class JournalClient:
 
         return await standing_renew(self, request)
 
+    async def journal_wake_cursor(self):
+        from packages.contracts.journal_wake import MAX_BYTES, JournalWakeCursor, wake_json
+
+        return JournalWakeCursor.model_validate(
+            wake_json(
+                await self._owned_metadata(
+                    "GET",
+                    "/v1/transcript/wake",
+                    maximum=MAX_BYTES,
+                    raw=True,
+                )
+            )
+        )
+
+    async def wait_for_journal_change(self, cursor, *, wait_ms=1000):
+        from packages.contracts.journal_wake import (
+            MAX_BYTES,
+            JournalWakeObservation,
+            JournalWakeWait,
+            wake_json,
+        )
+
+        original = JournalWakeWait(
+            schema_version="1.0", protocol="journal_wake_v1", cursor=cursor, wait_ms=wait_ms
+        )
+        observed = JournalWakeObservation.model_validate(
+            wake_json(
+                await self._owned_metadata(
+                    "POST",
+                    "/v1/transcript/wake/wait",
+                    maximum=MAX_BYTES,
+                    raw=True,
+                    json=original.model_dump(mode="json"),
+                )
+            )
+        )
+        if observed.original != original:
+            raise ValueError("Journal wake response changed its original wait")
+        return observed
+
     async def standing_prepare(self, request):
         from packages.contracts.standing_client import standing_prepare
 

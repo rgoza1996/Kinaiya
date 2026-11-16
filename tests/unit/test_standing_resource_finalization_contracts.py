@@ -582,6 +582,8 @@ def schema_pin():
     # #623's five-outcome records have an independent two-file byte pin.
     # Keep the original184 family and its expected digest unchanged.
     additive |= {"LiveWindowLabels", "LiveWindowDecision"}
+    # Passive journal wake metadata has its own three-file export pin.
+    additive |= {"JournalWakeCursor", "JournalWakeWait", "JournalWakeObservation"}
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

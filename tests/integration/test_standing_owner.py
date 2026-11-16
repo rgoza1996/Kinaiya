@@ -229,11 +229,24 @@ def make_store(path):
     connect = sqlite3.connect
 
     def owned_connection(*args, **kwargs):
-        return connect(*args, **{**kwargs, "factory": CommitBoundary})
+        factory = kwargs.pop("factory", sqlite3.Connection)
+        assert isinstance(factory, type) and issubclass(factory, sqlite3.Connection)
+        observed = (
+            CommitBoundary
+            if factory is sqlite3.Connection
+            else type("CommitWakeConnection", (CommitBoundary, factory), {})
+        )
+        return connect(*args, factory=observed, **kwargs)
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(sqlite3, "connect", owned_connection)
-        return Store(path)
+        store = Store(path)
+    assert isinstance(store.db, CommitBoundary)
+    if hasattr(store, "journal_wake"):
+        from services.session.journal_wake import WakeConnection
+
+        assert isinstance(store.db, WakeConnection) and store.db.wake_owner is store.journal_wake
+    return store
 
 
 def controlled_connection(env, request):

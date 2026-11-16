@@ -25,6 +25,7 @@ from packages.contracts import (
     decisions_attempts,
     decisions_models,
     decisions_prompts,
+    journal_wake,
     live_decisions,
     media,
     memory,
@@ -92,6 +93,11 @@ for name in (
     "AgentSteerLookupResult",
 ):
     cls = getattr(agent_control, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+# Journal wake hints are separate from transcript/publication schemas.
+for name in ("JournalWakeCursor", "JournalWakeWait", "JournalWakeObservation"):
+    cls = getattr(journal_wake, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Five-outcome labels/bindings never change the frozen four-outcome v1 models.
