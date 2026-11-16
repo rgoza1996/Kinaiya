@@ -1,0 +1,193 @@
+{
+  "issue": 623,
+  "base": "e292691c4f4ac0d06592b322cf00e8cab4e2be4a",
+  "parent_pr": 657,
+  "status": "classification/provider increment qualified locally; exact-head hosted CI pending; Adaptive Live off",
+  "schema_family": {
+    "new": 2,
+    "previous_files_unchanged": 538,
+    "sha256": "2ada5c0bd32a3700e477a48b28b63f8a15470d04a040a01d4991871961f08692",
+    "algorithm": "SHA256 of sorted filename + NUL + exact bytes per new schema"
+  },
+  "checks": [
+    {
+      "base": "e292691c4f4ac0d06592b322cf00e8cab4e2be4a",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "tests/integration/test_live_window_contract.py"
+      ],
+      "exit_code": 0,
+      "seconds": 5.58,
+      "inputs": 849,
+      "changed_inputs": [],
+      "log_sha256": "44e235c349cb57cc846ad73b398af402f9c1a09191edc663fce94611ae495b7d",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "input_manifest_sha256": "f5ca9b88f5d88471cf719add25bfea23f5d83e3f2edc3f3de22c60665be9a290",
+      "result": "64 passed in 5.24s",
+      "receipt": "output/issue-623-live-v2-final-focused313-receipt.json",
+      "log": "output/issue-623-live-v2-final-focused313.log"
+    },
+    {
+      "base": "e292691c4f4ac0d06592b322cf00e8cab4e2be4a",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "tests/integration/test_live_window_contract.py"
+      ],
+      "exit_code": 0,
+      "seconds": 5.85,
+      "inputs": 849,
+      "changed_inputs": [],
+      "log_sha256": "7a61632d172b65ade9d19752ab896aca05a65d3d2e47175967f93bcca26582ad",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "input_manifest_sha256": "f5ca9b88f5d88471cf719add25bfea23f5d83e3f2edc3f3de22c60665be9a290",
+      "result": "64 passed in 5.48s",
+      "receipt": "output/issue-623-live-v2-final-focused314-receipt.json",
+      "log": "output/issue-623-live-v2-final-focused314.log"
+    },
+    {
+      "base": "e292691c4f4ac0d06592b322cf00e8cab4e2be4a",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-m",
+        "not live",
+        "tests/contract/test_decisions_trace_contracts.py",
+        "tests/contracts/test_native_d1_protocol_provenance.py",
+        "tests/integration/test_compatible_decisions_refusal.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_decisions_finalized_refusal.py",
+        "tests/integration/test_decisions_finalized_refusal_recovery.py",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_decisions_low_confidence.py",
+        "tests/integration/test_decisions_native_attempts.py",
+        "tests/integration/test_decisions_selection_capture_unknown.py",
+        "tests/integration/test_decisions_task_descriptions.py",
+        "tests/integration/test_decisions_task_status_context.py",
+        "tests/integration/test_decisions_typed_disclosure.py",
+        "tests/integration/test_laya_decisions.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_managed_laya_launcher.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/integration/test_openrouter_decisions_selection.py",
+        "tests/integration/test_required_decisions_readiness.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_window_bound_refusal.py",
+        "tests/integration/test_window_cache_identity.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_decisions_d1_overflow_evidence.py",
+        "tests/unit/test_decisions_local_d1_evidence.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_decisions_model_screen.py",
+        "tests/unit/test_decisions_prompt_config.py",
+        "tests/unit/test_independent_decisions_modes.py",
+        "tests/unit/test_laya_artifact.py",
+        "tests/unit/test_laya_provider.py",
+        "tests/unit/test_managed_laya.py",
+        "tests/unit/test_native_d1_catalog_numbers.py",
+        "tests/unit/test_native_d1_provider.py",
+        "tests/unit/test_openrouter_decisions_provider.py",
+        "tests/unit/test_required_decisions.py"
+      ],
+      "exit_code": 0,
+      "seconds": 214.27,
+      "inputs": 849,
+      "changed_inputs": [],
+      "log_sha256": "546baf9ca4906f0c25302c4925fcc38ff3303b4a89e46f8acd855aec9b6b8d16",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "input_manifest_sha256": "f5ca9b88f5d88471cf719add25bfea23f5d83e3f2edc3f3de22c60665be9a290",
+      "result": "1221 passed, one existing Starlette warning in 213.30s",
+      "receipt": "output/issue-623-live-v2-final-broad-receipt.json",
+      "log": "output/issue-623-live-v2-final-broad.log"
+    }
+  ],
+  "first_failures": [
+    {
+      "log": "output/issue-623-live-v2-first.log",
+      "sha256": "92118185726150b0a51d724a394b758484d15cf08c0973dfa0cccf12a08483bc",
+      "meaning": "49 setup errors: missing required synthetic Task idempotency_key; not target mechanism"
+    },
+    {
+      "log": "output/issue-623-live-v2-controlled-first.log",
+      "sha256": "ce652f1b8d250055264d2972e63408ac1db7bc659236e4cd384846422caf62fb",
+      "meaning": "15 fixture observations/errors, 34 passed: deque/list comparison and missing required NativeD1 min_confidence; not model/provider policy evidence"
+    },
+    {
+      "log": "output/issue-623-live-v2-target-first.log",
+      "sha256": "021e3cc81a69b6bf90b1baa9b1b29b23354a33f976ab6ceee1a457e9282ec9da",
+      "meaning": "two target/revision-binding failures, nine passed in1.18s; no refusal from the in-progress v2 path"
+    }
+  ],
+  "source_sha256": {
+    "docs/evidence/live-window-contract-v2-2026-11-16/README.md": "60e2b91b1c572f80da300b6ce39144ca3fb5e5e50cba00e4a72ae399acc1074f",
+    "docs/evidence/live-window-contract-v2-2026-11-16/first-target-control.py.txt": "2da3a34ed0b62d57ba82bbd7f611c1e8c28d6bdf381d850cea0ee1d58088ecca",
+    "docs/live-window-contract-v2.md": "ef5fc4847690f76cd1b0053e86fa74ac8bccc8147f10880491cb60332b4d1ab9",
+    "packages/contracts/live_decisions.py": "0110b9ac5a6c29714d3abd2950bb7729de207e51d754964e0fafeb6d56e8669e",
+    "packages/contracts/schemas/LiveWindowDecision.json": "5548af709ad5256db8e584afffa132bdf4e1dd46600f75346eb47b0575d7b8cb",
+    "packages/contracts/schemas/LiveWindowLabels.json": "381f4e9ce87bb1e37f4bea6522c9be18ecbad1ee1dd9012f992e87e3e8a9c996",
+    "packages/providers/laya.py": "7a9778815a15b343e63e766c3424be7c40fcd6df12bcaa0dce1fdd2b28dadc7e",
+    "packages/providers/native_d1.py": "ae2a19dec9d0b230f0edd36ae497863030638c1727f7456deaefb0491ec702f5",
+    "packages/providers/openrouter_decisions.py": "efee32c3970c25af74d2e7c691be5778c98d1a692cb6b2c227c9ad9acfd36e4a",
+    "scripts/export_contracts.py": "2d8a711e58735be976225ff7b9b7d69c2a84ab3c95ece25a163624d8c34dccf6",
+    "services/decisions/prompts.py": "82273a96a8f191c449799be45ee87bb27e370a8f5a8c9e9d3342dd192f08f55e",
+    "services/decisions/window_routing.py": "0c643fd6c1362d50d3017f3e15218cd2ef80ebc292def08c8c78906f19db3419",
+    "services/decisions/window_worker.py": "a79a6aca86f11b8de361fb4b17e0770e182fe7c687faf6a7a7eaa07ca0aa8257",
+    "tests/integration/test_live_window_contract.py": "899b6626d41df5541579eaa4900ff872227ab418a3a2c660dfb9598b04c5c058"
+  },
+  "static_checks": [
+    {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "result": "All checks passed"
+    },
+    {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "result": "1114 files already formatted"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "result": "passed"
+    },
+    {
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "scripts/export_contracts.py"
+      ],
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
+      "result": "two additive schemas, all538previousfilesbyteidentical"
+    }
+  ]
+}

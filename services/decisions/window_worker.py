@@ -66,6 +66,8 @@ class WindowDecisionsWorker:
         max_age=60,
         model_settings=None,
     ):
+        if getattr(classifier, "window_contract_version", 1) != 1:
+            raise ValueError("Rolling Windows worker requires window contract1.0")
         self.journal, self.agent, self.classifier = journal, agent, classifier
         if type(timeout) not in (int, float) or not 0.1 <= timeout <= 30:
             raise ValueError("Window classification timeout must be .1..30 seconds")

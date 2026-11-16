@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "conversation": {
+      "enum": [
+        "IGNORE",
+        "WAIT_FOR_NEXT_WINDOW",
+        "RESPOND_INTERRUPT_USER",
+        "RESPOND_WITHOUT_INTERRUPTING_USER",
+        "WAIT_WITH_BACKCHANNEL"
+      ],
+      "title": "Conversation",
+      "type": "string"
+    },
+    "agent_route": {
+      "enum": [
+        "IGNORE_FOR_IMMEDIATE_ROUTING",
+        "STEER_CURRENT_TASK",
+        "INTERRUPT_CURRENT_TASK",
+        "QUEUE_UNTIL_TASK_DONE"
+      ],
+      "title": "Agent Route",
+      "type": "string"
+    },
+    "target_task_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Target Task Id"
+    },
+    "expected_objective_revision": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Expected Objective Revision"
+    },
+    "reason_code": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Reason Code",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "conversation",
+    "agent_route",
+    "target_task_id",
+    "expected_objective_revision",
+    "reason_code"
+  ],
+  "title": "LiveWindowLabels",
+  "type": "object"
+}

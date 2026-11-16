@@ -51,6 +51,17 @@ FINAL_ROUTE_LABELS = ["ignore", "queue", "steer", "interrupt"]
 CONVERSATION_CHOICES = dict(
     zip(["backchannel", "unfinished", "urgent", "ready"], WINDOW_CONVERSATION_LABELS, strict=True)
 )
+
+
+def _conversation_choices(state):
+    # The historical "backchannel" ID means IGNORE. Never repurpose it.
+    return CONVERSATION_CHOICES | (
+        {"acknowledge": "WAIT_WITH_BACKCHANNEL"}
+        if state.get("window_contract_version") == 2
+        else {}
+    )
+
+
 AGENT_CHOICES = dict(
     zip(
         ["conversation", "correction", "cancellation", "new_task"], WINDOW_AGENT_LABELS, strict=True
@@ -113,7 +124,9 @@ def _terminal_task_history(value):
     return rows
 
 
-def _window_questions(tasks: list) -> dict:
+def _window_questions(tasks: list, *, window_contract_version=1) -> dict:
+    if type(window_contract_version) is not int or window_contract_version not in {1, 2}:
+        raise ProviderRefusal("Unsupported Decisions window contract")
     questions = {
         "conversation": _choice_question(
             "Choose companion timing under the supplied classifier system instructions.",
@@ -153,6 +166,11 @@ def _window_questions(tasks: list) -> dict:
             ],
         ),
     }
+    if window_contract_version == 2:
+        questions["conversation"]["criteria"]["acknowledge"] = (
+            "Continue listening and permit an optional short Converse acknowledgment; "
+            "do not end capture or request a full reply."
+        )
     if tasks:
         questions["target"] = _target_choices_with_tasks(tasks)
     return questions
@@ -371,7 +389,9 @@ class LayaRoutingProvider:
 
         state, mode = self._parse_messages(messages)
         if mode == "window":
-            questions = _window_questions(state["tasks"])
+            questions = _window_questions(
+                state["tasks"], window_contract_version=state.get("window_contract_version", 1)
+            )
         else:
             questions = _finalized_questions(state["tasks"])
         body = {
@@ -546,6 +566,12 @@ class LayaRoutingProvider:
             "latest": trimmed_latest,
             "tasks": trimmed_tasks,
         }
+        if "window_contract_version" in obj:
+            version = obj["window_contract_version"]
+            if mode != "window" or type(version) is not int or version not in {1, 2}:
+                raise ProviderRefusal("Unsupported Decisions window contract")
+            if version == 2:
+                state["window_contract_version"] = version
         if "task_history" in obj:
             if mode != "window":
                 raise ProviderRefusal("Terminal task observations require a window request")
@@ -573,7 +599,7 @@ class LayaRoutingProvider:
                 raise ProviderRefusal("Laya decisions response was malformed")
         allowed: dict = {}
         if mode == "window":
-            allowed["conversation"] = list(CONVERSATION_CHOICES)
+            allowed["conversation"] = list(_conversation_choices(state))
             allowed["agent_route"] = list(AGENT_CHOICES)
         else:
             allowed["route"] = list(FINAL_CHOICES)
@@ -637,7 +663,8 @@ class LayaRoutingProvider:
             if picked["agent_route"] == "conversation":
                 target_id = target_rev = None
             return {
-                "conversation": CONVERSATION_CHOICES[picked["conversation"]],
+                **({"schema_version": "2.0"} if state.get("window_contract_version") == 2 else {}),
+                "conversation": _conversation_choices(state)[picked["conversation"]],
                 "agent_route": AGENT_CHOICES[picked["agent_route"]],
                 "target_task_id": target_id,
                 "expected_objective_revision": target_rev,
