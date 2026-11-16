@@ -1,0 +1,90 @@
+{
+  "issue": 648,
+  "baseline": "aadb88cb49c9525662b07c64e2d6e8500ed96de4",
+  "hosted_first": {
+    "run": 43833804297,
+    "job": 133185310095,
+    "python": "3.14.10",
+    "failed": 3,
+    "passed": 15055,
+    "skipped": 9,
+    "deselected": 49,
+    "warnings": 1,
+    "subtests": 2,
+    "seconds": 3239.85,
+    "historical_pre_timeout_phase": "not established"
+  },
+  "controlled_first": {
+    "python": "3.13.18",
+    "failed": 1,
+    "seconds": 17.78,
+    "mechanism": "Forty legal 400ms provider calls exceed the fixed aggregate15s observer before the intended final provider phase"
+  },
+  "change": "Test observer only: retain15s no-progress bound per actual original provider entry, at most41 entries; detect original worker completion before target; never cancel/replace native worker through observer",
+  "production_source_changed": false,
+  "native_deadlines_changed": false,
+  "all_original_function_assertion_asts_preserved": true,
+  "original_functions_audited": 7,
+  "command": [
+    "python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/integration/test_standing_cancel_phase_observer.py",
+    "tests/integration/test_standing_bounded_outcomes.py"
+  ],
+  "results": [
+    {
+      "python": "3.13.18",
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 148.53
+    },
+    {
+      "python": "3.14.10",
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 147.25
+    }
+  ],
+  "dev_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+  "python314_setup": {
+    "qualified_environment": "output/issue-648-python314-mainlock-venv",
+    "pip_check": "No broken requirements found",
+    "initial_setup_mistake": "output/issue-648-python314-venv used owner checkout old lock ddff9f41791fe932e890f5fbbf0cfd90857031ed79a40a24a13cfcbdf39ac129; no tests run there; rebuilt a fresh environment from current branch lock before3.14 checks",
+    "install": "stdlib venv, unchanged --require-hashes --only-binary=:all: current requirements-dev.lock, public PyPI; no global upgrades"
+  },
+  "logs": {
+    "job-133185310095.log": {
+      "sha256": "569072d078e237177c152444d9f3322da03dc36eaeccdd81e146c27ee4265d8e",
+      "size_bytes": 96688,
+      "last_line": "2026-11-16T09:40:17.5568796Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+    },
+    "issue-648-controlled-first.log": {
+      "sha256": "a9a21495e39dcd0faf858ff70b2240dee9f38ac5f9dd035d2e4c4bbd70a509fc",
+      "size_bytes": 5477,
+      "last_line": "1 failed in 17.78s"
+    },
+    "issue-648-native-after313.log": {
+      "sha256": "c6ff42bdd6bec2c352c4912554e602c0bd79e6ed81ed9a945b652653378141eb",
+      "size_bytes": 111,
+      "last_line": "15 passed in 148.53s (0:02:28)"
+    },
+    "issue-648-native-after314.log": {
+      "sha256": "7035a3cb808609c67cb271b0d5a53c645dc8d8b551e897c5cae4801b54d17bf8",
+      "size_bytes": 111,
+      "last_line": "15 passed in 147.25s (0:02:27)"
+    }
+  },
+  "source": {
+    "tests/integration/test_standing_bounded_outcomes.py": "e141c0bbdf5e731408b26b62ba9c12b32a59e56c8a0262144dc892125e398784",
+    "tests/integration/test_standing_cancel_phase_observer.py": "cf47b2c6c76bffe45d7470c802d931ea6a5324399f92a3bd9909a86ceb3728cd"
+  },
+  "limitations": [
+    "Historical hosted native phase remains unproven; new observer reports early native terminal state rather than masking it with an aggregate timer",
+    "No model quality, live service, historical replay or owner deployment",
+    "Fresh exact-head hosted checks remain required"
+  ]
+}

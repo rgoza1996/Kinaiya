@@ -57,8 +57,11 @@ def script(monkeypatch, state, *, reads=READS):
             )
         )
         self.final_entered, self.final_release = asyncio.Event(), asyncio.Event()
+        self.model_progress, self.model_entered = asyncio.Event(), 0
 
     async def complete(self, messages):
+        self.model_entered += 1
+        self.model_progress.set()
         if state == "cancelled" and len(self.calls) == reads:
             self.final_entered.set()
             await self.final_release.wait()
@@ -66,6 +69,36 @@ def script(monkeypatch, state, *, reads=READS):
 
     monkeypatch.setattr(MeasuredFiles, "__init__", initialize)
     monkeypatch.setattr(MeasuredFiles, "complete", complete)
+
+
+async def wait_for_cancel_phase(value, reads, *, stall_timeout=15):
+    """Observe bounded original progress, never a replacement or model result."""
+    provider, worker = value.made[0], value.record.worker
+    observed = 0
+    while not provider.final_entered.is_set():
+        provider.model_progress.clear()
+        entered = provider.model_entered
+        assert observed <= entered <= reads + 1, "Unexpected original provider phase count"
+        observed = entered
+        if worker.done():
+            raise AssertionError(
+                "Original worker ended before intended cancellation phase: "
+                f"provider_entries={entered}, worker_cancelled={worker.cancelled()}"
+            )
+        observer = asyncio.create_task(provider.model_progress.wait())
+        try:
+            done, _ = await asyncio.wait(
+                {observer, worker}, timeout=stall_timeout, return_when=asyncio.FIRST_COMPLETED
+            )
+            if not done and provider.model_entered == observed:
+                raise TimeoutError(
+                    f"Original worker made no provider-phase progress: entries={observed}"
+                )
+        finally:
+            # Retire only this observer. Timeout/cancellation cannot cancel or
+            # replace the original worker or establish its physical cleanup.
+            observer.cancel()
+            await asyncio.gather(observer, return_exceptions=True)
 
 
 async def execute(stack, monkeypatch, state, mode, *, reads=READS):
@@ -93,7 +126,7 @@ async def execute(stack, monkeypatch, state, mode, *, reads=READS):
     admission = await submit(value)
     assert admission.disposition == "created"
     if state == "cancelled":
-        await asyncio.wait_for(value.made[0].final_entered.wait(), 15)
+        await wait_for_cancel_phase(value, reads)
         await value.runtime.interrupt(
             value.task_id,
             InterruptRequest(expected_objective_revision=1, idempotency_key="public-stop"),
