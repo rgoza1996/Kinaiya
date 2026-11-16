@@ -97,7 +97,7 @@ Initial versions, verified against upstream downloads:
 | --- | --- |
 | Actions runner | 2.338.2; official archive SHA-256 in `install-runner.sh`; automatic updates enabled |
 | uv | 0.11.26; architecture-specific official SHA-256 in `install-tooling.sh` |
-| Python | Official `actions/python-versions` Ubuntu 24.04 builds for both architectures: 3.11.18 / 3.12.16 / 3.14.10, SHA-256 in `python-builds.json`; isolated per-job environments and hashed dependency lock |
+| Python | Official `actions/python-versions` Ubuntu 24.04 builds for both architectures: 3.11.18 / 3.12.16 / 3.13.18 / 3.14.10, SHA-256 in `python-builds.json`; isolated per-job environments and hashed dependency lock |
 | Flutter | Existing 3.47.8 tag, exact `737ba8f885dc774b53b442759999a312c9461e4e` commit |
 | Dell JDK | Temurin 17.0.21+9, private `home/jdk17` |
 | Dell Android | Command tools 15859902, platform/build-tools 36, NDK 28.2.13676358, private `home/android-sdk` |
@@ -128,8 +128,8 @@ Native runs stop at the first failing test and print a short trace immediately;
 a failing or canceled run is never counted as a completed suite.
 Manual `suite=full` dispatches can select `python=3.12` and
 `architecture=arm64` (or `x64`) to requalify one complete pair. Defaults remain
-all three versions on both native hosts; main pushes and PR checks retain their
-complete existing matrices. This selects jobs, never a smaller test subset.
+all configured versions on both native hosts; main pushes and PR checks retain
+their complete matrices. This selects jobs, never a smaller test subset.
 Selecting a Python/architecture pair skips the mobile/web build jobs; use the
 default full dispatch for every build, `suite=flutter` for Flutter/Dart/Session
 and web qualification, or `suite=android` for Android alone. Scope, capacity and
@@ -155,6 +155,29 @@ script changes and restarts only the dedicated CI unit. The service umask stays
 0077. Fixtures that deliberately create insecure credentials set0644 explicitly.
 The Python/Dart live Session integration runs with the x64 Flutter job and its
 actual SDK; Python-only jobs report that SDK-dependent case skipped.
+
+### Python 3.13 qualification stage (#624)
+
+The additive qualification matrix temporarily contains 3.11, 3.12, 3.13 and
+3.14. The added 3.13 lane runs the same full non-live suite, locked install,
+native sandbox, export and audit checks. A manual `suite=full`, `python=3.13`
+dispatch can select either native architecture through the existing main-only
+admission policy. No runner policy, isolation, privilege, timeout or test
+subset changes are needed to introduce that lane.
+
+Both Ubuntu 24.04 architecture pins come from the official
+[3.13.18 upstream build release](https://github.com/actions/python-versions/releases/tag/3.13.18-40336726450),
+cross-checked against its `hashes.sha256` and published asset digests. The
+existing relocation and actual kernel-seal probes apply unchanged. The 3.11,
+3.12 and 3.14 archives retain their previous pins.
+
+This stage does not retire 3.11 or raise the application minimum. Those changes
+remain unmerged until the complete intended 3.12/3.13/3.14 target qualification
+is established, including ARM64 and x64, native wheels/packaging/sandbox and a
+meaningful Ubuntu 24.04 baseline. Known native failures retain their issues;
+passing a local interpreter probe or a hosted job does not erase them. See the
+[qualification record](python-313-qualification.md). No historical evaluation
+environment is counted as application qualification.
 
 Whistle's pinned syscall fence currently supports Linux x86_64 only. Its real
 physical-finalization fixture uses the same existing architecture availability
