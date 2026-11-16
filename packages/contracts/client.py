@@ -294,6 +294,21 @@ class JournalClient:
 
         return await standing_renew(self, request)
 
+    async def publish_live_window(self, original):
+        from packages.contracts.live_window_client import publish
+
+        return await publish(self, original)
+
+    async def lookup_live_window(self, reference):
+        from packages.contracts.live_window_client import lookup
+
+        return await lookup(self, reference)
+
+    async def latest_live_window(self, scope):
+        from packages.contracts.live_window_client import latest
+
+        return await latest(self, scope)
+
     async def journal_wake_cursor(self):
         from packages.contracts.journal_wake import MAX_BYTES, JournalWakeCursor, wake_json
 

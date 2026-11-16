@@ -1,0 +1,268 @@
+{
+  "issue": 623,
+  "status": "locally qualified native journal increment:116focusedchecks on each313/314;57currentlegacyregressions;714broader/86streamchecks on pre-HTTP-error-mapping source;exact-head CI pending;AdaptiveLiveoff",
+  "parent": "73b73c5a5c34694eb76e2006f25c0090ecb98974",
+  "environment": {
+    "python313": "3.13.18",
+    "python314": "3.14.10",
+    "dev_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "dependency_changes": false
+  },
+  "checks": {
+    "first_native_columns": {
+      "utc": "2026-11-16T16:52:04.798835+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_window_publication.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 1,
+      "elapsed": 2.209120054001687,
+      "input_count": 858,
+      "inputs_unchanged": true,
+      "log_sha256": "09c454a8b4265de9b84e1af9a09927cfe0262107848d9504ed72983af1068b9b",
+      "input_manifest_sha256": "f6d73f348f58bc7058103bd4c527e2240dc7caef17825c3cb5aa17b7f314376a",
+      "retained_local_receipt": "output/issue-623-live-publication-first-receipt.json"
+    },
+    "first_client_mutation": {
+      "utc": "2026-11-16T16:56:51.464994+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 1,
+      "elapsed": 10.991056886996375,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "5c89a525163bda82a9a6b2c7c4bf1ef008210168749936fa2424c4875dacf4b6",
+      "input_manifest_sha256": "5e037b75c98b2805b8d9fb23e831da2eb1406a9430365e15a2087d971fcba136",
+      "retained_local_receipt": "output/issue-623-live-publication-ownership-first-receipt.json"
+    },
+    "first_v1_fence": {
+      "utc": "2026-11-16T16:58:36.837817+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_window_publication.py::test_native_v1_publication_cannot_claim_a_live_v2_source",
+        "tests/integration/test_live_window_publication.py::test_changed_native_stt_identity_advances_without_semantic_rewriting",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 1,
+      "elapsed": 0.7583681760006584,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "2cf5a251bf42c79e43806b748427f53e2a99573966b2c9623fa07c2e001424e8",
+      "input_manifest_sha256": "f0a99fd15d1c18f2d539c7d856133433bdfb47ee6a1e396f95bcb65f06a2f318",
+      "retained_local_receipt": "output/issue-623-live-publication-v1-fence-first-receipt.json"
+    },
+    "focused_python313": {
+      "utc": "2026-11-16T17:07:54.227763+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 0,
+      "elapsed": 15.141404679998232,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "7b7f57eedd039bca9609e1eb9bc49b0b1171089945c2385398f0db42b9eae6cb",
+      "input_manifest_sha256": "e2859a968b1ca9fddbfd5473c8847327e1736e749be494336e07cb7a321e3356",
+      "retained_local_receipt": "output/issue-623-live-publication-qualified-313-receipt.json"
+    },
+    "focused_python314": {
+      "utc": "2026-11-16T17:07:55.301174+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 0,
+      "elapsed": 15.118929502001265,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "2321efbc8990969699aeb5364481fb9daed097310787ac01d2ba72c99a754c72",
+      "input_manifest_sha256": "e2859a968b1ca9fddbfd5473c8847327e1736e749be494336e07cb7a321e3356",
+      "retained_local_receipt": "output/issue-623-live-publication-qualified-314-receipt.json"
+    },
+    "incremental_stream_regression": {
+      "utc": "2026-11-16T17:02:04.451024+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/unit/test_whistle_streaming_broker.py",
+        "tests/unit/test_whistle_stream_backend.py",
+        "tests/unit/test_whistle_stream_owner_contracts.py",
+        "tests/integration/test_incremental_stream_transport_cleanup.py",
+        "tests/integration/test_incremental_stream_ownership.py",
+        "tests/integration/test_whistle_stream_cleanup_retry.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/integration/test_whistle_stream_originals.py",
+        "tests/integration/test_incremental_stream_no_dispatch.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 0,
+      "elapsed": 7.165526453994971,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "3055bdf5a47365b20e40df97d2bf03791ad313267bd753662b697050c2c755fc",
+      "input_manifest_sha256": "0423ecb1bd4a75ea7d45be1c9cca977352374ba90b09a7576d2f9dbffdf90ed4",
+      "retained_local_receipt": "output/issue-623-live-publication-stream-regression-receipt.json"
+    },
+    "broader_regression_before_http_error_mapping": {
+      "utc": "2026-11-16T17:06:10.023572+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_session.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_http.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_window_cache_identity.py",
+        "tests/integration/test_window_bound_refusal.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/integration/test_session_media_owner.py",
+        "tests/integration/test_session_media_lifecycle_guards.py",
+        "tests/integration/test_session_media_fresh_parse_audit.py",
+        "tests/integration/test_session_media_missing_runtime.py",
+        "tests/integration/test_session_media_audit_scope.py",
+        "tests/unit/test_media_session_contracts.py",
+        "tests/unit/test_journal_wake_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 0,
+      "elapsed": 409.9934822139985,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "d4e6ea765861eb26a872c50311b540eeef7503b2804bd7f230bceccc4f76e1e0",
+      "input_manifest_sha256": "0423ecb1bd4a75ea7d45be1c9cca977352374ba90b09a7576d2f9dbffdf90ed4",
+      "retained_local_receipt": "output/issue-623-live-publication-regression-receipt.json"
+    },
+    "first_http_refusal_boundary": {
+      "utc": "2026-11-16T17:06:42.854362+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_window_publication_http.py::test_legacy_http_boundary_reports_native_refusal_without_server_error",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 1,
+      "elapsed": 1.7990830940034357,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "18d21a58c1f9ef402908fbbce37f54e050e89aa1a0472286c50c430c649bbb07",
+      "input_manifest_sha256": "5507301040c354a93800b189d78dc463d7b6c064f2ea75576b733c3dde41f812",
+      "retained_local_receipt": "output/issue-623-live-publication-http-refusal-first-receipt.json"
+    },
+    "current_legacy_regression": {
+      "utc": "2026-11-16T17:09:01.444060+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_session.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_http.py",
+        "tests/integration/test_window_cache_identity.py",
+        "tests/integration/test_window_bound_refusal.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-publication-623",
+      "exit_code": 0,
+      "elapsed": 9.497191275004297,
+      "input_count": 862,
+      "inputs_unchanged": true,
+      "log_sha256": "840b307e6f23d87b0aec6b772806eb029c5b6ec3bf7066e82967c0a030e28e3e",
+      "input_manifest_sha256": "e2859a968b1ca9fddbfd5473c8847327e1736e749be494336e07cb7a321e3356",
+      "retained_local_receipt": "output/issue-623-live-publication-final-legacy-regression-receipt.json"
+    }
+  },
+  "schemas": {
+    "old_files": 543,
+    "old_unchanged": true,
+    "new_names": [
+      "LiveWindowCandidate.json",
+      "LiveWindowCapture.json",
+      "LiveWindowPublication.json",
+      "LiveWindowPublicationProof.json",
+      "LiveWindowPublicationRef.json",
+      "LiveWindowPublicationState.json",
+      "LiveWindowScope.json"
+    ],
+    "family_sha256": "cbc638d762e21642e40d331b0460c6d99d481ccc72444f868a39dc1a36a3b3b2",
+    "old_manifest_sha256": "5e70b04db1df09d3fbd3c5c1a50a92e0a0eb41d626f6c7b3c71c2acf4fd9bd08"
+  },
+  "known_limits": [
+    "Adaptive Live off; no capture/worker/playback/default enabled",
+    "All HTTP/model/audio fixtures synthetic; no physical-device, ASR or model-quality qualification",
+    "Missing receipt remains unknown, not a no-write fence",
+    "V2 decision publication/consumption, completion scheduling/coalescing, segment rollover, backchannel/echo/mute and rollout remain"
+  ],
+  "tracker_comments": [
+    6922993820,
+    6923111331,
+    6923156816,
+    6923374190
+  ],
+  "changes_after_broader_regression": [
+    "tests/integration/test_live_window_publication_http.py",
+    "services/session/store.py",
+    "services/session/live_windows.py"
+  ],
+  "static_checks": {
+    "commands": [
+      "git diff --check",
+      "python -m ruff check packages services tests scripts",
+      "python -m ruff format --check packages services tests scripts"
+    ],
+    "results": [
+      "pass",
+      "All checks passed",
+      "854 files already formatted"
+    ]
+  }
+}

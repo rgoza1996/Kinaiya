@@ -275,6 +275,9 @@ def create_app(
     from services.session.journal_wake_api import install_journal_wake
 
     install_journal_wake(app, store, auth)
+    from services.session.live_window_api import install_live_windows
+
+    install_live_windows(app, store, auth)
     from services.settings.subsystem_api import router as subsystem_router
 
     app.include_router(subsystem_router(subsystem_settings, auth))

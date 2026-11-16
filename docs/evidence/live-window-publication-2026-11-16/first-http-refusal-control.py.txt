@@ -1,0 +1,41 @@
+# Frozen first control; helpers are in tests/integration/test_live_window_publication*.py.
+
+@pytest.mark.parametrize("case", ["malformed", "legacy-append", "legacy-decision"])
+async def test_legacy_http_boundary_reports_native_refusal_without_server_error(env, wire, case):
+    from packages.contracts.models import WindowDecision
+    from services.session.live_windows import publish
+
+    auth, _ = wire
+    transport = httpx.ASGITransport(app=create_app(env.store, auth), raise_app_exceptions=False)
+    request = original(env)
+    if case == "malformed":
+        data = request.request.model_dump(mode="json")
+        data["payload"]["window_index"] = True
+        role = "converse"
+    else:
+        source = publish(env.store, request).source
+        if case == "legacy-append":
+            data = original(env, 1).request.model_dump(mode="json")
+            role = "converse"
+        else:
+            data = request.request.model_dump(mode="json") | {
+                "kind": "routing.window_decided",
+                "payload": WindowDecision(
+                    source_event_id=source.event_id,
+                    source_sequence=source.sequence,
+                    source_revision=1,
+                    conversation="IGNORE",
+                    agent_route="IGNORE_FOR_IMMEDIATE_ROUTING",
+                ).model_dump(mode="json"),
+                "causes": [source.event_id],
+                "idempotency_key": "public-legacy-wire-attempt",
+            }
+            role = "decisions"
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://session.local",
+        headers={"Authorization": "Bearer " + auth.tokens[role]},
+    ) as client:
+        response = await client.post("/v1/transcript/entries", json=data)
+    assert response.status_code == 409
+    assert response.json()["detail"]

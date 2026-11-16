@@ -27,6 +27,7 @@ from packages.contracts import (
     decisions_prompts,
     journal_wake,
     live_decisions,
+    live_windows,
     media,
     memory,
     memory_catalog,
@@ -103,6 +104,19 @@ for name in ("JournalWakeCursor", "JournalWakeWait", "JournalWakeObservation"):
 # Five-outcome labels/bindings never change the frozen four-outcome v1 models.
 for name in ("LiveWindowLabels", "LiveWindowDecision"):
     cls = getattr(live_decisions, name)
+    (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+# Atomic source/capture pairs have their own version, without changing v1 transcript bytes.
+for name in (
+    "LiveWindowPublication",
+    "LiveWindowPublicationRef",
+    "LiveWindowScope",
+    "LiveWindowCapture",
+    "LiveWindowPublicationProof",
+    "LiveWindowPublicationState",
+    "LiveWindowCandidate",
+):
+    cls = getattr(live_windows, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
 
 # Owner policy requests are strict frozen models, separate from journal events.

@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "live_window_publication_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "utterance_id": {
+      "pattern": "^[A-Za-z0-9_-]{1,128}$",
+      "title": "Utterance Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "session_id",
+    "thread_id",
+    "epoch",
+    "utterance_id"
+  ],
+  "title": "LiveWindowScope",
+  "type": "object"
+}

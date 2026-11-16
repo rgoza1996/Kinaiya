@@ -50,6 +50,12 @@ speech. Preserve the independent Agent routing axis and native permissions.
 An old four-outcome provider remains explicitly Rolling-Windows-compatible;
 unsupported contracts must refuse rather than misparse or silently downgrade.
 
+The [native live publication contract](live-window-publication.md) atomically
+pairs the unchanged transcript with a separate v2 capture annotation and retains
+the original eligible source across identical raw snapshots. It provides source
+partitioning and positive-only original lookup; it does not enable the future
+completion-driven worker or microphone path.
+
 Only fresh eligible transcript or speaking/capture-state changes can admit new
 Adaptive inference. Persisted duplicate hypotheses do not spin the worker.
 Keep one in-flight inference per worker by default, coalesce pending work to the
