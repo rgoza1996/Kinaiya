@@ -22,6 +22,7 @@ from packages.providers.decision_capture import (
 from packages.providers.disclosure import combine_scopes, source_scope
 from packages.providers.text import ProviderError, ProviderRefusal
 from services.decisions.prompts import prompt_stamp
+from services.decisions.window_context import hypothesis, resolve_window_context
 from services.decisions.window_routing import (
     MAX_TASK_HISTORY,
     MAX_TASK_HISTORY_SOURCES,
@@ -40,17 +41,6 @@ RETRY_DELAY = 0.35
 
 class JournalUnavailable(Exception):
     """Native journal failures are not terminal classifier dispositions."""
-
-
-def hypothesis(entry):
-    window = SpeechWindow.model_validate(entry.payload)
-    return (
-        window.text,
-        window.user_speaking,
-        window.capture_ended,
-        window.revision,
-        window.content_scope,
-    )
 
 
 class WindowDecisionsWorker:
@@ -174,89 +164,9 @@ class WindowDecisionsWorker:
         return updated, SpeechWindow.model_validate(updated.payload)
 
     async def _resolve_context(self, source, window, recent):
-        has_resolver = (
-            hasattr(self.journal, "entry")
-            and hasattr(self.journal, "resolve")
-            and hasattr(self.journal, "read")
+        return await resolve_window_context(
+            self.journal, source, window, recent, unavailable=JournalUnavailable
         )
-        revised_targets = {
-            e.payload.get("target_event_id")
-            for e in recent
-            if e.epoch == source.epoch
-            and e.thread_id == source.thread_id
-            and e.kind == "conversation.revision"
-            and isinstance(e.payload, dict)
-        }
-        window_slot_counts = {}
-        for e in recent:
-            if (
-                e.epoch == source.epoch
-                and e.thread_id == source.thread_id
-                and e.kind == "conversation.window"
-                and isinstance(e.payload, dict)
-            ):
-                slot = (e.payload.get("utterance_id"), e.payload.get("window_index"))
-                window_slot_counts[slot] = window_slot_counts.get(slot, 0) + 1
-
-        candidates = [
-            e
-            for e in recent
-            if e.epoch == source.epoch
-            and e.thread_id == source.thread_id
-            and e.sequence < source.sequence
-            and e.kind in {"conversation.window", "conversation.user", "conversation.converse"}
-        ]
-        seen_slots = set()
-        resolved_entries = []
-        full_page = len(recent) >= 100
-        source_hyp = hypothesis(source)
-        for e in candidates:
-            entry = e
-            if e.kind == "conversation.window":
-                try:
-                    w = SpeechWindow.model_validate(e.payload)
-                except ValueError:
-                    continue
-                slot = (w.utterance_id, w.window_index)
-                if slot in seen_slots:
-                    continue
-                needs_resolve = has_resolver and (
-                    full_page or w.revision > 1 or window_slot_counts.get(slot, 0) > 1
-                )
-                if needs_resolve:
-                    try:
-                        latest = await self.journal.resolve(e.event_id)
-                        floor = await source_scope(self.journal, latest.event_id, resolved=latest)
-                    except Exception as exc:
-                        raise JournalUnavailable("Native journal is unavailable") from exc
-                    w_latest = SpeechWindow.model_validate(latest.payload)
-                    scope = combine_scopes(w_latest.content_scope, floor)
-                    entry = (
-                        latest
-                        if scope == w_latest.content_scope
-                        else latest.model_copy(
-                            update={"payload": {**latest.payload, "content_scope": scope}}
-                        )
-                    )
-                seen_slots.add(slot)
-                if w.utterance_id == window.utterance_id and hypothesis(entry) == source_hyp:
-                    continue
-            elif e.kind == "conversation.user":
-                needs_resolve = has_resolver and (
-                    full_page or e.event_id in revised_targets or e.payload.get("revision", 1) > 1
-                )
-                if needs_resolve:
-                    try:
-                        latest = await self.journal.resolve(e.event_id)
-                        floor = await source_scope(self.journal, e.event_id, resolved=latest)
-                    except Exception as exc:
-                        raise JournalUnavailable("Native journal is unavailable") from exc
-                    scope = combine_scopes(latest.payload.get("content_scope", "local_only"), floor)
-                    entry = latest.model_copy(
-                        update={"payload": {**latest.payload, "content_scope": scope}}
-                    )
-            resolved_entries.append(entry)
-        return resolved_entries[-12:]
 
     def _active_provider_info(self):
         if self.model_settings is not None:

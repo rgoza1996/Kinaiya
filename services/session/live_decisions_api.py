@@ -17,6 +17,10 @@ from packages.contracts.live_decisions_attempts import (
     LiveDecisionsPublicationState,
     live_attempt_json,
 )
+from packages.contracts.live_decisions_pending import (
+    LiveDecisionsPendingPage,
+    LiveDecisionsPendingQuery,
+)
 
 BASE = "/v2/transcript/live-decisions"
 
@@ -68,6 +72,15 @@ def install_live_decisions(app, store, auth):
                 "content": {"application/json": {"schema": model.model_json_schema()}},
             }
         }
+
+    @app.post(
+        BASE + "/pending",
+        dependencies=[Depends(native)],
+        response_model=LiveDecisionsPendingPage,
+        openapi_extra=schema(LiveDecisionsPendingQuery),
+    )
+    async def pending(request: Request):
+        return invoke("pending", await body(request, LiveDecisionsPendingQuery, native, 4096))
 
     @app.post(
         BASE + "/attempts/lookup",

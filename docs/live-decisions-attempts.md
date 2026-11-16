@@ -64,8 +64,10 @@ source or label cannot masquerade as the original outcome. Exact retries return
 the historical original receipt. Read-only lookup never re-enters a provider or
 replays a mutation. A missing receipt is unknown, not proof of a failed write.
 Consumers must still establish their own current native admission and deduplication.
-The eventual worker must hold/recheck its actual selected-model lease before
-publishing; Session's source ledger does not replace that service-owned lease.
+The [completion-driven worker](live-decisions-worker.md) holds/rechecks its actual
+selected-model lease before publishing; Session's source ledger does not replace
+that service-owned lease. Its exact-proof recovery policy is documented separately
+from these read-only lookup and idempotent native publication APIs.
 
 Owned mutations refuse an already-active SQLite transaction before entering the
 connection context, preserving the original caller's uncommitted work (#665).

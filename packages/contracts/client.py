@@ -339,6 +339,19 @@ class JournalClient:
 
         return await lookup(self, request)
 
+    async def pending_live_decisions(self, request):
+        from packages.contracts.live_decisions_client import exchange
+        from packages.contracts.live_decisions_pending import (
+            LiveDecisionsPendingPage,
+            LiveDecisionsPendingQuery,
+        )
+
+        request = LiveDecisionsPendingQuery.model_validate(request, strict=True)
+        result = await exchange(self, "/pending", request, LiveDecisionsPendingPage)
+        if result.original != request:
+            raise ValueError("Pending live page changed its original query")
+        return result
+
     async def live_decisions_attempt_admit(self, request):
         from packages.contracts.live_decisions_client import admit
 

@@ -616,6 +616,8 @@ def schema_pin():
         "LiveDecisionsOutcome",
         "LiveDecisionsPublicationState",
     }
+    # Bounded pending discovery has a separately pinned additive pair.
+    additive |= {"LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"}
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

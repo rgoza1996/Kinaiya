@@ -1,0 +1,280 @@
+"""Actual native HTTP, request-bound inference and retained wake/cleanup owners."""
+
+import asyncio
+import json
+from types import SimpleNamespace
+
+import httpx
+import pytest
+
+from packages.contracts.client import JournalClient
+from packages.contracts.live_decisions_attempts import LiveDecisionsAttemptLookup
+from packages.providers.text import CompatibleTextProvider
+from packages.providers.decision_capture import CaptureNativeUnavailable
+from services.common.auth import Auth
+from services.decisions.live_worker import LiveDecisionsWorker
+from services.decisions.model_settings import DecisionsModelSettings
+from services.session.api import create_app
+from services.session.live_windows import publish
+from services.session.store import LocalJournal
+from tests.integration.test_live_capture_permission import env as env
+from tests.integration.test_live_decisions_attempts import live as live
+from tests.integration.test_live_decisions_http import labels, response
+from tests.integration.test_live_window_publication import original
+
+
+class Agent:
+    async def status(self):
+        return []
+
+
+async def test_completion_coalesces_latest_input_without_replacing_the_original_http_wait(
+    live, monkeypatch
+):
+    auth = Auth({"decisions": "public-completion-worker-token-000000000"})
+    asgi = httpx.ASGITransport(app=create_app(live.store, auth))
+    wake_entered, release_wake = asyncio.Event(), asyncio.Event()
+    model_entered, release_model, published = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    waits, calls, outcomes = [], [], []
+
+    class HeldWake(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            if request.url.path.endswith("/wake/wait"):
+                waits.append(request.content)
+                wake_entered.set()
+                result = await asgi.handle_async_request(request)
+                await release_wake.wait()
+                return result
+            return await asgi.handle_async_request(request)
+
+    async def model(request):
+        calls.append(json.loads(request.content))
+        if len(calls) == 1:
+            model_entered.set()
+            await release_model.wait()
+        return httpx.Response(200, stream=httpx.ByteStream(response()))
+
+    publish_result = live.owner.publish_result
+
+    def observed(request):
+        result = publish_result(request)
+        outcomes.append(result)
+        published.set()
+        return result
+
+    monkeypatch.setattr(live.owner, "publish_result", observed)
+    journal = JournalClient("http://session.local", auth.tokens["decisions"], transport=HeldWake())
+    provider = CompatibleTextProvider(
+        "http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(model)
+    )
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(journal, Agent(), settings)
+    task = asyncio.create_task(worker.run())
+    try:
+        await asyncio.wait_for(model_entered.wait(), 5)
+        await asyncio.wait_for(wake_entered.wait(), 3)
+        original_wait = worker.wake_task
+        publish(live.store, original(live, 1, text="Public pending intermediate thought"))
+        latest = publish(live.store, original(live, 2, text="Public latest continuous thought"))
+        publish(live.store, original(live, 3, text="Public latest continuous thought"))
+        assert len(calls) == 1 and len(settings.leases) == 1
+        release_model.set()
+        await asyncio.wait_for(published.wait(), 5)
+        assert len(calls) == 2 and len(outcomes) == 1
+        assert outcomes[0].original.source.source_event_id == latest.source.event_id
+        assert outcomes[0].receipt.payload["decision"]["conversation"] == "WAIT_WITH_BACKCHANNEL"
+        assert worker.wake_task is original_wait and not original_wait.done()
+        assert len(waits) == 1
+        first = await journal.live_decisions_attempt_lookup(
+            LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
+        )
+        assert first.state == "completed" and first.charged_attempts == 1
+        assert len(live.store.read(kinds=["routing.live_window_decided"])) == 1
+        await worker.scan()
+        assert len(calls) == 2 and not worker.pending
+    finally:
+        release_model.set()
+        release_wake.set()
+        await worker.close()
+        await asyncio.wait_for(task, 5)
+        await settings.close()
+        await journal.close()
+
+
+async def test_worker_cancellation_retains_single_slot_until_actual_model_close(live):
+    auth = Auth({"decisions": "public-close-worker-token-000000000"})
+    journal = JournalClient(
+        "http://session.local",
+        auth.tokens["decisions"],
+        transport=httpx.ASGITransport(app=create_app(live.store, auth)),
+    )
+    closing, release = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    class HeldClose(httpx.AsyncByteStream):
+        closes = 0
+
+        async def __aiter__(self):
+            yield response()
+
+        async def aclose(self):
+            self.closes += 1
+            closing.set()
+            await release.wait()
+
+    stream = HeldClose()
+
+    def model(request):
+        calls.append(request.content)
+        return httpx.Response(200, stream=stream)
+
+    provider = CompatibleTextProvider(
+        "http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(model)
+    )
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(journal, Agent(), settings)
+    task = asyncio.create_task(worker.run())
+    closer = None
+    try:
+        await asyncio.wait_for(closing.wait(), 5)
+        closer = asyncio.create_task(worker.close())
+        await asyncio.sleep(0)
+        assert worker.slot is not None and not worker.slot.task.done()
+        assert not worker.ready and len(settings.leases) == 1 and stream.closes == 1
+        publish(live.store, original(live, 1, text="Public input after explicit worker stop"))
+        assert len(calls) == 1
+        release.set()
+        assert await asyncio.wait_for(closer, 5)
+        await asyncio.wait_for(task, 5)
+        assert not settings.leases and worker.slot is None and stream.closes == 1
+        state = await journal.live_decisions_attempt_lookup(
+            LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
+        )
+        assert state.state == "uncertain" and state.charged_attempts == 1
+        assert live.store.read(kinds=["routing.live_window_decided"]) == []
+    finally:
+        release.set()
+        await worker.close()
+        await asyncio.gather(
+            task, *([closer] if closer is not None else []), return_exceptions=True
+        )
+        await settings.close()
+        await journal.close()
+
+
+@pytest.mark.parametrize("case", ["cross-version", "unknown-label", "malformed-json"])
+async def test_invalid_model_wire_is_retained_without_rerolling_unchanged_input(live, case):
+    auth = Auth({"decisions": "public-invalid-wire-worker-token-000000000"})
+    journal = JournalClient(
+        "http://session.local",
+        auth.tokens["decisions"],
+        transport=httpx.ASGITransport(app=create_app(live.store, auth)),
+    )
+    model_labels = labels()
+    if case == "cross-version":
+        model_labels["schema_version"] = "1.0"
+    elif case == "unknown-label":
+        model_labels["conversation"] = "PUBLIC_UNKNOWN_WIRE_LABEL"
+    content = "PUBLIC MALFORMED JSON {" if case == "malformed-json" else json.dumps(model_labels)
+    raw = json.dumps(
+        {
+            "choices": [
+                {"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}
+            ]
+        }
+    ).encode()
+    calls = []
+
+    def model(request):
+        calls.append(request.content)
+        return httpx.Response(200, stream=httpx.ByteStream(raw))
+
+    provider = CompatibleTextProvider(
+        "http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(model)
+    )
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(journal, Agent(), settings)
+    slot = SimpleNamespace(source=live.source, stamp=settings.cache_stamp(), lease=None)
+    try:
+        try:
+            await worker._job(slot)
+        except Exception:
+            pass  # The assertions below independently inspect native evidence.
+        assert len(calls) == 1
+        state = await journal.live_decisions_attempt_lookup(
+            LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
+        )
+        assert state.state == "refused" and state.charged_attempts == 1
+        assert state.last_attempt.completion.raw_response == raw.decode()
+        assert state.last_attempt.completion.validated_output is None
+        assert live.store.read(kinds=["routing.live_window_decided"]) == []
+        assert not settings.leases and not journal._submit_exchanges
+    finally:
+        await settings.close()
+        await journal.close()
+
+
+async def test_failed_discovery_continuation_yields_to_an_existing_stop_owner(live, monkeypatch):
+    journal = LocalJournal(live.store, "decisions")
+    provider = CompatibleTextProvider(
+        "http://127.0.0.1:8897/v1",
+        "public-model",
+        transport=httpx.MockTransport(lambda _: httpx.Response(500)),
+    )
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(journal, Agent(), settings)
+    worker._more = True  # A previous bounded discovery page has a continuation.
+    calls = []
+
+    async def unavailable(_):
+        calls.append(True)
+        if len(calls) == 3:
+            worker._stop.set()  # Bound the original busy-loop reproduction.
+        raise RuntimeError("Public synthetic native discovery outage")
+
+    async def existing_stop_owner():
+        await asyncio.sleep(0)
+        worker._stop.set()
+
+    monkeypatch.setattr(journal, "pending_live_decisions", unavailable)
+    stopper = asyncio.create_task(existing_stop_owner())
+    task = asyncio.create_task(worker.run())
+    try:
+        await asyncio.wait_for(task, 5)
+        await stopper
+        assert len(calls) == 1
+        assert not worker.running and not worker.ready
+        assert worker.slot is None and not settings.leases
+    finally:
+        await worker.close()
+        await asyncio.gather(task, stopper, return_exceptions=True)
+        await settings.close()
+
+
+async def test_unavailable_model_stamp_preserves_queued_input_and_running_loop(live, monkeypatch):
+    calls = []
+
+    def model(request):
+        calls.append(request.content)
+        return httpx.Response(200, stream=httpx.ByteStream(response()))
+
+    provider = CompatibleTextProvider("http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(model))
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(LocalJournal(live.store, "decisions"), Agent(), settings)
+    worker.pending[worker.key(live.source)] = live.source
+
+    def unavailable():
+        raise CaptureNativeUnavailable("Public synthetic model metadata outage")
+
+    monkeypatch.setattr(settings, "cache_stamp", unavailable)
+    task = asyncio.create_task(worker.run())
+    try:
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert worker.running and not worker.ready
+        assert worker.pending[worker.key(live.source)] == live.source
+        assert worker.slot is None and not settings.leases and calls == []
+    finally:
+        await worker.close()
+        await asyncio.gather(task, return_exceptions=True)
+        await settings.close()

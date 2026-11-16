@@ -15,11 +15,15 @@ from packages.contracts.live_decisions_attempts import (
     LiveDecisionsPublicationState,
     LiveDecisionsSource,
 )
+from packages.contracts.live_decisions_pending import (
+    LiveDecisionsPendingPage,
+    LiveDecisionsPendingQuery,
+)
 from packages.contracts.live_windows import LiveWindowCapture
 from packages.contracts.models import AppendRequest
 from packages.contracts.stt_settlement import digest
 from services.session.decisions_attempts import DecisionsAttemptConflict, DecisionsAttemptStore
-from services.session.live_windows import _capture, _pair, latest
+from services.session.live_windows import _capture, _pair, _read, latest
 
 _PUBLISH = ContextVar("native_live_decision_publication", default=None)
 
@@ -31,6 +35,76 @@ class LiveDecisionsAttemptStore(DecisionsAttemptStore):
     FINISH_TYPE = LiveDecisionsAttemptFinish
     ATTEMPT_TYPE = LiveDecisionsAttempt
     STATE_TYPE = LiveDecisionsAttemptState
+
+    def pending(self, request):
+        request = LiveDecisionsPendingQuery.model_validate(request, strict=True)
+        with self.store.lock:
+            controller = self.store.live_captures.backend().controller_id
+            # Use the current per-utterance marker and its canonical eligible
+            # sequence. Raw duplicates cannot move a source across this cursor.
+            rows = self.store.db.execute(
+                """SELECT
+                    CASE WHEN typeof(e.event_id)='text' AND length(CAST(e.event_id AS BLOB))<=128
+                         THEN e.event_id END,
+                    CASE WHEN json_type(e.value,'$.payload.eligible_source_sequence')='integer'
+                         THEN json_extract(e.value,'$.payload.eligible_source_sequence') END AS eligible_sequence
+                FROM entries e JOIN sessions s ON s.session_id=e.session_id
+                JOIN live_captures c
+                  ON c.owner_instance=json_extract(e.value,'$.payload.original.owner_instance')
+                 AND c.capture_id=json_extract(e.value,'$.payload.original.capture_id')
+                WHERE e.kind='conversation.window_capture' AND e.writer='converse'
+                  AND c.controller_id=? AND c.fence IS NULL AND c.receipt IS NOT NULL
+                  AND c.session_id=e.session_id AND c.thread_id=e.thread_id AND c.epoch=e.epoch
+                  AND e.epoch=json_extract(s.value,'$.epoch')
+                  AND e.thread_id=json_extract(s.value,'$.thread_id')
+                  AND json_extract(s.value,'$.channel')='converse'
+                  AND e.sequence=(
+                    SELECT max(n.sequence) FROM entries n
+                    WHERE n.kind='conversation.window_capture' AND n.writer='converse'
+                      AND n.session_id=e.session_id AND n.epoch=e.epoch
+                      AND json_extract(n.value,'$.payload.original.utterance_id')=
+                          json_extract(e.value,'$.payload.original.utterance_id')
+                  )
+                  AND json_extract(e.value,'$.payload.eligible_source_sequence')>?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM decisions_attempt_outcomes o
+                    WHERE o.source_event_id=json_extract(e.value,'$.payload.eligible_source_event_id')
+                  )
+                ORDER BY eligible_sequence LIMIT ?""",
+                (controller, request.after_sequence, request.limit + 1),
+            ).fetchall()
+            sources = []
+            for event_id, sequence in rows[: request.limit]:
+                if type(event_id) is not str or type(sequence) is not int:
+                    raise DecisionsAttemptConflict(
+                        "Original pending source metadata is unavailable"
+                    )
+                capture = _read(self.store, "event_id=?", (event_id,))
+                if capture is None:
+                    raise DecisionsAttemptConflict("Original pending capture is unavailable")
+                marker = LiveWindowCapture.model_validate(capture.payload, strict=True)
+                original_capture = _capture(self.store, marker.eligible_source_event_id)
+                if original_capture is None:
+                    raise DecisionsAttemptConflict("Original eligible source is unavailable")
+                reference = LiveWindowCapture.model_validate(
+                    original_capture.payload, strict=True
+                ).original
+                pair = _pair(self.store, reference)
+                if pair is None:
+                    raise DecisionsAttemptConflict("Original pending source is unavailable")
+                binding = self._binding(pair.source)
+                if binding.source_sequence != sequence:
+                    raise DecisionsAttemptConflict("Original pending source ordering changed")
+                self.check_current(binding)
+                sources.append(binding)
+            return LiveDecisionsPendingPage(
+                schema_version="2.0",
+                protocol=PROTOCOL,
+                original=request,
+                sources=sources,
+                through_sequence=sources[-1].source_sequence if sources else request.after_sequence,
+                has_more=len(rows) > request.limit,
+            )
 
     def _binding(self, source):
         annotation = _capture(self.store, source.event_id)
