@@ -101,7 +101,7 @@
   },
   "static": {
     "ruff_check": "passed",
-    "ruff_format_files": 1050,
+    "ruff_format_files": 1053,
     "diff_check": "passed",
     "test_decorator_formatting": "Python AST identical before and after; no behavior change"
   },
@@ -217,6 +217,16 @@
       "sha256": "1b83f3b63a8d8dfd1b291728f8f217f751a9d9e4bab61c17873f3b741493149c",
       "size_bytes": 186,
       "last_line": "Successfully installed kinaiya-0.1.0.dev0"
+    },
+    "issue-577-composed-312.log": {
+      "sha256": "6ae3df6a0ada9fac1d285fa8a2f52e306fbde10d1ec0161a0cdeafd5716035e2",
+      "size_bytes": 848,
+      "last_line": "248 passed, 1 warning in 54.10s"
+    },
+    "issue-577-composed-313.log": {
+      "sha256": "27ad5f3cf269eda80622042fff93dca361561003470c3fdcbf95b2be4053c6a3",
+      "size_bytes": 900,
+      "last_line": "248 passed, 1 warning in 53.87s"
     }
   },
   "wheel": {
@@ -252,5 +262,50 @@
     "Historical577/620 causes remain unproven; coarse pre_command_mismatch does not prove empty cmdline",
     "Existing unscoped media has no implicit timer; original task, fence and cleanup ownership preserved",
     "No model/provider call, host policy change, dependency or supported-version migration"
-  ]
+  ],
+  "composition": {
+    "main": "32d5fb7a0df36de62c9c4ed789c8b8fbff665366",
+    "tested_revision": "0ac92778ed7dea444684898e59817f5930846cb6",
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-m",
+      "not live",
+      "tests/integration/test_bootstrap_entry_phase.py",
+      "tests/unit/test_worker_bootstrap_diagnostics.py",
+      "tests/unit/test_media_cgroup_custody.py",
+      "tests/integration/test_decisions_selection_capture_unknown.py",
+      "tests/integration/test_openrouter_decisions_selection.py",
+      "tests/integration/test_decisions_inspection.py",
+      "tests/integration/test_decisions_finalized_refusal_recovery.py",
+      "tests/integration/test_decisions_finalized_refusal.py",
+      "tests/integration/test_window_cache_identity.py"
+    ],
+    "PYTHONPATH": "absolute current worktree",
+    "PATH": "qualification Python3.13 venv first for both explicit interpreters; ordinary system path follows",
+    "results": [
+      {
+        "interpreter": "root .venv/bin/python",
+        "python": "3.12.3",
+        "passed": 248,
+        "failed": 0,
+        "skipped": 0,
+        "warnings": 1,
+        "seconds": 54.1
+      },
+      {
+        "interpreter": "output/issue-643-python313-venv/bin/python",
+        "python": "3.13.18",
+        "passed": 248,
+        "failed": 0,
+        "skipped": 0,
+        "warnings": 1,
+        "seconds": 53.87
+      }
+    ],
+    "warning": "Existing StarletteDeprecationWarning about httpx/httpx2; dependencies unchanged",
+    "code_changed_by_main_merge": false
+  }
 }

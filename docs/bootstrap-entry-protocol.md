@@ -111,6 +111,11 @@ No dependency, native guard, host policy or model selection changes accompany
 this protocol. Commands, hashes and first/final outcomes are retained in the
 [evidence capsule](evidence/bootstrap-entry-2026-11-16/verification.json).
 
+After integrating main32d5fb7a (test/documentation-only changes), the combined
+entry, custody and selection-capture controls pass 248 cases on each explicit
+Python 3.12.3 and 3.13.18 interpreter, with one existing Starlette warning each.
+All production and frozen entry-test source hashes remain identical.
+
 Exact-head hosted CI and applicable native target qualification remain required.
 These controls establish the new phase boundary; they do not retrospectively
 prove a cause for every #577/#620 failure or qualify physical cgroup isolation,
