@@ -1,0 +1,493 @@
+{
+  "issues": [
+    623
+  ],
+  "branch": "codex/623-completion-scheduler",
+  "base": "aa4fe3bf9a2d94ad4c4e89ef2c5ae21cdb8dca5d",
+  "qualification": "194 focused passed each Python3.13.18/3.14.10;1008 broader passed/one existing Starlette warning. All886 Python inputs unchanged. Adaptive Live off; full623 integration remains required.",
+  "environment": {
+    "313": "Python 3.13.18",
+    "314": "Python 3.14.10"
+  },
+  "lockfiles": {
+    "requirements-runtime.lock": "75ac9da4ae40fd46d241c12d2523f7b5d7b661befa12b4c3e2dc7b27fbc220d1",
+    "requirements-dev.lock": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "requirements-meta-speech.lock": "be8cd8060c8f2f33d39b3b194218a0c66e7e9b73cd26f597545da1ef44c40677",
+    "requirements-vibevoice.lock": "dc68011eac9f046e02a8281c0408cf86b84b829d4ca63188a7f2cda096ca9407",
+    "requirements-supertonic.lock": "8ecf40ae6a1e9d755f303a7ac74e78d629c6c0d9e894cdefde5c90531c54b1ae",
+    "requirements-whistle.lock": "6d22464de9f0ff308deee728f9dee3ff7acb14c7f3bd36c1fb0c9304602de613"
+  },
+  "python_inputs": {
+    "count": 886,
+    "file": "python-inputs.json",
+    "sha256": "05915e1b68947761fd56c504b3c51b389b09841978e9b9613b40eadc8a4562bd"
+  },
+  "schemas": {
+    "old_count": 566,
+    "changed": [],
+    "new_names": [
+      "LiveDecisionsPendingPage.json",
+      "LiveDecisionsPendingQuery.json"
+    ],
+    "new_sha256": "39d6e3c27ba4e888aa8a4d08e887cf4a832c532c18bcf3fc8e69b781242727bf"
+  },
+  "checks": [
+    {
+      "name": "issue-623-live-pending-first",
+      "utc": "2026-11-16T19:07:50.336809+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 4.484530277994054,
+      "input_count": 879,
+      "inputs_unchanged": true,
+      "log_sha256": "a870c231de5da2e0ca86ef4511ef98e041c6038cd2d5040c7f5b77a7787397a0"
+    },
+    {
+      "name": "issue-623-live-worker-first",
+      "utc": "2026-11-16T19:17:55.723666+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 1,
+      "elapsed": 15.246491994003009,
+      "input_count": 882,
+      "inputs_unchanged": true,
+      "log_sha256": "ffebeda863a523d1e6d4823720b3b9f6660d6fe2e27c0a37eec583efcf56557d"
+    },
+    {
+      "name": "issue-623-live-worker-interface-repaired",
+      "utc": "2026-11-16T19:19:23.243110+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 5.207950839001569,
+      "input_count": 882,
+      "inputs_unchanged": true,
+      "log_sha256": "97ef8dfc78e183c7ef0dd917560d35e31ad24b1c4ac4e990581f66b5606cdf3d"
+    },
+    {
+      "name": "issue-623-live-worker-invalid-wire-first",
+      "utc": "2026-11-16T19:23:02.808571+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py::test_invalid_model_wire_is_retained_without_rerolling_unchanged_input",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 1,
+      "elapsed": 2.1069361159970867,
+      "input_count": 882,
+      "inputs_unchanged": true,
+      "log_sha256": "b0c8322b1dd7aba8306711380f2fb90e64a5d7e5f4f5d6ac8c6e00508d84f6c2"
+    },
+    {
+      "name": "issue-623-live-worker-invalid-wire-repaired",
+      "utc": "2026-11-16T19:23:54.925841+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 6.273824392003007,
+      "input_count": 882,
+      "inputs_unchanged": true,
+      "log_sha256": "9c1adba7b325e5dab94d67c0ed685b035bfa945823b94946953d5e31d6b966cb"
+    },
+    {
+      "name": "issue-623-live-worker-continuation-first",
+      "utc": "2026-11-16T19:24:45.009660+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py::test_failed_discovery_continuation_yields_to_an_existing_stop_owner",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 1,
+      "elapsed": 1.850170646001061,
+      "input_count": 882,
+      "inputs_unchanged": true,
+      "log_sha256": "3f5370754cb53d72e67a45662e135e6115960c56950ce102ea3d36e7cadb9f8f"
+    },
+    {
+      "name": "issue-623-live-worker-continuation-repaired",
+      "utc": "2026-11-16T19:25:31.584801+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 7.53823497799749,
+      "input_count": 882,
+      "inputs_unchanged": true,
+      "log_sha256": "6f73265fac25c1196651c0cd9b5c1a05d69b047ad42bf653651bdc83a9f6c26b"
+    },
+    {
+      "name": "issue-623-live-worker-model-outage-first",
+      "utc": "2026-11-16T19:32:58.690081+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py::test_unavailable_model_stamp_preserves_queued_input_and_running_loop",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 1,
+      "elapsed": 1.824658666002506,
+      "input_count": 883,
+      "inputs_unchanged": true,
+      "log_sha256": "d8cf9bb2d8d9429efd06934edcdccf1cc79b053e94d0cc4f2e9f4643fc50f9c3"
+    },
+    {
+      "name": "issue-623-live-worker-model-outage-repaired",
+      "utc": "2026-11-16T19:33:24.295270+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py::test_unavailable_model_stamp_preserves_queued_input_and_running_loop",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 1.7768830519999028,
+      "input_count": 883,
+      "inputs_unchanged": true,
+      "log_sha256": "33b662fdd3508192388779035d895f2d57122672755940fd2356172dbe21537b"
+    },
+    {
+      "name": "issue-623-live-worker-recovery-first",
+      "utc": "2026-11-16T19:34:40.298766+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py::test_replacement_recovers_exact_completed_result_after_lost_publication_ack",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 1.625147154001752,
+      "input_count": 883,
+      "inputs_unchanged": true,
+      "log_sha256": "21015a1d5d5608bc43dfaf2e501a31311e32cf115ed3f34702e13f9df9d319ef"
+    },
+    {
+      "name": "issue-623-live-worker-recovery-fences-first",
+      "utc": "2026-11-16T19:36:54.525134+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_worker_recovery.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 2.059163322999666,
+      "input_count": 884,
+      "inputs_unchanged": true,
+      "log_sha256": "3ecbc129c0ebdcfa73089297fc7faedca8cd7f26a14cc1399b4256ed9c5af1d4"
+    },
+    {
+      "name": "issue-623-live-worker-fairness-first",
+      "utc": "2026-11-16T19:40:15.604011+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_worker_fairness.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 1,
+      "elapsed": 1.2852837780010304,
+      "input_count": 885,
+      "inputs_unchanged": true,
+      "log_sha256": "0bc8df0bac6888f8dad2de1a4a5006042900ace01bfab51ce54b7261c780f5de"
+    },
+    {
+      "name": "issue-623-live-worker-fairness-repaired",
+      "utc": "2026-11-16T19:41:45.399529+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 11.666385785996681,
+      "input_count": 885,
+      "inputs_unchanged": true,
+      "log_sha256": "494027fb90e4664cc2013682c2ab6f2376c5da98af8ac98126f2ae822950d81a"
+    },
+    {
+      "name": "issue-623-live-worker-wake-outage-first",
+      "utc": "2026-11-16T19:43:03.538183+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_worker_cleanup.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 1,
+      "elapsed": 0.839028310001595,
+      "input_count": 886,
+      "inputs_unchanged": true,
+      "log_sha256": "a6816825d5394a5e17b7240b0f713309928807f7d3467472c3c316f8aa2d1411"
+    },
+    {
+      "name": "issue-623-live-worker-wake-outage-repaired",
+      "utc": "2026-11-16T19:43:47.982622+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 14.94368449600006,
+      "input_count": 886,
+      "inputs_unchanged": true,
+      "log_sha256": "eef56a9ced67eaaa343d3dcd260eabcce9e012da32791df23dd192e398c996b5"
+    },
+    {
+      "name": "issue-623-live-worker-cleanup-first",
+      "utc": "2026-11-16T19:46:15.506078+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 15.31465113000013,
+      "input_count": 886,
+      "inputs_unchanged": true,
+      "log_sha256": "efc8922eae433f0f5976f9fa66c7f82fcb2d5462d77edc31e78f33ae2458cd0e"
+    },
+    {
+      "name": "issue-623-live-scheduler-final-313",
+      "utc": "2026-11-16T19:48:34.168511+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/unit/test_live_pending_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 44.09038603999943,
+      "input_count": 886,
+      "inputs_unchanged": true,
+      "log_sha256": "7da75e7ed493a3a70cf995973382bf34287c744099335eb560f9ff62a366e098"
+    },
+    {
+      "name": "issue-623-live-scheduler-final-314",
+      "utc": "2026-11-16T19:48:34.067109+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/unit/test_live_pending_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 43.98848155900487,
+      "input_count": 886,
+      "inputs_unchanged": true,
+      "log_sha256": "dd5d943a985a80919315bbcbb8f1a6db5599ffecac3aede37c3760c161a803fc"
+    },
+    {
+      "name": "issue-623-live-scheduler-final-regression",
+      "utc": "2026-11-16T19:56:16.278850+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_compatible_decisions_refusal.py",
+        "tests/integration/test_converse_window_recovery.py",
+        "tests/integration/test_decisions_finalized_refusal.py",
+        "tests/integration/test_decisions_finalized_refusal_recovery.py",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_decisions_low_confidence.py",
+        "tests/integration/test_decisions_native_attempts.py",
+        "tests/integration/test_decisions_selection_capture_unknown.py",
+        "tests/integration/test_decisions_task_descriptions.py",
+        "tests/integration/test_decisions_task_status_context.py",
+        "tests/integration/test_decisions_typed_disclosure.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/integration/test_laya_decisions.py",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/integration/test_openrouter_decisions_selection.py",
+        "tests/integration/test_required_decisions_readiness.py",
+        "tests/integration/test_speech_windows.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_window_backlog.py",
+        "tests/integration/test_window_bound_refusal.py",
+        "tests/integration/test_window_cache_identity.py",
+        "tests/integration/test_window_http.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "tests/unit/test_decisions_d1_overflow_evidence.py",
+        "tests/unit/test_decisions_local_d1_evidence.py",
+        "tests/unit/test_decisions_media_classifier.py",
+        "tests/unit/test_decisions_prompt_config.py",
+        "tests/unit/test_disclosure_scopes.py",
+        "tests/unit/test_journal_wake_contracts.py",
+        "tests/unit/test_live_capture_contracts.py",
+        "tests/unit/test_live_decisions_attempt_contracts.py",
+        "tests/unit/test_live_window_publication_contracts.py",
+        "tests/unit/test_openrouter_decisions_provider.py",
+        "tests/unit/test_provider_disclosure_policy.py",
+        "tests/integration/test_standing_owner.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-scheduler-623",
+      "exit_code": 0,
+      "elapsed": 301.84491120400344,
+      "input_count": 886,
+      "inputs_unchanged": true,
+      "log_sha256": "14b6722d9b88c41644c51f18fff5f29f2c80cefd8f729295022ef923900ddcc2"
+    }
+  ],
+  "artifacts": {
+    "first-worker.py.txt": "584b0a739b57baf88582af619d9278259b80ae01d2ad59a702cfb3697569a971",
+    "first-controls.py.txt": "4f37d543ef90f6984853f9a242585924b82036e99db3de31a4449147a6a41df4",
+    "invalid-wire-first-worker.py.txt": "9494481870282f926bfe550730148d39dc784e37966e2374d260a1f9c4be13c9",
+    "invalid-wire-first-controls.py.txt": "6d92ad3119046351d13699ae2e668ea3db0cb2563477204e269a087d5a555d32",
+    "continuation-first-worker.py.txt": "a425c99c50518e0890bc4ae9bd5a0172cf061e5d7b9871985bf1e497be6bb257",
+    "continuation-first-controls.py.txt": "e684409a78c274982f17a48de9ced1274d3541b38cf518edd4d747d4952a9b0e",
+    "model-outage-first-worker.py.txt": "3db86ea767a9a7acbb1f74ac42e1a6a60d8e51766a868cf8e29a9d13882c0638",
+    "model-outage-first-controls.py.txt": "05d2c3a4c70fb106c045373e477a4d781cb7cf1b2c7c190ae221efafe23e9358",
+    "fairness-first-worker.py.txt": "2eed9b4e0f546644311e9bb2acb53b634a46a547a1362d954181271b8cfe96ec",
+    "fairness-first-controls.py.txt": "fd851d1edb90aaf9f95faa58d41488f5828ed5ffd26c140f4d8dedcfe20e2770",
+    "wake-outage-first-worker.py.txt": "53f0c4c71dc1cee94e130d3efc9dc2e0c66e666b6f4b698c82c335772ea7e35e",
+    "wake-outage-first-controls.py.txt": "d01000ae825c726935e2e2d727eca3a6b4d939a6311cad23b3b66a1076b908fd",
+    "prior-schemas.json": "8f33e3a61d3e7c468b9ae0b40798dd4fe3a8d4b5925e6d98442379aa3d927df3",
+    "independent-source-audit.json": "f0284630f3c57034c65210ea9736c1fe2fecd56931f6fc1a6917f3a7b2a541b6"
+  },
+  "static_checks": [
+    {
+      "command": "python -m ruff check packages services tests scripts",
+      "result": "passed"
+    },
+    {
+      "command": "python -m ruff format --check packages services tests scripts",
+      "result": "878 files already formatted"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "remaining": [
+    "host/Call integration",
+    "same-capture decoder rollover",
+    "Converse/Agent consumers and native deduplication",
+    "backchannel microphone/echo/mute ownership",
+    "representative timing and comparison evidence",
+    "qualified default rollout"
+  ],
+  "model_quality_gate": false
+}

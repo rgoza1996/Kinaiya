@@ -62,6 +62,12 @@ capture permission. It retains raw/completed outcomes, rechecks all original
 disclosure floors at publication, and preserves existing finalized-v1 behavior.
 It supplies no scheduler, consumer or playback integration by itself.
 
+The [completion-driven worker increment](live-decisions-worker.md) implements
+bounded durable discovery, one actual inference slot, fresh-input coalescing,
+session turns and exact-result recovery. It retains the original wake and cleanup
+owners. Host/Call and consumer integration remain separate work; Adaptive Live
+continues to report unavailable while its feature gate is off.
+
 Only fresh eligible transcript or speaking/capture-state changes can admit new
 Adaptive inference. Persisted duplicate hypotheses do not spin the worker.
 Keep one in-flight inference per worker by default, coalesce pending work to the

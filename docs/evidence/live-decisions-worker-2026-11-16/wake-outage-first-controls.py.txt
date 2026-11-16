@@ -1,0 +1,51 @@
+"""Failed physical cleanup and wake outages cannot fund replacement owners."""
+
+import asyncio
+from types import SimpleNamespace
+
+import httpx
+
+from packages.providers.text import CompatibleTextProvider
+from services.decisions import live_worker as runtime
+from services.decisions.live_worker import LiveDecisionsWorker
+from services.decisions.model_settings import DecisionsModelSettings
+from services.session.store import LocalJournal
+from tests.integration.test_live_capture_permission import env as env
+from tests.integration.test_live_capture_permission import fence
+from tests.integration.test_live_completion_worker import Agent
+from tests.integration.test_live_decisions_attempts import live as live
+
+
+async def test_failed_wake_is_not_immediately_recreated_before_its_retry_boundary(live, monkeypatch):
+    live.store.live_captures.fence(fence(live.source.capture.original))
+    journal = LocalJournal(live.store, "decisions")
+    provider = CompatibleTextProvider("http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(lambda _: httpx.Response(500)))
+    settings = DecisionsModelSettings(provider, None)
+    worker = LiveDecisionsWorker(journal, Agent(), settings)
+    wakes, scans = [], []
+    pending = journal.pending_live_decisions
+
+    async def failed_wake(*args, **kwargs):
+        wakes.append(True)
+        raise RuntimeError("Public synthetic journal wake outage")
+
+    async def observed_scan(request):
+        scans.append(True)
+        if len(scans) == 5:
+            worker._stop.set()
+        return await pending(request)
+
+    # Freeze only the worker's retry clock, leaving asyncio's actual clock intact.
+    monkeypatch.setattr(runtime, "time", SimpleNamespace(monotonic=lambda: 100.0))
+    monkeypatch.setattr(journal, "wait_for_journal_change", failed_wake)
+    monkeypatch.setattr(journal, "pending_live_decisions", observed_scan)
+    task = asyncio.create_task(worker.run())
+    try:
+        await asyncio.wait_for(task, 8)
+        assert len(scans) == 5 and len(wakes) == 1
+        assert worker.slot is None and not settings.leases
+        assert live.store.db.execute("SELECT count(*) FROM decisions_attempts").fetchone()[0] == 0
+    finally:
+        await worker.close()
+        await asyncio.gather(task, return_exceptions=True)
+        await settings.close()

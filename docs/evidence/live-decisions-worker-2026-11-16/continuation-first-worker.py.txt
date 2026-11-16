@@ -1,0 +1,388 @@
+"""Completion/fresh-input scheduling with one actual native inference owner."""
+
+import asyncio
+import math
+import time
+from collections import OrderedDict
+from types import SimpleNamespace
+
+from packages.contracts.decisions_attempts import DecisionsSource
+from packages.contracts.live_decisions_attempts import (
+    LiveDecisionsAttemptLookup,
+    LiveDecisionsPublication,
+    LiveDecisionsSource,
+)
+from packages.contracts.live_decisions_pending import LiveDecisionsPendingQuery
+from packages.contracts.live_windows import LiveWindowScope
+from packages.contracts.models import SpeechWindow
+from packages.providers.decision_admission import observe_completion
+from packages.providers.decision_capture import (
+    CaptureNativeUnavailable,
+    DecisionCapture,
+    decision_attempt,
+)
+from packages.providers.live_decision_admission import NativeLiveDecisionAttempt
+from packages.providers.text import ProviderRefusal
+from services.decisions.window_context import resolve_window_context
+from services.decisions.window_routing import (
+    MAX_TASK_HISTORY,
+    MAX_TASK_HISTORY_SOURCES,
+    TERMINAL_TASK_STATES,
+    WindowClassifier,
+    resolve_scoped_tasks,
+)
+
+MAX_PENDING = 32
+_closing = set()
+
+
+class LiveDecisionsWorker:
+    def __init__(
+        self,
+        journal,
+        agent,
+        model_settings,
+        *,
+        prompt=None,
+        window_chars=36000,
+        timeout=5,
+        agent_enabled=True,
+    ):
+        if (
+            type(timeout) not in (int, float)
+            or not math.isfinite(timeout)
+            or not 0.1 <= timeout <= 30
+        ):
+            raise ValueError("Live classification timeout must be .1..30 seconds")
+        if type(window_chars) is not int or not 100 <= window_chars <= 262144:
+            raise ValueError("Live classifier context bound must be 100..262144 characters")
+        if type(agent_enabled) is not bool:
+            raise ValueError("Live Agent availability must be explicit")
+        self.journal, self.agent, self.model_settings = journal, agent, model_settings
+        self.prompt, self.window_chars, self.timeout = prompt, window_chars, timeout
+        self.agent_enabled, self.agent_available = agent_enabled, None
+        self.pending, self.seen, self.deferred = OrderedDict(), OrderedDict(), OrderedDict()
+        self.slot = self.wake_task = self.cleanup = None
+        self._cursor = None
+        self._after = 0
+        self._more = False
+        self._stop = asyncio.Event()
+        self._cancel_sent = False
+        self.running = self.ready = False
+        self.last_error = None
+
+    @staticmethod
+    def key(source):
+        r = source.publication
+        return r.session_id, r.thread_id, r.epoch, r.utterance_id
+
+    async def _native(self, name, *args, **kwargs):
+        try:
+            # Direct awaits keep the original classifier Task as admission owner.
+            async with asyncio.timeout(2):
+                return await getattr(self.journal, name)(*args, **kwargs)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            raise CaptureNativeUnavailable("Native live metadata is unavailable") from exc
+
+    def _stamp(self):
+        return self.model_settings.cache_stamp()
+
+    async def scan(self):
+        if len(self.pending) >= MAX_PENDING:
+            return
+        request = LiveDecisionsPendingQuery(
+            schema_version="2.0",
+            protocol="native_live_decisions_v2",
+            after_sequence=self._after,
+            limit=MAX_PENDING - len(self.pending),
+        )
+        page = await self._native("pending_live_decisions", request)
+        stamp = self._stamp()
+        for source in page.sources:
+            identity = (source.source_event_id, stamp)
+            if identity in self.seen or self.deferred.get(identity, 0) > time.monotonic():
+                continue
+            if self.slot is not None and self.slot.source == source:
+                continue
+            self.pending[self.key(source)] = source
+        self._after = page.through_sequence if page.has_more else 0
+        self._more = page.has_more
+
+    async def _refresh(self, source):
+        r = source.publication
+        candidate = await self._native(
+            "latest_live_window",
+            LiveWindowScope(
+                schema_version="2.0",
+                protocol="live_window_publication_v2",
+                session_id=r.session_id,
+                thread_id=r.thread_id,
+                epoch=r.epoch,
+                utterance_id=r.utterance_id,
+            ),
+        )
+        if candidate is None:
+            raise CaptureNativeUnavailable("Original live candidate is unavailable")
+        permission = await self._native("live_capture_for_source", candidate.eligible.original)
+        if not permission.capture_permits_source or permission.capture.receipt is None:
+            raise CaptureNativeUnavailable("Original live capture is fenced")
+        return candidate.eligible, LiveDecisionsSource.of(
+            candidate.eligible, permission.capture.receipt
+        )
+
+    async def _inputs(self, source):
+        window = SpeechWindow.model_validate(source.payload, strict=True)
+        recent = await self._native("recent", session_id=source.session_id, limit=100)
+        context = await resolve_window_context(
+            self.journal,
+            source,
+            window,
+            recent,
+            unavailable=CaptureNativeUnavailable,
+        )
+        tasks, history, available = [], [], self.agent_enabled
+        if available:
+            try:
+                async with asyncio.timeout(0.25):
+                    status = await self.agent.status()
+                if type(status) is not list:
+                    raise ValueError("Agent status is unavailable")
+                scoped = [
+                    t
+                    for t in status
+                    if (t.session_id, t.thread_id, t.epoch)
+                    == (source.session_id, source.thread_id, source.epoch)
+                ]
+                tasks = [t for t in scoped if t.state not in TERMINAL_TASK_STATES]
+                history = [
+                    t
+                    for t in scoped
+                    if t.state in TERMINAL_TASK_STATES
+                    and len(t.source_event_ids) <= MAX_TASK_HISTORY_SOURCES
+                ][-MAX_TASK_HISTORY:]
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                available = False
+        self.agent_available = available if self.agent_enabled else None
+        tasks = await resolve_scoped_tasks(self.journal, tasks)
+        history = await resolve_scoped_tasks(self.journal, history, force=True)
+        return context, tasks, history, available
+
+    async def _recover(self, source, state, lease):
+        original = state.last_attempt
+        # New service incarnation may read an old exact result; it does not
+        # acquire the old provider opportunity or physical model lease.
+        if original.admission.model_pin.model_dump(exclude={"instance_id"}) != lease.pin.model_dump(
+            exclude={"instance_id"}
+        ):
+            self.last_error = "original_model_selection_changed"
+            return
+        check = DecisionCapture(
+            self.journal,
+            source,
+            lease.provider,
+            original.attempt,
+            model_pin=original.admission.model_pin,
+            current=lease.current,
+        )
+        native = NativeLiveDecisionAttempt(
+            self.journal, state.source, expected_attempts=state.charged_attempts
+        )
+        check.live_source_current = native.check_source
+        disclosed = []
+        for binding in original.admission.disclosure_sources:
+            entry = await self._native("entry", binding.source_event_id)
+            if DecisionsSource.of(entry) != binding:
+                entry = await self._native("resolve", binding.source_event_id)
+            if DecisionsSource.of(entry) != binding:
+                raise CaptureNativeUnavailable("Original disclosed input is unavailable")
+            disclosed.append(entry)
+        check.disclosure_sources = disclosed
+        await check.check_current(lease.provider)
+        if not lease.current() or self._stop.is_set():
+            raise CaptureNativeUnavailable("Original model or worker is fenced")
+        proof = LiveDecisionsPublication.of(original)
+        observed = await self._native("lookup_live_decision", proof)
+        if observed.receipt is None:
+            await self._native("publish_live_decision", proof)
+
+    async def _job(self, slot):
+        pair, source = await self._refresh(slot.source)
+        slot.source = source
+        slot.stamp = self._stamp()
+        if (source.source_event_id, slot.stamp) in self.seen or self._stop.is_set():
+            return
+        with self.model_settings.preparing("windows"):
+            async with self.model_settings.operation() as lease:
+                slot.lease = lease
+                while not self._stop.is_set():
+                    state = await self._native(
+                        "live_decisions_attempt_lookup",
+                        LiveDecisionsAttemptLookup(contract_version=2, source=source),
+                    )
+                    observe_completion(state)
+                    if state.state == "completed":
+                        await self._recover(pair.source, state, lease)
+                        return
+                    if state.state not in {"known_absent", "retryable_error"}:
+                        self.last_error = "original_live_attempt_" + state.state
+                        return
+                    context, tasks, history, available = await self._inputs(pair.source)
+                    native = NativeLiveDecisionAttempt(
+                        self.journal, source, expected_attempts=state.charged_attempts
+                    )
+                    classifier = WindowClassifier(
+                        lease.provider,
+                        window_chars=self.window_chars,
+                        prompt=self.prompt,
+                        window_contract_version=2,
+                    )
+                    try:
+                        async with decision_attempt(
+                            self.journal,
+                            pair.source,
+                            lease.provider,
+                            model_pin=lease.pin,
+                            current=lease.current,
+                            admission=native,
+                            live_source_current=native.check_source,
+                        ) as capture:
+                            async with asyncio.timeout(self.timeout):
+                                try:
+                                    result = await classifier.classify(
+                                        pair.source, context, tasks, task_history=history,
+                                    )
+                                except (ValueError, TypeError) as exc:
+                                    if not native.entered or capture.raw_response is None:
+                                        raise
+                                    refusal = ProviderRefusal(
+                                        "Live classifier output violated its declared wire contract"
+                                    )
+                                    refusal.reason_code = "invalid_live_output"
+                                    raise refusal from exc
+                            capture.validated_output = result
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        # Only a positively settled native retryable error can
+                        # fund another attempt. Refused/uncertain output cannot.
+                        if not native.settled or native.cleanup_unconfirmed:
+                            raise
+                        after = await self._native(
+                            "live_decisions_attempt_lookup",
+                            LiveDecisionsAttemptLookup(contract_version=2, source=source),
+                        )
+                        if after.state != "retryable_error":
+                            raise
+                        continue
+                    await capture.check_current(lease.provider)
+                    if not lease.current() or self._stop.is_set():
+                        raise CaptureNativeUnavailable("Original model or worker is fenced")
+                    await self._native("publish_live_decision", native.publication())
+                    return
+
+    def _harvest(self):
+        slot = self.slot
+        if slot is None or not slot.task.done():
+            return
+        if not slot.observed:
+            slot.observed = True
+            identity = (slot.source.source_event_id, slot.stamp)
+            try:
+                slot.task.result()
+            except BaseException as exc:
+                self.last_error = type(exc).__name__
+                # Backoff applies to unavailable metadata/recovery, never to
+                # a newly eligible source or normal inference completion.
+                self.deferred[identity] = time.monotonic() + 1
+                if len(self.deferred) > 256:
+                    self.deferred.popitem(last=False)
+            else:
+                self.seen[identity] = True
+                if len(self.seen) > 256:
+                    self.seen.popitem(last=False)
+        if slot.lease is not None and slot.lease in self.model_settings.leases:
+            self.ready = False
+            self.last_error = "original_live_cleanup_unconfirmed"
+            return
+        self.slot = None
+
+    async def run(self):
+        if self.running or self._stop.is_set():
+            raise RuntimeError("Original live worker cannot be reopened")
+        self.running = True
+        stop = asyncio.create_task(self._stop.wait())
+        try:
+            while not self._stop.is_set():
+                self._harvest()
+                try:
+                    if self.wake_task is None:
+                        self._cursor = await self._native("journal_wake_cursor")
+                        self.wake_task = asyncio.create_task(
+                            self.journal.wait_for_journal_change(self._cursor, wait_ms=1000)
+                        )
+                    await self.scan()
+                    self.ready = self.slot is None or not self.slot.observed
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    self.last_error, self.ready = type(exc).__name__, False
+                if self.slot is None and self.pending:
+                    _, source = self.pending.popitem(last=False)
+                    slot = SimpleNamespace(
+                        source=source, stamp=self._stamp(), lease=None, observed=False, task=None
+                    )
+                    slot.task = asyncio.create_task(self._job(slot))
+                    self.slot = slot
+                if self._more and len(self.pending) < MAX_PENDING:
+                    continue
+                waits = {stop}
+                if self.wake_task is not None:
+                    waits.add(self.wake_task)
+                if self.slot is not None and not self.slot.task.done():
+                    waits.add(self.slot.task)
+                done, _ = await asyncio.wait(waits, timeout=1, return_when=asyncio.FIRST_COMPLETED)
+                if self.wake_task in done:
+                    original = self.wake_task
+                    self.wake_task = None
+                    try:
+                        self._cursor = original.result().cursor
+                    except Exception as exc:
+                        self.last_error, self.ready = type(exc).__name__, False
+                    # The completed original is retired; inference completion
+                    # never cancels or replaces a still-running wait.
+        finally:
+            self.running = self.ready = False
+            self._stop.set()
+            await stop
+            await self.close()
+
+    async def _drain(self):
+        tasks = [self.wake_task] if self.wake_task is not None else []
+        if self.slot is not None:
+            tasks.append(self.slot.task)
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._harvest()
+        settled = self.slot is None
+        if settled:
+            _closing.discard(self)
+        return settled
+
+    async def close(self):
+        self._stop.set()
+        self.ready = False
+        if self.slot is not None and not self.slot.task.done() and not self._cancel_sent:
+            self._cancel_sent = True
+            self.slot.task.cancel()
+        if self.cleanup is None or self.cleanup.done():
+            _closing.add(self)
+            self.cleanup = asyncio.create_task(self._drain())
+        try:
+            async with asyncio.timeout(2):
+                return await asyncio.shield(self.cleanup)
+        except TimeoutError:
+            self.last_error = "original_live_cleanup_pending"
+            return False

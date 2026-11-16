@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_decisions_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "after_sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "After Sequence",
+      "type": "integer"
+    },
+    "limit": {
+      "maximum": 32,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "after_sequence",
+    "limit"
+  ],
+  "title": "LiveDecisionsPendingQuery",
+  "type": "object"
+}

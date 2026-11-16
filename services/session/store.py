@@ -1995,6 +1995,11 @@ class LocalJournal:
             raise PermissionError("Native live inference requires Decisions")
         return self.store.live_decisions_attempts.lookup(request)
 
+    async def pending_live_decisions(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live pending discovery requires Decisions")
+        return self.store.live_decisions_attempts.pending(request)
+
     async def live_decisions_attempt_admit(self, request):
         if self.role != "decisions":
             raise PermissionError("Native live inference requires Decisions")
