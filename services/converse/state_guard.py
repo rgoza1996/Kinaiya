@@ -1,54 +1,10 @@
-"""Bounded negative runtime-state publication guard (issue 97).
+"""Historical English claim predicates, retained for diagnostic compatibility.
 
-Defense in depth: local models emitted unsupported negative Agent
-authorization and task-effect facts despite absent authenticated runtime
-context. Generated-chunk guards covered positive completion claims, but not
-these negative facts. Raw model screens remain FAILED; this code cannot
-qualify a model or turn guarded substitutions into raw-model passes.
-
-Pure shared predicate: no I/O, history/route/availability/evidence input,
-and no model/classifier/provider calls. Applied ONLY at existing
-model-generated typed/window publication gates, AFTER the current positive
-guard. NEVER applied to deterministic native outcome_notice, owner
-controls/errors/notices.
-
-Detects narrowly: direct DECLARATIVE English negative Agent
-presence/availability/authorization claims and global task/action/effect
-denials, across grammatical subject/predicate/contraction/adverb families
-(not exact failed sentence strings). Agent copula/contraction denials
-require an explicit bounded runtime-state complement (or, for
-perfect-tense contractions, an explicit task/effect predicate); bare ``not`` and generic
-verbs such as "help" never qualify. The nothing-perfect family keeps every
-alternative scoped under its negative subject/predicate. No unbounded
-broad matching and no universal semantic guarantee.
-
-Segmentation keeps mixed replies honest: genuinely double-quoted spans are
-masked before segmentation (single-quote contractions are untouched), and
-independent spans split on semicolons, colons, em/en dashes (spaced or
-unspaced) and contrastive but/however, so a direct denial after an
-unspaced em dash, a contrastive conjunction, or an unrelated quoted word
-is still evaluated. Uncertainty/attribution/conditional exclusions apply
-only through the candidate assertion. Attribution and conditional governors
-are retained across commas within their span; other independent spans in the
-same chunk are still evaluated. Generic ability limits are not state evidence.
-
-Known misses/limits (documented, not guaranteed):
-- Paraphrases outside the bounded noun/verb lists (e.g. novel synonyms for
-  "unavailable", non-English text, anaphora such as "it never ran" without
-  an explicit task noun, or multi-sentence inference) are missed.
-- Masked double-quoted spans are preserved verbatim (treated as user
-  attribution), so a quoted negative claim is missed by design.
-- Single-letter contractions with curly quotes outside the listed families,
-  or claims split across chunk boundaries, may be missed.
-- An explicit conditional (if/unless) or user attribution (you said) governs
-  its independent span, including commas. Questions are preserved. Uncertainty,
-  normative imperatives, first-person perception limits and hypothetical modals
-  before/within a candidate assertion preserve that assertion. Later unrelated
-  planning modals do not exempt an earlier direct denial. This segmentation is
-  bounded grammar, not a general parser for narrative or reported speech.
-- Input is bounded (first 4000 chars) for deterministic matching; oversize
-  tails are truncated. Clauses are evaluated whole within that bound; regex
-  gaps stay bounded and no pattern reaches across quoted/sentence spans.
+These finite heuristics are no longer connected to Converse publication.
+The November 15 owner clarification (#486 / PR #625) requires faithful model
+output instead of semantic substitutions or suppression. Native outcome notices,
+authorization and custody have separate trusted contracts. These predicates
+neither establish native state nor qualify model quality.
 """
 
 import re

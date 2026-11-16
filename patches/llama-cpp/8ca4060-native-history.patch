@@ -1,0 +1,398 @@
+--- a/tools/server/server-realtime.cpp
++++ b/tools/server/server-realtime.cpp
+@@ -1,0 +2 @@
++#include "server-realtime-history.h"
+@@ -95,0 +97 @@
++    std::vector<common_chat_msg>   history;
+@@ -169,0 +172,3 @@
++            {"native_history",    server_realtime_history_capabilities()},
++            {"history_count",     history.size()},
++            {"history_sha256",    server_realtime_history_digest(history)},
+@@ -215,9 +220 @@
+-        const std::string user  = "@@USER@@";
+-        const std::string reply = "@@REPLY@@";
+-        auto msg = [](const char * role, const std::string & content) {
+-            common_chat_msg m;
+-            m.role    = role;
+-            m.content = content;
+-            return m;
+-        };
+-        std::vector<common_chat_msg> sys;
++        std::vector<common_chat_msg> prefix;
+@@ -225,26 +222,23 @@
+-            sys.push_back(msg("system", instructions));
+-        }
+-        auto with = [&](std::vector<common_chat_msg> rest, bool add_generation_prompt = false) {
+-            std::vector<common_chat_msg> all = sys;
+-            all.insert(all.end(), rest.begin(), rest.end());
+-            return render(all, add_generation_prompt);
+-        };
+-        const std::string a = with({msg("user", user)});
+-        const std::string g = with({msg("user", user)}, true);
+-        const std::string c = with({msg("user", user), msg("assistant", reply)});
+-        const std::string d = with({msg("user", user), msg("assistant", reply), msg("user", user)});
+-
+-        const size_t pa = a.find(user);
+-        const size_t pc = c.find(reply);
+-        const size_t pd = d.find(user, c.size());
+-        if (pa == std::string::npos || pc == std::string::npos || pd == std::string::npos ||
+-            c.compare(0, a.size(), a) != 0 || d.compare(0, c.size(), c) != 0 || g.compare(0, a.size(), a) != 0 || pc < a.size()) {
+-            return false;
+-        }
+-        // the response opens with the generation prompt, a past turn may render differently (e.g. its think block)
+-        first_header     = a.substr(0, pa);
+-        user_footer      = a.substr(pa + user.size());
+-        assistant_header = g.substr(a.size());
+-        assistant_footer = c.substr(pc + reply.size());
+-        user_header      = d.substr(c.size(), pd - c.size());
+-        return true;
++            common_chat_msg system;
++            system.role = "system";
++            system.content = instructions;
++            prefix.push_back(std::move(system));
++        }
++        if (type == "realtime") {
++            prefix.insert(prefix.end(), history.begin(), history.end());
++        }
++        for (int attempt = 0; attempt < 8; ++attempt) {
++            server_realtime_turn_text texts;
++            if (server_realtime_derive_turn_text(prefix,
++                    [this](const std::vector<common_chat_msg> & messages, bool generation) {
++                        return render(messages, generation);
++                    }, random_string(), texts)) {
++                first_header = std::move(texts.first_header);
++                user_header = std::move(texts.user_header);
++                user_footer = std::move(texts.user_footer);
++                assistant_header = std::move(texts.assistant_header);
++                assistant_footer = std::move(texts.assistant_footer);
++                return true;
++            }
++        }
++        return false;
+@@ -441,0 +436,20 @@
++        const bool set_history = session.contains("history") || session.contains("native_history");
++        std::vector<common_chat_msg> staged_history;
++        const std::string previous_instructions = instructions;
++        const std::string previous_type = type;
++        if (set_history) {
++            if (started || (session.contains("type") && !session["type"].is_string()) ||
++                json_value(session, "type", type) != "realtime" ||
++                !session.contains("native_history") || !server_realtime_history_contract(session["native_history"]) ||
++                !session.contains("history") ||
++                (session.contains("instructions") && !session["instructions"].is_string()) ||
++                !server_realtime_parse_history(session["history"],
++                    json_value(session, "instructions", instructions), staged_history)) {
++                send_error("session.update: native history is malformed, over-bound or already started");
++                return;
++            }
++        }
++        if (json_value(session, "type", type) == "transcription" && !history.empty()) {
++            send_error("session.update: clear realtime history before changing session type");
++            return;
++        }
+@@ -479,0 +494,5 @@
++        std::vector<common_chat_msg> previous_history;
++        if (set_history) {
++            previous_history = std::move(history);
++            history = std::move(staged_history);
++        }
+@@ -480,0 +500,5 @@
++            if (set_history) {
++                history = std::move(previous_history);
++                instructions = previous_instructions;
++                type = previous_type;
++            }
+--- /dev/null
++++ b/tools/server/server-realtime-history.h
+@@ -0,0 +1,123 @@
++#pragma once
++
++#include "chat.h"
++#include "json.h"
++#include "hash/hash.h"
++
++#include <string>
++#include <vector>
++
++constexpr size_t SERVER_REALTIME_HISTORY_MESSAGES = 4094;
++constexpr size_t SERVER_REALTIME_HISTORY_BYTES = 1024 * 1024;
++
++inline common_json server_realtime_history_capabilities() {
++    return {{"contract", "native_history.v1"},
++            {"max_messages", SERVER_REALTIME_HISTORY_MESSAGES},
++            {"max_utf8_bytes", SERVER_REALTIME_HISTORY_BYTES}};
++}
++
++inline bool server_realtime_history_contract(const common_json & value) {
++    return value.is_object() && value.size() == 3 &&
++        value.contains("contract") && value["contract"] == "native_history.v1" &&
++        value.contains("max_messages") && value["max_messages"].is_number_integer() &&
++        value["max_messages"].get<int64_t>() == SERVER_REALTIME_HISTORY_MESSAGES &&
++        value.contains("max_utf8_bytes") && value["max_utf8_bytes"].is_number_integer() &&
++        value["max_utf8_bytes"].get<int64_t>() == SERVER_REALTIME_HISTORY_BYTES;
++}
++
++inline common_json server_realtime_history_json(const std::vector<common_chat_msg> & history) {
++    auto value = common_json::array();
++    for (const auto & message : history) {
++        // common_json preserves insertion order: these keys must be sorted to
++        // match the versioned compact UTF-8 JSON digest used by the client.
++        value.push_back(common_json{{"content", message.content}, {"role", message.role}});
++    }
++    return value;
++}
++
++inline std::string server_realtime_history_digest(const std::vector<common_chat_msg> & history) {
++    const auto encoded = server_realtime_history_json(history).dump();
++    return hash_sha256_hex(encoded.data(), encoded.size());
++}
++
++inline bool server_realtime_parse_history(const common_json & value, const std::string & instructions,
++                                         std::vector<common_chat_msg> & result) {
++    if (!value.is_array() || value.size() > SERVER_REALTIME_HISTORY_MESSAGES ||
++        instructions.size() > SERVER_REALTIME_HISTORY_BYTES) {
++        return false;
++    }
++    size_t bytes = instructions.size() + 2; // brackets of the canonical array
++    std::vector<common_chat_msg> parsed;
++    for (const auto & item : value) {
++        if (!item.is_object() || item.size() != 2 || !item.contains("role") || !item.contains("content") ||
++            !item["role"].is_string() || !item["content"].is_string()) {
++            return false;
++        }
++        common_chat_msg message;
++        message.role = item["role"].get<std::string>();
++        message.content = item["content"].get<std::string>();
++        if ((message.role != "system" && message.role != "user" && message.role != "assistant") ||
++            message.content.size() > SERVER_REALTIME_HISTORY_BYTES) {
++            return false;
++        }
++        const common_json row = {{"content", message.content}, {"role", message.role}};
++        bytes += row.dump().size() + (parsed.empty() ? 0 : 1);
++        if (bytes > SERVER_REALTIME_HISTORY_BYTES) {
++            return false;
++        }
++        parsed.push_back(std::move(message));
++    }
++    if (bytes > SERVER_REALTIME_HISTORY_BYTES) {
++        return false;
++    }
++    result = std::move(parsed);
++    return true;
++}
++
++struct server_realtime_turn_text {
++    std::string first_header;
++    std::string user_header;
++    std::string user_footer;
++    std::string assistant_header;
++    std::string assistant_footer;
++};
++
++template <typename Render>
++bool server_realtime_derive_turn_text(const std::vector<common_chat_msg> & prefix, Render render,
++                                     const std::string & nonce, server_realtime_turn_text & result) {
++    const std::string user = "@@NATIVE_" + nonce + "_USER@@";
++    const std::string reply = "@@NATIVE_" + nonce + "_REPLY@@";
++    for (const auto & message : prefix) {
++        if (message.content.find(user) != std::string::npos || message.content.find(reply) != std::string::npos) {
++            return false;
++        }
++    }
++    auto msg = [](const char * role, const std::string & content) {
++        common_chat_msg value;
++        value.role = role;
++        value.content = content;
++        return value;
++    };
++    auto with = [&](std::vector<common_chat_msg> rest, bool generation = false) {
++        auto all = prefix;
++        all.insert(all.end(), rest.begin(), rest.end());
++        return render(all, generation);
++    };
++    const std::string a = with({msg("user", user)});
++    const std::string g = with({msg("user", user)}, true);
++    const std::string c = with({msg("user", user), msg("assistant", reply)});
++    const std::string d = with({msg("user", user), msg("assistant", reply), msg("user", user)});
++    const size_t pa = a.find(user);
++    const size_t pc = c.find(reply);
++    const size_t pd = d.find(user, c.size());
++    if (pa == std::string::npos || pc == std::string::npos || pd == std::string::npos ||
++        a.find(user, pa + user.size()) != std::string::npos ||
++        c.find(reply, pc + reply.size()) != std::string::npos ||
++        c.compare(0, a.size(), a) != 0 || d.compare(0, c.size(), c) != 0 ||
++        g.compare(0, a.size(), a) != 0 || pc < a.size()) {
++        return false;
++    }
++    result = {a.substr(0, pa), d.substr(c.size(), pd - c.size()), a.substr(pa + user.size()),
++              g.substr(a.size()), c.substr(pc + reply.size())};
++    return true;
++}
+--- a/tools/server/CMakeLists.txt
++++ b/tools/server/CMakeLists.txt
+@@ -21,0 +22 @@
++    server-realtime-history.h
+@@ -38 +39 @@
+-target_link_libraries(${TARGET} PUBLIC llama-common mtmd ${CMAKE_THREAD_LIBS_INIT})
++target_link_libraries(${TARGET} PUBLIC llama-common mtmd vendor::hash ${CMAKE_THREAD_LIBS_INIT})
+--- /dev/null
++++ b/tests/test-realtime-history.cpp
+@@ -0,0 +1,112 @@
++#include "../tools/server/server-realtime-history.h"
++
++#include <fstream>
++#include <iostream>
++#include <sstream>
++#include <stdexcept>
++
++struct legacy_prefix : server_realtime_turn_text {
++    std::string instructions;
++    std::function<std::string(const std::vector<common_chat_msg> &, bool)> render;
++#include "realtime-history-8ca4060.inc"
++};
++
++static void require(bool value, const char * message) {
++    if (!value) {
++        throw std::runtime_error(message);
++    }
++}
++
++static common_chat_msg message(const std::string & role, const std::string & content) {
++    common_chat_msg value;
++    value.role = role;
++    value.content = content;
++    return value;
++}
++
++int main(int argc, char ** argv) {
++    try {
++        require(argc == 1 || argc == 2 || argc == 4, "invalid template-test arguments");
++        std::vector<std::string> templates = {
++            "{% for m in messages %}<|im_start|>{{ m['role'] }}\n{{ m['content'] }}<|im_end|>\n{% endfor %}"
++            "{% if add_generation_prompt %}<|im_start|>assistant\n{% endif %}"
++        };
++        if (argc == 2 || argc == 4) {
++            std::ifstream file(argv[1]);
++            require(file.good(), "template unavailable");
++            std::ostringstream text;
++            text << file.rdbuf();
++            templates.push_back(text.str());
++        }
++        int checks = 0;
++        for (const auto & text : templates) {
++            auto tmpls = common_chat_templates_init(nullptr, text, argc == 4 ? argv[2] : "", argc == 4 ? argv[3] : "");
++            auto render = [&](const std::vector<common_chat_msg> & messages, bool generation) {
++                common_chat_templates_inputs input;
++                input.messages = messages;
++                input.use_jinja = true;
++                input.enable_thinking = false;
++                input.add_generation_prompt = generation;
++                return common_chat_templates_apply(tmpls.get(), input).prompt.str();
++            };
++            const std::vector<std::vector<common_chat_msg>> prefixes = {
++                {},
++                {message("system", "Public character.")},
++                {message("system", "Literal @@USER@@ stays in the system."),
++                 message("user", "Public first question."), message("assistant", "Generated reply; delivery unknown.")},
++                {message("system", "Public character: @@USER@@ / @@REPLY@@"),
++                 message("user", "café / quoted \"data\" / newline\n"), message("assistant", "Public previous reply."),
++                 message("system", "Additional authorized system row.")},
++                {message("system", "@@NATIVE_public_seed_USER@@ remains literal data.")},
++            };
++            for (const auto & prefix : prefixes) {
++                server_realtime_turn_text actual;
++                const std::string seed = "independent_seed";
++                require(server_realtime_derive_turn_text(prefix, render, seed, actual), "turn derivation refused");
++                auto current = prefix;
++                current.push_back(message("user", "PUBLIC-CURRENT-AUDIO-PLACEHOLDER"));
++                const auto expected = render(current, false);
++                require(actual.first_header + "PUBLIC-CURRENT-AUDIO-PLACEHOLDER" + actual.user_footer == expected,
++                        "full first-turn prefix differs from actual chat template");
++                require(expected + actual.assistant_header == render(current, true), "assistant generation header differs");
++                checks += 2;
++            }
++            server_realtime_turn_text untouched;
++            untouched.first_header = "unchanged";
++            require(!server_realtime_derive_turn_text(prefixes.back(), render, "public_seed", untouched),
++                    "colliding marker must refuse before changing prefix");
++            require(untouched.first_header == "unchanged", "refused derivation mutated prefix");
++            checks += 2;
++            legacy_prefix old;
++            old.instructions = "Literal @@USER@@ belongs in this system instruction.";
++            old.render = render;
++            const auto expected_old = render({message("system", old.instructions),
++                                              message("user", "PUBLIC-CURRENT-AUDIO-PLACEHOLDER")}, false);
++            const bool old_fidelity = old.derive_turn_text() &&
++                old.first_header + "PUBLIC-CURRENT-AUDIO-PLACEHOLDER" + old.user_footer == expected_old;
++            require(!old_fidelity, "original-placeholder negative control unexpectedly qualified");
++            std::cout << "original_8ca4060_prefix_fidelity=false\n";
++            ++checks;
++            std::cout << "template_sha256=" << hash_sha256_hex(text.data(), text.size()) << "\n";
++        }
++        std::vector<common_chat_msg> history;
++        const auto input = common_json::parse("[{\"role\":\"user\",\"content\":\"café / \\\"quoted\\\"\\n\"},{\"content\":\"reply\",\"role\":\"assistant\"}]");
++        require(server_realtime_parse_history(input, "Public system.", history), "valid typed history refused");
++        require(history.size() == 2 && history[0].role == "user" && history[1].role == "assistant", "roles/order changed");
++        std::cout << "history_sha256=" << server_realtime_history_digest(history) << "\n";
++        for (const auto & bad : {"{}", "[{}]", "[{\"role\":\"tool\",\"content\":\"x\"}]",
++                               "[{\"role\":\"user\",\"content\":1}]", "[{\"role\":\"user\",\"content\":\"x\",\"extra\":1}]"}) {
++            auto previous = history;
++            require(!server_realtime_parse_history(common_json::parse(bad), "Public system.", history), "malformed history accepted");
++            require(server_realtime_history_json(history).dump() == server_realtime_history_json(previous).dump(), "refusal mutated history");
++            checks += 2;
++        }
++        require(server_realtime_history_contract(server_realtime_history_capabilities()), "own capability refused");
++        require(!server_realtime_history_contract(common_json::parse("{\"contract\":\"native_history.v2\",\"max_messages\":4094,\"max_utf8_bytes\":1048576}")), "future capability accepted");
++        std::cout << "checks_passed=" << checks + 4 << "\n";
++        return 0;
++    } catch (const std::exception & error) {
++        std::cerr << error.what() << "\n";
++        return 1;
++    }
++}
+--- /dev/null
++++ b/tests/realtime-history-8ca4060.inc
+@@ -0,0 +1,39 @@
++// Original source 8ca4060b7e30e76baaa5670ee1ec1b760b7f8552; negative control.
++    bool derive_turn_text() {
++        const std::string user  = "@@USER@@";
++        const std::string reply = "@@REPLY@@";
++        auto msg = [](const char * role, const std::string & content) {
++            common_chat_msg m;
++            m.role    = role;
++            m.content = content;
++            return m;
++        };
++        std::vector<common_chat_msg> sys;
++        if (!instructions.empty()) {
++            sys.push_back(msg("system", instructions));
++        }
++        auto with = [&](std::vector<common_chat_msg> rest, bool add_generation_prompt = false) {
++            std::vector<common_chat_msg> all = sys;
++            all.insert(all.end(), rest.begin(), rest.end());
++            return render(all, add_generation_prompt);
++        };
++        const std::string a = with({msg("user", user)});
++        const std::string g = with({msg("user", user)}, true);
++        const std::string c = with({msg("user", user), msg("assistant", reply)});
++        const std::string d = with({msg("user", user), msg("assistant", reply), msg("user", user)});
++
++        const size_t pa = a.find(user);
++        const size_t pc = c.find(reply);
++        const size_t pd = d.find(user, c.size());
++        if (pa == std::string::npos || pc == std::string::npos || pd == std::string::npos ||
++            c.compare(0, a.size(), a) != 0 || d.compare(0, c.size(), c) != 0 || g.compare(0, a.size(), a) != 0 || pc < a.size()) {
++            return false;
++        }
++        // the response opens with the generation prompt, a past turn may render differently (e.g. its think block)
++        first_header     = a.substr(0, pa);
++        user_footer      = a.substr(pa + user.size());
++        assistant_header = g.substr(a.size());
++        assistant_footer = c.substr(pc + reply.size());
++        user_header      = d.substr(c.size(), pd - c.size());
++        return true;
++    }
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -282,0 +283 @@
++llama_build_and_test(test-realtime-history.cpp LABEL behavior LINK llama-common vendor::hash)

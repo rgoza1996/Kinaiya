@@ -38,6 +38,10 @@ REAL_ASYNC_CLIENT = httpx.AsyncClient
 MAX_SELECTION_OBSERVATIONS = 3
 
 
+class UnconfirmedSelectionCapture(AssertionError):
+    """The positive selection oracle cannot continue on unknown inspection."""
+
+
 def compact(value):
     return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
 
@@ -80,14 +84,19 @@ async def observe_selected_classification(env, entry, lease, wire, classifier, t
             assert record["source_event_id"] == entry.event_id
             assert record["model_pin"] == lease.pin.model_dump(mode="json")
             assert record["attempt"] == observation
-            assert (
-                record["status"] == "error" and record["error_type"] == "CaptureNativeUnavailable"
-            )
             assert record["raw_response"] is None and record["validated_output"] is None
             assert (
                 env.store.db.execute("SELECT count(*) FROM decisions_attempts").fetchone()[0] == 0
             )
             assert env.store.read(kinds=["routing.decided", "routing.window_decided"]) == []
+            if record["status"] == "started":
+                assert record["error_type"] is None
+                raise UnconfirmedSelectionCapture(
+                    "Selected-provider capture finish is unconfirmed"
+                ) from exc
+            assert (
+                record["status"] == "error" and record["error_type"] == "CaptureNativeUnavailable"
+            )
             refused.append(capture.call_id)
             if observation == MAX_SELECTION_OBSERVATIONS:
                 raise
@@ -165,12 +174,22 @@ async def test_selected_window_oracle_retains_held_currentness_refusal_then_requ
 
 async def test_selected_window_oracle_exhaustion_is_a_failure_not_success(tmp_path, monkeypatch):
     report = hold_latest_response(monkeypatch, MAX_SELECTION_OBSERVATIONS)
-    with pytest.raises(CaptureNativeUnavailable, match="currentness check exceeded"):
+    with pytest.raises((CaptureNativeUnavailable, UnconfirmedSelectionCapture)) as raised:
         await test_selected_openrouter_decisions_routes_and_captures_inspection(
             tmp_path, monkeypatch, "window"
         )
-    assert report["held"] == report["cancelled_reads"] == MAX_SELECTION_OBSERVATIONS
-    assert [row["status"] for row in report["records"]] == ["error"] * MAX_SELECTION_OBSERVATIONS
+    statuses = [row["status"] for row in report["records"]]
+    if isinstance(raised.value, UnconfirmedSelectionCapture):
+        assert str(raised.value) == "Selected-provider capture finish is unconfirmed"
+        assert isinstance(raised.value.__cause__, CaptureNativeUnavailable)
+        assert 1 <= len(statuses) <= MAX_SELECTION_OBSERVATIONS
+        assert statuses == ["error"] * (len(statuses) - 1) + ["started"]
+        assert report["records"][-1]["error_type"] is None
+    else:
+        assert str(raised.value) == "Decisions currentness check exceeded its bound"
+        assert isinstance(raised.value.__cause__, TimeoutError)
+        assert statuses == ["error"] * MAX_SELECTION_OBSERVATIONS
+    assert report["held"] == report["cancelled_reads"] == len(statuses)
     assert all(
         row["raw_response"] is None and row["validated_output"] is None for row in report["records"]
     )

@@ -36,6 +36,7 @@ from packages.contracts.media import (
     media_bytes,
     media_json,
 )
+from packages.resources._bootstrap_protocol import BOOTSTRAP_ENTRY, BOOTSTRAP_ENTRY_FLAG
 from packages.resources.processes import (
     DEFAULT_LANG,
     DEFAULT_PATH,
@@ -624,8 +625,31 @@ class MediaLaunch:
         read, write = os.pipe2(os.O_CLOEXEC)
         return self._owner(read), self._owner(write, passed=True)
 
+    async def _read_bootstrap_entry(self, owner, deadline):
+        entry = bytearray()
+        remaining = None if deadline is None else deadline - asyncio.get_running_loop().time()
+        if remaining is not None and remaining <= 0:
+            _error()
+        async with asyncio.timeout(remaining):
+            while len(entry) < len(BOOTSTRAP_ENTRY):
+                if owner.fd is None or owner.closed or owner.unknown:
+                    _error()
+                try:
+                    part = os.read(owner.fd, len(BOOTSTRAP_ENTRY) - len(entry))
+                except (BlockingIOError, InterruptedError):
+                    await _ready(owner, "read")
+                    continue
+                if not part:
+                    _error()
+                entry.extend(part)
+        if entry != BOOTSTRAP_ENTRY:
+            _error()
+
     async def _spawn_owned(self, manager):
         self._owned()
+        # Legacy unscoped media has no implicit preparation timer. Scoped
+        # preparation retains its original absolute deadline from admission.
+        entry_deadline = self._cgroup_startup_deadline
         try:
             if self._start_mode == "prepared":
                 # Publication of the exact original Task precedes all spawn
@@ -713,6 +737,7 @@ class MediaLaunch:
                             nonce,
                             str(child_control.fd),
                             str(source_fd),
+                            BOOTSTRAP_ENTRY_FLAG,
                             cwd=str(spec.cwd),
                             env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
                             stdin=asyncio.subprocess.DEVNULL,
@@ -751,6 +776,7 @@ class MediaLaunch:
                                 str(source_fd),
                                 "--kinaiya-cgroup-v1",
                                 str(enroll_fd),
+                                BOOTSTRAP_ENTRY_FLAG,
                                 cwd=str(spec.cwd),
                                 env={"PATH": DEFAULT_PATH, "LANG": DEFAULT_LANG},
                                 stdin=asyncio.subprocess.DEVNULL,
@@ -774,13 +800,16 @@ class MediaLaunch:
             self._future_spawn = False
             self._managed = _Managed(spec=spec, process=proc, pgid=proc.pid)
             self._drains = [
-                self._task(self._drain(stdout_read)),
                 self._task(self._drain(stderr_read)),
             ]
             for owner in self._pass_owners:
                 self._close(owner)
             if not self._close_parent_source():
                 _error()
+            await self._read_bootstrap_entry(stdout_read, entry_deadline)
+            self._drains.insert(0, self._task(self._drain(stdout_read)))
+            if self._fenced or self._pool._closed:
+                _error("expired")
             leader, start = self._verify_bootstrap(proc.pid, nonce, bootstrap)
             if leader is None:
                 _error()

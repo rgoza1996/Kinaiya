@@ -1,0 +1,129 @@
+{
+  "baseline": "7299f8b9e31b045382892a224c6a0b51c523e54b",
+  "issue": 643,
+  "scope": "test-only conservative oracle classification; original positive-proof checks retained",
+  "production_source_changed": false,
+  "native_deadlines_changed": false,
+  "original_provider_request_count_retained": true,
+  "hosted_first": {
+    "pr": 636,
+    "head": "7b59e84ce7b1a8116cec285c923c9321506e6803",
+    "run": 43765825209,
+    "job": 132970559200,
+    "passed": 14988,
+    "failed": 1,
+    "skipped": 9,
+    "deselected": 49,
+    "subtests": 2,
+    "seconds": 2782.35,
+    "cause": "particular finish failure unproven; native currentness refusal followed by started capture"
+  },
+  "controlled_first": {
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/integration/test_decisions_selection_capture_unknown.py"
+    ],
+    "python": "3.12.3",
+    "passed": 1,
+    "failed": 2,
+    "seconds": 4.29,
+    "cases": "first three frozen held native finish cases; fourth unrelated-assertion control added later"
+  },
+  "focused_after": {
+    "passed": 11,
+    "failed": 0,
+    "seconds": 7.41,
+    "scope": "first three controls and whole selection module, before adding unrelated-assertion control"
+  },
+  "final_checks": [
+    {
+      "python": "3.12.3",
+      "interpreter": "root .venv/bin/python",
+      "passed": 110,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1,
+      "seconds": 19.44
+    },
+    {
+      "python": "3.13.18",
+      "interpreter": "local output/issue-643-python313-venv/bin/python",
+      "passed": 110,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1,
+      "seconds": 20.18
+    }
+  ],
+  "command": [
+    "python",
+    "-m",
+    "pytest",
+    "-q",
+    "tests/integration/test_decisions_selection_capture_unknown.py",
+    "tests/integration/test_openrouter_decisions_selection.py",
+    "tests/integration/test_decisions_inspection.py",
+    "tests/integration/test_decisions_finalized_refusal_recovery.py",
+    "tests/integration/test_decisions_finalized_refusal.py",
+    "tests/integration/test_window_cache_identity.py"
+  ],
+  "environment": {
+    "PYTHONPATH": "absolute current worktree",
+    "python313_subprocess_path": "persistent qualification venv first",
+    "native_python313_sha256": "3332ebd605e668146a009f4a4aa4670bcb987bb3c27abce4a7135546e42d55ac",
+    "dev_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "restore": "stdlib venv and unchanged --require-hashes --only-binary=:all: dev lock from public PyPI; no package/SDK upgrade",
+    "pip_check": "No broken requirements found",
+    "imports": "verified current worktree decision_capture.py"
+  },
+  "static": {
+    "ruff_check": "passed",
+    "ruff_format_files": 1048,
+    "diff_check": "passed"
+  },
+  "source": {
+    "tests/integration/test_decisions_selection_capture_unknown.py": {
+      "sha256": "01e28563a21f96cfd9724391e26696a80b8985552622bddab074da2c18049702",
+      "size_bytes": 5061
+    },
+    "tests/integration/test_openrouter_decisions_selection.py": {
+      "sha256": "e9ab98d1438033ddb364d322886174b830372a0185148f6ba5ec39de598b6c5c",
+      "size_bytes": 21141
+    }
+  },
+  "logs": {
+    "issue-636-python312-capture-first-failure.log": {
+      "sha256": "64e6b9bc6c31cce1de107d19acde0e43daae5cbbb6857a7c8b8221f846e2ecc6",
+      "size_bytes": 17993
+    },
+    "issue-643-controlled-first.log": {
+      "sha256": "9a9e696aac2dd212bc356c8469ed8d9a4f7d498c5dcd751cad9ee910ac923559",
+      "size_bytes": 15249
+    },
+    "issue-643-focused-after.log": {
+      "sha256": "d2e4e3d2676a029f582275a2ae2fdb33302bd483bac0ae517c28256b509e6e6a",
+      "size_bytes": 99
+    },
+    "issue-643-related312.log": {
+      "sha256": "d2de1861b374d3cb4dbebd45110fddb42c04669b2d017e375b9b77b9d85e5947",
+      "size_bytes": 688
+    },
+    "issue-643-related313.log": {
+      "sha256": "74aa62c5efff8f9f150f064a7df93625d4bddfa8846c6a4c80c9aeca0a21fa4f",
+      "size_bytes": 740
+    },
+    "issue-643-python313-hashed-install.log": {
+      "sha256": "e12b6f5a7f13055aa61184a6dfdd5a9a7d777cedc11ebf9b07a724150bf0815e",
+      "size_bytes": 11565
+    }
+  },
+  "limitations": [
+    "Hosted first finish failure cause remains unproven",
+    "No production finish deadline/retry/accounting change",
+    "Targeted checks are separate from exact-head hosted CI",
+    "No external model or provider call"
+  ]
+}

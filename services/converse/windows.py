@@ -2,7 +2,6 @@
 
 import asyncio
 import hashlib
-import re
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -10,12 +9,12 @@ from datetime import UTC, datetime
 from packages.contracts.memory import MemoryBinding
 from packages.contracts.models import AppendRequest, SpeechWindow, WindowDecision
 from packages.providers.disclosure import combine_scopes, scope_allowed
-from packages.providers.text import ProviderCleanupError, owned_http_stream_cleanup
+from packages.providers.realtime_audio import NativeAudioReply
+from packages.providers.text import ProviderCleanupError, ProviderRefusal, owned_http_stream_cleanup
 from services.converse.context_budget import ContextBudgetBuilder
 from services.converse.context_projection import ContextProjection
 from services.converse.delivery_context import window_context_projection
 from services.converse.runtime import SpeechChunker
-from services.converse.state_guard import UNVERIFIED_STATE_REPLY, negative_runtime_state_claim
 from services.converse.task_context import check_disclosure as check_task_disclosure
 from services.converse.task_context import prepare as prepare_task_context
 from services.converse.task_context import publication_scopes as task_publication_scopes
@@ -40,23 +39,6 @@ class WindowGenerationTask(asyncio.Task):
 
 def allowed_scope(provider, scope):
     return scope_allowed(provider.info, scope)
-
-
-def unverified_work_claim(text, work_routed):
-    # This is a conservative guard for explicit effect claims, not a blanket
-    # ban on ordinary words such as "well done" or "finished my introduction".
-    actor = r"(?:i(?:'ve)?|we(?:'ve)?|the agent)"
-    verb = r"(?:(?:have|has|just|already)\s+){0,2}(?:completed?|finished|sent|saved|created|deleted|verified)"
-    obj = r"(?:\s+(?:the|your|a|an|those|that|requested)){0,2}\s+(?:task|work|job|file|email|message|document|script|changes|report)\b"
-    return bool(
-        re.search(rf"\b{actor}\s+{verb}{obj}", text, re.I)
-        or re.search(
-            r"\b(?:the )?(?:agent|task|work|job)\s+(?:(?:is|was|has|been|now)\s+){0,3}(?:done|completed?|finished)\b",
-            text,
-            re.I,
-        )
-        or (work_routed and re.fullmatch(r"\s*(?:done|completed?|finished)[.!]?\s*", text, re.I))
-    )
 
 
 @dataclass
@@ -442,17 +424,6 @@ class WindowConverseController:
                     prepared.content_scope = combine_scopes(prepared.content_scope, *task_scopes)
                     if await self.current(prepared) is None:
                         return False
-                positive_hit = unverified_work_claim(
-                    text, prepared.decision.payload["agent_route"] != "IGNORE_FOR_IMMEDIATE_ROUTING"
-                )
-                if positive_hit:
-                    text = "The Agent has not provided a verified result for that claim."
-                    negative_state = False
-                elif negative_runtime_state_claim(text):
-                    negative_state = True
-                    text = UNVERIFIED_STATE_REPLY
-                else:
-                    negative_state = False
                 if prepared.reply_request is None:
                     prepared.reply_request = AppendRequest(
                         session_id=source.session_id,
@@ -478,6 +449,7 @@ class WindowConverseController:
                             **(
                                 {
                                     "native_audio": text == prepared.native_audio_reply.text,
+                                    "native_audio_history": prepared.native_audio_reply.history_mode,
                                     **(
                                         {
                                             "native_audio_sha256": hashlib.sha256(
@@ -485,18 +457,13 @@ class WindowConverseController:
                                             ).hexdigest()
                                         }
                                         if text == prepared.native_audio_reply.text
-                                        else {"native_audio_suppressed": "guard_replaced_text"}
+                                        else {"native_audio_suppressed": "text_identity_mismatch"}
                                     ),
                                 }
                                 if prepared.native_audio_reply is not None
                                 else {}
                             ),
                             **self.runtime.model_payload(prepared),
-                            **(
-                                {"guard_reason": "ungrounded_runtime_state_claim"}
-                                if negative_state
-                                else {}
-                            ),
                             "content_scope": combine_scopes(
                                 prepared.content_scope,
                                 latest.content_scope
@@ -697,6 +664,12 @@ class WindowConverseController:
                 if await self.current(prepared) is None:
                     self._abandon(prepared)
                     return
+                if (
+                    type(reply) is not NativeAudioReply
+                    or type(reply.history_mode) is not str
+                    or reply.history_mode not in {"system_json", "native_roles_v1"}
+                ):
+                    raise ProviderRefusal("Native audio history representation is unavailable")
                 # Buffered native output is one atomic text/audio unit. Splitting
                 # text with SpeechChunker would break its PCM correspondence.
                 prepared.native_audio_reply = reply

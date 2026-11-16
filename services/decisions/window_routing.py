@@ -50,6 +50,9 @@ AGENT_LABELS = (
 MAX_CONTEXT_ENTRIES = 12
 MAX_ENTRY_CHARS = 2000
 MAX_TASKS = 8
+MAX_TASK_HISTORY = 8
+MAX_TASK_HISTORY_SOURCES = 32
+TERMINAL_TASK_STATES = frozenset({"succeeded", "failed", "cancelled"})
 READ_LIMIT = 100
 MAX_QUEUED_DRAIN = 50
 
@@ -101,7 +104,7 @@ _ALLOWED_SCOPES_LOCAL = {"local_only", "public_synthetic", "private_cloud_author
 OVERFLOW_TASKS = 5
 # Bump when the provider-visible window request shape or instructions change so
 # RAM cache entries from an older request contract can never be reused.
-WINDOW_REQUEST_CONTRACT = "window-request-v3"
+WINDOW_REQUEST_CONTRACT = "window-request-v4"
 
 
 class WindowDisclosureRefused(ValueError):
@@ -164,9 +167,9 @@ def is_ambiguous_multi_task_target(target, tasks: list, *, provider_info=None) -
     return False
 
 
-async def resolve_scoped_tasks(journal, tasks: list) -> list:
+async def resolve_scoped_tasks(journal, tasks: list, *, force=False) -> list:
     """Fold each task's native source scopes and pin resolved source entries."""
-    if len(tasks) <= 1:
+    if len(tasks) <= 1 and not force:
         return tasks
     has_resolver = (
         hasattr(journal, "entry") and hasattr(journal, "resolve") and hasattr(journal, "read")
@@ -262,8 +265,56 @@ def _task_projection(tasks: list, *, provider_info=None, limit: int = MAX_TASKS)
     return projected
 
 
+def _project_task_history(tasks, *, provider_info=None):
+    """Bound terminal observations separately from writable target candidates."""
+    rows, included, sources = [], [], []
+    seen = set()
+    if not isinstance(tasks, (list, tuple)):
+        raise ValueError("Terminal task observations require a bounded sequence")
+    for task in tasks[:MAX_TASK_HISTORY]:
+        scope = getattr(task, "content_scope", "local_only")
+        if type(scope) is not str or scope not in _allowed_scopes(provider_info):
+            continue
+        references = getattr(task, "source_event_ids", ())
+        bound_sources = getattr(task, "_disclosure_sources", ()) or ()
+        if len(references) > MAX_TASK_HISTORY_SOURCES:
+            raise ValueError("Terminal task sources exceed their bound")
+        if len(bound_sources) != len(references) or any(
+            not isinstance(entry, JournalEntry)
+            or entry.origin != "authenticated-user"
+            or entry.kind not in {"conversation.user", "conversation.window"}
+            or entry.payload.get("deleted") is True
+            for entry in bound_sources
+        ):
+            # This new informational path cannot turn an unresolved original
+            # source into local disclosure authority. Omission is not absence.
+            continue
+        state = str(task.state.value if hasattr(task.state, "value") else task.state)
+        if (
+            state not in TERMINAL_TASK_STATES
+            or type(task.task_id) is not str
+            or not 1 <= len(task.task_id) <= 256
+            or task.task_id in seen
+            or type(task.objective_revision) is not int
+            or not 1 <= task.objective_revision <= 9_007_199_254_740_991
+        ):
+            raise ValueError("Invalid terminal task observation")
+        row = {
+            "task_id": task.task_id,
+            "objective_revision": task.objective_revision,
+            "state": state,
+        }
+        if task_description_admissible(task, provider_info):
+            row["description"] = task.objective.strip()[:MAX_TASK_DESCRIPTION_CHARS]
+        rows.append(row)
+        included.append(task)
+        sources.extend(bound_sources)
+        seen.add(task.task_id)
+    return rows, included, sources
+
+
 def _encode_request(
-    window: SpeechWindow, entries: list[JournalEntry], task_refs: list[dict]
+    window: SpeechWindow, entries: list[JournalEntry], task_refs: list[dict], task_history=()
 ) -> str:
     return json.dumps(
         {
@@ -280,6 +331,7 @@ def _encode_request(
                 for entry in entries
             ],
             "tasks": task_refs,
+            **({"task_history": task_history} if task_history else {}),
         }
     )
 
@@ -290,6 +342,7 @@ class WindowRequest(NamedTuple):
     body: str
     context: list[JournalEntry]
     tasks: list
+    task_history: list | tuple = ()
 
 
 def build_window_request(
@@ -299,14 +352,15 @@ def build_window_request(
     *,
     provider_info,
     window_chars: int,
+    task_history=(),
 ) -> WindowRequest:
     """Build the single authorization-first, bounded window classifier request.
 
     The current source is admitted before any of its text is read into the
     request; withheld context is filtered before projection. The result is
-    idempotent: rebuilding from its own ``context`` and ``tasks`` yields the
-    identical ``body``, so the worker's reuse identity and the provider call
-    are bound to the same bytes (including the overflow fold).
+    idempotent: rebuilding from its own ``context``, ``tasks`` and
+    ``task_history`` yields the identical ``body``, so the worker's reuse identity
+    and provider call bind the same bytes (including the overflow fold).
     """
     window = SpeechWindow.model_validate(source.payload)
     if provider_info is not None and not scope_allowed(provider_info, window.content_scope):
@@ -314,19 +368,22 @@ def build_window_request(
     allowed = _allowed_scopes(provider_info)
     entries = [e for e in context[-MAX_CONTEXT_ENTRIES:] if _entry_scope(e) in allowed]
     included_tasks = list(tasks)[:MAX_TASKS]
+    history_refs, included_history, _ = _project_task_history(
+        task_history, provider_info=provider_info
+    )
     task_refs = _task_projection(included_tasks, provider_info=provider_info, limit=MAX_TASKS)
-    body = _encode_request(window, entries, task_refs)
+    body = _encode_request(window, entries, task_refs, history_refs)
     if len(body) > window_chars:
-        # Overflow drops history and folds tasks; the returned inputs describe
-        # exactly what remains provider-visible.
+        # Overflow drops conversational history and folds active targets;
+        # terminal observations remain part of the bounded request.
         entries, included_tasks = [], included_tasks[:OVERFLOW_TASKS]
         task_refs = _task_projection(
             included_tasks, provider_info=provider_info, limit=OVERFLOW_TASKS
         )
-        body = _encode_request(window, entries, task_refs)
+        body = _encode_request(window, entries, task_refs, history_refs)
     if len(body) > window_chars:
         raise ValueError("Current window exceeds classifier context bound")
-    return WindowRequest(body, entries, included_tasks)
+    return WindowRequest(body, entries, included_tasks, included_history)
 
 
 class WindowProjection(NamedTuple):
@@ -335,6 +392,7 @@ class WindowProjection(NamedTuple):
     tasks: list
     body: str | None
     digest: str | None
+    task_history: list | tuple = ()
 
 
 def admissible_window_projection(
@@ -348,6 +406,7 @@ def admissible_window_projection(
     agent_available: bool = True,
     model_stamp: str | None = None,
     instructions_stamp: str | None = None,
+    task_history=(),
 ) -> WindowProjection:
     """Project the exact classifier request and its canonical reuse digest.
 
@@ -359,7 +418,12 @@ def admissible_window_projection(
     """
     try:
         request = build_window_request(
-            source, context, tasks, provider_info=provider_info, window_chars=window_chars
+            source,
+            context,
+            tasks,
+            provider_info=provider_info,
+            window_chars=window_chars,
+            task_history=task_history,
         )
     except WindowDisclosureRefused:
         return WindowProjection(False, [], [], None, None)
@@ -367,6 +431,8 @@ def admissible_window_projection(
     _, task_sources = _project_tasks_with_sources(
         request.tasks, provider_info=provider_info, limit=len(request.tasks)
     )
+    _, _, history_sources = _project_task_history(request.task_history, provider_info=provider_info)
+    task_sources += history_sources
     canonical = {
         "contract": WINDOW_REQUEST_CONTRACT,
         "body": request.body,
@@ -410,7 +476,9 @@ def admissible_window_projection(
             "utf-8"
         )
     ).hexdigest()
-    return WindowProjection(True, request.context, request.tasks, request.body, digest)
+    return WindowProjection(
+        True, request.context, request.tasks, request.body, digest, request.task_history
+    )
 
 
 class WindowClassifier:
@@ -427,23 +495,30 @@ class WindowClassifier:
         self.window_chars = window_chars
         self.prompt = DEFAULT_PROMPT if prompt is None else prompt
 
-    def _build(self, source: JournalEntry, context: list[JournalEntry], tasks: list):
+    def _build(
+        self, source: JournalEntry, context: list[JournalEntry], tasks: list, task_history=()
+    ):
         return build_window_request(
             source,
             context,
             tasks,
             provider_info=self.provider.info,
             window_chars=self.window_chars,
+            task_history=task_history,
         )
 
-    def _request_body(self, source: JournalEntry, context: list[JournalEntry], tasks: list) -> str:
-        return self._build(source, context, tasks).body
+    def _request_body(
+        self, source: JournalEntry, context: list[JournalEntry], tasks: list, *, task_history=()
+    ) -> str:
+        return self._build(source, context, tasks, task_history).body
 
     async def classify(
         self,
         source: JournalEntry,
         context: list[JournalEntry],
         tasks: list,
+        *,
+        task_history=(),
     ) -> dict:
         prompt = self.prompt
         prompt_stamp(prompt, "window", self.provider.info)
@@ -457,14 +532,23 @@ class WindowClassifier:
             for t in tasks
         ):
             tasks = await resolve_scoped_tasks(capture.journal, tasks)
+        if capture is not None and any(
+            getattr(t, "source_event_ids", None) and getattr(t, "_disclosure_sources", None) is None
+            for t in task_history
+        ):
+            task_history = await resolve_scoped_tasks(capture.journal, task_history, force=True)
         system_instructions = instructions(prompt, "window")
         started = time.monotonic()
-        request = self._build(source, context, tasks)
+        request = self._build(source, context, tasks, task_history)
         body = request.body
         context_used = json.loads(body)["context"]
         _, task_sources = _project_tasks_with_sources(
             request.tasks, provider_info=self.provider.info, limit=len(request.tasks)
         )
+        _, _, history_sources = _project_task_history(
+            request.task_history, provider_info=self.provider.info
+        )
+        task_sources += history_sources
         capture_sources(source, [*request.context, *task_sources])
         raw = await self.provider.complete(
             [
