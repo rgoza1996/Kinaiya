@@ -43,3 +43,18 @@ Remaining #623 work includes completion/fresh-source scheduling, qualified
 publication/consumer routing, same-capture decoder rollover, backchannel/echo/mute
 ownership, timing evidence and rollout. No new worker, default or effect path is
 enabled by this increment. Native resource recovery is separately under #657.
+
+## Full-CI compatibility follow-up
+
+At the first published head 76f2c6fe, Python 3.11/3.13/3.14 full hosted CI each
+reported one failure, 15,484 passed, 11 skipped, 49 deselected, one existing warning
+and two subtests passed. The legacy 184-file schema aggregate counted the two new
+LiveWindow exports, producing 186 instead. Every previous schema remained
+byte-identical. Complete decoded logs and hashes are retained in the receipt.
+
+The correction excludes only those two separately pinned additions. The legacy
+expected count 184 and hash 21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a
+remain unchanged. The current combined v2/legacy contract check passes 127 cases
+on Python 3.13 in 8.93s and Python 3.14 in 9.34s, with 849 inputs unchanged. Runtime
+code is byte-identical to the earlier 1,221-case run; only this test-family selector
+and evidence changed. Full exact-head CI is required again after this follow-up.

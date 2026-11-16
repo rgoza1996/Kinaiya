@@ -2,7 +2,7 @@
   "issue": 623,
   "base": "e292691c4f4ac0d06592b322cf00e8cab4e2be4a",
   "parent_pr": 657,
-  "status": "classification/provider increment qualified locally; exact-head hosted CI pending; Adaptive Live off",
+  "status": "classification/provider increment locally qualified; legacy family selector corrected after first full CI failure; new exact-head CI pending",
   "schema_family": {
     "new": 2,
     "previous_files_unchanged": 538,
@@ -116,6 +116,50 @@
       "result": "1221 passed, one existing Starlette warning in 213.30s",
       "receipt": "output/issue-623-live-v2-final-broad-receipt.json",
       "log": "output/issue-623-live-v2-final-broad.log"
+    },
+    {
+      "base": "76f2c6feb0c45234cd6519f1f44557491f83601d",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_live_window_contract.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py"
+      ],
+      "exit_code": 0,
+      "seconds": 9.67,
+      "inputs": 849,
+      "changed_inputs": [],
+      "log_sha256": "9106d93711f28a2d3481e7bd1d5790d5ef404541fb7916c34f2461dace55faa6",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "result": "127 passed in8.93s",
+      "receipt": "output/issue-623-live-v2-schema-repaired-313-receipt.json",
+      "log": "output/issue-623-live-v2-schema-repaired-313.log",
+      "input_manifest_sha256": "c204da88e811e8c9579df02d5fd1a1d7dae2ea7f04e7d3d8c4bde6f6048f6ce1"
+    },
+    {
+      "base": "76f2c6feb0c45234cd6519f1f44557491f83601d",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_live_window_contract.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py"
+      ],
+      "exit_code": 0,
+      "seconds": 10.01,
+      "inputs": 849,
+      "changed_inputs": [],
+      "log_sha256": "271e07ba48f38b46ee7f178d3c2b797d971ad74a86608ceeb4944f0bbd468386",
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
+      "PATH": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin:/home/roggoz/Disks/SN750/Kinaiya/.dev-run/flutter/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "result": "127 passed in9.34s",
+      "receipt": "output/issue-623-live-v2-schema-repaired-314-receipt.json",
+      "log": "output/issue-623-live-v2-schema-repaired-314.log",
+      "input_manifest_sha256": "c204da88e811e8c9579df02d5fd1a1d7dae2ea7f04e7d3d8c4bde6f6048f6ce1"
     }
   ],
   "first_failures": [
@@ -136,7 +180,7 @@
     }
   ],
   "source_sha256": {
-    "docs/evidence/live-window-contract-v2-2026-11-16/README.md": "60e2b91b1c572f80da300b6ce39144ca3fb5e5e50cba00e4a72ae399acc1074f",
+    "docs/evidence/live-window-contract-v2-2026-11-16/README.md": "43f920abb9e969a1332695d767ab0d5d3f438e061e56d67cdf434d70e458367f",
     "docs/evidence/live-window-contract-v2-2026-11-16/first-target-control.py.txt": "2da3a34ed0b62d57ba82bbd7f611c1e8c28d6bdf381d850cea0ee1d58088ecca",
     "docs/live-window-contract-v2.md": "ef5fc4847690f76cd1b0053e86fa74ac8bccc8147f10880491cb60332b4d1ab9",
     "packages/contracts/live_decisions.py": "0110b9ac5a6c29714d3abd2950bb7729de207e51d754964e0fafeb6d56e8669e",
@@ -149,7 +193,8 @@
     "services/decisions/prompts.py": "82273a96a8f191c449799be45ee87bb27e370a8f5a8c9e9d3342dd192f08f55e",
     "services/decisions/window_routing.py": "0c643fd6c1362d50d3017f3e15218cd2ef80ebc292def08c8c78906f19db3419",
     "services/decisions/window_worker.py": "a79a6aca86f11b8de361fb4b17e0770e182fe7c687faf6a7a7eaa07ca0aa8257",
-    "tests/integration/test_live_window_contract.py": "899b6626d41df5541579eaa4900ff872227ab418a3a2c660dfb9598b04c5c058"
+    "tests/integration/test_live_window_contract.py": "899b6626d41df5541579eaa4900ff872227ab418a3a2c660dfb9598b04c5c058",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "2cddd9bc65d990ee0321969783d3be16cf00dc0f36506e0f5be81adb25ec147f"
   },
   "static_checks": [
     {
@@ -189,5 +234,39 @@
       "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-decisions-623",
       "result": "two additive schemas, all538previousfilesbyteidentical"
     }
-  ]
+  ],
+  "hosted_first": {
+    "head": "76f2c6feb0c45234cd6519f1f44557491f83601d",
+    "run": 43892823169,
+    "failure": "old 184-file schema glob included two separately pinned additive exports; no original schema bytes changed",
+    "jobs": [
+      {
+        "job": 133388287101,
+        "log": "output/job-133388287101.log",
+        "sha256": "eb5e1eb898b30137d34621b807a097c5974fc47c0f5b87cc2594d858cf78b3f3",
+        "result": "1 failed,15484 passed,11 skipped,49 deselected,1 existing warning,2 subtests passed in2901.9s"
+      },
+      {
+        "job": 133388287018,
+        "log": "output/job-133388287018.log",
+        "sha256": "adf328c326008f8b036ffdc30867817797b523b2bdbfcb7cd34fa86213be5a89",
+        "result": "1 failed,15484 passed,11 skipped,49 deselected,1 existing warning,2 subtests passed in2732.6s"
+      },
+      {
+        "job": 133388287186,
+        "log": "output/job-133388287186.log",
+        "sha256": "c4a49cccf867c489a968fd2e9da5dfe0ded219b60c2bc6d4712a4223103355c0",
+        "result": "1 failed,15484 passed,11 skipped,49 deselected,1 existing warning,2 subtests passed in2942.76s"
+      }
+    ]
+  },
+  "runtime_equivalence": {
+    "prior_broad_result": "1221 passed,1 existing warning,213.30s",
+    "runtime_inputs_unchanged": true,
+    "only_python_change_since_prior_broad": [
+      "tests/unit/test_standing_resource_finalization_contracts.py"
+    ],
+    "legacy_expected_count": 184,
+    "legacy_expected_sha256": "21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a"
+  }
 }
