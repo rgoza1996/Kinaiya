@@ -14,14 +14,16 @@ import 'package:kinaiya_flutter/ui/visual_theme.dart';
 
 import 'client_test.dart' show mockTransport;
 import 'live_capture_test.dart' show CaptureAudio;
+import 'capture_mode_fixtures.dart';
 
 // Public synthetic transport and audio adapter. No service or model calls.
 class LayoutApi extends KinaiyaClient {
-  LayoutApi()
+  LayoutApi({String captureMode = 'legacy_silence'})
     : super(
         sessionBase: 'http://fixture',
         agentBase: 'http://fixture',
-        converseBase: 'http://fixture',
+        converseBase: 'http://127.0.0.1:8762',
+        captureModeClientFactory: captureModeFixtureFactory(captureMode),
         ownerToken: 'synthetic',
         httpClient: mockTransport(commandsMissing: false),
       );
@@ -353,7 +355,7 @@ void main() {
   testWidgets(
     'window microphone stop retry waits for playback acknowledgment',
     (tester) async {
-      final api = LayoutApi();
+      final api = LayoutApi(captureMode: 'rolling_windows');
       final audio = WindowLayoutAudio();
       final state = wired(api)..streamingWindows = true;
       await tester.pumpWidget(KinaiyaApp(state: state, audio: audio));

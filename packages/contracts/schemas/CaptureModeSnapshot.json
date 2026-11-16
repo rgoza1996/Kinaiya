@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "CaptureModeSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "adaptive_live",
+                "rolling_windows",
+                "legacy_silence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "CaptureModeSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "converse_capture.v1",
+      "default": "converse_capture.v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "authority_epoch": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Authority Epoch",
+      "type": "string"
+    },
+    "authority_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Authority Generation",
+      "type": "integer"
+    },
+    "revision": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "state_token": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "State Token",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CaptureModeSelection"
+    },
+    "default_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "adaptive_live",
+            "rolling_windows",
+            "legacy_silence"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Default Mode"
+    },
+    "selected_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "adaptive_live",
+            "rolling_windows",
+            "legacy_silence"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Selected Mode"
+    },
+    "capture_state": {
+      "const": "not_observed",
+      "default": "not_observed",
+      "title": "Capture State",
+      "type": "string"
+    },
+    "adaptive_live_enabled": {
+      "default": false,
+      "title": "Adaptive Live Enabled",
+      "type": "boolean"
+    },
+    "change_boundary": {
+      "const": "next_capture",
+      "default": "next_capture",
+      "title": "Change Boundary",
+      "type": "string"
+    },
+    "writable": {
+      "title": "Writable",
+      "type": "boolean"
+    },
+    "max_changes": {
+      "const": 1000,
+      "default": 1000,
+      "title": "Max Changes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "backend_id",
+    "authority_epoch",
+    "authority_generation",
+    "revision",
+    "state_token",
+    "selection",
+    "default_mode",
+    "selected_mode",
+    "writable"
+  ],
+  "title": "CaptureModeSnapshot",
+  "type": "object"
+}

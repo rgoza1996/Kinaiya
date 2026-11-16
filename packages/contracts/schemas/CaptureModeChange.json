@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "CaptureModeSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "adaptive_live",
+                "rolling_windows",
+                "legacy_silence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "CaptureModeSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "converse_capture.v1",
+      "default": "converse_capture.v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "authority_epoch": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Authority Epoch",
+      "type": "string"
+    },
+    "authority_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Authority Generation",
+      "type": "integer"
+    },
+    "expected_revision": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "state_token": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "State Token",
+      "type": "string"
+    },
+    "expected_default_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "adaptive_live",
+            "rolling_windows",
+            "legacy_silence"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Expected Default Mode"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9:._-]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CaptureModeSelection"
+    }
+  },
+  "required": [
+    "backend_id",
+    "authority_epoch",
+    "authority_generation",
+    "expected_revision",
+    "state_token",
+    "expected_default_mode",
+    "idempotency_key",
+    "selection"
+  ],
+  "title": "CaptureModeChange",
+  "type": "object"
+}

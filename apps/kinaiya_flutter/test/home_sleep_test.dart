@@ -18,6 +18,7 @@ import 'package:kinaiya_flutter/ui/widgets.dart';
 
 import 'concept_layout_test.dart' show LayoutAudio, task;
 import 'presentation_integration_test.dart' show syntheticPackage;
+import 'capture_mode_fixtures.dart';
 
 Map<String, Object?> availability(
   bool owner,
@@ -42,7 +43,8 @@ class SleepApi extends KinaiyaClient {
     : super(
         sessionBase: 'http://fixture',
         agentBase: 'http://fixture',
-        converseBase: 'http://fixture',
+        converseBase: 'http://127.0.0.1:8762',
+        captureModeClientFactory: captureModeFixtureFactory('legacy_silence'),
         ownerToken: 'synthetic',
         artifactClientFactory: () => throw StateError(
           'UI artifacts are unavailable in this synthetic sleep fixture',

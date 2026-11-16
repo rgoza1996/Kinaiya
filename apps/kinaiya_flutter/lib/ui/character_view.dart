@@ -6,6 +6,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:uuid/uuid.dart';
 
 import '../api/client.dart';
+import '../api/capture_modes.dart';
+import '../api/capture_modes_client.dart';
 import '../api/models.dart';
 import '../audio/speech_audio.dart';
 import '../audio/turn_audio.dart';
@@ -13,6 +15,7 @@ import '../character/pack.dart';
 import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import '../state/capture_mode_writes.dart';
 import '../state/converse_handoff.dart';
 import '../state/native_audio_clip.dart';
 import 'book_sheet.dart';
@@ -24,6 +27,7 @@ import 'moonlit_home.dart';
 import 'model_setup.dart';
 import 'motion_transition.dart';
 import 'voice_options.dart';
+import 'voice_capture_mode.dart';
 import 'settings_controls.dart';
 import 'moonlit_scene.dart';
 import 'anchored_moonlit_scene.dart';
@@ -666,6 +670,20 @@ class _CharacterViewState extends State<CharacterView> {
 
   /// User-armed continuous listening. Never true unless the user toggled it.
   bool _armed = false;
+  CaptureModeSnapshot? _capturePreference;
+  CaptureModeApi? _capturePreferenceOwner;
+  CaptureMode? _activeCaptureMode;
+
+  CaptureModeSnapshot? get _inspectedCapturePreference {
+    final api = _s.client?.captureModes, previous = _capturePreferenceOwner;
+    return api != null && previous != null && api.sameOwner(previous)
+        ? _capturePreference
+        : null;
+  }
+
+  CaptureMode? get _displayCaptureMode => _armed || _micStopUnconfirmed
+      ? _activeCaptureMode
+      : _inspectedCapturePreference?.selectedMode;
   VadSettings _vadSettings = const VadSettings();
   int get _endSilenceMs => _vadSettings.endSilenceMs;
   bool _vadBusy = false;
@@ -694,7 +712,11 @@ class _CharacterViewState extends State<CharacterView> {
     if (adapter == null || !mounted || _audioInputOperation != null) {
       return Future.value();
     }
-    if (_armed || _recording || _nativeCallActive || _micStopUnconfirmed) {
+    if (_armed ||
+        _recording ||
+        _nativeCallActive ||
+        _micStopUnconfirmed ||
+        _callStart != null) {
       _audioInputNotice = 'End microphone capture before changing the input.';
       _voiceOptionsUpdates.value++;
       return Future.value();
@@ -912,6 +934,7 @@ class _CharacterViewState extends State<CharacterView> {
   }) => ValueListenableBuilder<int>(
     valueListenable: _voiceOptionsUpdates,
     builder: (_, version, child) {
+      final api = owner.client, connection = owner.connectionGeneration;
       bool current() =>
           mounted &&
           identical(widget.state, owner) &&
@@ -922,14 +945,43 @@ class _CharacterViewState extends State<CharacterView> {
         embedded: embedded,
         endSilenceMs: _endSilenceMs,
         silenceChoices: endSilenceOptionsMs,
-        windowMode: _windowMode,
-        nativeAudio: _s.nativeAudio.configured,
+        windowMode: _displayCaptureMode == CaptureMode.rollingWindows,
+        nativeAudio:
+            _displayCaptureMode == CaptureMode.legacySilence &&
+            _s.nativeAudio.configured,
+        legacyCapture: _displayCaptureMode == CaptureMode.legacySilence,
+        captureModeControl: VoiceCaptureModeOptions(
+          api: api?.captureModes,
+          active: () => current() && owner.ownsConnection(connection, api),
+          capturing: _armed || _micStopUnconfirmed,
+          stopUnconfirmed: _micStopUnconfirmed,
+          startPending: _callStart != null,
+          currentMode: _activeCaptureMode,
+          modeSupported: (mode) =>
+              mode != CaptureMode.rollingWindows ||
+              (_s.streamingWindows &&
+                  _windowAudio != null &&
+                  !_s.nativeAudio.configured),
+          onInspected: (snapshot) {
+            if (!current() ||
+                !owner.ownsConnection(connection, api) ||
+                api == null) {
+              return;
+            }
+            setState(() {
+              _capturePreference = snapshot;
+              _capturePreferenceOwner = api.captureModes;
+            });
+            _voiceOptionsUpdates.value++;
+          },
+        ),
         vadSettings: _adaptiveAudio == null ? null : _vadSettings,
         busy: _vadBusy,
         notice: _vadNotice,
         audioInputs: _inputAudio == null ? null : _audioInputs,
         audioInputBusy:
             _audioInputOperation != null ||
+            _callStart != null ||
             _armed ||
             _recording ||
             _nativeCallActive,
@@ -1171,7 +1223,7 @@ class _CharacterViewState extends State<CharacterView> {
   WindowSpeechAudio? get _windowAudio =>
       _audio is WindowSpeechAudio ? _audio as WindowSpeechAudio : null;
   bool get _windowMode =>
-      !_nativeCallActive && _s.streamingWindows && _windowAudio != null;
+      !_nativeCallActive && _activeCaptureMode == CaptureMode.rollingWindows;
 
   bool _nativeCallCurrent(int owner) {
     final api = _nativeCallClient, session = _nativeCallSession;
@@ -1984,6 +2036,67 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     final native = _s.nativeAudio.configured;
+    final audioSource = _s.nativeAudioSourceGeneration;
+    CaptureModeSnapshot preference;
+    try {
+      preference = await api.captureModes.inspect().result;
+    } catch (_) {
+      if (mounted && owner == _armOwner && _s.ownsConnection(connection, api)) {
+        _nativeCallMessage(
+          'Capture Mode is unavailable. Inspect Voice options before calling.',
+        );
+      }
+      return;
+    }
+    if (!mounted || owner != _armOwner || !_s.ownsConnection(connection, api)) {
+      return;
+    }
+    if (_s.nativeAudioSourceGeneration != audioSource) {
+      _nativeCallMessage(
+        'Audio input configuration changed. Review the connection before calling.',
+      );
+      return;
+    }
+    CaptureModeScope? scope;
+    try {
+      scope = captureModeWrites.open(api.captureModes, preference);
+    } on FormatException {
+      _nativeCallMessage(
+        'Capture Mode observation is out of date. Refresh Voice options before calling.',
+      );
+      return;
+    }
+    if (scope == null || scope.pending != null) {
+      _nativeCallMessage(
+        'Capture Mode has an unconfirmed save. Check save status in Voice options before calling.',
+      );
+      return;
+    }
+    _capturePreference = preference;
+    _capturePreferenceOwner = api.captureModes;
+    final mode = preference.selectedMode;
+    if (mode == null) {
+      _nativeCallMessage(
+        'Capture Mode is unknown. Save an explicit choice in Voice options.',
+      );
+      return;
+    }
+    if (mode == CaptureMode.adaptiveLive) {
+      _nativeCallMessage(
+        preference.adaptiveLiveEnabled
+            ? 'Adaptive Live capture is unsupported by this client version.'
+            : 'Adaptive Live is unavailable until its qualification and rollout are complete.',
+      );
+      return;
+    }
+    if (mode == CaptureMode.rollingWindows &&
+        (native || !_s.streamingWindows || _windowAudio == null)) {
+      _nativeCallMessage(
+        'Rolling Windows is unavailable for the selected audio input interface. Review Capture Mode in Voice options.',
+      );
+      return;
+    }
+    _activeCaptureMode = mode;
     if (native &&
         initialSession != null &&
         (_s.converseSession?.sessionId != initialSession.sessionId ||

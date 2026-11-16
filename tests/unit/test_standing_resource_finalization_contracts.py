@@ -557,6 +557,15 @@ def schema_pin():
         "CoreSubsystemReceipt",
         "CoreSubsystemLookup",
     }
+    # #623's distinct capture preference owner adds five records; its separate
+    # export pin preserves every original184 schema byte in this aggregate.
+    additive |= {
+        "CaptureModeSelection",
+        "CaptureModeChange",
+        "CaptureModeSnapshot",
+        "CaptureModeReceipt",
+        "CaptureModeLookup",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

@@ -286,6 +286,7 @@ class SpeechTurnResponse(TypedTurnResponse):
 
 
 def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None):
+    from services.converse.capture_api import install_capture_controls
     from services.converse.memory_api import install_memory_controls
     from services.converse.stt_model_api import install_stt_model_controls
     from services.converse.tts_model_api import install_tts_model_controls
@@ -342,6 +343,7 @@ def create_app(runtime, auth, speech=None, window_controller=None, *, setup=None
         allow_headers=["Authorization", "Content-Type"],
     )
     app.add_middleware(ModelApiOwnership)
+    install_capture_controls(app, runtime, auth)
     install_stt_model_controls(app, runtime, auth)
     install_tts_model_controls(app, runtime, auth)
 

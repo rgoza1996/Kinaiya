@@ -190,7 +190,7 @@ void main() {
         const liveClaim =
             'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.';
         const fallbackClaim =
-            'Fallback clip capture: silence ends the clip. Not live model timing.';
+            'Legacy Silence: silence ends the clip. Not live model timing.';
         if (mode.nativeAudio) {
           final text = _visibleSheetText(tester);
           expect(text, matches(RegExp(r'buffered', caseSensitive: false)));

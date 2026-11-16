@@ -59,6 +59,8 @@ class BodyTransport extends http.BaseClient {
 }
 
 class ScopeClient extends ConsentClient {
+  ScopeClient({super.captureMode});
+
   final _agentSessions = <String, SessionInfo>{};
 
   @override
@@ -602,7 +604,7 @@ void main() {
   testWidgets('window bodies keep armed scope after a selection change', (
     tester,
   ) async {
-    final api = ScopeClient();
+    final api = ScopeClient(captureMode: 'rolling_windows');
     final state = withClient(api, BackendProfile.privateCloudAuthorized)
       ..streamingWindows = true;
     final audio = WindowAudio();

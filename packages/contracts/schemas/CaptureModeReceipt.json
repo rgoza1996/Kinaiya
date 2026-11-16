@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "CaptureModeSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "host",
+            "saved"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "enum": [
+                "adaptive_live",
+                "rolling_windows",
+                "legacy_silence"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mode"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "CaptureModeSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract": {
+      "const": "converse_capture.v1",
+      "default": "converse_capture.v1",
+      "title": "Contract",
+      "type": "string"
+    },
+    "status": {
+      "const": "saved",
+      "default": "saved",
+      "title": "Status",
+      "type": "string"
+    },
+    "backend_id": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Backend Id",
+      "type": "string"
+    },
+    "authority_epoch": {
+      "maxLength": 32,
+      "minLength": 32,
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Authority Epoch",
+      "type": "string"
+    },
+    "authority_generation": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Authority Generation",
+      "type": "integer"
+    },
+    "revision": {
+      "maximum": 1000,
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9:._-]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CaptureModeSelection"
+    },
+    "default_mode_observed": {
+      "anyOf": [
+        {
+          "enum": [
+            "adaptive_live",
+            "rolling_windows",
+            "legacy_silence"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Default Mode Observed"
+    },
+    "selected_mode_observed": {
+      "anyOf": [
+        {
+          "enum": [
+            "adaptive_live",
+            "rolling_windows",
+            "legacy_silence"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Selected Mode Observed"
+    },
+    "change_boundary": {
+      "const": "next_capture",
+      "default": "next_capture",
+      "title": "Change Boundary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "backend_id",
+    "authority_epoch",
+    "authority_generation",
+    "revision",
+    "idempotency_key",
+    "selection",
+    "default_mode_observed",
+    "selected_mode_observed"
+  ],
+  "title": "CaptureModeReceipt",
+  "type": "object"
+}

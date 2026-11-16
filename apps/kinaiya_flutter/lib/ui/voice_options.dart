@@ -22,6 +22,8 @@ class VoiceOptionsSheet extends StatelessWidget {
     required this.onSilenceChanged,
     required this.windowMode,
     this.nativeAudio = false,
+    this.captureModeControl,
+    this.legacyCapture,
     this.embedded = false,
     this.vadSettings,
     this.onVadChanged,
@@ -47,6 +49,8 @@ class VoiceOptionsSheet extends StatelessWidget {
   final List<int> silenceChoices;
   final ValueChanged<int> onSilenceChanged;
   final bool windowMode, nativeAudio, embedded;
+  final Widget? captureModeControl;
+  final bool? legacyCapture;
   final VadSettings? vadSettings;
   final ValueChanged<VadSettings>? onVadChanged;
   final VoidCallback? onRecalibrate;
@@ -468,6 +472,7 @@ class VoiceOptionsSheet extends StatelessWidget {
                           onDefaultAudioInput != null ||
                           onRefreshAudioInputs != null)
                         _inputOptions(context),
+                      if (captureModeControl case final control?) control,
                       if (audioOutputs != null ||
                           audioOutputNotice != null ||
                           onChooseAudioOutput != null ||
@@ -476,81 +481,85 @@ class VoiceOptionsSheet extends StatelessWidget {
                         _outputOptions(context),
                       if (vadSettings case final settings?)
                         _dynamicOptions(context, settings),
-                      DesignPanel(
-                        key: const ValueKey('voice-group-timing'),
-                        padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Turn & clip timing',
-                              key: const ValueKey('voice-group-timing-heading'),
-                              style: textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: KinaiyaDesign.spaceSm),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 4,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Text(
-                                  nativeAudio
-                                      ? 'Buffered native audio'
-                                      : windowMode
-                                      ? 'Live'
-                                      : 'Clip capture fallback',
+                      if (windowMode ||
+                          (legacyCapture ?? (!windowMode || nativeAudio)))
+                        DesignPanel(
+                          key: const ValueKey('voice-group-timing'),
+                          padding: const EdgeInsets.all(KinaiyaDesign.spaceMd),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Turn & clip timing',
+                                key: const ValueKey(
+                                  'voice-group-timing-heading',
                                 ),
-                                if (windowMode && !nativeAudio) ...[
-                                  const Text('Conversation timing'),
-                                  const Text(
-                                    'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ] else ...[
-                                  Tooltip(
-                                    message: nativeAudio
-                                        ? 'End-of-speech detection for a buffered native utterance'
-                                        : 'Silence that ends a voice clip',
-                                    child: const Text('Silence'),
-                                  ),
-                                  DropdownButton<int>(
-                                    value: endSilenceMs,
-                                    isDense: true,
-                                    items: [
-                                      for (final v in silenceChoices)
-                                        DropdownMenuItem(
-                                          value: v,
-                                          child: Text(
-                                            '${(v / 1000).toStringAsFixed(1)}s',
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged: busy
-                                        ? null
-                                        : (v) {
-                                            if (v == null) return;
-                                            onSilenceChanged(v);
-                                          },
-                                  ),
+                                style: textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: KinaiyaDesign.spaceSm),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
                                   Text(
                                     nativeAudio
-                                        ? 'Buffered native whole-utterance capture: end-of-speech detection finalizes each utterance, up to 30 seconds.'
-                                        : 'Fallback clip capture: silence ends the clip. Not live model timing.',
-                                    style: const TextStyle(fontSize: 12),
+                                        ? 'Buffered native audio'
+                                        : windowMode
+                                        ? 'Live'
+                                        : 'Legacy Silence',
                                   ),
+                                  if (windowMode && !nativeAudio) ...[
+                                    const Text('Conversation timing'),
+                                    const Text(
+                                      'Live audio streams continuously. Decisions chooses when to wait, respond, or interrupt; no silence timer ends the turn.',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ] else if (legacyCapture ?? true) ...[
+                                    Tooltip(
+                                      message: nativeAudio
+                                          ? 'End-of-speech detection for a buffered native utterance'
+                                          : 'Silence that ends a voice clip',
+                                      child: const Text('Silence'),
+                                    ),
+                                    DropdownButton<int>(
+                                      value: endSilenceMs,
+                                      isDense: true,
+                                      items: [
+                                        for (final v in silenceChoices)
+                                          DropdownMenuItem(
+                                            value: v,
+                                            child: Text(
+                                              '${(v / 1000).toStringAsFixed(1)}s',
+                                            ),
+                                          ),
+                                      ],
+                                      onChanged: busy
+                                          ? null
+                                          : (v) {
+                                              if (v == null) return;
+                                              onSilenceChanged(v);
+                                            },
+                                    ),
+                                    Text(
+                                      nativeAudio
+                                          ? 'Buffered native whole-utterance capture: end-of-speech detection finalizes each utterance, up to 30 seconds.'
+                                          : 'Legacy Silence: silence ends the clip. Not live model timing.',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ],
                                 ],
-                                Text(
-                                  nativeAudio
-                                      ? 'Call captures whole utterances · Tell sends one message'
-                                      : 'Call for live listening · Tell for one message',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
+                      Text(
+                        nativeAudio
+                            ? 'Call captures whole utterances · Tell sends one message'
+                            : 'Call for live listening · Tell for one message',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ],
                   ),

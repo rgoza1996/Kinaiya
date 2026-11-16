@@ -1,0 +1,155 @@
+{
+  "issue": 623,
+  "followup": 651,
+  "base": "fae3583da49dd93ebff8aa0ad681a342562e0b41",
+  "status": "foundation only; Adaptive Live off; no complete623 claim",
+  "sdk": "Flutter3.47.8/Dart3.13.7; existing pinnedSDK",
+  "dev_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+  "native_venvs": [
+    "output/issue-643-python313-venv",
+    "output/issue-648-python314-mainlock-venv"
+  ],
+  "source_pins": {
+    "apps/kinaiya_flutter/lib/api/capture_modes.dart": "33c3fd69445ea3fa805e002b5adca7ccf8e28ac829cb42ec97eb5c02bbcb2b84",
+    "apps/kinaiya_flutter/lib/api/capture_modes_client.dart": "a2ee2b2bba1ee1fe6ed14039a59f8188ef38b5f8f9ec676fabd6469e3128d861",
+    "apps/kinaiya_flutter/lib/api/client.dart": "e3bf90f83dca769ee49814b38cebf5397b288c150994d93524d3d4d7bfe84ac1",
+    "apps/kinaiya_flutter/lib/api/owned_settings_client.dart": "b3496a71b711ad3a15227b39eed5455649da4ff98896cc68bf98f54789ae3e44",
+    "apps/kinaiya_flutter/lib/state/capture_mode_writes.dart": "d642d7b1ed3c5ac3cb361e584557143339fd7f7ac7c4f8aa11d96354ef51ef5a",
+    "apps/kinaiya_flutter/lib/ui/character_view.dart": "372e3be0435dc38a78ad9f60b00e112b42c6277c105329b77248c45fc94507c6",
+    "apps/kinaiya_flutter/lib/ui/voice_capture_mode.dart": "c418f85ee5ce8bcdded6c5a432bf60eb5741c504fc371ca7f2a0ee439b728764",
+    "apps/kinaiya_flutter/lib/ui/voice_options.dart": "5d6b439b96a3993d5501f25bc11709daa34dd86578b0cb23a458c3e763b08d2e",
+    "apps/kinaiya_flutter/test/capture_mode_call_test.dart": "0be554e562804ddc3292e2c88f067626e3a0b476c355bd35b1089bfdfab92ac6",
+    "apps/kinaiya_flutter/test/capture_mode_fixtures.dart": "371458b629e0c8efda3bcf926ec7b487da8e1dce82e4f593cd693380c8f203e9",
+    "apps/kinaiya_flutter/test/capture_mode_options_test.dart": "bc673e1fcf94b4bd3bc63fc224a310544fd1299bcb2f81d9307b92c5de6992da",
+    "apps/kinaiya_flutter/test/capture_mode_writes_test.dart": "bfb4439ed0a53181ad067bd1f44000cb9da21e997220706e105a0586fb505395",
+    "apps/kinaiya_flutter/test/capture_modes_live_test.dart": "e51e786b5949f7cd7821910561c060892f4a6f7297fe4d8db7a2d9f16ea7aeff",
+    "apps/kinaiya_flutter/test/capture_modes_test.dart": "bbcbbdfe26ead3256e36ea53c0c442cdc6d68e33f23fb4ef05be7ab6e231a9a0",
+    "apps/kinaiya_flutter/test/client_test.dart": "d669b1da51ff0ce3b757aca43803fa3c1d2100ac0fb9ace131ed5017c8bb7b7f",
+    "apps/kinaiya_flutter/test/concept_layout_test.dart": "a5bd90889f0a828fc516341b5bc9ac2aafe8f9016214c7c781b8dcdbd948cdbf",
+    "apps/kinaiya_flutter/test/converse_stage_test.dart": "ff617882965aae2c812093f9ab58d0fb5dc8da76ef2e7701c90af62e1aa90db5",
+    "apps/kinaiya_flutter/test/home_sleep_test.dart": "43daa0cb1933cd17b12971c6412abc396377b001f1095e2f220f81f94817fe02",
+    "apps/kinaiya_flutter/test/input_disclosure_test.dart": "0e9f11edafa2c5659fd03114039c9ea46ff0e64467bd8c2f6345a888f37efb3e",
+    "apps/kinaiya_flutter/test/input_discovery_feedback_test.dart": "470b367b2b53871c2d5b07a052707de1d99eb4da02206e9a4a40b19e89e05cca",
+    "apps/kinaiya_flutter/test/live_capture_test.dart": "08f4b8d3d29947a0608528ddbfcd7872cf9ce95fb71ac8bd9f8c7f39e4cba19e",
+    "apps/kinaiya_flutter/test/provider_consent_test.dart": "1b4afb2c67472bc47659281e8b26d4c3f456b2fcca6d7c6e5ed38819acfef7ff",
+    "apps/kinaiya_flutter/test/resource_state_test.dart": "3f1a39b53f326a7b8dcccd95b01825e14bd13a835350f6d9d1f98252a2b5c905",
+    "apps/kinaiya_flutter/test/settings_navigation_test.dart": "7a46971ffe854101f08031a6c5e2a952b0cc2ded6654eb82ec3cd01dea4b5395",
+    "apps/kinaiya_flutter/test/voice_options_timing_test.dart": "8485602a352fe9331f0fe12fcde180e6bef92a9373b37c0d928c78854ef650a7",
+    "apps/kinaiya_flutter/test/window_capture_test.dart": "d2234bf6053329617209534a590fc5e9e2d78fed22a3644b4151f90771a17246",
+    "packages/contracts/capture_modes.py": "cba39d5704bf5d00b77b311bafd3918753abcf5f7314ccf5fefd984295a5ab59",
+    "packages/contracts/schemas/CaptureModeChange.json": "4a416401faa09a5c73bd902b226b37245efa6c2ab1345263b66350b5242eb67d",
+    "packages/contracts/schemas/CaptureModeLookup.json": "41d07bd840665a54453cdf7b1652375b4f12e55151687a082cebeb5b4f3aebb9",
+    "packages/contracts/schemas/CaptureModeReceipt.json": "e7ba8dd68b77d5388127242591fd1d65d36b7f7c5b002fd0789f87c82123ecfc",
+    "packages/contracts/schemas/CaptureModeSelection.json": "29a7e46502c0a6c82fe753f9d2d2507ee4fdd1705e7d949dfd1de15b43124525",
+    "packages/contracts/schemas/CaptureModeSnapshot.json": "739cbaad25b1158be2ea62c0abb100f40cf4286ca4c87641426b0097932eceff",
+    "scripts/export_contracts.py": "f73d1b0d56c57025636d89afee053fd134c03a7428cf25af74dd95c63dcca594",
+    "services/converse/api.py": "0edb08ce19cd79a0c3b564160f6d8e9e52449f3c7cc1b33d27afc60603878cd8",
+    "services/converse/capture_api.py": "3c9a9b4eedf9a6227688027a9a60d6e1db9fa2e06c0ecf6ef718ee91d6bc8099",
+    "services/converse/capture_settings.py": "039e8d8c070561a5d467a021767313c9a7b6a4a93777e80f8772e5da40bfa76f",
+    "services/converse/runtime.py": "c7050c19dd578b3ecdb5e9d13d154d62e651906db2719220e32761792bfbd511",
+    "services/launcher.py": "f6e08860cba318107fea8b09e4163193ec99a75970dff339c7a8171374481d7e",
+    "tests/integration/test_capture_mode_api.py": "58a18d6ce3d77678e68a6bace125ec5bb2ac8890c899fdda29a148e754f66bb0",
+    "tests/integration/test_capture_mode_dart.py": "17317e9a7c264ac166a3a30db5de545322ebb2ec4073cc18ba25a99c945fdad9",
+    "tests/unit/test_capture_mode_schema_exports.py": "871ba2b8c90c55d7529559a93ab91e46e8f6ae14ae069b10d703eb022c2e4c8f",
+    "tests/unit/test_capture_mode_settings.py": "574a6eb2ab808682da8eba97381c5480a31fdac510f5635bca105cea6d40894f",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "43b33863aa005afe13b9caaf0fb935a14ed0c0842f3a69d1ade18565f7ef3287"
+  },
+  "checks": [
+    {
+      "name": "native313",
+      "command": "python -m pytest -q tests/unit/test_capture_mode_settings.py tests/unit/test_capture_mode_schema_exports.py tests/unit/test_standing_resource_finalization_contracts.py tests/integration/test_capture_mode_api.py tests/unit/test_launcher_start.py",
+      "result": "Python3.13.18:118passed18.05s",
+      "local_log": "output/issue-623-native-settings-expanded-corrected.log",
+      "log_sha256": "3dbb23d5397e9da0074c71eb4c4facdc6252225c884fd788045894b11d07eb45"
+    },
+    {
+      "name": "dart_native313",
+      "command": "python -m pytest -q tests/integration/test_capture_mode_dart.py",
+      "result": "Python3.13.18:1passed7.29s",
+      "local_log": "output/issue-623-dart-native-first.log",
+      "log_sha256": "cbcf61cdc1ba1ff3c6e79a9901c83129adf24b7f9b3bf3e3526d7b4cf9c2cf95"
+    },
+    {
+      "name": "native314",
+      "command": "python -m pytest -q tests/unit/test_capture_mode_settings.py tests/unit/test_capture_mode_schema_exports.py tests/unit/test_standing_resource_finalization_contracts.py tests/integration/test_capture_mode_api.py tests/unit/test_launcher_start.py tests/integration/test_capture_mode_dart.py",
+      "result": "Python3.14.10:119passed21.74s",
+      "local_log": "output/issue-623-native314-final.log",
+      "log_sha256": "57a0c697319575b1aa955e961dbde5d30b7d559a7e7e7a188012bb298978c9d0"
+    },
+    {
+      "name": "flutter",
+      "command": "flutter test --no-pub --reporter expanded",
+      "result": "1516passed2skipped69s reported; correct Core fixture from a8ae0d03 composed in private copy",
+      "local_log": "output/issue-623-flutter-all-third.log",
+      "log_sha256": "e48e2e28981ca473e288880cef3c67ce810b2c3e7d53d9ed4e0556e3ac06fa9a"
+    },
+    {
+      "name": "narrow",
+      "command": "flutter test --no-pub --reporter expanded test/capture_mode_options_test.dart",
+      "result": "3passed; lost-ACKcase at320x480 and2x text; tests only refined after fullsuite",
+      "local_log": "output/issue-623-narrow-selector-corrected.log",
+      "log_sha256": "17e2d8aa97a7f1e7f9743592c8f333bd3442dad938e6b8e8e2fb6715c1dec39b"
+    },
+    {
+      "name": "web",
+      "command": "flutter build web --release --no-web-resources-cdn --no-pub",
+      "result": "passed27.9s; Wasm dry run passed; CupertinoIcons warning also present in earlier Core/readiness build logs",
+      "local_log": "output/issue-623-web-build.log",
+      "log_sha256": "5a7e32e4fb8381d7c5070d6df4bd06cee8625a28e6b43c88dc3ab1d01b4dc114"
+    },
+    {
+      "name": "issue-623-analysis-final.log",
+      "command": "flutter analyze --no-pub",
+      "result": "No issues found",
+      "local_log": "output/issue-623-analysis-final.log",
+      "log_sha256": "15acbdfd61a8192e0d79ab9ccae0885c2551fcdb5a42103ead24ac9f490216c3"
+    },
+    {
+      "name": "issue-623-format-final.log",
+      "command": "dart format --output=none --set-exit-if-changed lib test",
+      "result": "297files,0changed",
+      "local_log": "output/issue-623-format-final.log",
+      "log_sha256": "badc5fa8b7362b403f8e134dfce3159f3589f48896743fd5788f6fe660c2d479"
+    }
+  ],
+  "first_failures": [
+    {
+      "log": "output/issue-623-flutter-all-first.log",
+      "sha256": "05d957bebfd8948ad3a6457e0a6a1df1af6f9d617bc06ad96bb940f7ae3909ea"
+    },
+    {
+      "log": "output/issue-623-flutter-all-second.log",
+      "sha256": "6264fc4f29bb5e127a9134dfe5cacc17b25a4ba59c91e78ec92fef54286b124c"
+    },
+    {
+      "log": "output/issue-623-voice-controls-independent.log",
+      "sha256": "d873554b8779164120fcc93725bceb1ab56f1b0bf302bf6768b058dcd22a10fd"
+    },
+    {
+      "log": "output/issue-623-narrow-selector-final.log",
+      "sha256": "ad682d10bf2f02fde39869709996193a1a38f0e50a90e0adef1c576f072cf2aa"
+    }
+  ],
+  "schema_exports": {
+    "previous_unchanged": 523,
+    "new_family": 5,
+    "family_sha256": "f1f035d09c8a98096d11dad62037f6f4f49af50880b5186ebf71b011bf8d0c62"
+  },
+  "limits": "no installed-owner promotion, model/provider calls, physical-device qualification, default rollout or complete streaming/backchannel implementation; complete CI pending",
+  "existing_expectations": {
+    "files": 12,
+    "original_count": 791,
+    "preserved_except_explicit_legacy_display_renames": true,
+    "display_renames": [
+      {
+        "from": "Clip capture fallback",
+        "to": "Legacy Silence"
+      },
+      {
+        "from": "Fallback clip capture: silence ends the clip. Not live model timing.",
+        "to": "Legacy Silence: silence ends the clip. Not live model timing."
+      }
+    ],
+    "audit_sha256": "cf921f89b31f03a648e7bf616c25caa51a426ca28b872a4c2aca69ece3d29fe0"
+  }
+}

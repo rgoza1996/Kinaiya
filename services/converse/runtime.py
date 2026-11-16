@@ -260,6 +260,8 @@ class ConverseRuntime:
         self._text = {}
         self._text_admitting = set()
         self.model_settings = None
+        self.capture_settings = None
+        self._capture_options_unavailable = False
         self._model_options_unavailable = False
         self._model_preparing = set()
         self._model_operations_extra = lambda: {
@@ -1034,7 +1036,11 @@ class ConverseRuntime:
             if self.decisions_dependency is not None:
                 await self.decisions_dependency.close()
         finally:
-            await self._close_resources()
+            try:
+                await self._close_resources()
+            finally:
+                if self.capture_settings is not None:
+                    self.capture_settings.close()
 
     async def _close_resources(self):
         self._stt_stopping = True
