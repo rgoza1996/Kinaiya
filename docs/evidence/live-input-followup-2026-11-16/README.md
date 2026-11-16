@@ -37,20 +37,29 @@ assertion; all now also require the original response bytes, original request,
 completed native record, one write and exactly one response close. Earlier
 fixture mistakes (missing target, wrong typed label and wrong expected v1 route)
 and their first logs/snapshots are retained and identified in the issue comments.
-The original pre-existing native-d1 test assertions remain unchanged.
+The original pre-existing native-d1 test assertions remain unchanged. One
+existing observer now awaits its actual original enrolled finish Task before
+requiring a completed SQLite row; this is a bounded test-only observation, not
+a longer production facade or a replay.
 
-Current focused qualification passed **361 cases on each Python 3.13.18 and
-3.14.10**, in 76.62s and 77.45s. Each reported one existing Starlette warning.
-The broader Python 3.13 regression passed **2,035 cases in 543.69s**, also
-with one existing Starlette warning. All three runs used the same 896 unchanged
-Python inputs identified by
-[python-input-sha256.json](python-input-sha256.json). Full Ruff and a 1,173-file
-format check and schema export passed. The unfiltered staged whitespace check
-failed on trailing spaces in the byte-exact original pytest/CI log artifacts;
-those bytes are preserved. The source/prose check excluding only this directory's
-raw `.log` artifacts passed. This distinction corrects the earlier overly broad
-diff-check claim. The receipts contain the
-exact commands and log hashes. Counts overlap and are not unique coverage.
+Final focused qualification after that observer correction passed **361 cases on
+each Python 3.13.18 and 3.14.10**, in 72.28s and 72.13s. Each reported one
+existing Starlette warning. Both match the same 896 unchanged Python inputs in
+[observer-input-sha256.json](observer-input-sha256.json).
+
+The prior broader Python 3.13 regression passed **2,035 cases in 543.69s**, with
+one existing Starlette warning, against [python-input-sha256.json](python-input-sha256.json).
+All production inputs still match that run. Its only changed input is the
+native-d1 test observer described above. The broader run was not repeated for
+that test-only synchronization change; the two final focused runs exercise it.
+All original assertions in the two changed test files remain AST-identical.
+
+Full Ruff, a 1,173-file format check and schema export passed. The unfiltered
+staged whitespace check failed on trailing spaces in the byte-exact original
+pytest/CI log artifacts; those bytes are preserved. The source/prose check
+excluding only this directory's raw `.log` artifacts passed. This distinction
+corrects the earlier overly broad diff-check claim. Receipts contain the exact
+commands and log hashes. Counts overlap and are not unique coverage.
 
 Only `packages/contracts/client.py` changes production Python relative to the
 original qualified head. The two changed test files add the four ownership

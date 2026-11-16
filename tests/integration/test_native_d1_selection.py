@@ -440,6 +440,18 @@ async def test_selected_native_adapter_records_original_capture_and_routes_real_
         assert result["agent_route" if mode == "window" else "route"] == (
             "STEER_CURRENT_TASK" if mode == "window" else "steer"
         )
+        # Inspection has a bounded facade. Observe its actual original finish
+        # before requiring settled storage; do not replay it or assume that
+        # the native journal always acknowledges within half a second.
+        await asyncio.wait_for(
+            asyncio.gather(
+                *(
+                    asyncio.shield(exchange.task)
+                    for exchange in tuple(env.journal._submit_exchanges)
+                )
+            ),
+            5,
+        )
         records = rows(env)
         assert len(records) == 1
         record = records[0]

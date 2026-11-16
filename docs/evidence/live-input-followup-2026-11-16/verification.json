@@ -4,7 +4,7 @@
     669,
     670
   ],
-  "state": "Final361focused pass on each3.13/3.14;2035broader pass on3.13; all three match896unchangedPythoninputs;AdaptiveLiveoff",
+  "state": "Finalobserver361focused each3.13/3.14 matchcurrent896inputs. Prior2035broader matchesallproductioninputs; only native-d1testobserverhaschanged. AdaptiveLiveoff.",
   "python_input_manifest": "python-input-sha256.json",
   "input_count": 896,
   "focused": [
@@ -208,12 +208,93 @@
     "log_sha256": "896436bddc4ce467254c9c48bd0bb9c82b3b3b77af924687e98eba57c0bfb69f",
     "result": "2035passed;oneexistingStarlettewarning"
   },
-  "original_assertion_audit": {
+  "original_assertion_audit_before_observer": {
     "tests/integration/test_native_d1_selection.py": {
       "unchanged_original_test_bodies": 12
     },
     "tests/unit/test_standing_resource_finalization_contracts.py": {
       "unchanged_original_test_bodies": 22
     }
+  },
+  "observer_followup": {
+    "baseline": "f25c6a34fe798fd4b1b67ae95326e61e7920c098",
+    "input_manifest": "observer-input-sha256.json",
+    "focused": [
+      {
+        "utc": "2026-11-16T22:58:38.300046+00:00",
+        "args": [
+          "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+          "-m",
+          "pytest",
+          "tests/integration/test_live_stream_api.py",
+          "tests/integration/test_live_stream_capture.py",
+          "tests/integration/test_live_mic_capture.py",
+          "tests/integration/test_live_decisions_readiness.py",
+          "tests/integration/test_required_decisions_readiness.py",
+          "tests/integration/test_incremental_stream_ownership.py",
+          "tests/integration/test_incremental_stream_publications.py",
+          "tests/integration/test_incremental_whistle_converse.py",
+          "tests/unit/test_live_stream_contracts.py",
+          "tests/unit/test_decisions_attempt_schema_exports.py",
+          "tests/integration/test_native_d1_selection.py",
+          "tests/integration/test_decisions_inspection.py",
+          "tests/unit/test_standing_resource_finalization_contracts.py",
+          "tests/unit/test_native_d1_provider.py",
+          "-q",
+          "--tb=short"
+        ],
+        "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+        "exit_code": 0,
+        "elapsed": 73.4083643519989,
+        "input_count": 896,
+        "inputs_unchanged": true,
+        "log_sha256": "9f3c0b21e132f26a0bda197268a7201669f3a6afea720e8766fcfb8ee502a633",
+        "result": "361passed;oneexistingStarlettewarning"
+      },
+      {
+        "utc": "2026-11-16T22:58:38.117798+00:00",
+        "args": [
+          "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+          "-m",
+          "pytest",
+          "tests/integration/test_live_stream_api.py",
+          "tests/integration/test_live_stream_capture.py",
+          "tests/integration/test_live_mic_capture.py",
+          "tests/integration/test_live_decisions_readiness.py",
+          "tests/integration/test_required_decisions_readiness.py",
+          "tests/integration/test_incremental_stream_ownership.py",
+          "tests/integration/test_incremental_stream_publications.py",
+          "tests/integration/test_incremental_whistle_converse.py",
+          "tests/unit/test_live_stream_contracts.py",
+          "tests/unit/test_decisions_attempt_schema_exports.py",
+          "tests/integration/test_native_d1_selection.py",
+          "tests/integration/test_decisions_inspection.py",
+          "tests/unit/test_standing_resource_finalization_contracts.py",
+          "tests/unit/test_native_d1_provider.py",
+          "-q",
+          "--tb=short"
+        ],
+        "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+        "exit_code": 0,
+        "elapsed": 73.22685200499836,
+        "input_count": 896,
+        "inputs_unchanged": true,
+        "log_sha256": "115eee0193b7cb0c432d9656eaf1ce50e0e59c89c66e703e6282c9d10c4febad",
+        "result": "361passed;oneexistingStarlettewarning"
+      }
+    ],
+    "changes_from_prior_broad_inputs": [
+      "tests/integration/test_native_d1_selection.py"
+    ],
+    "all_production_inputs_match_prior_broad": true,
+    "original_assertions_unchanged": {
+      "tests/integration/test_native_d1_selection.py": {
+        "unchanged_original_assertions": 73
+      },
+      "tests/unit/test_standing_resource_finalization_contracts.py": {
+        "unchanged_original_assertions": 63
+      }
+    },
+    "reason": "Observe actual original retained finish Task before requiring completed storage; production facade remains0.5s, no replay."
   }
 }
