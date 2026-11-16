@@ -618,6 +618,21 @@ def schema_pin():
     }
     # Bounded pending discovery has a separately pinned additive pair.
     additive |= {"LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"}
+    # #623's gated mic/readiness family has a separate eleven-file pin.
+    # Preserve the original184 count/hash and every legacy codec limit.
+    additive |= {
+        "LiveDecisionsReadiness",
+        "LiveStreamCapability",
+        "LiveStreamIdentity",
+        "LiveStreamScope",
+        "LiveStreamBegin",
+        "LiveStreamPcm",
+        "LiveStreamFinish",
+        "LiveStreamCancel",
+        "LiveStreamLookup",
+        "LiveStreamProof",
+        "LiveStreamCancellation",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

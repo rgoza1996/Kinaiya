@@ -1,0 +1,126 @@
+{
+  "original-ci-133632865060.log": {
+    "sha256": "9777092677796da3642c8537dc0fc66049047a6a26cfed016e4fdaefbfee8698",
+    "bytes": 70153,
+    "job_id": 133632865060,
+    "run_id": 43962368497
+  },
+  "original-ci-133632865157.log": {
+    "sha256": "4106f7d2dcb78b043696f76d5fd85558198dace65cc91487fb75369a0d8cb1c1",
+    "bytes": 74215,
+    "job_id": 133632865157,
+    "run_id": 43962368497
+  },
+  "original-ci-133632865194.log": {
+    "sha256": "a2fa0a886554a12619671e5ba69b3e18ab89f63e9003edd673f0c95ba967fa02",
+    "bytes": 69569,
+    "job_id": 133632865194,
+    "run_id": 43962368497
+  },
+  "original-ci-133632865253.log": {
+    "sha256": "57e33a0a658001dd8c03f22b1105dbb8fc203ce60fa584be00b195a4e41bf004",
+    "bytes": 69731,
+    "job_id": 133632865253,
+    "run_id": 43962368497
+  },
+  "issue-668-old-schema-control-first.log": {
+    "sha256": "549d6d9a5d34a50cfcd675bebdb2bb5f45ae0a259baf327b9ee2a1ba1ed8d8aa",
+    "bytes": 810
+  },
+  "issue-668-old-schema-control-first-receipt.json": {
+    "sha256": "7c76614e2c996db0c11c59d7ea81083efc93ddfe305555c1ea4e6df8c37a02d2",
+    "bytes": 104726
+  },
+  "issue-669-selector-repaired-313.log": {
+    "sha256": "7c11462ea340798e01526be99e6ea3d2472df59ece9b895a8c45969c30b886aa",
+    "bytes": 179
+  },
+  "issue-669-selector-repaired-313-receipt.json": {
+    "sha256": "065091505388fa47c598cc7140972d2457784f61580fbbe46ae7c562214c6249",
+    "bytes": 104763
+  },
+  "issue-669-selector-repaired-314.log": {
+    "sha256": "bd354a445d76ce53a18523404305511a9fb6d2440e234fbdd9ae6dd6a2b73c64",
+    "bytes": 179
+  },
+  "issue-669-selector-repaired-314-receipt.json": {
+    "sha256": "0b14f2fe99bc1df2eee156c1a2f09bd1b67cff421f6ebd14c892af72d2b57e47",
+    "bytes": 104771
+  },
+  "issue-670-native-d1-baseline-313.log": {
+    "sha256": "b40c320d939edb6811862236259d4d5641c9315be862ff22c5abccb7e3a33a5a",
+    "bytes": 739
+  },
+  "issue-670-native-d1-baseline-313-receipt.json": {
+    "sha256": "423c40024045115e377bec02a5d8c80f814136c9ea512cc874835cd1c3ff4f03",
+    "bytes": 104696
+  },
+  "issue-670-slow-finish-first.log": {
+    "sha256": "b0a1586aa1e864e85ac2a035f59fb0367792adde43110e7ee791b6bfb4d3ea5f",
+    "bytes": 3575
+  },
+  "issue-670-slow-finish-first-receipt.json": {
+    "sha256": "0979ba851420dae99db751cf08331b424a43e2cb6e7dcca0112de86f90f47fab",
+    "bytes": 104706
+  },
+  "issue-670-slow-finish-controlled-first.log": {
+    "sha256": "3da718f74ca44f683f216d5af72229e200f2a84d1264268f0a0cfda1d051fa8a",
+    "bytes": 3445
+  },
+  "issue-670-slow-finish-controlled-first-receipt.json": {
+    "sha256": "28ad70bc62b7c132acde7ba541d8e18b31f01f704e254e7b8e11053e5229b571",
+    "bytes": 104707
+  },
+  "issue-670-slow-finish-valid-control-first.log": {
+    "sha256": "881732a46a028bd16ee2dcc129941802e889b4c133cc18b22e9f17832b8496e4",
+    "bytes": 2092
+  },
+  "issue-670-slow-finish-valid-control-first-receipt.json": {
+    "sha256": "f65b71edaa1cd72cfbae6ecd9f9d7b2f981b50d9f3e1e249c920a32f2e421b09",
+    "bytes": 104706
+  },
+  "issue-670-slow-finish-ownership-first.log": {
+    "sha256": "5b013f9531251202af26f46e9db22a04a6d64c8e883c12ac5e80a3392987ea5d",
+    "bytes": 1872
+  },
+  "issue-670-slow-finish-ownership-first-receipt.json": {
+    "sha256": "ce0af558460be0bb49a7c5cebddb1bc6854875eb37052d35d961eee351fabf2f",
+    "bytes": 104707
+  },
+  "issue-670-slow-finish-repaired-313.log": {
+    "sha256": "615344e057aa7c2cb249f4644531b7b4bfb65cd452a1bc5b505a2dcef35c1576",
+    "bytes": 98
+  },
+  "issue-670-slow-finish-repaired-313-receipt.json": {
+    "sha256": "ce92a8b123fab4394b294dbfc6871c240d45777bcef0e963b09bd8f862676b12",
+    "bytes": 104705
+  },
+  "issue-670-slow-finish-third-fixture-controls.py.txt": {
+    "sha256": "4abf920c296bd7cb0137642ab20147478565ddbddaa18317bd9396aa82b9716b",
+    "bytes": 40086
+  },
+  "issue-670-slow-finish-first-controls.py.txt": {
+    "sha256": "f7c793954106b3acac055f308298a33ffbfccef02edae9c810b8766a171d8e12",
+    "bytes": 40076
+  },
+  "issue-670-slow-finish-second-fixture-controls.py.txt": {
+    "sha256": "ec1971c4cef3aa7aece4370d093b30056f99ef3e6fe9d6e467765f4dfe28d423",
+    "bytes": 40082
+  },
+  "issue-670-slow-finish-ownership-first-controls.py.txt": {
+    "sha256": "28eb7297fdc5d33bd0778efda5d08897c5aac6dfefcafadf9a807f4aa4e5b024",
+    "bytes": 40093
+  },
+  "issue-669-first-legacy-selector.py.txt": {
+    "sha256": "d24365155dd4e85b89c6c438e9204a5a571a5ed38a0d8a5df3d947382818fb01",
+    "bytes": 48227
+  },
+  "issue-670-slow-finish-first-client.py.txt": {
+    "sha256": "bb7ec7738266b51ac557717119750983f3a979b1366013f61fa9df98d4f54876",
+    "bytes": 43808
+  },
+  "issue-670-slow-finish-first-capture.py.txt": {
+    "sha256": "eeadb48474bc5c32a6031d8cf25b50a67546820650c3b90902e90497eccf59d5",
+    "bytes": 12182
+  }
+}

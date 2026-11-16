@@ -1,0 +1,744 @@
+﻿2026-11-16T21:40:01.9652649Z Current runner version: '2.338.2'
+2026-11-16T21:40:01.9673521Z ##[group]Runner Image Provisioner
+2026-11-16T21:40:01.9674579Z Hosted Compute Agent
+2026-11-16T21:40:01.9675097Z Version: 20261103.629
+2026-11-16T21:40:01.9675677Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-16T21:40:01.9676306Z Build Date: 2026-11-03T17:26:59Z
+2026-11-16T21:40:01.9676899Z Worker ID: {b8032668-dbc4-4b5e-b4fe-3ef3cdf46657}
+2026-11-16T21:40:01.9677554Z Region: northcentralus
+2026-11-16T21:40:01.9678063Z Cloud: Azure
+2026-11-16T21:40:01.9678502Z ##[endgroup]
+2026-11-16T21:40:01.9679740Z ##[group]Operating System
+2026-11-16T21:40:01.9680319Z Ubuntu
+2026-11-16T21:40:01.9680837Z 22.04.5
+2026-11-16T21:40:01.9681291Z LTS
+2026-11-16T21:40:01.9681715Z ##[endgroup]
+2026-11-16T21:40:01.9682276Z ##[group]Runner Image
+2026-11-16T21:40:01.9682788Z Image: ubuntu-22.04
+2026-11-16T21:40:01.9683495Z Version: 20261111.360.2
+2026-11-16T21:40:01.9685143Z Included Software: https://github.com/actions/runner-images/blob/ubuntu22/20261111.360/images/ubuntu/Ubuntu2204-Readme.md
+2026-11-16T21:40:01.9688581Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu22%2F20261111.360
+2026-11-16T21:40:01.9689686Z ##[endgroup]
+2026-11-16T21:40:01.9691496Z ##[group]GITHUB_TOKEN Permissions
+2026-11-16T21:40:01.9693559Z Contents: read
+2026-11-16T21:40:01.9694388Z Metadata: read
+2026-11-16T21:40:01.9694897Z ##[endgroup]
+2026-11-16T21:40:01.9696608Z Secret source: Actions
+2026-11-16T21:40:01.9697534Z Cache mode: write
+2026-11-16T21:40:01.9698459Z Prepare workflow directory
+2026-11-16T21:40:01.9967405Z Prepare all required actions
+2026-11-16T21:40:02.0007199Z Getting action download info
+2026-11-16T21:40:02.2003449Z Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-16T21:40:02.2936669Z Download action repository 'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-11-16T21:40:02.4740922Z Complete job name: python (3.13, hosted)
+2026-11-16T21:40:02.5447677Z ##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+2026-11-16T21:40:02.5448472Z with:
+2026-11-16T21:40:02.5448817Z   persist-credentials: false
+2026-11-16T21:40:02.5449222Z   repository: rgoza1996/Kinaiya
+2026-11-16T21:40:02.5452437Z   token: ***
+2026-11-16T21:40:02.5452781Z   ssh-strict: true
+2026-11-16T21:40:02.5453131Z   ssh-user: git
+2026-11-16T21:40:02.5453454Z   clean: true
+2026-11-16T21:40:02.5453800Z   sparse-checkout-cone-mode: true
+2026-11-16T21:40:02.5454346Z   fetch-depth: 1
+2026-11-16T21:40:02.5454682Z   fetch-tags: false
+2026-11-16T21:40:02.5455026Z   show-progress: true
+2026-11-16T21:40:02.5455372Z   lfs: false
+2026-11-16T21:40:02.5455692Z   submodules: false
+2026-11-16T21:40:02.5456039Z   set-safe-directory: true
+2026-11-16T21:40:02.5456429Z   allow-unsafe-pr-checkout: false
+2026-11-16T21:40:02.5456972Z ##[endgroup]
+2026-11-16T21:40:02.6981862Z Syncing repository: rgoza1996/Kinaiya
+2026-11-16T21:40:02.6983575Z ##[group]Getting Git version info
+2026-11-16T21:40:02.6984386Z Working directory is '/home/runner/work/Kinaiya/Kinaiya'
+2026-11-16T21:40:02.6985231Z [command]/usr/bin/git version
+2026-11-16T21:40:02.7022674Z git version 2.56.1
+2026-11-16T21:40:02.7039933Z ##[endgroup]
+2026-11-16T21:40:02.7053188Z Temporarily overriding HOME='/home/runner/work/_temp/0152105c-7466-4a60-a729-4a9f6a2f6487' before making global git config changes
+2026-11-16T21:40:02.7055080Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-16T21:40:02.7057483Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Kinaiya/Kinaiya
+2026-11-16T21:40:02.7092080Z Deleting the contents of '/home/runner/work/Kinaiya/Kinaiya'
+2026-11-16T21:40:02.7096767Z ##[group]Initializing the repository
+2026-11-16T21:40:02.7100752Z [command]/usr/bin/git init /home/runner/work/Kinaiya/Kinaiya
+2026-11-16T21:40:02.7170817Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-16T21:40:02.7172529Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-16T21:40:02.7173730Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-16T21:40:02.7176054Z hint: call:
+2026-11-16T21:40:02.7176762Z hint:
+2026-11-16T21:40:02.7177416Z hint: 	git config --global init.defaultBranch <name>
+2026-11-16T21:40:02.7178050Z hint:
+2026-11-16T21:40:02.7178507Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-16T21:40:02.7179256Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-16T21:40:02.7180142Z hint:
+2026-11-16T21:40:02.7180663Z hint: 	git branch -m <name>
+2026-11-16T21:40:02.7181234Z hint:
+2026-11-16T21:40:02.7181797Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-16T21:40:02.7182542Z Initialized empty Git repository in /home/runner/work/Kinaiya/Kinaiya/.git/
+2026-11-16T21:40:02.7183782Z [command]/usr/bin/git remote add origin https://github.com/rgoza1996/Kinaiya
+2026-11-16T21:40:02.7220861Z ##[endgroup]
+2026-11-16T21:40:02.7221483Z ##[group]Disabling automatic garbage collection
+2026-11-16T21:40:02.7222025Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-16T21:40:02.7249320Z ##[endgroup]
+2026-11-16T21:40:02.7249902Z ##[group]Setting up auth
+2026-11-16T21:40:02.7255264Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T21:40:02.7287501Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-16T21:40:02.7587446Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T21:40:02.7621646Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-16T21:40:02.7851664Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T21:40:02.7884055Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-16T21:40:02.8099734Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-16T21:40:02.8138356Z ##[endgroup]
+2026-11-16T21:40:02.8139087Z ##[group]Fetching the repository
+2026-11-16T21:40:02.8145444Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9bf8d4e1646e0edf373a88541f927fd6ea971f34:refs/remotes/pull/668/merge
+2026-11-16T21:40:05.2828917Z From https://github.com/rgoza1996/Kinaiya
+2026-11-16T21:40:05.2830580Z  * [new ref]         9bf8d4e1646e0edf373a88541f927fd6ea971f34 -> pull/668/merge
+2026-11-16T21:40:05.2836324Z ##[endgroup]
+2026-11-16T21:40:05.2837667Z ##[group]Determining the checkout info
+2026-11-16T21:40:05.2839164Z ##[endgroup]
+2026-11-16T21:40:05.2840091Z [command]/usr/bin/git sparse-checkout disable
+2026-11-16T21:40:05.2880797Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-16T21:40:05.2917789Z ##[group]Checking out the ref
+2026-11-16T21:40:05.2919870Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/668/merge
+2026-11-16T21:40:05.7953819Z Note: switching to 'refs/remotes/pull/668/merge'.
+2026-11-16T21:40:05.7955127Z 
+2026-11-16T21:40:05.7955387Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-11-16T21:40:05.7955841Z changes and commit them, and you can discard any commits you make in this
+2026-11-16T21:40:05.7956263Z state without impacting any branches by switching back to a branch.
+2026-11-16T21:40:05.7956514Z 
+2026-11-16T21:40:05.7956714Z If you want to create a new branch to retain commits you create, you may
+2026-11-16T21:40:05.7957117Z do so (now or later) by using -c with the switch command. Example:
+2026-11-16T21:40:05.7957664Z 
+2026-11-16T21:40:05.7957788Z   git switch -c <new-branch-name>
+2026-11-16T21:40:05.7957956Z 
+2026-11-16T21:40:05.7958098Z Or undo this operation with:
+2026-11-16T21:40:05.7958252Z 
+2026-11-16T21:40:05.7958350Z   git switch -
+2026-11-16T21:40:05.7958498Z 
+2026-11-16T21:40:05.7958728Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-11-16T21:40:05.7958977Z 
+2026-11-16T21:40:05.7959279Z HEAD is now at 9bf8d4e Merge 04659d966d75afe4afd51c65abafdd4743adf824 into 5a5b90e2ae5b167cf21f3285e4bb28cacfcbc721
+2026-11-16T21:40:05.8273279Z ##[endgroup]
+2026-11-16T21:40:05.8312630Z [command]/usr/bin/git log -1 --format=%H
+2026-11-16T21:40:05.8337840Z 9bf8d4e1646e0edf373a88541f927fd6ea971f34
+2026-11-16T21:40:05.8346230Z ##[group]Removing auth
+2026-11-16T21:40:05.8349506Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T21:40:05.8379507Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-16T21:40:05.8594888Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T21:40:05.8619410Z http.https://github.com/.extraheader
+2026-11-16T21:40:05.8625027Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-16T21:40:05.8657082Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-16T21:40:05.8871058Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T21:40:05.8901616Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-16T21:40:05.9112135Z ##[endgroup]
+2026-11-16T21:40:05.9411021Z ##[group]Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+2026-11-16T21:40:05.9411419Z with:
+2026-11-16T21:40:05.9411634Z   python-version: 3.13
+2026-11-16T21:40:05.9411862Z   cache: pip
+2026-11-16T21:40:05.9412104Z   cache-dependency-path: requirements-dev.lock
+2026-11-16T21:40:05.9412386Z   check-latest: false
+2026-11-16T21:40:05.9414856Z   token: ***
+2026-11-16T21:40:05.9415089Z   update-environment: true
+2026-11-16T21:40:05.9415338Z   allow-prereleases: false
+2026-11-16T21:40:05.9415568Z   freethreaded: false
+2026-11-16T21:40:05.9415792Z ##[endgroup]
+2026-11-16T21:40:06.0532961Z ##[group]Installed versions
+2026-11-16T21:40:06.0622734Z (node:2185) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-16T21:40:06.0623369Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-16T21:40:06.0624004Z Successfully set up CPython (3.13.18)
+2026-11-16T21:40:06.0624921Z ##[endgroup]
+2026-11-16T21:40:06.1032659Z [command]/opt/hostedtoolcache/Python/3.13.18/x64/bin/pip cache dir
+2026-11-16T21:40:06.9326904Z /home/runner/.cache/pip
+2026-11-16T21:40:07.0759124Z pip cache is not found
+2026-11-16T21:40:07.0907953Z ##[group]Run python -m pip install --require-hashes -r requirements-dev.lock
+2026-11-16T21:40:07.0908459Z [36;1mpython -m pip install --require-hashes -r requirements-dev.lock[0m
+2026-11-16T21:40:07.0982514Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:07.0982739Z env:
+2026-11-16T21:40:07.0982967Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:07.0983337Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:07.0983678Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:07.0983987Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:07.0984549Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:07.0984844Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:07.0985337Z ##[endgroup]
+2026-11-16T21:40:08.7971829Z Collecting annotated-doc==0.0.5 (from -r requirements-dev.lock (line 3))
+2026-11-16T21:40:08.8264536Z   Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+2026-11-16T21:40:08.8526480Z Collecting annotated-types==0.8.0 (from -r requirements-dev.lock (line 7))
+2026-11-16T21:40:08.8553968Z   Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-11-16T21:40:08.8685400Z Collecting anyio==4.15.1 (from -r requirements-dev.lock (line 11))
+2026-11-16T21:40:08.8713654Z   Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+2026-11-16T21:40:08.8908943Z Collecting attrs==26.1.0 (from -r requirements-dev.lock (line 19))
+2026-11-16T21:40:08.8944382Z   Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+2026-11-16T21:40:08.9045546Z Collecting boolean-py==5.0 (from -r requirements-dev.lock (line 25))
+2026-11-16T21:40:08.9073509Z   Downloading boolean_py-5.0-py3-none-any.whl (26 kB)
+2026-11-16T21:40:08.9177806Z Collecting cachecontrol==0.14.4 (from -r requirements-dev.lock (line 29))
+2026-11-16T21:40:08.9206429Z   Downloading cachecontrol-0.14.4-py3-none-any.whl (22 kB)
+2026-11-16T21:40:08.9338469Z Collecting certifi==2026.10.23 (from -r requirements-dev.lock (line 33))
+2026-11-16T21:40:08.9367172Z   Downloading certifi-2026.10.23-py3-none-any.whl (135 kB)
+2026-11-16T21:40:09.0180367Z Collecting cffi==2.1.1 (from -r requirements-dev.lock (line 40))
+2026-11-16T21:40:09.0211631Z   Downloading cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (221 kB)
+2026-11-16T21:40:09.1154546Z Collecting charset-normalizer==3.5.2 (from -r requirements-dev.lock (line 142))
+2026-11-16T21:40:09.1185704Z   Downloading charset_normalizer-3.5.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (254 kB)
+2026-11-16T21:40:09.1344710Z Collecting click==8.5.0 (from -r requirements-dev.lock (line 316))
+2026-11-16T21:40:09.1373147Z   Downloading click-8.5.0-py3-none-any.whl (125 kB)
+2026-11-16T21:40:09.2723533Z Collecting cryptography==50.0.2 (from -r requirements-dev.lock (line 320))
+2026-11-16T21:40:09.2754866Z   Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_x86_64.whl (4.8 MB)
+2026-11-16T21:40:09.3243233Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 124.0 MB/s  0:00:00
+2026-11-16T21:40:09.3460469Z Collecting cyclonedx-python-lib==11.12.0 (from -r requirements-dev.lock (line 381))
+2026-11-16T21:40:09.3491533Z   Downloading cyclonedx_python_lib-11.12.0-py3-none-any.whl (529 kB)
+2026-11-16T21:40:09.3546280Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 529.5/529.5 kB 78.3 MB/s  0:00:00
+2026-11-16T21:40:09.3631004Z Collecting defusedxml==0.7.1 (from -r requirements-dev.lock (line 385))
+2026-11-16T21:40:09.3661874Z   Downloading defusedxml-0.7.1-py2.py3-none-any.whl (25 kB)
+2026-11-16T21:40:09.3973912Z Collecting fastapi==0.162.0 (from -r requirements-dev.lock (line 389))
+2026-11-16T21:40:09.4004253Z   Downloading fastapi-0.162.0-py3-none-any.whl (148 kB)
+2026-11-16T21:40:09.4200771Z Collecting filelock==4.2.4 (from -r requirements-dev.lock (line 393))
+2026-11-16T21:40:09.4229902Z   Downloading filelock-4.2.4-py3-none-any.whl (162 kB)
+2026-11-16T21:40:09.4319045Z Collecting h11==0.16.0 (from -r requirements-dev.lock (line 397))
+2026-11-16T21:40:09.4347924Z   Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+2026-11-16T21:40:09.4544060Z Collecting httpcore==1.0.9 (from -r requirements-dev.lock (line 403))
+2026-11-16T21:40:09.4574821Z   Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+2026-11-16T21:40:09.4714393Z Collecting httpx==0.28.1 (from -r requirements-dev.lock (line 409))
+2026-11-16T21:40:09.4744245Z   Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+2026-11-16T21:40:09.4836700Z Collecting httpx-sse==0.4.3 (from -r requirements-dev.lock (line 415))
+2026-11-16T21:40:09.4867279Z   Downloading httpx_sse-0.4.3-py3-none-any.whl (9.0 kB)
+2026-11-16T21:40:09.4970111Z Collecting idna==3.20 (from -r requirements-dev.lock (line 419))
+2026-11-16T21:40:09.4999528Z   Downloading idna-3.20-py3-none-any.whl (69 kB)
+2026-11-16T21:40:09.5091171Z Collecting iniconfig==2.3.1 (from -r requirements-dev.lock (line 426))
+2026-11-16T21:40:09.5118611Z   Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-11-16T21:40:09.5280904Z Collecting jsonschema==4.26.0 (from -r requirements-dev.lock (line 430))
+2026-11-16T21:40:09.5308565Z   Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+2026-11-16T21:40:09.5419861Z Collecting jsonschema-specifications==2025.9.1 (from -r requirements-dev.lock (line 436))
+2026-11-16T21:40:09.5451937Z   Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+2026-11-16T21:40:09.5558395Z Collecting license-expression==30.4.4 (from -r requirements-dev.lock (line 440))
+2026-11-16T21:40:09.5592320Z   Downloading license_expression-30.4.4-py3-none-any.whl (120 kB)
+2026-11-16T21:40:09.5715398Z Collecting markdown-it-py==4.2.0 (from -r requirements-dev.lock (line 444))
+2026-11-16T21:40:09.5743111Z   Downloading markdown_it_py-4.2.0-py3-none-any.whl (91 kB)
+2026-11-16T21:40:09.5891088Z Collecting mcp==1.30.0 (from -r requirements-dev.lock (line 448))
+2026-11-16T21:40:09.5919669Z   Downloading mcp-1.30.0-py3-none-any.whl (234 kB)
+2026-11-16T21:40:09.6033314Z Collecting mdurl==0.1.2 (from -r requirements-dev.lock (line 452))
+2026-11-16T21:40:09.6061238Z   Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+2026-11-16T21:40:09.6670999Z Collecting msgpack==1.2.4 (from -r requirements-dev.lock (line 456))
+2026-11-16T21:40:09.6702551Z   Downloading msgpack-1.2.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (469 kB)
+2026-11-16T21:40:09.6858681Z Collecting opentelemetry-api==1.45.2 (from -r requirements-dev.lock (line 549))
+2026-11-16T21:40:09.6887921Z   Downloading opentelemetry_api-1.45.2-py3-none-any.whl (60 kB)
+2026-11-16T21:40:09.7003415Z Collecting packageurl-python==0.17.6 (from -r requirements-dev.lock (line 553))
+2026-11-16T21:40:09.7036810Z   Downloading packageurl_python-0.17.6-py3-none-any.whl (36 kB)
+2026-11-16T21:40:09.7150709Z Collecting packaging==26.3 (from -r requirements-dev.lock (line 557))
+2026-11-16T21:40:09.7180020Z   Downloading packaging-26.3-py3-none-any.whl (129 kB)
+2026-11-16T21:40:09.7315229Z Collecting pip==26.2.2 (from -r requirements-dev.lock (line 564))
+2026-11-16T21:40:09.7344545Z   Downloading pip-26.2.2-py3-none-any.whl (1.8 MB)
+2026-11-16T21:40:09.7511919Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 107.9 MB/s  0:00:00
+2026-11-16T21:40:09.7635101Z Collecting pip-api==0.0.35 (from -r requirements-dev.lock (line 568))
+2026-11-16T21:40:09.7665998Z   Downloading pip_api-0.0.35-py3-none-any.whl (123 kB)
+2026-11-16T21:40:09.7799680Z Collecting pip-audit==2.10.1 (from -r requirements-dev.lock (line 572))
+2026-11-16T21:40:09.7834252Z   Downloading pip_audit-2.10.1-py3-none-any.whl (62 kB)
+2026-11-16T21:40:09.7954022Z Collecting pip-requirements-parser==32.0.1 (from -r requirements-dev.lock (line 576))
+2026-11-16T21:40:09.7984339Z   Downloading pip_requirements_parser-32.0.1-py3-none-any.whl (35 kB)
+2026-11-16T21:40:09.8133537Z Collecting platformdirs==4.13.5 (from -r requirements-dev.lock (line 580))
+2026-11-16T21:40:09.8162316Z   Downloading platformdirs-4.13.5-py3-none-any.whl (32 kB)
+2026-11-16T21:40:09.8257494Z Collecting pluggy==1.7.0 (from -r requirements-dev.lock (line 584))
+2026-11-16T21:40:09.8285434Z   Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-11-16T21:40:09.8404597Z Collecting py-serializable==2.1.0 (from -r requirements-dev.lock (line 588))
+2026-11-16T21:40:09.8432329Z   Downloading py_serializable-2.1.0-py3-none-any.whl (23 kB)
+2026-11-16T21:40:09.8519397Z Collecting pycparser==3.12 (from -r requirements-dev.lock (line 592))
+2026-11-16T21:40:09.8549000Z   Downloading pycparser-3.12-py3-none-any.whl (62 kB)
+2026-11-16T21:40:09.9317923Z Collecting pydantic==2.14.1 (from -r requirements-dev.lock (line 596))
+2026-11-16T21:40:09.9350453Z   Downloading pydantic-2.14.1-py3-none-any.whl (488 kB)
+2026-11-16T21:40:10.5180035Z Collecting pydantic-core==2.50.1 (from -r requirements-dev.lock (line 604))
+2026-11-16T21:40:10.5214856Z   Downloading pydantic_core-2.50.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.2 MB)
+2026-11-16T21:40:10.5412601Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.2/2.2 MB 108.8 MB/s  0:00:00
+2026-11-16T21:40:10.5531865Z Collecting pydantic-settings==2.16.1 (from -r requirements-dev.lock (line 743))
+2026-11-16T21:40:10.5561113Z   Downloading pydantic_settings-2.16.1-py3-none-any.whl (80 kB)
+2026-11-16T21:40:10.5703692Z Collecting pygments==2.21.0 (from -r requirements-dev.lock (line 747))
+2026-11-16T21:40:10.5733165Z   Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+2026-11-16T21:40:10.5851437Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 101.7 MB/s  0:00:00
+2026-11-16T21:40:10.5993978Z Collecting pyjwt==2.15.1 (from -r requirements-dev.lock (line 753))
+2026-11-16T21:40:10.6026349Z   Downloading pyjwt-2.15.1-py3-none-any.whl (33 kB)
+2026-11-16T21:40:10.6202026Z Collecting pyparsing==3.3.3 (from -r requirements-dev.lock (line 757))
+2026-11-16T21:40:10.6241665Z   Downloading pyparsing-3.3.3-py3-none-any.whl (126 kB)
+2026-11-16T21:40:10.6436285Z Collecting pytest==9.1.1 (from -r requirements-dev.lock (line 761))
+2026-11-16T21:40:10.6467092Z   Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+2026-11-16T21:40:10.6650942Z Collecting pytest-asyncio==1.4.1 (from -r requirements-dev.lock (line 767))
+2026-11-16T21:40:10.6680983Z   Downloading pytest_asyncio-1.4.1-py3-none-any.whl (17 kB)
+2026-11-16T21:40:10.6797232Z Collecting python-dotenv==1.2.4 (from -r requirements-dev.lock (line 771))
+2026-11-16T21:40:10.6830126Z   Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+2026-11-16T21:40:10.6945173Z Collecting python-multipart==0.0.32 (from -r requirements-dev.lock (line 775))
+2026-11-16T21:40:10.6968293Z   Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+2026-11-16T21:40:10.7235141Z Collecting pyyaml==6.0.3 (from -r requirements-dev.lock (line 781))
+2026-11-16T21:40:10.7267616Z   Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (801 kB)
+2026-11-16T21:40:10.7347783Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 801.6/801.6 kB 91.4 MB/s  0:00:00
+2026-11-16T21:40:10.7479703Z Collecting referencing==0.37.0 (from -r requirements-dev.lock (line 856))
+2026-11-16T21:40:10.7508742Z   Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+2026-11-16T21:40:10.7664246Z Collecting requests==2.34.2 (from -r requirements-dev.lock (line 862))
+2026-11-16T21:40:10.7694442Z   Downloading requests-2.34.2-py3-none-any.whl (73 kB)
+2026-11-16T21:40:10.7907082Z Collecting rich==15.0.0 (from -r requirements-dev.lock (line 868))
+2026-11-16T21:40:10.7938034Z   Downloading rich-15.0.0-py3-none-any.whl (310 kB)
+2026-11-16T21:40:11.0019380Z Collecting rpds-py==2026.9.1 (from -r requirements-dev.lock (line 872))
+2026-11-16T21:40:11.0056031Z   Downloading rpds_py-2026.9.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (370 kB)
+2026-11-16T21:40:11.2645057Z Collecting ruff==0.17.3 (from -r requirements-dev.lock (line 1004))
+2026-11-16T21:40:11.2679819Z   Downloading ruff-0.17.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (10.6 MB)
+2026-11-16T21:40:11.3508966Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.6/10.6 MB 128.4 MB/s  0:00:00
+2026-11-16T21:40:11.3675431Z Collecting sortedcontainers==2.4.0 (from -r requirements-dev.lock (line 1024))
+2026-11-16T21:40:11.3703633Z   Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
+2026-11-16T21:40:11.3877516Z Collecting sse-starlette==3.6.0 (from -r requirements-dev.lock (line 1028))
+2026-11-16T21:40:11.3906042Z   Downloading sse_starlette-3.6.0-py3-none-any.whl (17 kB)
+2026-11-16T21:40:11.4088114Z Collecting starlette==1.10.0 (from -r requirements-dev.lock (line 1032))
+2026-11-16T21:40:11.4118009Z   Downloading starlette-1.10.0-py3-none-any.whl (80 kB)
+2026-11-16T21:40:11.4336976Z Collecting tomli==2.5.0 (from -r requirements-dev.lock (line 1039))
+2026-11-16T21:40:11.4369211Z   Downloading tomli-2.5.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (283 kB)
+2026-11-16T21:40:11.4467355Z Collecting tomli-w==1.2.0 (from -r requirements-dev.lock (line 1106))
+2026-11-16T21:40:11.4497315Z   Downloading tomli_w-1.2.0-py3-none-any.whl (6.7 kB)
+2026-11-16T21:40:11.4628932Z Collecting typing-extensions==4.16.0 (from -r requirements-dev.lock (line 1110))
+2026-11-16T21:40:11.4658197Z   Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-11-16T21:40:11.4743895Z Collecting typing-inspection==0.4.4 (from -r requirements-dev.lock (line 1122))
+2026-11-16T21:40:11.4772619Z   Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-11-16T21:40:11.4952724Z Collecting urllib3==2.8.0 (from -r requirements-dev.lock (line 1130))
+2026-11-16T21:40:11.4983058Z   Downloading urllib3-2.8.0-py3-none-any.whl (135 kB)
+2026-11-16T21:40:11.5162693Z Collecting uvicorn==0.54.0 (from -r requirements-dev.lock (line 1134))
+2026-11-16T21:40:11.5190665Z   Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+2026-11-16T21:40:11.6163007Z Collecting websockets==15.0.1 (from -r requirements-dev.lock (line 1140))
+2026-11-16T21:40:11.6197618Z   Downloading websockets-15.0.1-cp313-cp313-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (182 kB)
+2026-11-16T21:40:11.6567582Z Collecting av==17.1.0 (from -r /home/runner/work/Kinaiya/Kinaiya/requirements-whistle.lock (line 3))
+2026-11-16T21:40:11.6605290Z   Downloading av-17.1.0-cp311-abi3-manylinux_2_28_x86_64.whl (35.4 MB)
+2026-11-16T21:40:11.9744709Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 35.4/35.4 MB 112.7 MB/s  0:00:00
+2026-11-16T21:40:12.1515815Z Collecting numpy==2.3.3 (from -r /home/runner/work/Kinaiya/Kinaiya/requirements-meta-speech.lock (line 4))
+2026-11-16T21:40:12.1576034Z   Downloading numpy-2.3.3-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)
+2026-11-16T21:40:12.3276319Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6/16.6 MB 97.7 MB/s  0:00:00
+2026-11-16T21:40:12.6392917Z Installing collected packages: sortedcontainers, boolean-py, websockets, urllib3, typing-extensions, tomli-w, tomli, ruff, rpds-py, pyyaml, python-multipart, python-dotenv, pyparsing, pyjwt, pygments, pycparser, pluggy, platformdirs, pip, packaging, packageurl-python, numpy, msgpack, mdurl, license-expression, iniconfig, idna, httpx-sse, h11, filelock, defusedxml, click, charset-normalizer, certifi, av, attrs, annotated-types, annotated-doc, uvicorn, typing-inspection, requests, referencing, pytest, pydantic-core, py-serializable, pip-requirements-parser, pip-api, opentelemetry-api, markdown-it-py, httpcore, cffi, anyio, starlette, rich, pytest-asyncio, pydantic, jsonschema-specifications, httpx, cyclonedx-python-lib, cryptography, cachecontrol, sse-starlette, pydantic-settings, jsonschema, fastapi, pip-audit, mcp
+2026-11-16T21:40:13.8555871Z   Attempting uninstall: pip
+2026-11-16T21:40:13.8582196Z     Found existing installation: pip 26.3
+2026-11-16T21:40:13.9564387Z     Uninstalling pip-26.3:
+2026-11-16T21:40:13.9620195Z       Successfully uninstalled pip-26.3
+2026-11-16T21:40:19.5559463Z 
+2026-11-16T21:40:19.5616480Z Successfully installed annotated-doc-0.0.5 annotated-types-0.8.0 anyio-4.15.1 attrs-26.1.0 av-17.1.0 boolean-py-5.0 cachecontrol-0.14.4 certifi-2026.10.23 cffi-2.1.1 charset-normalizer-3.5.2 click-8.5.0 cryptography-50.0.2 cyclonedx-python-lib-11.12.0 defusedxml-0.7.1 fastapi-0.162.0 filelock-4.2.4 h11-0.16.0 httpcore-1.0.9 httpx-0.28.1 httpx-sse-0.4.3 idna-3.20 iniconfig-2.3.1 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 license-expression-30.4.4 markdown-it-py-4.2.0 mcp-1.30.0 mdurl-0.1.2 msgpack-1.2.4 numpy-2.3.3 opentelemetry-api-1.45.2 packageurl-python-0.17.6 packaging-26.3 pip-26.2.2 pip-api-0.0.35 pip-audit-2.10.1 pip-requirements-parser-32.0.1 platformdirs-4.13.5 pluggy-1.7.0 py-serializable-2.1.0 pycparser-3.12 pydantic-2.14.1 pydantic-core-2.50.1 pydantic-settings-2.16.1 pygments-2.21.0 pyjwt-2.15.1 pyparsing-3.3.3 pytest-9.1.1 pytest-asyncio-1.4.1 python-dotenv-1.2.4 python-multipart-0.0.32 pyyaml-6.0.3 referencing-0.37.0 requests-2.34.2 rich-15.0.0 rpds-py-2026.9.1 ruff-0.17.3 sortedcontainers-2.4.0 sse-starlette-3.6.0 starlette-1.10.0 tomli-2.5.0 tomli-w-1.2.0 typing-extensions-4.16.0 typing-inspection-0.4.4 urllib3-2.8.0 uvicorn-0.54.0 websockets-15.0.1
+2026-11-16T21:40:19.7340212Z ##[group]Run python -m pip install --no-deps -e .
+2026-11-16T21:40:19.7340532Z [36;1mpython -m pip install --no-deps -e .[0m
+2026-11-16T21:40:19.7398066Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:19.7398267Z env:
+2026-11-16T21:40:19.7398485Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:19.7398828Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:19.7399157Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:19.7399464Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:19.7399764Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:19.7400056Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:19.7400306Z ##[endgroup]
+2026-11-16T21:40:20.0627283Z Obtaining file:///home/runner/work/Kinaiya/Kinaiya
+2026-11-16T21:40:20.0642660Z   Installing build dependencies: started
+2026-11-16T21:40:20.6834071Z   Installing build dependencies: finished with status 'done'
+2026-11-16T21:40:20.6838201Z   Checking if build backend supports build_editable: started
+2026-11-16T21:40:20.9732644Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-11-16T21:40:20.9739536Z   Getting requirements to build editable: started
+2026-11-16T21:40:21.2639795Z   Getting requirements to build editable: finished with status 'done'
+2026-11-16T21:40:21.2647383Z   Preparing editable metadata (pyproject.toml): started
+2026-11-16T21:40:21.4339832Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-11-16T21:40:21.4417205Z Building wheels for collected packages: kinaiya
+2026-11-16T21:40:21.4423627Z   Building editable for kinaiya (pyproject.toml): started
+2026-11-16T21:40:21.6685821Z   Building editable for kinaiya (pyproject.toml): finished with status 'done'
+2026-11-16T21:40:21.6691329Z   Created wheel for kinaiya: filename=kinaiya-0.1.0.dev0-0.editable-py3-none-any.whl size=7896 sha256=f5c78a61b2422ac42f4992b2b65c27514f8483cd0856883d3d3785ee3ef25a27
+2026-11-16T21:40:21.6692669Z   Stored in directory: /tmp/pip-ephem-wheel-cache-99_5qz9s/wheels/a6/23/95/6fcf3d6c8272626dd44cf9d1ab31d44ccf74d593f68ff751cd
+2026-11-16T21:40:21.6714965Z Successfully built kinaiya
+2026-11-16T21:40:21.6807572Z Installing collected packages: kinaiya
+2026-11-16T21:40:21.6939142Z Successfully installed kinaiya-0.1.0.dev0
+2026-11-16T21:40:21.6947330Z 
+2026-11-16T21:40:21.6947906Z [notice] A new release of pip is available: 26.2.2 -> 26.3
+2026-11-16T21:40:21.6948371Z [notice] To update, run: pip install --upgrade pip
+2026-11-16T21:40:21.7489073Z ##[group]Run sudo apt-get update -qq
+2026-11-16T21:40:21.7489348Z [36;1msudo apt-get update -qq[0m
+2026-11-16T21:40:21.7489605Z [36;1msudo apt-get install -y bubblewrap libseccomp2[0m
+2026-11-16T21:40:21.7542956Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:21.7543155Z env:
+2026-11-16T21:40:21.7543373Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:21.7543712Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:21.7544043Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:21.7544440Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:21.7544728Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:21.7545016Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:21.7545259Z ##[endgroup]
+2026-11-16T21:40:31.0233514Z Reading package lists...
+2026-11-16T21:40:31.2851196Z Building dependency tree...
+2026-11-16T21:40:31.2860769Z Reading state information...
+2026-11-16T21:40:31.4448036Z libseccomp2 is already the newest version (2.5.3-2ubuntu3~22.04.1).
+2026-11-16T21:40:31.4448684Z libseccomp2 set to manually installed.
+2026-11-16T21:40:31.4449556Z The following NEW packages will be installed:
+2026-11-16T21:40:31.4452004Z   bubblewrap
+2026-11-16T21:40:31.4598253Z 0 upgraded, 1 newly installed, 0 to remove and 20 not upgraded.
+2026-11-16T21:40:31.4598604Z Need to get 46.3 kB of archives.
+2026-11-16T21:40:31.4598884Z After this operation, 132 kB of additional disk space will be used.
+2026-11-16T21:40:31.4599218Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-11-16T21:40:31.5016720Z Get:2 http://azure.archive.ubuntu.com/ubuntu jammy-updates/main amd64 bubblewrap amd64 0.6.1-1ubuntu0.3 [46.3 kB]
+2026-11-16T21:40:31.7684382Z Fetched 46.3 kB in 0s (842 kB/s)
+2026-11-16T21:40:31.7889714Z Selecting previously unselected package bubblewrap.
+2026-11-16T21:40:31.8129380Z (Reading database ... 
+2026-11-16T21:40:31.8129797Z (Reading database ... 5%
+2026-11-16T21:40:31.8130319Z (Reading database ... 10%
+2026-11-16T21:40:31.8130661Z (Reading database ... 15%
+2026-11-16T21:40:31.8130946Z (Reading database ... 20%
+2026-11-16T21:40:31.8131205Z (Reading database ... 25%
+2026-11-16T21:40:31.8131382Z (Reading database ... 30%
+2026-11-16T21:40:31.8131570Z (Reading database ... 35%
+2026-11-16T21:40:31.8131746Z (Reading database ... 40%
+2026-11-16T21:40:31.8131922Z (Reading database ... 45%
+2026-11-16T21:40:31.8132092Z (Reading database ... 50%
+2026-11-16T21:40:31.8319153Z (Reading database ... 55%
+2026-11-16T21:40:32.0127878Z (Reading database ... 60%
+2026-11-16T21:40:32.2595387Z (Reading database ... 65%
+2026-11-16T21:40:32.4012910Z (Reading database ... 70%
+2026-11-16T21:40:32.6200327Z (Reading database ... 75%
+2026-11-16T21:40:32.7476131Z (Reading database ... 80%
+2026-11-16T21:40:32.9685093Z (Reading database ... 85%
+2026-11-16T21:40:33.1450062Z (Reading database ... 90%
+2026-11-16T21:40:33.3142904Z (Reading database ... 95%
+2026-11-16T21:40:33.3143281Z (Reading database ... 100%
+2026-11-16T21:40:33.3143663Z (Reading database ... 264803 files and directories currently installed.)
+2026-11-16T21:40:33.3201900Z Preparing to unpack .../bubblewrap_0.6.1-1ubuntu0.3_amd64.deb ...
+2026-11-16T21:40:33.3300025Z Unpacking bubblewrap (0.6.1-1ubuntu0.3) ...
+2026-11-16T21:40:33.3782368Z Setting up bubblewrap (0.6.1-1ubuntu0.3) ...
+2026-11-16T21:40:33.3826047Z Processing triggers for man-db (2.10.2-1) ...
+2026-11-16T21:40:33.3843996Z Not building database; man-db/auto-update is not 'true'.
+2026-11-16T21:40:33.8713757Z 
+2026-11-16T21:40:33.8714547Z Running kernel seems to be up-to-date.
+2026-11-16T21:40:33.8714762Z 
+2026-11-16T21:40:33.8714917Z No services need to be restarted.
+2026-11-16T21:40:33.8715141Z 
+2026-11-16T21:40:33.8715382Z No containers need to be restarted.
+2026-11-16T21:40:33.8717877Z 
+2026-11-16T21:40:33.8718103Z No user sessions are running outdated binaries.
+2026-11-16T21:40:33.8718385Z 
+2026-11-16T21:40:33.8718995Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-11-16T21:40:35.0524550Z ##[group]Run python - <<'PY'
+2026-11-16T21:40:35.0524825Z [36;1mpython - <<'PY'[0m
+2026-11-16T21:40:35.0525022Z [36;1mimport ctypes, subprocess[0m
+2026-11-16T21:40:35.0525255Z [36;1mfrom pathlib import Path[0m
+2026-11-16T21:40:35.0525492Z [36;1mfrom tempfile import TemporaryDirectory[0m
+2026-11-16T21:40:35.0525747Z [36;1mfrom core.policy import ToolPolicy[0m
+2026-11-16T21:40:35.0526022Z [36;1mfrom services.agent.tools import build_bwrap_args[0m
+2026-11-16T21:40:35.0526292Z [36;1mctypes.CDLL('libseccomp.so.2')[0m
+2026-11-16T21:40:35.0526538Z [36;1mwith TemporaryDirectory() as workspace:[0m
+2026-11-16T21:40:35.0526888Z [36;1m    argv, isolated = build_bwrap_args(ToolPolicy(Path(workspace)), 'true', False)[0m
+2026-11-16T21:40:35.0527224Z [36;1m    assert isolated[0m
+2026-11-16T21:40:35.0527462Z [36;1m    subprocess.run(argv, check=True, timeout=15)[0m
+2026-11-16T21:40:35.0527705Z [36;1mPY[0m
+2026-11-16T21:40:35.0587073Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:35.0587312Z env:
+2026-11-16T21:40:35.0587528Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.0587872Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:35.0588376Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.0588674Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.0588969Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.0589266Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:35.0589521Z ##[endgroup]
+2026-11-16T21:40:35.7900909Z ##[group]Run ruff check .
+2026-11-16T21:40:35.7901142Z [36;1mruff check .[0m
+2026-11-16T21:40:35.7953817Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:35.7954017Z env:
+2026-11-16T21:40:35.7954431Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.7954818Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:35.7955152Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.7955456Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.7955758Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.7956047Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:35.7956293Z ##[endgroup]
+2026-11-16T21:40:35.9859151Z All checks passed!
+2026-11-16T21:40:35.9903982Z ##[group]Run ruff format --check .
+2026-11-16T21:40:35.9904439Z [36;1mruff format --check .[0m
+2026-11-16T21:40:35.9957308Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:35.9957518Z env:
+2026-11-16T21:40:35.9957736Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.9958091Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:35.9958422Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.9958710Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.9959009Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:35.9959293Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:35.9959558Z ##[endgroup]
+2026-11-16T21:40:36.2546447Z 1174 files already formatted
+2026-11-16T21:40:36.2956087Z ##[group]Run if test "$RUNNER_KIND" = hosted; then
+2026-11-16T21:40:36.2956407Z [36;1mif test "$RUNNER_KIND" = hosted; then[0m
+2026-11-16T21:40:36.2956645Z [36;1m  pytest -m 'not live' -q[0m
+2026-11-16T21:40:36.2956842Z [36;1melse[0m
+2026-11-16T21:40:36.2957089Z [36;1m  pytest --basetemp /tmp/ci/pytest -x --tb=short -m 'not live' -q[0m
+2026-11-16T21:40:36.2957368Z [36;1mfi[0m
+2026-11-16T21:40:36.3009951Z shell: /usr/bin/bash -e {0}
+2026-11-16T21:40:36.3010149Z env:
+2026-11-16T21:40:36.3010352Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:36.3010686Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib/pkgconfig
+2026-11-16T21:40:36.3011009Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:36.3011307Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:36.3011590Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.18/x64
+2026-11-16T21:40:36.3011941Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.18/x64/lib
+2026-11-16T21:40:36.3012192Z   RUNNER_KIND: hosted
+2026-11-16T21:40:36.3012357Z ##[endgroup]
+2026-11-16T21:40:58.0782748Z ........................................................................ [  0%]
+2026-11-16T21:41:00.0970272Z ........................................................................ [  0%]
+2026-11-16T21:41:08.1485230Z ........................................................................ [  1%]
+2026-11-16T21:41:21.1936261Z ........................................................................ [  1%]
+2026-11-16T21:42:07.3078495Z ........................................................................ [  2%]
+2026-11-16T21:42:10.4333304Z ........................................................................ [  2%]
+2026-11-16T21:42:43.7830384Z ........................................................................ [  3%]
+2026-11-16T21:42:53.2747791Z ........................................................................ [  3%]
+2026-11-16T21:42:58.3808977Z ........................................................................ [  4%]
+2026-11-16T21:43:01.6106128Z ........................................................................ [  4%]
+2026-11-16T21:43:11.8326062Z ........................................................................ [  5%]
+2026-11-16T21:45:49.3324895Z ........................................................................ [  5%]
+2026-11-16T21:45:56.4147299Z ........................................................................ [  5%]
+2026-11-16T21:46:04.0925946Z .....................................................s.................. [  6%]
+2026-11-16T21:46:12.8180478Z ....................................................s................... [  6%]
+2026-11-16T21:46:23.8248542Z ........................................................................ [  7%]
+2026-11-16T21:46:33.6507032Z ........................................................................ [  7%]
+2026-11-16T21:46:47.8350424Z ........................................................................ [  8%]
+2026-11-16T21:46:53.9161220Z ........................................................................ [  8%]
+2026-11-16T21:47:03.7002931Z ........................................................................ [  9%]
+2026-11-16T21:47:36.1353296Z ........................................................................ [  9%]
+2026-11-16T21:47:41.3660720Z ........................................................................ [ 10%]
+2026-11-16T21:47:46.9426768Z ........................................................................ [ 10%]
+2026-11-16T21:47:55.0880836Z ........................................................................ [ 10%]
+2026-11-16T21:48:12.3783651Z ........................................................................ [ 11%]
+2026-11-16T21:48:54.1198434Z ........................................................................ [ 11%]
+2026-11-16T21:49:04.5705831Z .......................s................................................ [ 12%]
+2026-11-16T21:49:24.9683408Z ........................................................................ [ 12%]
+2026-11-16T21:49:41.1667928Z ........................................................................ [ 13%]
+2026-11-16T21:49:59.8192307Z ........................................................................ [ 13%]
+2026-11-16T21:50:03.0032880Z ........................................................................ [ 14%]
+2026-11-16T21:50:06.5838777Z ........................................................................ [ 14%]
+2026-11-16T21:50:11.6944481Z ........................................................................ [ 15%]
+2026-11-16T21:50:18.5944568Z ........................................................................ [ 15%]
+2026-11-16T21:50:28.2191197Z ........................................................................ [ 15%]
+2026-11-16T21:50:40.8442156Z ........................................................................ [ 16%]
+2026-11-16T21:50:48.0583466Z ........................................................................ [ 16%]
+2026-11-16T21:51:04.2611985Z ........................................................................ [ 17%]
+2026-11-16T21:51:34.3679821Z ........................................................................ [ 17%]
+2026-11-16T21:51:59.3218901Z ........................................................................ [ 18%]
+2026-11-16T21:53:07.4948220Z ........................................................................ [ 18%]
+2026-11-16T21:53:21.7863787Z ........................................................................ [ 19%]
+2026-11-16T21:53:29.4992043Z ........................................................................ [ 19%]
+2026-11-16T21:53:37.3550061Z ........................................................................ [ 20%]
+2026-11-16T21:53:38.4790014Z ........................................................................ [ 20%]
+2026-11-16T21:53:42.1221263Z ........................................................................ [ 20%]
+2026-11-16T21:59:23.9568799Z ........................................................................ [ 21%]
+2026-11-16T21:59:33.1544568Z ........................................................................ [ 21%]
+2026-11-16T21:59:40.3728939Z ........................................................................ [ 22%]
+2026-11-16T21:59:45.2587336Z ........................................................................ [ 22%]
+2026-11-16T22:00:06.1828171Z ........................................................................ [ 23%]
+2026-11-16T22:00:15.4262066Z ........................................................................ [ 23%]
+2026-11-16T22:00:41.5465852Z ........................................................................ [ 24%]
+2026-11-16T22:01:41.3492853Z ........................................................................ [ 24%]
+2026-11-16T22:05:06.3026241Z ........................................................................ [ 25%]
+2026-11-16T22:05:08.4616404Z ........................................................................ [ 25%]
+2026-11-16T22:05:22.1533447Z ........................................................................ [ 25%]
+2026-11-16T22:06:35.9750581Z ........................................................................ [ 26%]
+2026-11-16T22:10:52.3427558Z ........................................................................ [ 26%]
+2026-11-16T22:11:08.4540023Z ........................................................................ [ 27%]
+2026-11-16T22:11:22.7542405Z ........................................................................ [ 27%]
+2026-11-16T22:11:46.8485997Z ........................................................................ [ 28%]
+2026-11-16T22:12:55.2593323Z ........................................................................ [ 28%]
+2026-11-16T22:15:17.5751594Z ........................................................................ [ 29%]
+2026-11-16T22:17:42.0620385Z ........................................................................ [ 29%]
+2026-11-16T22:18:28.5144430Z ........................................................................ [ 30%]
+2026-11-16T22:19:15.4954981Z ........................................................................ [ 30%]
+2026-11-16T22:20:26.2309817Z ........................................................................ [ 30%]
+2026-11-16T22:20:55.4955896Z ........................................................................ [ 31%]
+2026-11-16T22:20:58.0890479Z ........................................................................ [ 31%]
+2026-11-16T22:21:00.3227636Z ........................................................................ [ 32%]
+2026-11-16T22:21:04.2781492Z ........................................................................ [ 32%]
+2026-11-16T22:21:15.0751351Z ........................................................................ [ 33%]
+2026-11-16T22:21:17.4184598Z ........................................................................ [ 33%]
+2026-11-16T22:21:30.4881325Z ........................................................................ [ 34%]
+2026-11-16T22:21:36.9501121Z ...................................................................... [ 34%]
+2026-11-16T22:21:37.0034511Z ........................................................................ [ 35%]
+2026-11-16T22:21:37.0446090Z ........................................................................ [ 35%]
+2026-11-16T22:21:41.0972487Z ........................................................................ [ 35%]
+2026-11-16T22:21:43.8684479Z ........................................................................ [ 36%]
+2026-11-16T22:21:44.0082494Z ........................................................................ [ 36%]
+2026-11-16T22:21:44.1465402Z ........................................................................ [ 37%]
+2026-11-16T22:21:44.9286954Z ........................................................................ [ 37%]
+2026-11-16T22:21:46.3006681Z ........................................................................ [ 38%]
+2026-11-16T22:21:49.1827386Z ........................................................................ [ 38%]
+2026-11-16T22:21:49.6042055Z ........................................................................ [ 39%]
+2026-11-16T22:21:50.3435661Z ........................................................................ [ 39%]
+2026-11-16T22:21:50.4852735Z ........................................................................ [ 40%]
+2026-11-16T22:21:50.5667044Z ........................................................................ [ 40%]
+2026-11-16T22:21:50.6100818Z ........................................................................ [ 40%]
+2026-11-16T22:21:50.6539835Z ........................................................................ [ 41%]
+2026-11-16T22:21:50.6977787Z ........................................................................ [ 41%]
+2026-11-16T22:21:51.7715986Z ........................................................................ [ 42%]
+2026-11-16T22:21:52.5392108Z ........................................................................ [ 42%]
+2026-11-16T22:21:52.7325796Z ........................................................................ [ 43%]
+2026-11-16T22:21:53.4158794Z ........................................................................ [ 43%]
+2026-11-16T22:21:55.2938203Z ........................................................................ [ 44%]
+2026-11-16T22:21:55.3981322Z ........................................................................ [ 44%]
+2026-11-16T22:21:55.8757846Z ........................................................................ [ 45%]
+2026-11-16T22:21:56.6698173Z ........................................................................ [ 45%]
+2026-11-16T22:21:57.2408470Z ....................................................................... [ 45%]
+2026-11-16T22:21:57.9981431Z ........................................................................ [ 46%]
+2026-11-16T22:21:58.0721986Z ........................................................................ [ 46%]
+2026-11-16T22:21:59.3329727Z ........................................................................ [ 47%]
+2026-11-16T22:22:00.6896469Z ........................................................................ [ 47%]
+2026-11-16T22:22:02.0808790Z ........................................................................ [ 48%]
+2026-11-16T22:22:02.3028655Z ........................................................................ [ 48%]
+2026-11-16T22:22:02.8439581Z ........................................................................ [ 49%]
+2026-11-16T22:22:07.4887933Z ........................................................................ [ 49%]
+2026-11-16T22:22:08.2566623Z ........................................................................ [ 50%]
+2026-11-16T22:22:08.5100483Z ........................................................................ [ 50%]
+2026-11-16T22:22:17.4043276Z ........................................................................ [ 50%]
+2026-11-16T22:22:17.9707445Z ........................................................................ [ 51%]
+2026-11-16T22:22:23.8609252Z ........................................................................ [ 51%]
+2026-11-16T22:22:25.8968044Z ........................................................................ [ 52%]
+2026-11-16T22:22:28.9253331Z ........................................................................ [ 52%]
+2026-11-16T22:22:39.3387648Z ........................................................................ [ 53%]
+2026-11-16T22:22:50.0737943Z ........................................................................ [ 53%]
+2026-11-16T22:22:50.2697131Z ........................................................................ [ 54%]
+2026-11-16T22:22:50.6653474Z ........................................................................ [ 54%]
+2026-11-16T22:22:50.9500805Z ........................................................................ [ 55%]
+2026-11-16T22:22:51.1126837Z ........................................................................ [ 55%]
+2026-11-16T22:22:53.9727353Z ........................................................................ [ 55%]
+2026-11-16T22:22:55.7170375Z ........................................................................ [ 56%]
+2026-11-16T22:22:59.4032103Z ........................................................................ [ 56%]
+2026-11-16T22:23:01.0372365Z ........................................................................ [ 57%]
+2026-11-16T22:23:01.2225342Z ........................................................................ [ 57%]
+2026-11-16T22:23:02.7323285Z ........................................................................ [ 58%]
+2026-11-16T22:23:05.0488619Z ........................................................................ [ 58%]
+2026-11-16T22:23:11.2015199Z ........................................................................ [ 59%]
+2026-11-16T22:23:12.2669210Z ........................................................................ [ 59%]
+2026-11-16T22:23:12.4333800Z ........................................................................ [ 60%]
+2026-11-16T22:23:12.5373971Z ........................................................................ [ 60%]
+2026-11-16T22:23:12.9799975Z ........................................................................ [ 60%]
+2026-11-16T22:23:13.5890595Z ........................................................................ [ 61%]
+2026-11-16T22:23:15.0054949Z ........................................................................ [ 61%]
+2026-11-16T22:23:15.4732531Z ........................................................................ [ 62%]
+2026-11-16T22:23:20.7106014Z ........................................................................ [ 62%]
+2026-11-16T22:23:24.9162934Z ........................................................................ [ 63%]
+2026-11-16T22:23:27.0499389Z ........................................................................ [ 63%]
+2026-11-16T22:23:27.6860714Z ........................................................................ [ 64%]
+2026-11-16T22:23:37.8968837Z ........................................................................ [ 64%]
+2026-11-16T22:23:39.4783172Z ........................................................................ [ 65%]
+2026-11-16T22:23:39.8034668Z ........................................................................ [ 65%]
+2026-11-16T22:23:40.3085084Z ........................................................................ [ 65%]
+2026-11-16T22:23:40.4114830Z ........................................................................ [ 66%]
+2026-11-16T22:23:40.5404437Z ........................................................................ [ 66%]
+2026-11-16T22:23:40.6621940Z ........................................................................ [ 67%]
+2026-11-16T22:23:40.8695188Z ........................................................................ [ 67%]
+2026-11-16T22:23:41.0169157Z ........................................................................ [ 68%]
+2026-11-16T22:23:49.4138814Z ........................................................................ [ 68%]
+2026-11-16T22:23:51.3535022Z ........................................................................ [ 69%]
+2026-11-16T22:23:57.4968269Z ........................................................................ [ 69%]
+2026-11-16T22:24:01.5467583Z ........................................................................ [ 70%]
+2026-11-16T22:24:02.1581601Z ........................................................................ [ 70%]
+2026-11-16T22:24:02.3481717Z ........................................................................ [ 70%]
+2026-11-16T22:24:02.9698461Z ........................................................................ [ 71%]
+2026-11-16T22:24:16.3959844Z ........................................................................ [ 71%]
+2026-11-16T22:24:36.1525375Z ........................................................................ [ 72%]
+2026-11-16T22:25:13.2550625Z ........................................................................ [ 72%]
+2026-11-16T22:25:19.4862739Z ........................................................................ [ 73%]
+2026-11-16T22:25:23.1610258Z ........................................................................ [ 73%]
+2026-11-16T22:25:23.2609659Z ........................................................................ [ 74%]
+2026-11-16T22:25:23.7222516Z ........................................................................ [ 74%]
+2026-11-16T22:25:23.9213326Z ........................................................................ [ 75%]
+2026-11-16T22:25:23.9789965Z ........................................................................ [ 75%]
+2026-11-16T22:25:24.1453067Z ........................................................................ [ 75%]
+2026-11-16T22:25:24.4732077Z ........................................................................ [ 76%]
+2026-11-16T22:25:24.6180696Z ........................................................................ [ 76%]
+2026-11-16T22:25:29.7617438Z ........................................................................ [ 77%]
+2026-11-16T22:25:35.8899856Z ........................................................................ [ 77%]
+2026-11-16T22:25:36.1099234Z ........................................................................ [ 78%]
+2026-11-16T22:25:37.3682750Z ........................................................................ [ 78%]
+2026-11-16T22:25:38.1226952Z ........................................................................ [ 79%]
+2026-11-16T22:25:38.5906554Z ........................................................................ [ 79%]
+2026-11-16T22:25:38.9500714Z ........................................................................ [ 80%]
+2026-11-16T22:25:39.0556893Z ........................................................................ [ 80%]
+2026-11-16T22:25:40.1303213Z ........................................................................ [ 80%]
+2026-11-16T22:25:42.2567342Z ........................................................................ [ 81%]
+2026-11-16T22:25:42.7071803Z ........................................................................ [ 81%]
+2026-11-16T22:25:43.8774702Z ........................................................................ [ 82%]
+2026-11-16T22:25:44.0440863Z ..ss......ssssss........................................................ [ 82%]
+2026-11-16T22:25:44.0974999Z ........................................................................ [ 83%]
+2026-11-16T22:25:44.1934638Z ........................................................................ [ 83%]
+2026-11-16T22:25:46.2726931Z ........................................................................ [ 84%]
+2026-11-16T22:25:47.7145631Z ........................................................................ [ 84%]
+2026-11-16T22:25:49.0440786Z ........................................................................ [ 85%]
+2026-11-16T22:25:50.7927207Z ........................................................................ [ 85%]
+2026-11-16T22:25:51.5020155Z ........................................................................ [ 85%]
+2026-11-16T22:25:51.5701421Z ........................................................................ [ 86%]
+2026-11-16T22:25:51.7502346Z ........................................................................ [ 86%]
+2026-11-16T22:25:52.2696931Z ........................................................................ [ 87%]
+2026-11-16T22:25:52.6902020Z ........................................................................ [ 87%]
+2026-11-16T22:26:02.8650556Z ........................................................................ [ 88%]
+2026-11-16T22:26:03.5318482Z ........................................................................ [ 88%]
+2026-11-16T22:26:05.0693006Z ........................................................................ [ 89%]
+2026-11-16T22:26:09.2624401Z .................................................................F...... [ 89%]
+2026-11-16T22:26:13.8247683Z ........................................................................ [ 90%]
+2026-11-16T22:26:15.2859548Z ........................................................................ [ 90%]
+2026-11-16T22:26:16.3138393Z ........................................................................ [ 90%]
+2026-11-16T22:26:16.4045228Z ........................................................................ [ 91%]
+2026-11-16T22:26:25.6815458Z ........................................................................ [ 91%]
+2026-11-16T22:26:25.7352558Z ........................................................................ [ 92%]
+2026-11-16T22:26:25.8752593Z ........................................................................ [ 92%]
+2026-11-16T22:26:26.1663539Z ........................................................................ [ 93%]
+2026-11-16T22:26:26.2590568Z ........................................................................ [ 93%]
+2026-11-16T22:26:26.4190977Z ........................................................................ [ 94%]
+2026-11-16T22:26:26.9840859Z ........................................................................ [ 94%]
+2026-11-16T22:26:27.4287836Z ........................................................................ [ 95%]
+2026-11-16T22:26:28.4586633Z ........................................................................ [ 95%]
+2026-11-16T22:26:28.8958177Z ........................................................................ [ 95%]
+2026-11-16T22:26:29.3358556Z ........................................................................ [ 96%]
+2026-11-16T22:26:29.5305260Z ........................................................................ [ 96%]
+2026-11-16T22:26:29.9869237Z ........................................................................ [ 97%]
+2026-11-16T22:26:30.1389137Z ........................................................................ [ 97%]
+2026-11-16T22:26:30.5060898Z ........................................................................ [ 98%]
+2026-11-16T22:26:34.1031287Z ........................................................................ [ 98%]
+2026-11-16T22:26:35.3279075Z ........................................................................ [ 99%]
+2026-11-16T22:26:35.3873579Z ........................................................................ [ 99%]
+2026-11-16T22:26:37.3769658Z ....................................................................     [100%]
+2026-11-16T22:26:37.3770239Z =================================== FAILURES ===================================
+2026-11-16T22:26:37.3770729Z _________ test_old_codecs_schema_bytes_and_depth_limits_are_preserved __________
+2026-11-16T22:26:37.3771078Z 
+2026-11-16T22:26:37.3771272Z     def test_old_codecs_schema_bytes_and_depth_limits_are_preserved():
+2026-11-16T22:26:37.3771753Z >       assert schema_pin() == (184, OLD_SCHEMA_HASH)
+2026-11-16T22:26:37.3772313Z E       AssertionError: assert (195, '51ce52...1e83cf591ce3') == (184, '21351c...d8035257328a')
+2026-11-16T22:26:37.3772773Z E         
+2026-11-16T22:26:37.3772982Z E         At index 0 diff: 195 != 184
+2026-11-16T22:26:37.3773242Z E         
+2026-11-16T22:26:37.3773426Z E         Full diff:
+2026-11-16T22:26:37.3773631Z E           (
+2026-11-16T22:26:37.3773830Z E         -     184,
+2026-11-16T22:26:37.3774042Z E         ?      ^^
+2026-11-16T22:26:37.3774454Z E         +     195,
+2026-11-16T22:26:37.3774649Z E         ?      ^^
+2026-11-16T22:26:37.3774997Z E         -     '21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a',
+2026-11-16T22:26:37.3775539Z E         +     '51ce52f0a6c9aca036c1aed153149f1cc0e758a72e00d192c8ea1e83cf591ce3',
+2026-11-16T22:26:37.3775933Z E           )
+2026-11-16T22:26:37.3776055Z 
+2026-11-16T22:26:37.3776324Z tests/unit/test_standing_resource_finalization_contracts.py:672: AssertionError
+2026-11-16T22:26:37.3777243Z =============================== warnings summary ===============================
+2026-11-16T22:26:37.3777835Z ../../../../../opt/hostedtoolcache/Python/3.13.18/x64/lib/python3.13/site-packages/fastapi/testclient.py:1
+2026-11-16T22:26:37.3779002Z   /opt/hostedtoolcache/Python/3.13.18/x64/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-11-16T22:26:37.3780046Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-11-16T22:26:37.3780340Z 
+2026-11-16T22:26:37.3780578Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-11-16T22:26:37.3781078Z =========================== short test summary info ============================
+2026-11-16T22:26:37.3782209Z FAILED tests/unit/test_standing_resource_finalization_contracts.py::test_old_codecs_schema_bytes_and_depth_limits_are_preserved - AssertionError: assert (195, '51ce52...1e83cf591ce3') == (184, '21351c...d8035257328a')
+2026-11-16T22:26:37.3783114Z   
+2026-11-16T22:26:37.3783318Z   At index 0 diff: 195 != 184
+2026-11-16T22:26:37.3783560Z   
+2026-11-16T22:26:37.3783740Z   Full diff:
+2026-11-16T22:26:37.3783931Z     (
+2026-11-16T22:26:37.3784245Z   -     184,
+2026-11-16T22:26:37.3784432Z   ?      ^^
+2026-11-16T22:26:37.3784623Z   +     195,
+2026-11-16T22:26:37.3784802Z   ?      ^^
+2026-11-16T22:26:37.3785112Z   -     '21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a',
+2026-11-16T22:26:37.3785634Z   +     '51ce52f0a6c9aca036c1aed153149f1cc0e758a72e00d192c8ea1e83cf591ce3',
+2026-11-16T22:26:37.3786019Z     )
+2026-11-16T22:26:37.3786416Z 1 failed, 15822 passed, 11 skipped, 49 deselected, 1 warning, 2 subtests passed in 2758.83s (0:45:58)
+2026-11-16T22:26:40.8006126Z ##[error]Process completed with exit code 1.
+2026-11-16T22:26:40.8123192Z Post job cleanup.
+2026-11-16T22:26:40.8852293Z [command]/usr/bin/git version
+2026-11-16T22:26:40.8889389Z git version 2.56.1
+2026-11-16T22:26:40.8918616Z Temporarily overriding HOME='/home/runner/work/_temp/5c8446e4-c260-4906-8a15-5bf8168d6551' before making global git config changes
+2026-11-16T22:26:40.8919580Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-16T22:26:40.8922585Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Kinaiya/Kinaiya
+2026-11-16T22:26:40.8958839Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T22:26:40.8990969Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-16T22:26:40.9244592Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T22:26:40.9277147Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-16T22:26:40.9525943Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T22:26:40.9563073Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-16T22:26:40.9979639Z Cleaning up orphan processes
+2026-11-16T22:26:41.0312702Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
