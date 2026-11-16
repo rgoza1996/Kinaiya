@@ -1,0 +1,151 @@
+{
+  "baseline": "548f85d84874b2b0d3366ffdb36f8c74aa880ae8",
+  "issues": [
+    639,
+    620
+  ],
+  "status": "test-only diagnostics; both native causes unproven; no issue closure",
+  "production_source_changed": false,
+  "original_request_and_native_predicates_retained": true,
+  "extra_process_observations": 0,
+  "original_retries_added": 0,
+  "final_checks": [
+    {
+      "python": "3.13.18",
+      "command": [
+        "/tmp/kinaiya-624-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-rs",
+        "tests/unit/test_native_startup_observers.py",
+        "tests/integration/test_standing_setup_observer.py",
+        "tests/unit/test_media_processes.py",
+        "tests/unit/test_media_process_retirement_guards.py",
+        "tests/integration/test_media_decoder_child.py",
+        "tests/integration/test_standing_execution_api.py",
+        "tests/integration/test_standing_resource_binding_agent.py",
+        "tests/integration/test_standing_physical_timeout_controls.py"
+      ],
+      "passed": 150,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 71.18
+    },
+    {
+      "python": "3.12.3",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/unit/test_native_startup_observers.py",
+        "tests/integration/test_standing_setup_observer.py"
+      ],
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 1.1
+    },
+    {
+      "python": "3.14.10",
+      "command": [
+        "/tmp/kinaiya-639-python314-venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/unit/test_native_startup_observers.py",
+        "tests/integration/test_standing_setup_observer.py",
+        "tests/unit/test_media_processes.py::test_more_than_sixteen_positive_originals_reuse_slots_without_rearming",
+        "tests/integration/test_standing_resource_binding_agent.py",
+        "tests/integration/test_standing_physical_timeout_controls.py::test_snapshot_keeps_original_context_with_release_only_control"
+      ],
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 21.68
+    }
+  ],
+  "static": {
+    "ruff_check": "passed",
+    "ruff_format": {
+      "result": "passed",
+      "files": 1043
+    },
+    "diff_check": "passed"
+  },
+  "controlled_baseline": {
+    "passed": 8,
+    "failed": 1,
+    "seconds": 1.09,
+    "failure": "single native closed-authority 503 has no diagnostic owner context"
+  },
+  "development_attempts": [
+    "Absent helper: two collection errors, 0.15s",
+    "Helper present: eight passes and one new-oracle assertion-message representation failure, 1.25s; oracle corrected before controlled baseline",
+    "Wired original fixture: nine passes, 1.23s, before adding bounded-chain/retention controls",
+    "First extended 3.12 run: 119 passes, one synthetic-chain constructor error, 29 decoder skips, 42.52s; new oracle corrected; final 3.13 actual decoder run has no skips"
+  ],
+  "source_sha256": {
+    "tests/native_startup_observers.py": {
+      "sha256": "11f562549075d0cc6d875f2f5e0f58e233530c7160958b63e1d4ea04d3824128",
+      "size_bytes": 3956
+    },
+    "tests/media_process_helpers.py": {
+      "sha256": "251957cd6e6cd0a4128750a9974a4a618998b28780ce29af1f58237d3f278afc",
+      "size_bytes": 11845
+    },
+    "tests/unit/test_native_startup_observers.py": {
+      "sha256": "519e2e490dd39e03da489f74396fc81fdfd527c6e3db5509afabb7fe49b7cdf0",
+      "size_bytes": 6272
+    },
+    "tests/integration/test_standing_setup_observer.py": {
+      "sha256": "d5605c8c5e541ff50b23e9f6e513fbf03bab5fbba15bb8eb953e4570927cecd4",
+      "size_bytes": 1895
+    },
+    "tests/integration/test_standing_execution_api.py": {
+      "sha256": "600f6be3450fb90d66122e41ccb29c81ce99d532f60491a9f2c950d7a843abef",
+      "size_bytes": 25164
+    }
+  },
+  "raw_logs": {
+    "issue-639-observer-oracles-first.log": {
+      "sha256": "e2bf7e180ec40fb5c488be7fbca11df2d3c174928ca07851eaf0c903a0bfcdc1",
+      "size_bytes": 1736
+    },
+    "issue-639-observer-helper-first.log": {
+      "sha256": "d97f14d938dc8e98a42801b52a8a46346a15f96e22bbe226297a63dfdbc515fd",
+      "size_bytes": 1325
+    },
+    "issue-639-observer-controlled-baseline.log": {
+      "sha256": "f2c3b432b9cd0b94d748e55fd76f181fad86ca186fa74c7d20b23fecfd35ddc9",
+      "size_bytes": 1895
+    },
+    "issue-639-observer-focused-final.log": {
+      "sha256": "7cddbbb971119bd7675eb705b4da66e1a163e9adf4f7bcaa61a5cd53261c1be3",
+      "size_bytes": 98
+    },
+    "issue-639-observer-related312.log": {
+      "sha256": "e4ce3fb4e77d0924544e2fadec3bea08b58e5ec4a9f7944b5548fd0f5aac5642",
+      "size_bytes": 7697
+    },
+    "issue-639-observer-related313.log": {
+      "sha256": "802dc0cf206977f4be81107f712e6e966678d517e651883317b7dadee25efe7e",
+      "size_bytes": 271
+    },
+    "issue-639-observer-focused312-final.log": {
+      "sha256": "5ceea94d0bc274b4cae475ad6f32427e3a1c0c4422a677b63c0719b16aaf3047",
+      "size_bytes": 99
+    },
+    "issue-639-observer-focused314.log": {
+      "sha256": "882245dfb094f6d8fe09dd80e4ce3c3f0cefa167ea451a3964d11fb7954c9f1d",
+      "size_bytes": 100
+    }
+  },
+  "limitations": [
+    "Intermittent full-suite causes remain unproven",
+    "Targeted pass does not repair #639 or #620",
+    "Synthetic observer controls establish passivity/privacy, not native authority",
+    "Hosted CI for the new head is pending"
+  ]
+}
