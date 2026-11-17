@@ -1,0 +1,35 @@
+{
+  "base": "50272e8a9dcc3786994ce63651126f88fddbc22f",
+  "implementation_commit": "fb5e41b2905ce46310c0b7f58300764292edb86c",
+  "implementation_tree": "1416bbde803dc804442555ba45b02ccdccae0748",
+  "release_gate": false,
+  "runs": [
+    {
+      "name": "issue-623-integration-full-analyze",
+      "receipt": "logs/issue-623-integration-full-analyze-receipt.json",
+      "receipt_sha256": "08d14c29213ae346a93c501601d724dbcfe814b5031a30bce78e432e0ddcb6b9",
+      "log_archive": "logs/issue-623-integration-full-analyze.log.json",
+      "log_sha256": "bda242afa8b2c33501f3bcd0dcdf1985d456f4e6ad91075952586fcdc89b8c30",
+      "log_archive_sha256": "209fa9f7407311cfa808bdcdc6497b1c18f4efe18d5db76af9eb4693e59c17ae",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-integration-full-frontend",
+      "receipt": "logs/issue-623-integration-full-frontend-receipt.json",
+      "receipt_sha256": "bf2f42fc46f92da47db60eefaf8a8fb2be1cc1b6d16a81f3dfa4afb3bc523733",
+      "log_archive": "logs/issue-623-integration-full-frontend.log.json",
+      "log_sha256": "d7615871de93ce1ea69cf36e26ac8e65d41fa44a8d6906178bf667e0c874c233",
+      "log_archive_sha256": "daa87352929aff31fc67c68ba8995fb5621d02cec4b0b78a8eef5e86a27dc1e8",
+      "current_source_pins_match": true
+    }
+  ],
+  "frontend_inputs": 338,
+  "results": {
+    "full_flutter": {
+      "passed": 1556,
+      "skipped": 6
+    },
+    "full_analyzer": "No issues"
+  },
+  "skipped_reason": "Native endpoint environment variables were absent. Four live-stream controls are separately exercised by twelve actual native/Dart cases in the composed Python runs; Capture Mode and Core Subsystems live controls were not rerun here."
+}
