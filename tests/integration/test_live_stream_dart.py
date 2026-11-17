@@ -80,6 +80,18 @@ from tests.integration.test_live_stream_api import live_client, scope_for
             "",
             id="adaptive_live_playback_held_stop",
         ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-replacement",
+            "",
+            id="adaptive_live_playback_widget_replacement",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-reconnect",
+            "",
+            id="adaptive_live_playback_client_replacement",
+        ),
     ],
     indirect=["converse_incremental_env"],
 )
@@ -188,7 +200,12 @@ async def test_actual_dart_native_live_stream_rollover(
                     ("begin", 1),
                     (
                         "pcm",
-                        1 if env.playback_mode in {"mute", "held_stop"} else 3 if advanced else 2,
+                        1
+                        if env.playback_mode
+                        in {"mute", "held_stop", "widget_replacement", "client_replacement"}
+                        else 3
+                        if advanced
+                        else 2,
                     ),
                     ("finish", 1 if consumer and not held_reply and not playback else 0),
                     ("cancel", 0),

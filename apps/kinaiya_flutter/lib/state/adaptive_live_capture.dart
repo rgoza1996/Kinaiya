@@ -38,10 +38,15 @@ class AdaptiveLiveCapture {
       );
     }
     _retained.add(this);
+    _retentionChanges.add(true);
   }
 
   static final Set<AdaptiveLiveCapture> _retained = {};
+  static final _retentionChanges = StreamController<bool>.broadcast(sync: true);
   static bool get hasRetainedCapture => _retained.isNotEmpty;
+  // Presentation observes this process-lifetime registry. Admission always
+  // rechecks the retained owner itself, including after asynchronous setup.
+  static Stream<bool> get retentionChanges => _retentionChanges.stream;
   // Half of the declared sixty-second FIFO remains available for input arriving
   // during native finish/cleanup. This bounds segments; it is not input pacing.
   static const _segmentSamples = maxIncrementalPcmSamples ~/ 2;
@@ -557,6 +562,7 @@ class AdaptiveLiveCapture {
       await recovery.close();
       _retired = true;
       _retained.remove(this);
+      _retentionChanges.add(false);
       status = 'Microphone stopped';
       return true;
     } catch (_) {

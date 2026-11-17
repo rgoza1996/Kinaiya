@@ -585,6 +585,7 @@ class _CharacterViewState extends State<CharacterView> {
   SpeechQueue _speechQueue = SpeechQueue();
   StreamSubscription<JournalEntry>? _noticeSubscription;
   StreamSubscription<JournalEntry>? _windowSubscription;
+  StreamSubscription<bool>? _captureRetentionSubscription;
   Future<void> _windowEvents = Future.value();
   Map<String, Object?>? _pendingWindow;
   bool _windowTranscribing = false;
@@ -621,6 +622,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   bool get _conversationIdle =>
       !_armed &&
+      !AdaptiveLiveCapture.hasRetainedCapture &&
       _adaptiveCall == null &&
       !_recording &&
       !_nativeCallActive &&
@@ -1056,6 +1058,18 @@ class _CharacterViewState extends State<CharacterView> {
     _input = TextEditingController(text: widget.state.converseDraft);
     _audio = widget.audio ?? speechAudio();
     _lastClient = _s.client;
+    _captureRetentionSubscription = AdaptiveLiveCapture.retentionChanges.listen((
+      _,
+    ) {
+      // Another widget can own the original cleanup. Disposal and asynchronous
+      // retirement can occur during a build, so update presentation next frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {});
+        _voiceOptionsUpdates.value++;
+      });
+      WidgetsBinding.instance.ensureVisualUpdate();
+    });
     _pack = widget.character == null
         ? loadCharacterPack()
         : Future.value(widget.character!.pack);
@@ -1184,6 +1198,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   @override
   void dispose() {
+    _captureRetentionSubscription?.cancel();
     final adaptive = _adaptiveCall;
     if (adaptive != null) unawaited(adaptive.stop('shutdown'));
     _dismissTextConversation();
@@ -2254,6 +2269,12 @@ class _CharacterViewState extends State<CharacterView> {
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
     if (_adaptiveCall != null) return;
+    if (AdaptiveLiveCapture.hasRetainedCapture) {
+      _nativeCallMessage(
+        'The previous microphone stop is still being checked. Wait before calling again.',
+      );
+      return;
+    }
     if (_s.converseSessionCreating) return;
     if (_nativeCallActive) {
       if (_nativeCallBlocked) {
@@ -2354,6 +2375,7 @@ class _CharacterViewState extends State<CharacterView> {
       );
       return;
     }
+    if (AdaptiveLiveCapture.hasRetainedCapture) return;
     _activeCaptureMode = mode;
     if (native &&
         initialSession != null &&
@@ -2417,6 +2439,11 @@ class _CharacterViewState extends State<CharacterView> {
         !_converseAvailable ||
         !_s.ownsConnection(connection, api) ||
         (native && _nativeCallSource != _s.nativeAudioSourceGeneration)) {
+      return;
+    }
+    if (AdaptiveLiveCapture.hasRetainedCapture) {
+      _nativeCallActive = false;
+      _nativeCallSession = null;
       return;
     }
     final result = await _audio.startArmed();
@@ -3231,11 +3258,17 @@ class _CharacterViewState extends State<CharacterView> {
       }
       return;
     }
-    if (api == null || !_converseAvailable || !_s.converseCanInfer) return;
+    if (api == null ||
+        !_converseAvailable ||
+        !_s.converseCanInfer ||
+        AdaptiveLiveCapture.hasRetainedCapture) {
+      return;
+    }
     if (_nativeClipOwner != null) await _onBarge();
     if (!mounted ||
         !_s.ownsConnection(generation, api) ||
-        !_converseAvailable) {
+        !_converseAvailable ||
+        AdaptiveLiveCapture.hasRetainedCapture) {
       return;
     }
     final request = ++_voiceRequest;
@@ -3969,7 +4002,9 @@ class _CharacterViewState extends State<CharacterView> {
       ? _stopMicrophone
       : _armed || _nativeCallActive || _adaptiveCall != null
       ? () => _setArmed(false)
-      : _callStart != null || _s.converseSessionCreating
+      : _callStart != null ||
+            _s.converseSessionCreating ||
+            AdaptiveLiveCapture.hasRetainedCapture
       ? null
       : _micReady && _converseAvailable && _audioInputOperation == null
       ? _startCall
@@ -3983,6 +4018,7 @@ class _CharacterViewState extends State<CharacterView> {
             !_armed &&
             !_nativeCallActive &&
             _adaptiveCall == null &&
+            !AdaptiveLiveCapture.hasRetainedCapture &&
             !_micStopUnconfirmed
       ? _toggleMic
       : null;

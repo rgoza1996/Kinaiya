@@ -297,6 +297,30 @@ class PublicPcmAudio extends CaptureAudio
   }
 }
 
+class _ReplacementAudio extends CaptureAudio {
+  int arms = 0, recordings = 0;
+  bool armed = false;
+
+  @override
+  Future<bool> get isPlaying async => false;
+
+  @override
+  Future<String> startArmed() async {
+    arms++;
+    armed = true;
+    return 'armed';
+  }
+
+  @override
+  Future<void> stopArmed() async => armed = false;
+
+  @override
+  Future<String> startRecording() async {
+    recordings++;
+    return 'recording';
+  }
+}
+
 Future<void> nativeSpin(WidgetTester tester, bool Function() done) async {
   for (var i = 0; i < 500 && !done(); i++) {
     await tester.runAsync(
@@ -554,7 +578,11 @@ void main() {
   );
 
   testWidgets(
-    playbackMode == 'held_stop'
+    playbackMode == 'client_replacement'
+        ? 'client replacement retains original native recovery and unresolved local speaker'
+        : playbackMode == 'widget_replacement'
+        ? 'replacement Converse cannot acquire another mode before original speaker retirement'
+        : playbackMode == 'held_stop'
         ? 'actual Call retains unresolved speaker cleanup after native capture retirement'
         : playbackMode == 'mute'
         ? 'actual Converse Mute owns capture and playback with large text and reduced motion'
@@ -607,30 +635,29 @@ void main() {
             channel: 'converse',
             epoch: raw['epoch'] as int,
           );
-        await tester.pumpWidget(
-          MaterialApp(
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                disableAnimations: mutedSurface,
-                textScaler: TextScaler.linear(mutedSurface ? 1.6 : 1),
-              ),
-              child: child!,
+        Widget originalSurface() => MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations: mutedSurface,
+              textScaler: TextScaler.linear(mutedSurface ? 1.6 : 1),
             ),
-            home: Scaffold(
-              body: CharacterView(
-                state: state,
-                audio: audio,
-                onActivityChanged: activities.add,
-                surface: mutedSurface
-                    ? CharacterSurface.interaction
-                    : CharacterSurface.legacy,
-                animateTransitions: !mutedSurface,
-                richArtifactsEnabled: !mutedSurface,
-                speechMouthMotion: !mutedSurface,
-              ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: CharacterView(
+              state: state,
+              audio: audio,
+              onActivityChanged: activities.add,
+              surface: mutedSurface
+                  ? CharacterSurface.interaction
+                  : CharacterSurface.legacy,
+              animateTransitions: !mutedSurface,
+              richArtifactsEnabled: !mutedSurface,
+              speechMouthMotion: !mutedSurface,
             ),
           ),
         );
+        await tester.pumpWidget(originalSurface());
         await tester.pump(const Duration(milliseconds: 100));
         final start = mutedSurface
             ? find.byKey(const ValueKey('converse-call'))
@@ -658,6 +685,159 @@ void main() {
               (entry['payload'] as Map)['status'] == 'played',
         );
         expect(hasPlayed(), isFalse);
+        if (playbackMode == 'client_replacement') {
+          heldPlayback = audio.heldPlaybackStop = Completer<void>();
+          final nextApi = ControlledApi(
+            serviceBase: '$url/session',
+            converseBase: url,
+            ownerToken: token,
+            httpClient: _NativeOutputHttp(),
+            realSpeechControls: true,
+            liveFactory: () =>
+                IOClient(_NativeLoopbackHttp().createHttpClient(null)),
+            journalFactory: () =>
+                IOClient(_NativeLoopbackHttp().createHttpClient(null)),
+            captureFactory: () => MockClient(
+              (_) async => http.Response(
+                jsonEncode(snapshot),
+                200,
+                headers: {'content-type': 'application/json'},
+              ),
+            ),
+          );
+          state.connect(ConnectionProfile.defaults(), injected: nextApi);
+          await tester.pumpWidget(originalSurface());
+          await nativeSpin(
+            tester,
+            () => cancelProofs.any((p) => p['cleanup_confirmed'] == true),
+          );
+          expect(state.client, same(nextApi));
+          expect(api.openJournalWake, throwsStateError);
+          expect(audio.armed, isFalse);
+          expect(await audio.isPlaying, isTrue);
+          expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+          expect(audio.releases, 0);
+          expect(audio.arms, 1);
+          expect(audio.acknowledgments, 1);
+          await tester.pump(const Duration(seconds: 4));
+          expect(activities.last.stopUnconfirmed, isTrue);
+          await tester.tap(find.byTooltip('Stop Live listen'));
+          await tester.pump();
+          expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+          expect(audio.releases, 0);
+          expect(audio.arms, 1);
+          heldPlayback.complete();
+          await nativeSpin(
+            tester,
+            () => !AdaptiveLiveCapture.hasRetainedCapture,
+          );
+          await nativeSpin(
+            tester,
+            () =>
+                !activities.last.stopPending &&
+                !activities.last.stopUnconfirmed,
+          );
+          expect(audio.releases, 1);
+          expect(audio.arms, 1);
+          expect(audio.queuedAudio, hasLength(1));
+          expect(await audio.isPlaying, isFalse);
+          expect(
+            tester
+                .widget<FilledButton>(
+                  find.byKey(const ValueKey('call-kinaiya')),
+                )
+                .onPressed,
+            isNotNull,
+          );
+          await tester.pumpWidget(const SizedBox.shrink());
+          state.dispose();
+          return;
+        }
+        if (playbackMode == 'widget_replacement') {
+          heldPlayback = audio.heldPlaybackStop = Completer<void>();
+          await tester.pumpWidget(const SizedBox.shrink());
+          state.dispose();
+          await nativeSpin(
+            tester,
+            () => cancelProofs.any((p) => p['cleanup_confirmed'] == true),
+          );
+          expect(audio.armed, isFalse);
+          expect(await audio.isPlaying, isTrue);
+          expect(audio.releases, 0);
+          expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+          final nextApi = ControlledApi(
+            captureFactory: () => MockClient(
+              (_) async => http.Response(
+                jsonEncode({
+                  ...snapshot,
+                  'backend_id': 'e' * 32,
+                  'default_mode': 'legacy_silence',
+                  'selected_mode': 'legacy_silence',
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              ),
+            ),
+          );
+          final nextAudio = _ReplacementAudio();
+          final nextState = AppState()
+            ..connect(ConnectionProfile.defaults(), injected: nextApi)
+            ..converseSession = SessionInfo(
+              sessionId: 'replacement-converse',
+              threadId: 'replacement-thread',
+              channel: 'converse',
+              epoch: 1,
+            );
+          final nextCall = find.byKey(const ValueKey('call-kinaiya'));
+          final nextTell = find.byKey(const ValueKey('tell-kinaiya'));
+          try {
+            await tester.pumpWidget(
+              MaterialApp(
+                home: Scaffold(
+                  body: CharacterView(state: nextState, audio: nextAudio),
+                ),
+              ),
+            );
+            await tester.pump(const Duration(milliseconds: 100));
+            await tester.tap(nextCall);
+            await tester.tap(nextTell);
+            await tester.pump(const Duration(milliseconds: 100));
+            expect(nextAudio.arms, 0);
+            expect(nextAudio.clips, 0);
+            expect(tester.widget<FilledButton>(nextCall).onPressed, isNull);
+            expect(tester.widget<OutlinedButton>(nextTell).onPressed, isNull);
+            expect(nextAudio.arms, 0);
+            expect(nextAudio.recordings, 0);
+            expect(nextAudio.clips, 0);
+            heldPlayback.complete();
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            await nativeSpin(
+              tester,
+              () => tester.widget<FilledButton>(nextCall).onPressed != null,
+            );
+            expect(await audio.isPlaying, isFalse);
+            expect(audio.releases, 1);
+            await tester.tap(nextCall);
+            await nativeSpin(tester, () => nextAudio.armed);
+            expect(nextAudio.arms, 1);
+            expect(nextAudio.clips, 1);
+            expect(nextAudio.recordings, 0);
+            await tester.tap(find.byTooltip('Stop Live listen'));
+            await nativeSpin(tester, () => !nextAudio.armed);
+          } finally {
+            if (!heldPlayback.isCompleted) heldPlayback.complete();
+            await tester.pumpWidget(const SizedBox.shrink());
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            nextState.dispose();
+          }
+          return;
+        }
         if (mutedSurface) {
           expect(find.bySemanticsLabel('Mute'), findsOneWidget);
           final mute = find.byKey(const ValueKey('converse-microphone'));

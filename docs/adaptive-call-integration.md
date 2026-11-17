@@ -160,6 +160,15 @@ unresolved. Adapter failure leaves cleanup unconfirmed. Synthesis EOF, local
 source completion, native capture cleanup and local speaker cleanup are separate
 facts; only actual local source completion can support a played receipt.
 
+The retained Call registry outlives widget and ordinary client replacement.
+Every Call mode and one-shot recording recheck it before microphone acquisition,
+including after asynchronous setup. A new surface cannot treat a retained Call
+as idle for a new conversation. Registry notifications refresh presentation;
+they grant no admission or cleanup authority. The same original must actually
+retire before a replacement surface enables new capture. Replacing the ordinary
+client preserves the separately enrolled native cancellation channel; Stop
+readback does not replay positive audio or enroll another cancellation original.
+
 Actual native controls in `test_live_stream_dart.py` run the Call widget against
 fresh HTTP, SQLite and synthetic Whistle IPC. They cover contiguous input, held
 physical-stop futures through disconnect, late PCM exclusion, empty backchannels,
@@ -178,6 +187,14 @@ microphone cleanup and the public deadline. Browser controls separately show
 that speaker PCM does not enter or wake the input FIFO and that the bridge
 requests echo cancellation and noise suppression. These controls do not qualify
 a managed TTS worker, physical playback or room/device echo cancellation.
+
+The [replacement qualification record](evidence/adaptive-call-replacement-2026-11-17/README.md)
+retains the first enabled-control and actual second-acquisition failures, then
+tests disposal with a replacement Legacy Silence surface and client replacement
+inside the same mounted widget. Both retain the original speaker/FIFO through
+native input cleanup and public deadlines. The replacement Legacy Silence Call
+can acquire only after that same original retires. These controls do not qualify
+native owner/process replacement, every reconnect failure or hardware cleanup.
 
 ## Remaining integration
 

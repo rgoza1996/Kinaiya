@@ -152,6 +152,8 @@ async def converse_incremental_env(tmp_path: Path, request):
         "adaptive-call-playback-ended": "natural_end",
         "adaptive-call-playback-mute": "mute",
         "adaptive-call-playback-held-stop": "held_stop",
+        "adaptive-call-playback-replacement": "widget_replacement",
+        "adaptive-call-playback-reconnect": "client_replacement",
     }.get(getattr(request, "param", None), "")
     playback = bool(playback_mode)
     live_consumer = playback or getattr(request, "param", None) in {

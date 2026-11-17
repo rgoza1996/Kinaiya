@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "f662815a505fba7aa6a232ef703bd2c36c4bb0036594d4ae215cf9cdf62008f1",
+  "text": "Analyzing adaptive_live_capture.dart, character_view.dart, adaptive_live_call_native_test.dart...\n\nwarning - test/adaptive_live_call_native_test.dart:692:30 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion\nwarning - test/adaptive_live_call_native_test.dart:693:30 - The '!' will have no effect because the receiver can't be null. Try removing the '!' operator. - unnecessary_non_null_assertion\n\n2 issues found.\n"
+}

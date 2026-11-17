@@ -1,0 +1,322 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/623",
+  "baseline": "3ca1e442483f170b81f60637e18dc6eaf14c9e8c",
+  "branch": "codex/623-adaptive-call-integration",
+  "release_gate": false,
+  "status": "local gated qualification; issue remains open",
+  "python_versions": {
+    "313": "Python 3.13.18",
+    "314": "Python 3.14.10"
+  },
+  "flutter": {
+    "frameworkVersion": "3.47.8",
+    "channel": "stable",
+    "repositoryUrl": "https://github.com/flutter/flutter.git",
+    "frameworkRevision": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "frameworkCommitDate": "2026-10-22 21:37:31 -0700",
+    "engineRevision": "cf636b1dfb818dd6a3ff16e390e93b1a036969c8",
+    "engineCommitDate": "2026-10-23 02:13:38.000Z",
+    "engineContentHash": "dfd2e6cb7d319db05e3bf1503f3e2ac60f6288a2",
+    "engineBuildDate": "2026-10-22 20:34:48.330",
+    "dartSdkVersion": "3.13.7",
+    "devToolsVersion": "2.60.0",
+    "flutterVersion": "3.47.8"
+  },
+  "source_hashes": {
+    "apps/kinaiya_flutter/lib/state/adaptive_live_capture.dart": "f6f1b6b0844e4ead845ae3aae55bf071b30213403bafbbdbd03ac3a82a96fc81",
+    "apps/kinaiya_flutter/lib/ui/character_view.dart": "a9507d1419cd3f944c650a49461ee5e0f6ac8a91f643fbde240876e3c6dc49ba",
+    "apps/kinaiya_flutter/test/adaptive_live_call_native_test.dart": "1950704fd97a235e9f34c9a34bc237d346650f9adbacfd42772bb762ffad73e1",
+    "tests/integration/test_incremental_whistle_converse.py": "0c9ecb2df27adb4c0d1bfa095ed1e11113546eb3b459e57b413c80cc727811e1",
+    "tests/integration/test_live_stream_dart.py": "836a359ae30078ded6abb84797bd805926400ad13f40f367ba736b5391c5de31"
+  },
+  "locks": {
+    "pyproject.toml": "d7854964ae228637f88e175a6941670e153e6f367a46fadbbd6d31fb05893961",
+    "apps/kinaiya_flutter/pubspec.lock": "de83a37ef60bc743efbb89f0d09c540d2049bed7ba5e81edd02999976430b882"
+  },
+  "runs": [
+    {
+      "name": "issue-623-client-replacement-first",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-client-replacement-first-receipt.json",
+      "receipt_sha256": "0f8ea8fa9f22f798e2d506b0b4f82e1943c004788452ffa151adf9ac38e01106",
+      "log_archive": "logs/issue-623-client-replacement-first.log.json",
+      "log_sha256": "3a673968b447cfbab27199e13b1c96a23edbc378efc400c341b7b3d159a40565",
+      "log_archive_sha256": "5b2deb6bc16bbb0da09b0540529ba29434dc94c515bf5e694d92e9e8afca03db",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-replacement-analyzer-clean",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-analyzer-clean-receipt.json",
+      "receipt_sha256": "69573a075fc06bd3bd9b68634e81a27b161a733362a4fb5db47bd3a0f86a97bb",
+      "log_archive": "logs/issue-623-replacement-analyzer-clean.log.json",
+      "log_sha256": "cdaaf43ec15c0b62267477ee19126aded8ca26e79441fac580bf132928caebe7",
+      "log_archive_sha256": "f203694fad2858c745ea5a5699c40b4c98da62ea0bcdcd7ecbce4c3ef735cb3e",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-analyzer-final",
+      "final_source_qualification": false,
+      "exit_code": 2,
+      "receipt": "logs/issue-623-replacement-analyzer-final-receipt.json",
+      "receipt_sha256": "6ef3b6c8846e2285fb925321ae454bb186f11d68784fd1de21e9e7d88a28da06",
+      "log_archive": "logs/issue-623-replacement-analyzer-final.log.json",
+      "log_sha256": "f662815a505fba7aa6a232ef703bd2c36c4bb0036594d4ae215cf9cdf62008f1",
+      "log_archive_sha256": "78b1bb74ec49a4cab6394828d19dc80a5f67fbf63361336be4ad3e6ea8a11a31",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-replacement-browser-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-browser-final-receipt.json",
+      "receipt_sha256": "213c229bdbf90a04180fdc1f7358177cb59dbd877482a6d53500aa58ae8f2524",
+      "log_archive": "logs/issue-623-replacement-browser-final.log.json",
+      "log_sha256": "cb70b04c7d348b5f4f6733a3c4bd0c97411f36d69c568f5def7f77d6d5a59016",
+      "log_archive_sha256": "3463e6cde7e2cd5710b0cf6d0679ff8a47ce5df0637b7e3e31f71a29add7f275",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-final-313",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-final-313-receipt.json",
+      "receipt_sha256": "bbab6e0ad544a116453e2c019e250cae815ee6e5c86127591f4531aad6737273",
+      "log_archive": "logs/issue-623-replacement-final-313.log.json",
+      "log_sha256": "74df00127f8e21050d04230849b37f8ea4c3a398c542db35ddc5a13214662c3f",
+      "log_archive_sha256": "b4f81e79074f5f8286f35eff36ebb5ffdf09032c0ac5711544accf25a1303214",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-final-314",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-final-314-receipt.json",
+      "receipt_sha256": "d3ecd06d99223681ca6abac014b1d5006bdb6252e7cd813b2c1ca1fc516d9170",
+      "log_archive": "logs/issue-623-replacement-final-314.log.json",
+      "log_sha256": "23770cdbbec11cda397dd4b1709f068a8c28512fc75596fe2b62bd5aec266f0d",
+      "log_archive_sha256": "99c598237f9e9aaf7e58d86766383de03bd2e5420f62671b165eaa14ca578ef2",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-format-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-format-final-receipt.json",
+      "receipt_sha256": "ebf9772ff096943dd00f899c9508be8d7ee59c8588b3c5021ae338a94ff9cf5d",
+      "log_archive": "logs/issue-623-replacement-format-final.log.json",
+      "log_sha256": "d06f11bf147b1e8e4cc69049a9914e2f863d72fc0441e64a1cd7dfa93617f999",
+      "log_archive_sha256": "abd63cc92d9ae7ac63efb41a2e22a5c55a46ff4a1cc31ceafcb9d5129b67c8ad",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-frontend-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-frontend-final-receipt.json",
+      "receipt_sha256": "40bd6dbc2c7cf5a8749464d525ca3d176300dca80923c78048c5d1d8faa6849a",
+      "log_archive": "logs/issue-623-replacement-frontend-final.log.json",
+      "log_sha256": "297fcbe9cbd6a1aed39145bee644334e381d444d4cc0f01dda352c91590d9f20",
+      "log_archive_sha256": "864609a2aaf2adce389897a0c00d0978e89dbf8dbf0a0808a2e664ebb63713a6",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-ruff-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-ruff-final-receipt.json",
+      "receipt_sha256": "c19bf79ee276020f657e88347db418b89a63ac8cec43287d41c540f59d0e35b6",
+      "log_archive": "logs/issue-623-replacement-ruff-final.log.json",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-replacement-web-build",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-replacement-web-build-receipt.json",
+      "receipt_sha256": "f303c81c22d541aa933cabdac65f17103651a5376183c8c5c1bca319d2239aa0",
+      "log_archive": "logs/issue-623-replacement-web-build.log.json",
+      "log_sha256": "943ac3675617de19a3736d6a35d473e368b55c3bbac2980c28e5544d18b21afd",
+      "log_archive_sha256": "1634e8c28ce06c36fff2ecf2e1d3cbe5c0389cd55e240a77853301d5047c987c",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-widget-replacement-admission-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "receipt": "logs/issue-623-widget-replacement-admission-first-receipt.json",
+      "receipt_sha256": "368d9162fc08f02e6eb47b206724609e2cb031027206bdbc909b7f490aa0f9b9",
+      "log_archive": "logs/issue-623-widget-replacement-admission-first.log.json",
+      "log_sha256": "c3e0862a2c3d70b02e757d8270dc23afde0fca98f8e34c6036e103cd164470cc",
+      "log_archive_sha256": "9df0b43e8a8fae2ab746dd3d953c8a20c680a6eadafee4ab4d81ebdee826b423",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-widget-replacement-analyzer",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-widget-replacement-analyzer-receipt.json",
+      "receipt_sha256": "1b56684a2bc63436414b3972c8d641c3113daa14f5f9ff979e3c8d897951d696",
+      "log_archive": "logs/issue-623-widget-replacement-analyzer.log.json",
+      "log_sha256": "cdaaf43ec15c0b62267477ee19126aded8ca26e79441fac580bf132928caebe7",
+      "log_archive_sha256": "f203694fad2858c745ea5a5699c40b4c98da62ea0bcdcd7ecbce4c3ef735cb3e",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-widget-replacement-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "receipt": "logs/issue-623-widget-replacement-first-receipt.json",
+      "receipt_sha256": "6b59a7cdc2a941d1b8ec518efa031a1ae25838721de0214c7a68219345f238bb",
+      "log_archive": "logs/issue-623-widget-replacement-first.log.json",
+      "log_sha256": "c391a93c309d1d61a00c79ffdfdfb1024b786a40495de7de65fef671ec6e8484",
+      "log_archive_sha256": "b891d532b423d57379c2f882ed6db59c961c599748468b475ba4c08f92673fd3",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-widget-replacement-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-widget-replacement-repaired-receipt.json",
+      "receipt_sha256": "4f9d33e4955bd1c72db7ad82f5eba75c190791ccce9b77eecb580de342cff65a",
+      "log_archive": "logs/issue-623-widget-replacement-repaired.log.json",
+      "log_sha256": "962c96deddb8a83b655c1ae5baa55906821be30a76b0debd8217f677acb7d010",
+      "log_archive_sha256": "315a116a45793d9c30461359971a2715bbdd654f9cd3149ac6ad508ee6bdefae",
+      "current_source_pins_match": null
+    }
+  ],
+  "source_snapshots": [
+    {
+      "path": "sources/issue-623-client-replacement-style-first-control.dart.txt",
+      "sha256": "ad4d61935ea7a8d8c37f46bc955540571d9bd688c7f6bb3dd845f7666d1a6ad3"
+    },
+    {
+      "path": "sources/issue-623-widget-replacement-admission-first-control.dart.txt",
+      "sha256": "dbec23924a67fc0f2d242fcce98815fd9a7c860197246e5259e57e26deb92c9f"
+    },
+    {
+      "path": "sources/issue-623-widget-replacement-first-control.dart.txt",
+      "sha256": "61152e7c04f28037ab6faf6fb96177a92ed125d5a8ff582e4ca29555d11867a2"
+    },
+    {
+      "path": "sources/issue-623-widget-replacement-first-driver.py.txt",
+      "sha256": "2e09593fba8acfe4ea0a556101c6848d236fa24ff33a91c662e949cf254dba92"
+    },
+    {
+      "path": "sources/issue-623-widget-replacement-first-native.py.txt",
+      "sha256": "ce766d155972b0f138d3d7d18db8da8997f3d93e0698249c2f354cf8f525c14e"
+    },
+    {
+      "path": "sources/issue-623-widget-replacement-first-owner.dart.txt",
+      "sha256": "5f0d7c57d34a79c94a35fe88800664bb2f86bc45abd97f0bf40c98c9f8a2043a"
+    },
+    {
+      "path": "sources/issue-623-widget-replacement-first-ui.dart.txt",
+      "sha256": "1d3cf901b07c022da11e2790dd415dabf4d367c20ae3b51c589e2c01c77c0682"
+    }
+  ],
+  "schemas_sha256": "84c47b297c235a7a432cdaf9e0a8c6492d4db4af843ac9ac8f2b8e4d71fda580",
+  "web_artifact_hashes": {
+    ".last_build_id": "2b8aac71a9fbb3125cbe3d2f4f81bc80910434ab9ada4e7816a694b90a323739",
+    "KORINA_VAD_LICENSE.txt": "a0b02c8ae84b8a6539f075cfddb8dee3bbdd196948d3460dbd7f526d1a245102",
+    "assets/AssetManifest.bin": "4e28706e71597c77661a20df1bc2ebb49b077313fba97676dfed9a66194d4038",
+    "assets/AssetManifest.bin.json": "4d08ffe976550ece7015470f4f8c89f2335ff8a543b292a104322e6c69b5d75d",
+    "assets/FontManifest.json": "af26997d33a21a0ec43fabe2c0c29877fae06bbbbe16ea9064b28293ac034107",
+    "assets/NOTICES": "0d72bbb61aba682a71b7557b168031b6b2f58021b2f8173204ca01a222dd9428",
+    "assets/assets/character/kinaiya-activity-v1.png": "c89deb785e27cb8a741fbcf697b991e46f9b03ab2256342a2c340d555761d4c2",
+    "assets/assets/character/kinaiya-activity-v1.prompts.md": "14fcb49958ba3182a407b22f2f5d47d735e4535f961d6420456b10a41bdc7e6a",
+    "assets/assets/character/kinaiya-core-v1.png": "4eabec3223bc1a921645ce086a1f9fbf8b0098e66c1017e73af826197ff39412",
+    "assets/assets/character/kinaiya-core-v1.prompts.md": "aaeec65427c4d808e252e06dded6391c689dd060453a1709363a3f5b73134beb",
+    "assets/assets/character/kinaiya-identity-v2.prompts.md": "9516424119f50518044b4dfd800ea5ed200db9c4b901c2e186b801cd98515202",
+    "assets/assets/character/kinaiya-seated-idle-v1.png": "1322c7fa9ba76ad0cbc6ac8409564d5247d0366bf53fe368f9a39338ac938259",
+    "assets/assets/character/kinaiya-seated-idle-v1.prompts.md": "60241303808476ad69505c66d778ed0f61c09c5c2d1947d48420280b794ba5c4",
+    "assets/assets/character/kinaiya-seated-idle-v2.png": "f3b08dde1f248a2ffa8156f24aecf5b8c96eba79f5a91fe39069ddd44a803861",
+    "assets/assets/character/kinaiya-sleep-transition-v1.png": "60bb899628041c1e48fd45a2cecbce5c78e9119f30468689f365ca8cca12c4e2",
+    "assets/assets/character/kinaiya-sleep-transition-v2.png": "cb26c777b9677e0021e9dda3c983b3e08cf8f07b8a6ef2fcdba5cf1eca4a188b",
+    "assets/assets/character/kinaiya-sleep-transition-v3.png": "dac0b49a10bfa261d03ac49676986cfe70b3c69f85089efc2f800d03a23eecb6",
+    "assets/assets/character/kinaiya-sleep-v1.prompts.md": "1e1689a6596ae98df1fb66d480f882d7933ad136e9f662aa2e571d736364250c",
+    "assets/assets/character/kinaiya-sleep-v2.prompts.md": "4522d05e168ddac77c36c3d92014e4678cf30480c648c9e38f98170f7fe78632",
+    "assets/assets/character/kinaiya-sleep-v3.prompts.md": "fa217f7ea0988bd53e95f7c0b0baf89b68f3c15c9eb21cbc5d3878df77bea71c",
+    "assets/assets/character/kinaiya-sleeping-idle-v1.png": "030fbcf046acd0087cb7b6fa967c9f4757f89b1eb8aeb6669ea04b7a2a826276",
+    "assets/assets/character/kinaiya-sleeping-idle-v2.png": "068d98efd497601139b1ec976f1a4b691b0e28d885ab0592cccb4ae57a83a698",
+    "assets/assets/character/kinaiya-sleeping-idle-v3.png": "1e4c38af6f789dfb35eeacecdc2ac328c86cb6b2e694840cd7fc76bb4e54e110",
+    "assets/assets/character/pack.json": "edb79da50e9566460e05f9122be99c9edd53549a3777e943966c8c12bbbc8ae9",
+    "assets/assets/design/README.md": "a4e332987d530e99067d7c26375822cdf0cd6d712ac6035aa7c62ac88a8b2939",
+    "assets/assets/design/kinaiya-expression-reference-v2.png": "594d8d8675517d0d66467ea20e289f6903d2f7d301af188d1586c066691658de",
+    "assets/assets/design/kinaiya-expression-reference.png": "ca82097c4401cabfbb290fefb5c4387a918941003afc98315114c18992f3b989",
+    "assets/assets/design/kinaiya-moonlit-background-v1.png": "57a227625a0443661802b48eef47d2d8e5e24650bd301175a9802c678b8b502a",
+    "assets/assets/design/kinaiya-moonlit-desktop-v2.png": "8c6171df7c248e977717eebe97380be5e6419df676af7fbd2f0f8159739abee0",
+    "assets/assets/design/kinaiya-moonlit-phone-v2.png": "8d9a99372645f1ff4743921fd26bd525fb4979546ab5f66104c71e96eba09d28",
+    "assets/assets/design/kinaiya-moonlit-v2.prompts.md": "25d8e3c8ca605acba7838d0307152f3d359bbc99d64f299595e848bc576d7c9a",
+    "assets/assets/design/kinaiya-options-gear-v1.png": "db007a16d63b8d9b5fd7fe177ef380c012f65d593c3ddfb71a76946f0ea4d50a",
+    "assets/assets/design/kinaiya-sleeping-home-v1.png": "617217a193bb965619ca75c5ee4fb1cb1fbff6b0b88b4efc9fbd60e4856fdfbb",
+    "assets/assets/design/kinaiya-sleeping-home-v2.png": "ec2cd865ea3434a53868b0abad767c5de1dd9064f94ca6c0edb35104f5f9a673",
+    "assets/assets/design/kinaiya-speech-mouth-portraits-v1.png": "d7aedd4fd20d44daac5c81ee43d4ffa70a5f74ba2c9b7f8ae188112004703585",
+    "assets/assets/design/kinaiya-speech-mouth-portraits-v1.prompts.md": "ec24a1e2b248639f5de7589edcbdf5ae11ba58a2fb61ebbdafd8adad22cf1629",
+    "assets/assets/fonts/Inter-Bold.ttf": "288316099b1e0a47a4716d159098005eef7c0066921f34e3200393dbdb01947f",
+    "assets/assets/fonts/Inter-Regular.ttf": "40d692fce188e4471e2b3cba937be967878f631ad3ebbbdcd587687c7ebe0c82",
+    "assets/assets/fonts/Inter-SemiBold.ttf": "78a843fade9d4612a5567302fb595b56976eb5fcebf4fea5a5912d638bafcde3",
+    "assets/assets/mascot/kinaiya-mascot.png": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977",
+    "assets/fonts/MaterialIcons-Regular.otf": "6e8d337a2644f2aaaac8e4265bb08a23a18c2c9a34a884793db99ffa89e4ab9e",
+    "assets/fonts/fallback/Roboto-Regular.ttf": "79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95",
+    "assets/shaders/ink_sparkle.frag": "2dca5ab93d4ec29e963f996f3916320ba60825e9537dfb149a68008c7a16b026",
+    "assets/shaders/stretch_effect.frag": "ab412f07a5b9b50b67a885b24dbe16929738ae28630407d6490c924caf0a3220",
+    "audio_bridge.js": "d1e356a346af5012f6c19593cc25c4e51151a59e6ce261febfe601c7692a160c",
+    "audio_bridge.test.js": "fd9d3d96f8b86fec8625dd373545f80df949bd588ff68d8305b03dd28a8da391",
+    "audio_import_activation.test.js": "2b0ea0380f59b2088d7f2f458f354458b1e88fa5316d3033a1d714cbfa0aa69d",
+    "audio_input_feedback_adversarial.test.js": "a06bea4a0b3375bf391134b533c001c9b07817cb86d5cc60f39419692d1db860",
+    "audio_output_selection.test.js": "12f7f7f6d76b0d86b8e34d73afa7b1390f29dad1160ea50ba6bc58df7fb44153",
+    "canvaskit/canvaskit.js": "bb559f6080c7d312ac2a912b4abec9f68ff3d3022d4a603c7796b9b31460642b",
+    "canvaskit/canvaskit.js.symbols": "384f80b392972c83fd4f262527e3d06215a297d33ed59732c726721e9d9311bd",
+    "canvaskit/canvaskit.wasm": "fbed517a43e82452404446683f00f2e876d835aed84410695759e67b6bb01cd3",
+    "canvaskit/chromium/canvaskit.js": "6018b12bd8ed37e6952eee72d59c1cf7ad707ccdb74a0a45190010f77edd9068",
+    "canvaskit/chromium/canvaskit.js.symbols": "31c86fac6042dd8b756150832c1d15495d0d07742e2718f75dbdde5a5a91455e",
+    "canvaskit/chromium/canvaskit.wasm": "ae8ff1d858140f7b1300ced3fa89fb8c9dce0a400a0f4f1e11f6dcfb3315fdcf",
+    "canvaskit/skwasm.js": "71d7d3e34bf71b52bdba3b588b103bba8148ba28de5754083e01b3398e7a6e1c",
+    "canvaskit/skwasm.js.symbols": "9137f1a3ae744dea575043abfc6e063a047e910e6dab1ee53e496c975d1c033e",
+    "canvaskit/skwasm.wasm": "e540fd5e8303b7b68ec2718cb49e9c421f8ade3075b15e02a7059a62654df9a1",
+    "canvaskit/skwasm_heavy.js": "cec554b46ddcf4c0e63d799e0556d546f42d2c3f69316fb4f67ed776f6104558",
+    "canvaskit/skwasm_heavy.js.symbols": "b6b79ed497e11d4cd13cc46724f9e289eacc744d2d185e31c72d595cdf62772b",
+    "canvaskit/skwasm_heavy.wasm": "565f5cc1cca6ab120f11934b105f01fec4b58b480c82e0889dca93af8e6f8635",
+    "canvaskit/webparagraph/canvaskit.js": "3110e3e4d9b7b5657d336f253aaca8acca5777cde9319fb69ac302d6ff5a8b23",
+    "canvaskit/webparagraph/canvaskit.js.symbols": "44d6c47919106235cf32252252490cdf798d907ee874ba343ab53dc94bc2a9dc",
+    "canvaskit/webparagraph/canvaskit.wasm": "0ce1b05082efdc8529550e8a01f6ff0593972d55525035010e26f5600aa9f254",
+    "canvaskit/wimp.js": "8fd8a47480c6eb0a374d159912d0b3fb15661b41f5c113ecdd39c2f01f2bee46",
+    "canvaskit/wimp.js.symbols": "b4907ebd33131302a8cd99f7c55f52357bdfde04f421b605a616ba8764ae1de4",
+    "canvaskit/wimp.wasm": "e924eaafd801d41e017d178f3fd5cf8a417f641fe35c9ed34a4e1d7582283e0c",
+    "credential_bridge.js": "809d271a1d23fba4a0abebb294ba94249425283389e46b267d16df825c52be51",
+    "export_incremental_pcm_rollover_fixture.js": "95236a982b45d3fccec158a765db343b13589dbda0fc835723b2570966613f0f",
+    "flutter.js": "2beb1ce6b159c71540aa66030af1d7964b6a92377cc78473745e02f97b74effe",
+    "flutter_bootstrap.js": "44a2c3dfc0da34b9e4dffbe11b673393eedce3a93c6908f5f2ff6d4b5c6e8a98",
+    "flutter_service_worker.js": "a131df5ca46154cc4eb79044f7f5a14029c2f8bfccf8cef34e3ec3b5a9f5a88c",
+    "incremental_pcm_capture.test.js": "356f75f68ac01d72985b61e0bf6acfaa52f5d218eb3ea26855c7bd7250fff0f2",
+    "index.html": "f298506763628afdbccab15a3ba7d10ca2f1e864af5074f2dd55b85bf8e090e4",
+    "input_discovery_feedback.test.js": "a03e22269c8ab84d7a90a60fec0c16e607b96253cefa59e6645c932fa4476f07",
+    "main.dart.js": "ca418ea8fd0ee78c7e5cb5d37e07d894f00bd36c0a6f7e079a8d93df08a099be",
+    "manifest.json": "23d79dc33e1b8fb9f98e6531f4a5539aa476e08f3f5b139fc3e13f3d1940405c",
+    "native_call_input_selection.test.js": "052d8c138c103104be54ce16e62495494d57d96f09684c0ac9a6e8e090af84be",
+    "presentation_bridge.cases.js": "7aaa2bb541fa249cfe0c17f1621e266a24d293c65088a17d31832d7c58779628",
+    "presentation_bridge.js": "bf101a1875cb3966ba57b58aee889b730c04a6b2853d38ce0c624a1aaaabdd46",
+    "version.json": "dc4c7ec020c2cebdded25f34e69c18d98406f034645d8a283327209d3e8a0200",
+    "window_capture_worklet.js": "a69e88851764bf40314d79df945616af667bf433aed6f90b2a1bd34e811c30e1"
+  },
+  "log_archive_format": "Exact UTF-8 text, recover raw bytes by encoding text; raw SHA and archive SHA are separate.",
+  "qualification_limits": [
+    "Synthetic legacy-local TTS transport through real native speech/delivery/interrupt HTTP; no managed TTS worker or physical audio.",
+    "Software input/output graph isolation and requested AEC/noise suppression; no room/device echo cancellation measurement.",
+    "Release web build with Wasm compiler dry run; no Wasm build/runtime test.",
+    "No installs, SDK upgrades, live/paid model calls, held native CI retry, system changes or installed-owner promotion.",
+    "Complete lifecycle/reconnect/replacement/dependency-loss, timing and rollout remain open; model quality is diagnostic."
+  ],
+  "schema_export_first": {
+    "path": "schema-export-first.json",
+    "sha256": "0fbbc424ae9ca8894ba911e1aba89860b60d64aa7308e6faa8f6a76dec8abffe",
+    "exit_code": 1,
+    "unchanged": true,
+    "reason": "Invocation omitted worktree PYTHONPATH; repaired invocation is schemas.json."
+  }
+}
