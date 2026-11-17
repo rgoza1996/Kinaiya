@@ -2,9 +2,12 @@
 
 import asyncio
 import base64
+import fcntl
 import json
 import os
 import shutil
+import socket
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +29,7 @@ from services.converse.api import create_app as converse_app
 from services.converse.dependencies import RequiredDecisions
 from services.converse.runtime import ConverseRuntime
 from services.converse.windows import WindowConverseController
+from services.decisions.pi_process import PiLaunchProfile, launch
 from tests.integration.test_external_agent_session import (
     add,
     bind_to,
@@ -382,14 +386,10 @@ async def test_session_claim_cannot_replay_a_real_pi_run_after_peer_restart(priv
             assert await asyncio.wait_for(process.wait(), 5) == 0
 
 
-def managed_app(private, peers, monkeypatch, fixture):
+def managed_config(private, peers):
     data = private.parent / "decisions-data"
-    data.mkdir(mode=0o700)
+    data.mkdir(mode=0o700, exist_ok=True)
     node = Path(shutil.which("node")).resolve()
-    apps = []
-    monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _: TOKENS)
-    monkeypatch.setattr(launcher, "provider", lambda *_args, **_kwargs: fixture)
-    monkeypatch.setattr(uvicorn, "run", lambda app, **_: apps.append(app))
     config = private.parent / "config.json"
     config.write_text(
         json.dumps(
@@ -405,6 +405,15 @@ def managed_app(private, peers, monkeypatch, fixture):
             }
         )
     )
+    return data, config
+
+
+def managed_app(private, peers, monkeypatch, fixture):
+    data, config = managed_config(private, peers)
+    apps = []
+    monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _: TOKENS)
+    monkeypatch.setattr(launcher, "provider", lambda *_args, **_kwargs: fixture)
+    monkeypatch.setattr(uvicorn, "run", lambda app, **_: apps.append(app))
     launcher.serve(
         SimpleNamespace(
             data_dir=data,
@@ -418,6 +427,198 @@ def managed_app(private, peers, monkeypatch, fixture):
     )
     (app,) = apps
     return app, data
+
+
+@asynccontextmanager
+async def decisions_process(data, config, workspace):
+    bootstrap = """
+import socket, sys, uvicorn
+from services import launcher
+
+listen = socket.socket(fileno=int(sys.argv.pop(1)))
+def serve(app, **_):
+    uvicorn.Server(uvicorn.Config(app, lifespan="on", log_level="error")).run(sockets=[listen])
+uvicorn.run = serve
+launcher.main()
+"""
+    with socket.socket() as listen, (data / "decisions-test.log").open("ab") as log:
+        listen.bind(("127.0.0.1", 0))
+        listen.listen()
+        address = f"http://127.0.0.1:{listen.getsockname()[1]}"
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            bootstrap,
+            str(listen.fileno()),
+            "--data-dir",
+            str(data),
+            "--config",
+            str(config),
+            "--workspace",
+            str(workspace),
+            "serve",
+            "decisions",
+            "--startup-subsystem-mode",
+            "converse-decisions",
+            cwd=ROOT,
+            env={"PATH": os.environ["PATH"], "PYTHONPATH": str(ROOT)},
+            pass_fds=(listen.fileno(),),
+            stdout=log,
+            stderr=log,
+        )
+    try:
+        async with httpx.AsyncClient(
+            base_url=address,
+            headers={"Authorization": "Bearer " + TOKENS["owner"]},
+            trust_env=False,
+            timeout=10,
+        ) as client:
+            async with asyncio.timeout(8):
+                while True:
+                    assert process.returncode is None, (data / "decisions-test.log").read_text()
+                    try:
+                        result = await client.get("/v1/decisions/status")
+                    except httpx.TransportError:
+                        result = None
+                    if result is not None and result.status_code == 200:
+                        break
+                    await asyncio.sleep(0.03)
+            yield process, client
+    finally:
+        if process.returncode is None:
+            process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), 8)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+
+
+async def test_abrupt_decisions_process_replacement_keeps_observed_pi_acceptance(private):
+    async with native(private.parent / "crash-journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        grant = await peers.owner.authorize(connection(session, backend=None))
+        source = add(peers.store, session, "conversation.user", "hold for interrupt")
+        proposal = queued_claim(
+            peers.store,
+            session,
+            source,
+            SimpleNamespace(
+                target=ExternalAgentTarget(
+                    attachment_id=grant.attachment_id, backend_session_id="not-observed-yet"
+                )
+            ),
+        ).model_dump(mode="json")
+        data, config = managed_config(private, peers)
+        credentials = data / "service-tokens.json"
+        credentials.write_text(json.dumps(TOKENS))
+        credentials.chmod(0o600)
+        path = "/v1/decisions/external-agent"
+        setup = {
+            "contract_version": 1,
+            "request_id": "crash-original",
+            "operation": "attach",
+            "attachment_id": grant.attachment_id,
+        }
+        decisions_role = {"Authorization": "Bearer " + TOKENS["decisions"]}
+        async with decisions_process(data, config, private / "workspace") as (original, owner):
+            connected = await owner.post(path + "/attach", json=setup)
+            assert connected.status_code == 200, connected.text
+            target = connected.json()["target"]
+            proposal["command"]["target"] = target
+            submitted = await owner.post(path + "/submit", json=proposal, headers=decisions_role)
+            assert submitted.status_code == 200 and submitted.json()["disposition"] == "accepted"
+            task = submitted.json()["task"]["task_id"]
+            replay = {
+                "contract_version": 1,
+                "request_id": "crash-replay",
+                "operation": "events",
+                "target": target,
+                "after": 0,
+                "limit": 8,
+            }
+            async with asyncio.timeout(5):
+                while True:
+                    current = await owner.post(path + "/events", json=replay)
+                    assert current.status_code == 200, current.text
+                    if current.json()["events"]:
+                        break
+                    await asyncio.sleep(0.03)
+            old = current.json()["events"]
+            assert len(old) == 1 and old[0]["state"] == "running"
+            original.kill()
+            await asyncio.wait_for(original.wait(), 5)
+            assert original.returncode < 0
+
+        # The sandbox retains the lock until it actually exits after parent death.
+        lock = data / "external-agent" / (grant.attachment_id + ".lock")
+        with lock.open("r+b") as probe:
+            async with asyncio.timeout(5):
+                while True:
+                    try:
+                        fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        await asyncio.sleep(0.03)
+
+        async with decisions_process(data, config, private / "workspace") as (new, owner):
+            assert new.pid != original.pid
+            history = await owner.post(path + "/events", json=replay)
+            assert history.status_code == 200 and history.json()["events"] == old
+            reattached = await owner.post(path + "/attach", json=setup)
+            assert reattached.status_code == 200 and reattached.json()["target"] == target
+            assert reattached.json()["tasks"][0]["state"] == "uncertain"
+            original_ack = await owner.post(path + "/submit", json=proposal, headers=decisions_role)
+            assert (
+                original_ack.status_code == 200 and original_ack.json()["disposition"] == "accepted"
+            )
+            assert original_ack.json()["task"]["task_id"] == task
+            result = await owner.post(path + "/events", json={**replay, "after": old[-1]["cursor"]})
+            assert result.status_code == 200, result.text
+            assert [(item["task_id"], item["state"]) for item in result.json()["events"]] == [
+                (task, "uncertain"),
+            ]
+            assert (
+                peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0]
+                == 1
+            )
+
+
+async def test_live_sandbox_retains_attachment_lock_without_decisions_descriptor(private):
+    data = private.parent / "custody-data"
+    data.mkdir(mode=0o700)
+    attachment = "a" * 32
+    profile = PiLaunchProfile(
+        profile_id="pi-fixture",
+        node=str(Path(shutil.which("node")).resolve()),
+        sdk_root=SDK_ROOT,
+        agent_dir=str(private / "agent"),
+        workspace=str(private / "workspace"),
+    )
+    owned = await launch(
+        profile,
+        attachment_id=attachment,
+        data_dir=data,
+        protected=(ROOT, data),
+        expected_session_id=None,
+    )
+    try:
+        peer = await PiSdkPeer.attach(
+            owned.process.stdout, owned.process.stdin, transcript_reader=lambda **_: None
+        )
+        assert (await peer.status("1" * 32)).busy is False
+        os.close(owned._lock_descriptor)
+        owned._lock_descriptor = None
+        lock = data / "external-agent" / (attachment + ".lock")
+        with lock.open("r+b") as probe:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert (await peer.status("2" * 32)).busy is False
+    finally:
+        assert await owned.close()
+    assert owned.process.returncode is not None
+    with lock.open("r+b") as probe:
+        fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
 
 async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_session(
@@ -564,7 +765,108 @@ async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_sessio
                 == 2
             )
             final = manager._owned.process
+            held_id = original.json()["task"]["task_id"]
+            status_request = {
+                "contract_version": 1,
+                "request_id": "inspect-held",
+                "operation": "status",
+                "target": target,
+            }
+            async with asyncio.timeout(5):
+                while True:
+                    current = await owner.post(path + "/status", json=status_request)
+                    assert current.status_code == 200, current.text
+                    if any(
+                        task["task_id"] == held_id and task["state"] == "running"
+                        for task in current.json()["tasks"]
+                    ):
+                        break
+                    await asyncio.sleep(0.02)
+            final.kill()
+            await asyncio.wait_for(final.wait(), 5)
         assert final.returncode is not None
+
+        replacement, _ = managed_app(private, peers, monkeypatch, fixture)
+        async with (
+            loopback(replacement) as address,
+            httpx.AsyncClient(
+                base_url=address,
+                headers={"Authorization": "Bearer " + TOKENS["owner"]},
+                trust_env=False,
+                timeout=15,
+            ) as owner,
+        ):
+            stopped = await owner.post(path + "/status", json=status_request)
+            assert stopped.status_code == 200 and stopped.json()["state"] == "stopped"
+            assert stopped.json()["capabilities"]["event_replay"]
+            assert [(task["task_id"], task["state"]) for task in stopped.json()["tasks"]] == [
+                (accepted.json()["task"]["task_id"], "settled"),
+                (held_id, "uncertain"),
+            ]
+            replay_request = {
+                "contract_version": 1,
+                "request_id": "restart-replay",
+                "operation": "events",
+                "target": target,
+                "after": cursor,
+                "limit": 8,
+            }
+            retained = await owner.post(path + "/events", json=replay_request)
+            assert retained.status_code == 200, retained.text
+            previous = retained.json()
+            assert [(item["task_id"], item["state"]) for item in previous["events"]] == [
+                (held_id, "running"),
+                (held_id, "uncertain"),
+            ]
+            from_start = await owner.post(path + "/events", json={**replay_request, "after": 0})
+            assert [
+                item["text"]
+                for item in from_start.json()["events"]
+                if item["kind"] == "assistant_message"
+            ] == [start]
+
+            reopened = await owner.post(path + "/attach", json=attach)
+            assert reopened.status_code == 200 and reopened.json()["target"] == target
+            for original_proposal, task_id in (
+                (proposal, accepted.json()["task"]["task_id"]),
+                (held, held_id),
+            ):
+                known = await owner.post(
+                    path + "/submit", json=original_proposal, headers=decisions_role
+                )
+                assert known.status_code == 200 and known.json()["disposition"] == "accepted"
+                assert known.json()["task"]["task_id"] == task_id
+            observed_new = await owner.post(
+                path + "/submit", json=different, headers=decisions_role
+            )
+            assert (
+                observed_new.status_code == 200 and observed_new.json()["disposition"] == "accepted"
+            )
+            replay_request["after"] = previous["next_after"]
+            async with asyncio.timeout(5):
+                while True:
+                    next_result = await owner.post(path + "/events", json=replay_request)
+                    assert next_result.status_code == 200, next_result.text
+                    new = next_result.json()
+                    if any(item.get("state") == "settled" for item in new["events"]):
+                        break
+                    await asyncio.sleep(0.02)
+            assert {item["task_id"] for item in new["events"]} == {
+                observed_new.json()["task"]["task_id"]
+            }
+            assert [
+                item["text"] for item in new["events"] if item["kind"] == "assistant_message"
+            ] == ["A different synthetic task"]
+            await peers.owner.revoke(
+                ExternalAgentRevoke(
+                    contract_version=1,
+                    request_id="revoke-replayed",
+                    operation="revoke",
+                    attachment_id=grant.attachment_id,
+                )
+            )
+            denied = await owner.post(path + "/events", json=replay_request)
+            assert denied.status_code == 409 and denied.json()["reason"] == "scope_changed"
         assert fixture.calls == []
 
 

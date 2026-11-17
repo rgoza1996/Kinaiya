@@ -1,9 +1,9 @@
 # External Agent bridge v1
 
 The bridge contract, Session attachment grants, and the Pi SDK peer support
-managed attachment, scoped transcript reads, and Decisions delivery from
-Converse typed turns and Rolling Windows. Durable result recovery and queued
-and targeted controls remain in scope. [External Agent
+managed attachment, scoped transcript reads, Decisions delivery from Converse
+typed turns and Rolling Windows, and durable replay of observed outcomes.
+Queued delivery, targeted controls, and Adaptive Live remain in scope. [External Agent
 bridge](https://github.com/rgoza1996/Kinaiya/issues/547)
 
 ## Commands and observations
@@ -79,10 +79,9 @@ settled. An interrupt is tied to the active request's run identity, and
 
 The Python reader retains original request identities across caller timeouts.
 An exact request lookup can recover a late acknowledgment without another write.
-An invalid frame or lost process leaves in-flight effects unconfirmed. Requests
-are retained within the lifetime of the original peer and replay has a bounded
-window. The application owner needs durable attachment records and original
-request receipts to reconcile after an owner restart.
+An invalid frame or lost process leaves in-flight effects unconfirmed.
+The managed service persists validated acknowledgments and events before it
+exposes them to callers.
 
 ## Managed Converse-only profile
 
@@ -118,7 +117,8 @@ require owner credentials and the exact bound target. A detach keeps the
 owned peer available to reconnect. A shutdown receipt reports a stopped
 peer once its process exit is observed. The SDK persists a session header
 at attach time, so reopening an empty session retains its original identity.
-Event replay covers the original live peer's bounded buffer.
+Bubblewrap holds the per-attachment lock for the sandbox's lifetime. Decisions
+keeps its copy through process exit and the final observation drain.
 
 The finalized and Rolling Windows Decisions workers route eligible fresh
 sources to the active attachment in the same session, thread and epoch. An
@@ -136,9 +136,14 @@ command remains unapplied while the peer is busy. Queued delivery and task
 controls remain open.
 
 The journal receipts identify Pi as the executor and carry observed external
-task identity separately from native Agent tasks. The owner reads current
-status and settled output from the managed routes. The result replay buffer
-belongs to the current peer process.
+task identity separately from native Agent tasks. The managed service stores
+observations in an owner-only database outside the Pi filesystem mounts.
+After Decisions or Pi restarts, the owner can read retained task observations
+and output using the same attachment and a currently valid Session grant.
+The cursor continues across peer generations. Replay retains up to 512 events
+and 16 MiB of encoded event data per attachment. Older cursors return
+`replay_expired`. An incomplete run becomes `uncertain` if the prior
+generation ends without a terminal observation.
 
 ## Original submission
 
@@ -155,10 +160,11 @@ checks and the claim write share one native transaction.
 The first committed claim assigns an admission ID. The adapter uses it as the
 Pi run identity and sends the instruction only when the reply says
 `original`. A duplicate claim returns `retained` with the same admission
-ID, including after Session restarts. The adapter can use the original live
-peer's observed reply. After a lost reply or peer replacement, an unresolved
-original remains uncertain. The receipt describes command acceptance and
-completed work remains an observation from the backend.
+ID, including after Session restarts. The adapter can recover an originally
+observed acknowledgment from the managed store after reopening the peer.
+An original with a missing acknowledgment remains uncertain. The receipt
+describes command acceptance and completed work remains an observation
+from the backend.
 
 ## Verification
 
@@ -189,3 +195,8 @@ rehearsal sends a typed turn and a synthetic audio window through the Converse
 HTTP endpoints, Decisions workers and Session to the real Pi SDK. Both
 paths verify the original instruction, assistant output and observed settled
 state. The audio replay preserves the original transcription and receipt.
+The restart rehearsals kill the managed Pi peer and the Decisions service
+process in separate cases. They verify retained output and cursors,
+unchanged acceptance identity, and uncertainty for a run whose terminal
+event was never observed. Sandbox custody is checked with a competing lock
+acquisition while the real Pi peer is live.

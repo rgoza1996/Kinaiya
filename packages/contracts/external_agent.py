@@ -320,22 +320,22 @@ class ExternalAgentOutputUnavailable(_Event):
     kind: Literal["output_unavailable"]
 
 
+ExternalAgentEvent = Annotated[
+    ExternalAgentStateEvent
+    | ExternalAgentMessageEvent
+    | ExternalAgentToolEvent
+    | ExternalAgentOutputUnavailable,
+    Field(discriminator="kind"),
+]
+
+
 class ExternalAgentEventPage(_Envelope):
     kind: Literal["events"]
     target: ExternalAgentTarget
     after: BridgeCursor
     next_after: BridgeCursor
     has_more: bool
-    events: tuple[
-        Annotated[
-            ExternalAgentStateEvent
-            | ExternalAgentMessageEvent
-            | ExternalAgentToolEvent
-            | ExternalAgentOutputUnavailable,
-            Field(discriminator="kind"),
-        ],
-        ...,
-    ] = Field(max_length=128)
+    events: tuple[ExternalAgentEvent, ...] = Field(max_length=128)
 
     @model_validator(mode="after")
     def contiguous(self):

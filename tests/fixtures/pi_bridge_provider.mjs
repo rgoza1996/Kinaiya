@@ -1,7 +1,18 @@
 // Deterministic provider for the real Pi SDK integration test.
+import { readdirSync, readlinkSync } from "node:fs";
 import { createAssistantMessageEventStream } from "/sdk/node_modules/@earendil-works/pi-ai/dist/index.js";
 
 export default function fixture(pi) {
+  for (const fd of readdirSync("/proc/self/fd")) {
+    try {
+      const path = readlinkSync("/proc/self/fd/" + fd);
+      if (path.includes("/external-agent/") && path.endsWith(".lock")) {
+        throw new Error("The private attachment lock entered the Pi runtime");
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
   pi.registerCommand("fixture-command", {
     description: "Verify that forwarded text cannot invoke a Pi command",
     handler: async () => { throw new Error("A forwarded instruction invoked a Pi command"); },

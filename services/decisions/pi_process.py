@@ -104,12 +104,12 @@ class PiProcess:
         self._lock_descriptor = lock_descriptor
         self._retiring = None
 
-    async def close(self):
+    async def close(self, finalize=None):
         if self._retiring is None or (self._retiring.done() and self._lock_descriptor is not None):
-            self._retiring = asyncio.create_task(self._close())
+            self._retiring = asyncio.create_task(self._close(finalize))
         return await asyncio.shield(self._retiring)
 
-    async def _close(self):
+    async def _close(self, finalize):
         process = self.process
         try:
             process.stdin.close()
@@ -125,8 +125,12 @@ class PiProcess:
             return process.returncode is not None
         finally:
             if process.returncode is not None and self._lock_descriptor is not None:
-                os.close(self._lock_descriptor)
-                self._lock_descriptor = None
+                try:
+                    if finalize is not None:
+                        await finalize()
+                finally:
+                    os.close(self._lock_descriptor)
+                    self._lock_descriptor = None
 
 
 async def launch(profile, *, attachment_id, data_dir, protected, expected_session_id):
@@ -196,6 +200,10 @@ async def launch(profile, *, attachment_id, data_dir, protected, expected_sessio
                 BWRAP_BIN,
                 "--unshare-all",
                 "--die-with-parent",
+                # Bubblewrap's monitor retains the same flock through sandbox
+                # exit even if the Decisions process loses its descriptor.
+                "--sync-fd",
+                str(lock),
                 "--new-session",
                 "--ro-bind",
                 "/usr",
@@ -249,7 +257,7 @@ async def launch(profile, *, attachment_id, data_dir, protected, expected_sessio
             ]
             child = await asyncio.create_subprocess_exec(
                 *argv,
-                pass_fds=tuple(fd for _, fd, _ in mounts),
+                pass_fds=(lock, *(fd for _, fd, _ in mounts)),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,

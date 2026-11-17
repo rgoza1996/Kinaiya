@@ -7,7 +7,6 @@ import httpx
 
 from packages.agent_adapters.external_submission import PiSubmission
 from packages.agent_adapters.pi_sdk import (
-    MAX_FRAME_BYTES,
     PiCommandUnconfirmed,
     PiEventReplayExpired,
     PiPeerUnavailable,
@@ -19,17 +18,12 @@ from packages.contracts.external_agent import (
     ExternalAgentClaim,
     ExternalAgentCommandReceipt,
     ExternalAgentDisconnectReceipt,
-    ExternalAgentEventPage,
     ExternalAgentGrantLookup,
-    ExternalAgentMessageEvent,
-    ExternalAgentOutputUnavailable,
     ExternalAgentRefusal,
     ExternalAgentSource,
-    ExternalAgentStateEvent,
     ExternalAgentStatus,
     ExternalAgentSubmit,
     ExternalAgentTarget,
-    ExternalAgentToolEvent,
 )
 from packages.contracts.external_agent_client import (
     ExternalAgentNativeConflict,
@@ -37,6 +31,7 @@ from packages.contracts.external_agent_client import (
     ExternalAgentSessionClient,
 )
 from packages.providers.disclosure import combine_scopes, source_scope
+from services.decisions.pi_observations import PiObservations, PiObservationUnavailable
 from services.decisions.pi_process import PiLaunchUnavailable, launch
 
 
@@ -52,7 +47,7 @@ class ManagedPi:
         self._connected = False
         self._route_after = None
         self._owned = self._peer = self._grant = None
-        self._tasks = {}
+        self._observations = None
 
     @staticmethod
     def _refuse(request_id, reason):
@@ -69,56 +64,43 @@ class ManagedPi:
             backend_session_id=self._grant.backend_session_id,
         )
 
-    def _observed(self, request_id):
-        target = self._target
-        if target is None:
-            return self._refuse(request_id, "unavailable")
-        alive = self._owned is not None and self._owned.process.returncode is None
+    async def _observed(self, request_id, target, grant):
+        local = target == self._target and self._owned is not None
+        alive = local and self._owned.process.returncode is None
         ready = alive and self._peer is not None and self._peer.available
-        state = "stopped"
+        observations = PiObservations(self.data_dir, target)
+        try:
+            retired, tasks = await asyncio.to_thread(observations.status, live=ready)
+        except ValueError:
+            return self._refuse(request_id, "unavailable")
+        state = "uncertain"
         if ready:
             state = "connected" if self._connected else "detached"
         elif alive:
             state = "unavailable"
-        self._refresh_tasks(ready)
+        elif local or retired:
+            state = "stopped"
         return ExternalAgentStatus(
             contract_version=1,
             request_id=request_id,
             kind="status",
             target=target,
-            scope=self._grant.original.scope,
+            scope=grant.original.scope,
             backend="pi",
             state=state,
-            tasks=tuple(self._tasks.values()),
+            tasks=tasks,
             capabilities=ExternalAgentCapabilities(
                 submit=ready and self._connected,
                 queue=False,
                 steer=False,
                 interrupt=False,
-                event_replay=ready,
+                event_replay=True,
                 transcript_read=ready,
                 approvals=False,
                 artifacts=False,
                 shutdown_owned=alive,
             ),
         )
-
-    def _refresh_tasks(self, ready):
-        if ready:
-            for item in self._peer.retained_events():
-                task = self._tasks.get(item.run_id)
-                if task is not None and item.kind in {
-                    "running",
-                    "settled",
-                    "failed",
-                    "interrupted",
-                    "uncertain",
-                }:
-                    self._tasks[item.run_id] = task.model_copy(update={"state": item.kind})
-        else:
-            for key, task in self._tasks.items():
-                if task.state in {"starting", "running", "interrupt_requested"}:
-                    self._tasks[key] = task.model_copy(update={"state": "uncertain"})
 
     async def _lookup(self, attachment_id):
         return await self.authority.lookup_grant(
@@ -130,19 +112,21 @@ class ManagedPi:
             )
         )
 
+    async def _bound_grant(self, target):
+        grant = await self._lookup(target.attachment_id)
+        if grant.phase != "bound" or grant.backend_session_id != target.backend_session_id:
+            raise ExternalAgentNativeConflict
+        return grant
+
     async def status(self, request):
         async with self._lock:
-            if self._target != request.target:
-                return self._refuse(request.request_id, "scope_changed")
             try:
-                current = await self._lookup(request.target.attachment_id)
+                grant = await self._bound_grant(request.target)
             except ExternalAgentNativeConflict:
                 return self._refuse(request.request_id, "scope_changed")
             except (ExternalAgentNativeUnavailable, PermissionError):
                 return self._refuse(request.request_id, "unavailable")
-            if current.backend_session_id != request.target.backend_session_id:
-                return self._refuse(request.request_id, "scope_changed")
-            return self._observed(request.request_id)
+            return await self._observed(request.request_id, request.target, grant)
 
     async def _perform(self, action, request, **options):
         if self._closed or len(self._operations) >= 8:
@@ -214,12 +198,12 @@ class ManagedPi:
                         await self._activate(grant.original.scope)
                     except (httpx.HTTPError, OSError, ValueError):
                         return self._refuse(request.request_id, "unavailable")
-                return self._observed(request.request_id)
+                return await self._observed(request.request_id, self._target, grant)
             if self._owned is not None:
-                await self._owned.close()
+                await self._reap()
             self._owned = self._peer = self._grant = None
             self._connected = False
-            self._tasks.clear()
+            self._observations = None
             expected = grant.backend_session_id or grant.original.expected_backend_session_id
             try:
                 self._owned = await launch(
@@ -249,6 +233,10 @@ class ManagedPi:
                 )
                 if process.returncode is not None:
                     raise PiLaunchUnavailable
+                observations = PiObservations(self.data_dir, self._target)
+                await asyncio.to_thread(observations.start)
+                self._observations = observations
+                self._peer.retain_observations(observations)
                 await self._activate(self._grant.original.scope)
             except (
                 ExternalAgentNativeConflict,
@@ -262,7 +250,7 @@ class ManagedPi:
                 if self._owned is not None:
                     await self._reap()
                 return self._refuse(request.request_id, "unavailable")
-            return self._observed(request.request_id)
+            return await self._observed(request.request_id, self._target, self._grant)
 
     async def _read_transcript(self, **position):
         grant = self._grant
@@ -333,99 +321,68 @@ class ManagedPi:
                 return self._refuse(request.request_id, "scope_changed")
             if routing_source is not None and self.routing_target(routing_source) != self._target:
                 return self._refuse(request.request_id, "scope_changed")
-            if self._closed or not self._connected or peer is None or not peer.available:
+            if (
+                self._closed
+                or not self._connected
+                or peer is None
+                or not peer.available
+                or self._observations is None
+            ):
                 return self._refuse(request.request_id, "unavailable")
             try:
                 observed = await peer.status(secrets.token_hex(16))
-                result = await PiSubmission(self.authority, peer).submit(
-                    request, retain_only=observed.busy
-                )
+                return await PiSubmission(
+                    self.authority, peer, observations=self._observations
+                ).submit(request, retain_only=observed.busy)
             except ExternalAgentNativeConflict:
                 return self._refuse(request.request_id, "scope_changed")
             except (
                 ExternalAgentNativeUnavailable,
                 PiCommandUnconfirmed,
+                PiObservationUnavailable,
                 PiPeerUnavailable,
                 PermissionError,
             ):
                 return self._refuse(request.request_id, "unavailable")
-            if isinstance(result, ExternalAgentCommandReceipt):
-                self._tasks.setdefault(result.task.task_id, result.task)
-                if len(self._tasks) > 128:
-                    self._tasks.pop(next(iter(self._tasks)))
-            return result
 
     async def events(self, request):
         async with self._lock:
-            peer = self._peer
-            if self._target != request.target:
-                return self._refuse(request.request_id, "scope_changed")
-            if peer is None or not peer.available:
-                return self._refuse(request.request_id, "unavailable")
             try:
-                current = await self._lookup(request.target.attachment_id)
-                if current.backend_session_id != request.target.backend_session_id:
-                    return self._refuse(request.request_id, "scope_changed")
-                records = peer.events(request.after, request.limit)
+                await self._bound_grant(request.target)
+                observations = PiObservations(self.data_dir, request.target)
+                return await asyncio.to_thread(observations.events, request)
             except ExternalAgentNativeConflict:
                 return self._refuse(request.request_id, "scope_changed")
-            except (ExternalAgentNativeUnavailable, PermissionError):
+            except (ExternalAgentNativeUnavailable, PermissionError, PiObservationUnavailable):
                 return self._refuse(request.request_id, "unavailable")
-            except (PiEventReplayExpired, ValueError):
+            except PiEventReplayExpired:
                 return self._refuse(request.request_id, "replay_expired")
-            events, size = [], 0
-            for record in records:
-                identity = {"cursor": record.cursor, "task_id": record.run_id}
-                if record.kind == "assistant_message":
-                    event = ExternalAgentMessageEvent(
-                        kind=record.kind, text=record.text, **identity
-                    )
-                elif record.kind == "tool_activity":
-                    event = ExternalAgentToolEvent(
-                        kind=record.kind,
-                        tool_call_id=record.tool_call_id,
-                        tool_name=record.tool_name,
-                        phase=record.phase,
-                        **identity,
-                    )
-                elif record.kind == "output_unavailable":
-                    event = ExternalAgentOutputUnavailable(kind=record.kind, **identity)
-                else:
-                    event = ExternalAgentStateEvent(
-                        kind="task_state",
-                        state=record.kind,
-                        revision=1,
-                        **identity,
-                    )
-                size += len(event.model_dump_json().encode("utf-8")) + 1
-                # The SDK can publish a full-size single event. Bound the
-                # whole response and let the cursor carry the remaining events.
-                if size > MAX_FRAME_BYTES + 4096:
-                    break
-                events.append(event)
-            if records and not events:
+            except ValueError:
                 return self._refuse(request.request_id, "unavailable")
-            cursor = events[-1].cursor if events else request.after
-            return ExternalAgentEventPage(
-                contract_version=1,
-                request_id=request.request_id,
-                kind="events",
-                target=request.target,
-                after=request.after,
-                next_after=cursor,
-                has_more=cursor < peer.event_cursor,
-                events=tuple(events),
-            )
 
     async def _reap(self):
         self._connected = False
-        self._refresh_tasks(self._peer is not None and self._peer.available)
+        peer, observations = self._peer, self._observations
+
+        async def finalize():
+            if peer is not None:
+                try:
+                    await asyncio.wait_for(peer.wait_closed(), 2)
+                except TimeoutError:
+                    pass
+            if observations is not None:
+                try:
+                    await asyncio.to_thread(observations.stop)
+                except PiObservationUnavailable:
+                    # The process exit is still observed. A replacement must
+                    # reconcile this generation's incomplete observation tail.
+                    pass
+
         try:
-            stopped = await self._owned.close()
+            stopped = await self._owned.close(finalize)
         except (OSError, TimeoutError):
             return False
         if stopped:
-            self._refresh_tasks(self._peer is not None and self._peer.available)
             self._peer = None
         return stopped
 

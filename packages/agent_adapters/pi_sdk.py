@@ -124,6 +124,7 @@ class PiSdkPeer:
         self._cursor = self._event_bytes = 0
         self._unavailable = False
         self._active_run_id = None
+        self._observations = None
         self._transcript_reader = transcript_reader
         self._transcript_tasks: dict[str, asyncio.Task] = {}
         self._reader_task = asyncio.create_task(self._receive())
@@ -176,16 +177,17 @@ class PiSdkPeer:
             return original.reply.result()
         return None
 
+    def retain_observations(self, observer):
+        if self._observations is not None or self._requests or not self.available:
+            raise PiPeerUnavailable("The original Pi observation owner is unavailable")
+        self._observations = observer
+
+    async def wait_closed(self):
+        await asyncio.shield(self._reader_task)
+
     @property
     def available(self):
         return not self._unavailable and not self._reader_task.done()
-
-    @property
-    def event_cursor(self):
-        return self._cursor
-
-    def retained_events(self):
-        return tuple(event for event, _ in self._events)
 
     async def _call(self, request_id, command, detail, timeout):
         if type(request_id) is not str or _ID.fullmatch(request_id) is None:
@@ -243,9 +245,9 @@ class PiSdkPeer:
             while True:
                 frame, size = await _read_frame(self._reader)
                 if frame.get("type") == "response":
-                    self._record_response(frame)
+                    await self._record_response(frame)
                 elif frame.get("type") == "event":
-                    self._record_event(frame, size)
+                    await self._record_event(frame, size)
                 elif frame.get("type") == "transcript_request":
                     self._transcript_request(frame)
                 else:
@@ -263,7 +265,7 @@ class PiSdkPeer:
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)
 
-    def _record_response(self, frame):
+    async def _record_response(self, frame):
         identifier = frame.get("id")
         original = self._requests.get(identifier)
         disposition, reason = frame.get("disposition"), frame.get("reason")
@@ -291,14 +293,17 @@ class PiSdkPeer:
                 raise ValueError("Pi status changed its observed session or run")
         if set(frame) != expected:
             raise ValueError("Unexpected Pi response fields")
-        original.reply.set_result(PiReply(disposition, reason, busy, run_id))
+        reply = PiReply(disposition, reason, busy, run_id)
+        if original.command == "submit" and self._observations is not None:
+            await asyncio.to_thread(self._observations.record_reply, identifier, reply)
+        original.reply.set_result(reply)
 
     def _is_submit(self, run_id):
         return type(run_id) is str and (
             (original := self._requests.get(run_id)) is not None and original.command == "submit"
         )
 
-    def _record_event(self, frame, size):
+    async def _record_event(self, frame, size):
         kind, run_id = frame.get("kind"), frame.get("run_id")
         expected = _EVENT_FIELDS.get(kind)
         if (
@@ -325,8 +330,11 @@ class PiSdkPeer:
         elif kind in {"settled", "failed", "interrupted", "uncertain"}:
             if self._active_run_id == run_id:
                 self._active_run_id = None
-        self._cursor += 1
-        self._events.append((PiEvent(self._cursor, run_id, kind, **detail), size))
+        event = PiEvent(self._cursor + 1, run_id, kind, **detail)
+        if self._observations is not None:
+            await asyncio.to_thread(self._observations.record_event, event)
+        self._cursor = event.cursor
+        self._events.append((event, size))
         self._event_bytes += size
         while len(self._events) > _MAX_EVENTS or self._event_bytes > _MAX_EVENT_BYTES:
             _, evicted_size = self._events.popleft()

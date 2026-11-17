@@ -1,5 +1,7 @@
 """Send only the original submission opportunity from authenticated Session."""
 
+import asyncio
+
 from packages.agent_adapters.pi_sdk import PiCommandUnconfirmed, PiPeerUnavailable
 from packages.contracts.external_agent import (
     ExternalAgentClaim,
@@ -10,9 +12,10 @@ from packages.contracts.external_agent import (
 
 
 class PiSubmission:
-    def __init__(self, authority, peer):
+    def __init__(self, authority, peer, *, observations=None):
         self.authority = authority
         self.peer = peer
+        self.observations = observations
 
     async def submit(self, request, *, retain_only=False):
         request = ExternalAgentClaim.model_validate(request, strict=True)
@@ -34,12 +37,18 @@ class PiSubmission:
                 contract_version=1, request_id=request.request_id, kind="refusal", reason="busy"
             )
         if claim.disposition == "original":
+            if self.observations is not None:
+                await asyncio.to_thread(self.observations.prepare, claim, command.source)
             try:
                 reply = await self.peer.submit(claim.admission_id, command.instruction)
             except (PiCommandUnconfirmed, PiPeerUnavailable):
                 reply = None
         else:
-            reply = self.peer.submission_reply(claim.admission_id)
+            reply = (
+                await asyncio.to_thread(self.observations.original_reply, claim)
+                if self.observations is not None
+                else self.peer.submission_reply(claim.admission_id)
+            )
         if reply is not None and reply.disposition == "refused":
             return ExternalAgentRefusal(
                 contract_version=1,
