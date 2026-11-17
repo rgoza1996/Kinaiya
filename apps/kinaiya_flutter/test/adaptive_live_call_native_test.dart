@@ -614,7 +614,9 @@ void main() {
   );
 
   testWidgets(
-    playbackMode.startsWith('controller_')
+    playbackMode.startsWith('session_')
+        ? 'native session scope loss retires original Call without replay $playbackMode'
+        : playbackMode.startsWith('controller_')
         ? 'native controller replacement retires original Call without replay $playbackMode'
         : playbackMode.startsWith('dependency_')
         ? 'required Decisions loss stops quiet capture without fresh PCM $playbackMode'
@@ -710,10 +712,12 @@ void main() {
         await tester.ensureVisible(start);
         await tester.tap(start);
         await nativeSpin(tester, () => activities.any((a) => a.listening));
-        Future<void> verifyControllerReplacement() async {
+        Future<void> verifyNativeScopeLoss() async {
           Completer<void>? controllerStop;
+          final controller = playbackMode.startsWith('controller_');
+          final idle = playbackMode.endsWith('_idle');
           try {
-            if (playbackMode == 'controller_replacement') {
+            if (!idle) {
               controllerStop = audio.heldPlaybackStop = Completer<void>();
             }
             final control = IOClient(
@@ -721,18 +725,34 @@ void main() {
             );
             final response = await tester.runAsync(
               () => control.post(
-                Uri.parse('$url/fixture/native-capture-controller/replace'),
+                Uri.parse(
+                  controller
+                      ? '$url/fixture/native-capture-controller/replace'
+                      : '$url/fixture/session-scope/change',
+                ),
                 headers: {'authorization': 'Bearer $token'},
               ),
             );
             control.close();
             expect(response!.statusCode, 200);
-            expect(jsonDecode(response.body), {
-              'capture_open': false,
-              'registration_retained': true,
-              'controller_replaced': true,
-              'explicit_fence': false,
-            });
+            expect(
+              jsonDecode(response.body),
+              controller
+                  ? {
+                      'capture_open': false,
+                      'registration_retained': true,
+                      'controller_replaced': true,
+                      'explicit_fence': false,
+                    }
+                  : {
+                      'capture_open': false,
+                      'scope_current': false,
+                      'registration_retained': !playbackMode.startsWith(
+                        'session_delete',
+                      ),
+                      'explicit_fence': false,
+                    },
+            );
             await nativeSpin(tester, () => !audio.armed);
             await nativeSpin(
               tester,
@@ -758,14 +778,8 @@ void main() {
             expect(audio.arms, 1);
             expect(audio.releases, 1);
             expect(audio.clips, 0);
-            expect(
-              audio.acknowledgments,
-              playbackMode == 'controller_idle' ? 0 : 1,
-            );
-            expect(
-              audio.queuedAudio,
-              hasLength(playbackMode == 'controller_idle' ? 0 : 1),
-            );
+            expect(audio.acknowledgments, idle ? 0 : 1);
+            expect(audio.queuedAudio, hasLength(idle ? 0 : 1));
             await tester.pump(const Duration(seconds: 4));
             expect(audio.arms, 1);
             expect(activities.last.stopPending, isFalse);
@@ -846,8 +860,10 @@ void main() {
           await verifyDependencyLoss();
           return;
         }
-        if (playbackMode == 'controller_idle') {
-          await verifyControllerReplacement();
+        if (playbackMode == 'controller_idle' ||
+            (playbackMode.startsWith('session_') &&
+                playbackMode.endsWith('_idle'))) {
+          await verifyNativeScopeLoss();
           return;
         }
         audio.feed();
@@ -870,8 +886,9 @@ void main() {
               (entry['payload'] as Map)['status'] == 'played',
         );
         expect(hasPlayed(), isFalse);
-        if (playbackMode == 'controller_replacement') {
-          await verifyControllerReplacement();
+        if (playbackMode == 'controller_replacement' ||
+            playbackMode.startsWith('session_')) {
+          await verifyNativeScopeLoss();
           expect(hasPlayed(), isFalse);
           return;
         }

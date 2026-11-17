@@ -124,6 +124,15 @@ from tests.integration.test_live_stream_api import live_client, scope_for
             "",
             id="adaptive_live_idle_native_controller_replacement",
         ),
+        *[
+            pytest.param("adaptive_live_call_native_test.dart", mode, "", id=identifier)
+            for mode, identifier in (
+                ("adaptive-call-session-reset", "adaptive_live_session_reset"),
+                ("adaptive-call-idle-session-reset", "adaptive_live_idle_session_reset"),
+                ("adaptive-call-session-delete", "adaptive_live_session_delete"),
+                ("adaptive-call-idle-session-delete", "adaptive_live_idle_session_delete"),
+            )
+        ],
     ],
     indirect=["converse_incremental_env"],
 )
@@ -166,6 +175,7 @@ async def test_actual_dart_native_live_stream_rollover(
     )
     if playback:
         actions = ["WAIT_WITH_BACKCHANNEL", "IGNORE"]
+    scope_snapshot = {}
     async with live_client(env, conversation_actions=actions) as native:
         if entrypoint == "adaptive_live_call_native_test.dart":
             native.app.mount("/session", session_app(env.store, AUTH))
@@ -225,6 +235,25 @@ async def test_actual_dart_native_live_stream_rollover(
                     "explicit_fence": state.fence is not None,
                 }
 
+        if env.playback_mode.startswith("session_"):
+
+            @native.app.post(
+                "/fixture/session-scope/change",
+                dependencies=[Depends(AUTH.require("owner"))],
+            )
+            async def change_session_scope():
+                capture = next(iter(native.app.state.live_streams.captures.values()))
+                scope_snapshot["replies"] = env.store.read(kinds=["conversation.converse"])
+                action = "delete" if env.playback_mode.startswith("session_delete") else "reset"
+                getattr(env.store, action)(capture.scope.session_id)
+                state = await capture.mic.inspect()
+                return {
+                    "capture_open": state.capture_open,
+                    "scope_current": state.scope_current,
+                    "registration_retained": state.receipt is not None,
+                    "explicit_fence": state.fence is not None,
+                }
+
         @native.app.middleware("http")
         async def observe(request, call_next):
             result = await call_next(request)
@@ -281,7 +310,16 @@ async def test_actual_dart_native_live_stream_rollover(
                     for method, path, status in requests
                     if path.startswith("/v2/converse/audio/live-stream/")
                 ]
-                assert live_requests and all(status == 200 for _, _, status in live_requests)
+                assert live_requests and all(
+                    status == 200
+                    or (
+                        env.playback_mode.startswith("session_delete")
+                        and method == "POST"
+                        and path == "/v2/converse/audio/live-stream/lookup"
+                        and status == 409
+                    )
+                    for method, path, status in live_requests
+                )
                 assert all(status < 500 for _, _, status in requests)
                 for phase, count in (
                     ("begin", 1),
@@ -289,6 +327,7 @@ async def test_actual_dart_native_live_stream_rollover(
                         "pcm",
                         0
                         if env.playback_mode in {"dependency_idle", "controller_idle"}
+                        or env.playback_mode.endswith("_idle")
                         else 1
                         if env.playback_mode
                         in {
@@ -299,6 +338,8 @@ async def test_actual_dart_native_live_stream_rollover(
                             "dependency_loss",
                             "dependency_held_speaker",
                             "controller_replacement",
+                            "session_reset",
+                            "session_delete",
                         }
                         else 3
                         if advanced
@@ -334,7 +375,10 @@ async def test_actual_dart_native_live_stream_rollover(
                     }:
                         assert not native.worker.ready and not native.dependency.ready
                         assert env.runtime.enabled
-                    if env.playback_mode in {"dependency_idle", "controller_idle"}:
+                    if env.playback_mode in {
+                        "dependency_idle",
+                        "controller_idle",
+                    } or env.playback_mode.endswith("_idle"):
                         assert env.tts_calls == [] and native.calls == []
                         assert env.store.read(kinds=["conversation.converse"]) == []
                         assert not any(path == "/v1/converse/speech" for _, path, _ in requests)
@@ -352,6 +396,9 @@ async def test_actual_dart_native_live_stream_rollover(
                         if path == "/v1/converse/speech"
                     ] == [("POST", "/v1/converse/speech", 200)]
                     replies = env.store.read(kinds=["conversation.converse"])
+                    if env.playback_mode == "session_delete":
+                        assert replies == []
+                        replies = scope_snapshot["replies"]
                     assert (
                         len(replies) == 1
                         and replies[0].payload["live_effect"] == "converse_backchannel"

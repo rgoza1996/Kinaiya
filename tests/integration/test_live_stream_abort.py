@@ -405,6 +405,44 @@ async def test_legacy_negative_contract_remains_unknown_for_replaced_controller(
         assert capture.cleanup_complete() and capture.native.lease.settled
 
 
+@pytest.mark.parametrize("lifecycle", ["reset", "delete"])
+async def test_retirement_after_native_session_scope_loss(converse_incremental_env, lifecycle):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        assert (await live.client.post(BASE + "/begin", json=initial)).status_code == 200
+        capture = live.app.state.live_streams.captures[initial["capture_id"]]
+        lease = capture.native.lease
+        getattr(env.store, lifecycle)(initial["session_id"])
+        state = await capture.mic.inspect()
+        assert not state.capture_open and not state.scope_current
+        assert state.original == capture.mic.original
+        observed = await live.client.post(
+            BASE + "/lookup",
+            json={
+                **{
+                    key: initial[key]
+                    for key in ("schema_version", "protocol", "owner_instance", "capture_id")
+                },
+                "phase": "begin",
+                "request_sha256": digest(initial),
+            },
+        )
+        assert observed.status_code == (409 if lifecycle == "delete" else 200)
+        if lifecycle == "reset":
+            assert not observed.json()["capture"]["capture_open"]
+        else:
+            assert state.receipt is state.fence is None
+        original = {**abort_body(initial, "replaced"), "protocol": "native_live_retire_v1"}
+        result = await live.client.post(BASE + "/retire-original", json=original)
+        assert result.status_code == 200
+        assert result.json()["outcome"] == "confirmed" and result.json()["cleanup_confirmed"]
+        assert result.json()["capture"] == state.model_dump(mode="json")
+        assert capture.native.lease is lease and lease.settled
+        assert not env.runtime.stt_model_settings.leases and live.calls == []
+        assert env.engine.begin_calls == 1 and env.engine.step == 0
+
+
 async def test_retirement_replacement_before_registration_keeps_original_task(
     converse_incremental_env,
     monkeypatch,

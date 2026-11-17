@@ -180,8 +180,8 @@ an old backend binding after a recoverable temporary Converse record retires.
 
 An original whose failed registration has no durable native row remains pinned
 in the bounded Converse registry. History pressure cannot erase its only cleanup
-proof. The existing total96 record ceiling still applies; exhaustion refuses
-new work. Recoverable terminal records retain their64-entry history target.
+proof. The existing total 96 record ceiling still applies; exhaustion refuses
+new work. Recoverable terminal records retain their 64-entry history target.
 This qualifies controller replacement within a surviving Converse owner, not
 the death/replacement of that service process or physical-device recovery.
 
@@ -201,6 +201,15 @@ a recognized source additionally requires its exact atomic pair and complete
 owner/capture/session/thread/epoch binding. Decoder completion, process release,
 ownership retirement and native permission remain separate observations.
 
+An original Session reset closes its previous epoch while retaining the native
+registration. Exact lookup can still show that closed original. Session deletion
+can remove the registration row while a decoder result remains retained. Its
+positive projection then refuses with 409 instead of inventing a registration or
+returning an invalid proof (#686). The separately enrolled retirement channel
+can observe the obsolete scope and qualify actual original cleanup. A refused
+lookup does not establish cleanup or permit positive replay. In-memory originals
+with no durable row remain retained under the existing total bound.
+
 Requests authenticate before bounded body acquisition and recheck credentials
 after acquisition, before effects. Identity JSON rejects query/duplicate envelope
 fields, duplicate JSON keys, nonfinite numbers, coerced counters and unknown
@@ -209,7 +218,7 @@ collection has a five-second deadline. Responses are uncached and bounded to
 448 KiB. Native PCM remains 1–16,000 contiguous samples per request, at most
 960,000 samples per decoder, with one pending original at a time.
 
-There are at most 32 active and 96 total logical captures, with a64-entry
+There are at most 32 active and 96 total logical captures, with a 64-entry
 recoverable terminal-history target and the existing bounded stream history per
 capture. Only permanently closed, actually retired captures with durable native
 recovery metadata can be removed for historical capacity. Native journal, permission and

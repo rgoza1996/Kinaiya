@@ -1,0 +1,167 @@
+{
+  "baseline": "05738eab7d18b193f807baf59c24c9914f69173e",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/686",
+  "runs": [
+    {
+      "name": "issue-623-session-scope-first",
+      "final_source_qualification": false,
+      "current_pins_match": false,
+      "exit_code": 1,
+      "log_archive": "logs/issue-623-session-scope-first.log.json",
+      "log_sha256": "2b8036f94fe0801eb0806b0f5959e3073d215625f019810ce6d9b6dc5d490e87",
+      "log_archive_sha256": "6cab51c52df050de7c750b5ed26d6bea7620845202c7763f7a9455499cc9f2b8",
+      "receipt": "logs/issue-623-session-scope-first-receipt.json",
+      "receipt_sha256": "14e3eb5c8670ab5bc6fd69ec14ae303d531b126b0c3b61772cc37e77ffb80a62"
+    },
+    {
+      "name": "issue-686-analyzer-final",
+      "final_source_qualification": true,
+      "current_pins_match": true,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-analyzer-final.log.json",
+      "log_sha256": "3aeface75d9d434a62a868963e0cf95a2f9ace594fd0d184f0ec208d567e1def",
+      "log_archive_sha256": "ef6d878af30b2a1a931e506e6fdc60c8627e8b29f35195a2c00ee6babb04cb77",
+      "receipt": "logs/issue-686-analyzer-final-receipt.json",
+      "receipt_sha256": "075f33dd9845e5da3220e2abd29332a453d74714aa1b15e45fc1c9f8759f9be6"
+    },
+    {
+      "name": "issue-686-format-final",
+      "final_source_qualification": true,
+      "current_pins_match": true,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-format-final.log.json",
+      "log_sha256": "7584403d78c9effa6daacc83638e235cbfd02fbab74c6934df7708e77bf6cf93",
+      "log_archive_sha256": "250c8c28c56590587274e2af4c1379d14340cd1e74ee0f5ec59a7ddb94230a08",
+      "receipt": "logs/issue-686-format-final-receipt.json",
+      "receipt_sha256": "cd1b02921e20efe230e60f854b2b16e48eed154152b19428881e3b9948d03010"
+    },
+    {
+      "name": "issue-686-full-frontend",
+      "final_source_qualification": true,
+      "current_pins_match": true,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-full-frontend.log.json",
+      "log_sha256": "de34caec920cfef2262733b9d140c31572993b0149d16049f10541f5f6cfda69",
+      "log_archive_sha256": "ba7b1f9afd729e1ebd0306c1d1fb5924cbf8abf861aec8547484da098fb52faf",
+      "receipt": "logs/issue-686-full-frontend-receipt.json",
+      "receipt_sha256": "3f7c720765fbdfd997a966c09551cfd9a0741a921fd5af666aacc963d139230b"
+    },
+    {
+      "name": "issue-686-native-dart-scope-first",
+      "final_source_qualification": false,
+      "current_pins_match": false,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-native-dart-scope-first.log.json",
+      "log_sha256": "b7ddacee7eadc9dbabf3419d6876502cc6810b0432d824da1c6a2190aa35823c",
+      "log_archive_sha256": "30be53e863d9febb73deb6cfed712c7fb0db7b815f30a2b915147aa204de9b0c",
+      "receipt": "logs/issue-686-native-dart-scope-first-receipt.json",
+      "receipt_sha256": "e3f81281066fa06d0f4999e549ae1fdef8c0f5b8136ca5403a2a718097e0a0da"
+    },
+    {
+      "name": "issue-686-native-scope-dict-repaired",
+      "final_source_qualification": false,
+      "current_pins_match": false,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-native-scope-dict-repaired.log.json",
+      "log_sha256": "7c57316e91a15a7df69241169fb8d67fee659e2191eb7a974a2189859ad77bf1",
+      "log_archive_sha256": "c0b806d9c745dd267711f86d9b33b4ef98495c9455ea992a5c928a669a3912e0",
+      "receipt": "logs/issue-686-native-scope-dict-repaired-receipt.json",
+      "receipt_sha256": "69575bd69d3796d5bc1d1513d4e38427f1aef018884252cf5a685403e8abefc6"
+    },
+    {
+      "name": "issue-686-native-scope-repaired",
+      "final_source_qualification": false,
+      "current_pins_match": false,
+      "exit_code": 1,
+      "log_archive": "logs/issue-686-native-scope-repaired.log.json",
+      "log_sha256": "05be5f036666f67f196bbf3b134282774ad93897e0a6b3e8aec4cf6fcd7eb621",
+      "log_archive_sha256": "f17e73dc07f5eca3fd915fe9f011e589d0bc08fd5b45b360a94207a398513433",
+      "receipt": "logs/issue-686-native-scope-repaired-receipt.json",
+      "receipt_sha256": "6cb71d192fa6ac0325aee899197a9a35990c71224be322f5eb88072357514dce"
+    },
+    {
+      "name": "issue-686-ruff-final",
+      "final_source_qualification": true,
+      "current_pins_match": true,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-ruff-final.log.json",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "receipt": "logs/issue-686-ruff-final-receipt.json",
+      "receipt_sha256": "3b2a0cee3274a4201fe583f8ad772b80c939227a29216d023809a3884fefc46f"
+    },
+    {
+      "name": "issue-686-scope-final-313",
+      "final_source_qualification": true,
+      "current_pins_match": true,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-scope-final-313.log.json",
+      "log_sha256": "dbb5758657fe01ba52a9555eed977e8df2413563dcaf9682b7487b5439787a69",
+      "log_archive_sha256": "c5990ce65752b1ee8e0d6ad399cb32e2ce92251ff9e387c73618cfe1450f61b5",
+      "receipt": "logs/issue-686-scope-final-313-receipt.json",
+      "receipt_sha256": "4f905d802981768365eaff342a8d289ba5aa90fca5cc857388615a19efdc0a7c"
+    },
+    {
+      "name": "issue-686-scope-final-314",
+      "final_source_qualification": true,
+      "current_pins_match": true,
+      "exit_code": 0,
+      "log_archive": "logs/issue-686-scope-final-314.log.json",
+      "log_sha256": "8c4fab943e380e62cbf5cc650d834b371f9d958e532829f414909d580dadd9b2",
+      "log_archive_sha256": "060982d89344f90ade6c30bdab47b8d8d63f5ff43fa38fb475c095a3a1cc96fd",
+      "receipt": "logs/issue-686-scope-final-314-receipt.json",
+      "receipt_sha256": "cea054f2d6d8d37fd79ce824bec25cf2ff7908769e3b9bd21eeeb0e5b325e8de"
+    }
+  ],
+  "first_sources": [
+    {
+      "path": "sources/issue-623-session-scope-first-api.py.txt",
+      "sha256": "f1d50f58ca4dd891fc4ea61c1359045f0f7762e97b1c8dacde6240d2fc98e875"
+    },
+    {
+      "path": "sources/issue-623-session-scope-first-capture.py.txt",
+      "sha256": "d2296d2707ecd78dda704edbd784ba7d75921de18e93c5aac2057a00620cbbf6"
+    },
+    {
+      "path": "sources/issue-623-session-scope-first-contracts.py.txt",
+      "sha256": "7067c6ad793045a30279f4388be0d650ff2ba89fd01a03e67a40c46e23f269bd"
+    },
+    {
+      "path": "sources/issue-623-session-scope-first-control.py.txt",
+      "sha256": "cece33b0fc96ed4f0e31e4742d9e1957457ce5467582e12fd6a84d92c545abfb"
+    },
+    {
+      "path": "sources/issue-623-session-scope-first-store.py.txt",
+      "sha256": "4669bc767305599cb821984a6bc5b84044beb0dcb8ddf67fd7e9792c3fd662e7"
+    },
+    {
+      "path": "sources/issue-686-guard-first-api.py.txt",
+      "sha256": "3834cccf5efd5a95611ed9cc2d1d2432b9c4fa7d251a06e9d18845630a5a9205"
+    }
+  ],
+  "code_sha256": {
+    "apps/kinaiya_flutter/test/adaptive_live_call_native_test.dart": "7f2ee4c5d494d4f4254b280d668f8083b3bb673c40339c34d78fff149f877dd0",
+    "services/converse/live_stream_api.py": "ae7d0f8eb056c6d5f489bd82ea90cbf4a4bcd0940e210cf39812963dbee66217",
+    "tests/integration/test_incremental_whistle_converse.py": "07139115a3cab0f0019af3f74af8df45b3c0fc5c7fff9b21c4b4c20f113b65cb",
+    "tests/integration/test_live_stream_abort.py": "cece33b0fc96ed4f0e31e4742d9e1957457ce5467582e12fd6a84d92c545abfb",
+    "tests/integration/test_live_stream_dart.py": "7f4a7c9989291a00d67ac342db08113fefb78f2be23a2191a81ef0281112a088"
+  },
+  "reused_production_checks": [
+    {
+      "receipt": "../native-capture-retirement-2026-11-17/logs/issue-685-browser-complete-receipt.json",
+      "receipt_sha256": "23f3ceddc68db37d0db31879abfb31c6213053db0a071ab1a7793361f49b4c09",
+      "scope": "Unchanged production frontend bytes; not a new all340-input run."
+    },
+    {
+      "receipt": "../native-capture-retirement-2026-11-17/logs/issue-685-retirement-web-build-receipt.json",
+      "receipt_sha256": "7614d87836903b5e210f272274747b4a66ceaa2d0623a63efc811b4b36faf380",
+      "scope": "Unchanged production frontend bytes; not a new all340-input run."
+    }
+  ],
+  "limitations": [
+    "Real native/HTTP/IPC with synthetic software audio; no physical audio or provider timing.",
+    "Session reset/deletion within surviving service processes; process replacement remains unqualified.",
+    "Six endpoint-dependent full-Flutter skips; four stream controls run separately through21 native/Dart scenarios.",
+    "Prior browser237/release web/Wasm dry-run apply to unchanged production bytes, not changed test inputs."
+  ]
+}

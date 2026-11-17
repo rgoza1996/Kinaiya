@@ -175,6 +175,11 @@ class LiveStreamRegistry:
         known = capture.originals.get((phase, sha))
         state, original = known if known is not None else (None, None)
         observed = await capture.mic.inspect() if capture.mic is not None else None
+        if native["outcome"] == "confirmed" and (observed is None or observed.receipt is None):
+            # Session deletion can remove registration while the original
+            # decoder result remains retained. Refuse this positive projection;
+            # the separate retirement channel still owns actual cleanup (#686).
+            raise HTTPException(409, "Original native capture registration is unavailable")
         return LiveStreamProof(
             schema_version="2.0",
             protocol="converse_live_stream_v2",

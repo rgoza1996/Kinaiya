@@ -98,6 +98,15 @@ after temporary Converse history retires. Originals with no durable native row
 retain their sole proof within the existing total registry bound; history
 pressure cannot erase them. See [native retirement](live-stream-capture.md#native-controller-replacement-and-retirement-685).
 
+Native Session reset/deletion also closes an active Call without fresh PCM or a
+bridge event. A deleted registration gives the positive stream lookup a
+structured 409 refusal; it does not fabricate old metadata. The original
+retirement channel still establishes closure and actual native cleanup. Both
+quiet and playing controls retain speaker/FIFO/Call ownership through the public
+deadline until the same local speaker-stop Future settles. These controls change
+the real native Session while leaving the local AppState scope unchanged; they
+do not simulate recovery by switching the frontend to a new conversation.
+
 The [qualification record](evidence/adaptive-call-integration-2026-11-17/README.md)
 retains commands, unchanged input pins, first failures and repairs. Actual
 Dart transport runs against fresh native HTTP, SQLite and synthetic Whistle IPC

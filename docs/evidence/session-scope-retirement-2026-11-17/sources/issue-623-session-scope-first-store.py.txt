@@ -1,0 +1,2243 @@
+"""The sole SQLite journal owner. Transactions establish sequence and provenance."""
+
+import copy
+import json
+import secrets
+import sqlite3
+import threading
+from contextlib import contextmanager
+from pathlib import Path
+
+from packages.contracts.agent_export import AgentExportAdmission, AgentExportRequest
+from packages.contracts.agent_submit import (
+    MAX_AGENT_SUBMIT_RESPONSE_BYTES,
+    AgentSubmitConflict,
+    AgentSubmitLookupRequest,
+    AgentSubmitLookupResult,
+    AgentSubmitReceipt,
+    AgentSubmitUnavailable,
+    agent_submit_json,
+    submit_entry,
+    submit_request,
+)
+from packages.contracts.context import (
+    MAX_CONTEXT_PAGE_BYTES,
+    ContextHistoryPage,
+    ContextHistoryRequest,
+    ContextQualificationPage,
+    ContextQualificationRequest,
+)
+from packages.contracts.models import (
+    MAX_PLAYBACK_GENERATION,
+    AppendRequest,
+    JournalEntry,
+    PlaybackGeneration,
+    Session,
+    SessionRequest,
+    SpeechWindow,
+    WindowDecision,
+)
+from packages.providers.disclosure import (
+    ContextScopeClosure,
+    combine_scopes,
+    context_revision_query,
+    context_source_id,
+    folded_source_scope,
+    scope_allowed,
+    validate_context_source,
+)
+from services.session.journal_wake import JournalWake, WakeConnection
+
+ALLOWED_KINDS = {
+    "owner": {
+        "conversation.user",
+        "conversation.window",
+        "conversation.revision",
+        "delivery.updated",
+    },
+    "converse": {
+        "conversation.window_capture",
+        "conversation.user",
+        "conversation.window",
+        "conversation.converse",
+        "conversation.revision",
+        "delivery.updated",
+        "converse.safety",
+        "converse.window_state",
+        "converse.synthesis",
+    },
+    "agent": {
+        "agent.command",
+        "agent.model_attempt",
+        "agent.retirement",
+        "agent.outcome",
+        "agent.tool",
+        "plugin.pinned",
+        "agent.state",
+        "approval.requested",
+        "approval.resolved",
+        "artifact.updated",
+    },
+    "decisions": {
+        "routing.live_window_decided",
+        "routing.decided",
+        "routing.classification_refused",
+        "routing.dispatch",
+        "routing.window_decided",
+        "routing.window_dispatch",
+        "routing.window_status",
+    },
+    "resources": {"resource.changed"},
+    "standing-supervisor": {"agent.standing-command"},
+}
+
+
+class JournalError(ValueError):
+    pass
+
+
+class Store:
+    def __init__(self, path: str | Path, *, decisions_max_attempts=2):
+        from packages.contracts.decisions_attempts import MAX_ATTEMPTS
+
+        if (
+            type(decisions_max_attempts) is not int
+            or not 1 <= decisions_max_attempts <= MAX_ATTEMPTS
+        ):
+            raise ValueError("decisions_max_attempts must be an integer from 1 to 16")
+        self.path = str(path)
+        self.lock = threading.RLock()
+        self._converse_context_validators = {}
+        self._media_owner = None
+        self._media_operations = None
+        self.journal_wake = JournalWake()
+        self.db = sqlite3.connect(self.path, check_same_thread=False, factory=WakeConnection)
+        self.db.wake_owner = self.journal_wake
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA foreign_keys=ON")
+        self.db.execute("PRAGMA journal_mode=WAL")
+        schema = """
+            CREATE TABLE IF NOT EXISTS schema_meta(version INTEGER NOT NULL);
+            INSERT INTO schema_meta(version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_meta);
+            CREATE TABLE IF NOT EXISTS sessions(
+                session_id TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS entries(
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL UNIQUE,
+                session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
+                thread_id TEXT NOT NULL, epoch INTEGER NOT NULL, kind TEXT NOT NULL,
+                writer TEXT NOT NULL, idem TEXT NOT NULL, request TEXT NOT NULL,
+                value TEXT NOT NULL, UNIQUE(session_id,writer,idem));
+            CREATE INDEX IF NOT EXISTS entries_thread ON entries(thread_id,sequence);
+            CREATE INDEX IF NOT EXISTS entries_session ON entries(session_id,sequence);
+            CREATE INDEX IF NOT EXISTS entries_context ON entries(
+                session_id, thread_id, epoch, kind, sequence);
+            CREATE INDEX IF NOT EXISTS entries_context_base ON entries(
+                session_id, thread_id, epoch, sequence)
+                WHERE kind IN ('conversation.user','conversation.window','conversation.converse');
+            CREATE INDEX IF NOT EXISTS entries_context_window ON entries(
+                session_id, thread_id, epoch,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.utterance_id') END,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.window_index') END,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.revision') END, sequence)
+                WHERE kind='conversation.window';
+            CREATE INDEX IF NOT EXISTS entries_context_revision ON entries(
+                session_id, thread_id, epoch,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.target_event_id') END, sequence)
+                WHERE kind='conversation.revision';
+            CREATE INDEX IF NOT EXISTS entries_context_receipt ON entries(
+                session_id, thread_id, epoch,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.event_id') END, sequence)
+                WHERE kind='delivery.updated';
+            CREATE INDEX IF NOT EXISTS entries_context_stop ON entries(
+                session_id, thread_id, epoch,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.runtime_id') END,
+                CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.next_generation_epoch') END, sequence)
+                WHERE kind='delivery.updated'
+                AND CASE WHEN json_valid(value) THEN json_extract(value,'$.payload.control') END='generation_stop';
+            CREATE INDEX IF NOT EXISTS entries_window_dispatch ON entries(
+                json_extract(value,'$.payload.decision_id'), sequence)
+                WHERE kind='routing.window_dispatch';
+            CREATE INDEX IF NOT EXISTS entries_window_semantic ON entries(
+                session_id, json_extract(value,'$.payload.semantic_key'), sequence)
+                WHERE kind='routing.window_dispatch';
+            CREATE INDEX IF NOT EXISTS entries_window_decision_source ON entries(
+                json_extract(value,'$.payload.source_event_id'), sequence)
+                WHERE kind='routing.window_decided';
+            CREATE INDEX IF NOT EXISTS entries_window_status_source ON entries(
+                json_extract(value,'$.payload.source_event_id'),
+                json_extract(value,'$.payload.phase'), sequence)
+                WHERE kind='routing.window_status';
+            CREATE INDEX IF NOT EXISTS entries_window_backlog ON entries(session_id, sequence)
+                WHERE kind='conversation.window';
+            CREATE INDEX IF NOT EXISTS entries_live_capture_source ON entries(
+                json_extract(value,'$.payload.source_event_id'),sequence)
+                WHERE kind='conversation.window_capture' AND writer='converse';
+            CREATE INDEX IF NOT EXISTS entries_live_capture_scope ON entries(
+                session_id,epoch,json_extract(value,'$.payload.original.utterance_id'),sequence)
+                WHERE kind='conversation.window_capture' AND writer='converse';
+            CREATE TABLE IF NOT EXISTS cursors(
+                writer TEXT NOT NULL, consumer TEXT NOT NULL, sequence INTEGER NOT NULL,
+                PRIMARY KEY(writer,consumer));
+            CREATE TABLE IF NOT EXISTS agent_submit_slots(
+                session_id TEXT NOT NULL,
+                logical_key TEXT NOT NULL,
+                event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE,
+                PRIMARY KEY(session_id, logical_key));
+        """
+        try:
+            # The creation capability and durable pending origin are decided
+            # under the same SQLite writer boundary as the first base schema.
+            # executescript would implicitly commit that boundary before DDL.
+            self.db.execute("BEGIN IMMEDIATE")
+            new_store = not self.db.execute(
+                "SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
+            ).fetchone()
+            if new_store:
+                self.db.execute(
+                    "CREATE TABLE schema_meta(version INTEGER NOT NULL,"
+                    "agent_control_version INTEGER,agent_control_backend TEXT NOT NULL)"
+                )
+                self.db.execute("INSERT INTO schema_meta VALUES(1,0,?)", (secrets.token_hex(16),))
+            statement = ""
+            for line in schema.splitlines(keepends=True):
+                statement += line
+                if sqlite3.complete_statement(statement):
+                    self.db.execute(statement)
+                    statement = ""
+            if statement.strip():
+                raise JournalError("Incomplete native schema initialization")
+            if self.db.execute("SELECT version FROM schema_meta").fetchone()[0] != 1:
+                raise JournalError(
+                    "Unsupported database version; preserve the database before migration"
+                )
+            self.db.commit()
+        except BaseException:
+            try:
+                self.db.rollback()
+            finally:
+                self.db.close()
+            raise
+        self._agent_control_default_bootstrap = new_store
+        self._agent_submit_ready = False
+        self._agent_submit_unavailable = False
+        from services.session.decisions_store import DecisionsInspectionStore
+
+        self.decisions = DecisionsInspectionStore(self)
+        from services.session.decisions_attempts import DecisionsAttemptStore
+
+        self.decisions_attempts = DecisionsAttemptStore(self, decisions_max_attempts)
+        from services.session.agent_control import AgentControl
+
+        self.agent_control = AgentControl(self, new_store=new_store)
+        from services.session.live_captures import LiveCaptureStore
+
+        self.live_captures = LiveCaptureStore(self)
+        from services.session.live_decisions_attempts import LiveDecisionsAttemptStore
+
+        self.live_decisions_attempts = LiveDecisionsAttemptStore(self, decisions_max_attempts)
+        from services.session.live_effects import LiveEffectStore
+
+        self.live_effects = LiveEffectStore(self)
+
+    def register_converse_context_validator(self, implementation_id, callback):
+        """Trusted startup only; registration never imports a memory backend."""
+        import inspect
+
+        from pydantic import TypeAdapter
+
+        from packages.contracts.memory import Identifier
+
+        try:
+            name = TypeAdapter(Identifier).validate_python(implementation_id)
+        except ValueError:
+            raise ValueError("Invalid Converse context validator name") from None
+        if (
+            not callable(callback)
+            or inspect.iscoroutinefunction(callback)
+            or inspect.iscoroutinefunction(type(callback).__call__)
+        ):
+            raise ValueError("Converse context validator must be synchronous")
+        with self.lock:
+            if (
+                name in self._converse_context_validators
+                or len(self._converse_context_validators) >= 4
+            ):
+                raise ValueError("Converse context validator registration is unavailable")
+            self._converse_context_validators[name] = callback
+
+    @staticmethod
+    def _memory_context_pin(request, role):
+        if "memory_context" not in request.payload:
+            return None
+        from pydantic import TypeAdapter
+
+        from packages.contracts.memory import Identifier
+        from packages.contracts.memory_context import MemoryContextPin
+
+        try:
+            raw = json.dumps(
+                request.payload["memory_context"],
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            if (
+                len(raw) > 2048
+                or role != "converse"
+                or request.kind != "conversation.converse"
+                or request.payload.get("content_scope") != "local_only"
+                or request.payload.get("final") is not True
+                or not isinstance(request.payload.get("text"), str)
+            ):
+                raise ValueError
+            TypeAdapter(Identifier).validate_python(request.payload.get("runtime_id"))
+            return MemoryContextPin.model_validate(request.payload["memory_context"])
+        except (ValueError, TypeError, RecursionError):
+            raise JournalError("Invalid Converse memory context provenance") from None
+
+    def create_session(self, request: SessionRequest) -> Session:
+        session = Session(
+            channel=request.channel, name=request.name, harness_version=request.harness_version
+        )
+        with self.lock, self.db:
+            self.db.execute(
+                "INSERT INTO sessions VALUES (?,?)", (session.session_id, session.model_dump_json())
+            )
+        return session
+
+    def session(self, session_id: str) -> Session:
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM sessions WHERE session_id=?", (session_id,)
+            ).fetchone()
+        if not row:
+            raise KeyError(session_id)
+        return Session.model_validate_json(row[0])
+
+    def sessions(self) -> list[Session]:
+        with self.lock:
+            return [
+                Session.model_validate_json(row[0])
+                for row in self.db.execute(
+                    "SELECT value FROM sessions ORDER BY rowid DESC LIMIT 200"
+                )
+            ]
+
+    def sessions_page(self, **kwargs):
+        from packages.contracts.agent_workspace import AgentSessionPage, AgentSessionPageRequest
+
+        request = AgentSessionPageRequest(**kwargs)
+        clauses = ["json_extract(value, '$.channel') = ?"]
+        args = ["agent"]
+        if request.harness_version == "unassociated":
+            clauses.append("json_extract(value, '$.harness_version') IS NULL")
+        elif request.harness_version is not None:
+            clauses.append("json_extract(value, '$.harness_version') = ?")
+            args.append(request.harness_version)
+        if request.after is not None:
+            cursor = int(request.after)
+            if cursor > 9_223_372_036_854_775_807:
+                raise ValueError("Invalid session cursor")
+            clauses.append("rowid < ?")
+            args.append(cursor)
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT rowid, value FROM sessions WHERE "
+                + " AND ".join(clauses)
+                + " ORDER BY rowid DESC LIMIT ?",
+                (*args, request.limit + 1),
+            ).fetchall()
+        return AgentSessionPage(
+            items=[Session.model_validate_json(row[1]) for row in rows[: request.limit]],
+            next_cursor=str(rows[request.limit - 1][0]) if len(rows) > request.limit else None,
+        ).validate_request(request)
+
+    def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
+        """Recover native allocation metadata, independent of conversational context.
+
+        The existing session index bounds the scope, not the amount of retained
+        metadata work. Stream the selected rows; never return transcript bodies.
+        """
+        if (
+            not isinstance(session_id, str)
+            or not 1 <= len(session_id) <= 128
+            or not isinstance(thread_id, str)
+            or not 1 <= len(thread_id) <= 128
+            or type(epoch) is not int
+            or epoch < 1
+        ):
+            raise JournalError("Invalid playback-generation scope")
+        with self.lock:
+            session = self.session(session_id)
+            if session.channel != "converse" or (session.thread_id, session.epoch) != (
+                thread_id,
+                epoch,
+            ):
+                raise JournalError("Stale or wrong playback-generation scope")
+            maximum = 0
+            rows = None
+            try:
+                rows = self.db.execute(
+                    """SELECT kind,
+                        CASE WHEN
+                            json_type(value,'$.payload')='object'
+                            AND json_type(value,'$.event_id')='text'
+                            AND json_extract(value,'$.event_id')=event_id
+                            AND json_type(value,'$.sequence')='integer'
+                            AND json_extract(value,'$.sequence')=sequence
+                            AND json_type(value,'$.session_id')='text'
+                            AND json_extract(value,'$.session_id')=session_id
+                            AND json_type(value,'$.thread_id')='text'
+                            AND json_extract(value,'$.thread_id')=thread_id
+                            AND json_type(value,'$.epoch')='integer'
+                            AND json_extract(value,'$.epoch')=epoch
+                            AND json_extract(value,'$.kind')=kind
+                            AND json_extract(value,'$.origin')=CASE
+                                WHEN kind='conversation.user' THEN 'authenticated-user'
+                                ELSE 'converse' END
+                        THEN 1 ELSE 0 END AS identity_matches,
+                        json_type(value,'$.payload.generation_epoch') AS generation_type,
+                        json_extract(value,'$.payload.generation_epoch') AS generation,
+                        CASE WHEN kind='delivery.updated' THEN
+                            json_type(value,'$.payload.next_generation_epoch') END AS next_type,
+                        CASE WHEN kind='delivery.updated' THEN
+                            json_extract(value,'$.payload.next_generation_epoch') END AS next_generation
+                        FROM entries WHERE session_id=? AND thread_id=? AND epoch=?
+                        AND writer='converse' AND kind IN (
+                            'conversation.user','conversation.converse','converse.safety',
+                            'converse.window_state','delivery.updated')""",
+                    (session_id, thread_id, epoch),
+                )
+                for row in rows:
+                    if not row["identity_matches"]:
+                        raise JournalError("Native playback metadata identity is corrupt")
+                    for type_key, value_key in (
+                        ("generation_type", "generation"),
+                        ("next_type", "next_generation"),
+                    ):
+                        field_type, counter = row[type_key], row[value_key]
+                        if field_type in {None, "null"}:
+                            continue
+                        if (
+                            field_type != "integer"
+                            or type(counter) is not int
+                            or not 0 <= counter <= MAX_PLAYBACK_GENERATION
+                        ):
+                            raise JournalError(
+                                "Native playback counter is corrupt or unrepresentable"
+                            )
+                        maximum = max(maximum, counter)
+            except sqlite3.Error as exc:
+                raise JournalError("Native playback metadata read failed") from exc
+            finally:
+                if rows is not None:
+                    rows.close()
+            current = self.session(session_id)
+            if current.channel != "converse" or (current.thread_id, current.epoch) != (
+                thread_id,
+                epoch,
+            ):
+                raise JournalError("Session changed during playback-generation read")
+            return PlaybackGeneration(
+                session_id=session_id,
+                thread_id=thread_id,
+                epoch=epoch,
+                maximum_generation=maximum,
+            )
+
+    def register_media_owner(self, owner):
+        """Retain original custody; this registration grants no media admission."""
+        from services.session.media_owner import MediaSessionOwner
+
+        if type(owner) is not MediaSessionOwner or owner.belongs_to_store(self) is not True:
+            raise JournalError("Native media owner registration is unavailable")
+        with self.lock:
+            if self._media_owner is not None and self._media_owner is not owner:
+                raise JournalError("An original native media owner is already registered")
+            self._media_owner = owner
+
+    def register_media_operations(self, operations):
+        from services.session.media_api import MediaOperations
+
+        if type(operations) is not MediaOperations:
+            raise JournalError("Native media operation registration is unavailable")
+        with self.lock:
+            if self._media_owner is None:
+                raise JournalError("Native media operation owner is unavailable")
+            if operations.owner is not self._media_owner:
+                raise JournalError("Native media operation owner does not match")
+            if self._media_operations is not None and self._media_operations is not operations:
+                raise JournalError("Original native media operations are already registered")
+            self._media_operations = operations
+
+    def media_close_confirmed(self):
+        """Read native positive-close latches, without I/O or inferred settlement."""
+        with self.lock:
+            return (
+                self._media_owner is None or self._media_owner.store_close_confirmed() is True
+            ) and (
+                self._media_operations is None
+                or self._media_operations.store_close_confirmed() is True
+            )
+
+    def _media_guard_locked(self, session_id):
+        """Missing optional runtime cannot bypass persisted original obligations."""
+        if self._media_owner is not None:
+            return self._media_owner
+        try:
+            present = self.db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND (substr(name,1,6)='media_' OR substr(name,1,16)='native_media_v2_') LIMIT 1"
+            ).fetchone()
+        except sqlite3.Error:
+            raise JournalError("Native media metadata is unavailable") from None
+        if present is not None:
+            # Only the original runtime can validate complete scoped custody.
+            # A surviving reservation/dependency/preparation table also blocks
+            # deletion or epoch reset when the optional runtime is absent.
+            raise JournalError("The original native media owner is unavailable")
+        return None
+
+    def reset(self, session_id: str, *, _media_change=None) -> Session:
+        owner = self._media_owner
+        if owner is None:
+            if _media_change is not None:
+                raise JournalError("The original native media owner is unavailable")
+            with self.lock, self.db:
+                if self._media_guard_locked(session_id) is not None:
+                    raise JournalError("Native media owner changed before Session reset")
+                session = self.session(session_id)
+                session.epoch += 1
+                self.db.execute(
+                    "UPDATE sessions SET value=? WHERE session_id=?",
+                    (session.model_dump_json(), session_id),
+                )
+            return session
+
+        # Enrollment installs the negative RAM gate before waiting for SQLite.
+        # A retained API controller passes its SAME original token to this call.
+        change = (
+            owner.begin_session_change(session_id, "reset")
+            if _media_change is None
+            else owner.validate_session_change(_media_change, session_id, "reset")
+        )
+        operations, failed = (), False
+        try:
+            with self.lock:
+                if self._media_guard_locked(session_id) is not owner:
+                    raise JournalError("Native media owner changed before Session reset")
+                with owner.session_change_transaction(change, "reset") as view:
+                    if view.replayed:
+                        session = view.result
+                        if session is None:
+                            raise JournalError("Original Session reset result is unavailable")
+                    else:
+                        session = view.session
+                        operations = owner.fence_session_locked(session, "reset")
+                        session.epoch += 1
+                        self.db.execute(
+                            "UPDATE sessions SET value=? WHERE session_id=?",
+                            (session.model_dump_json(), session_id),
+                        )
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            if operations:
+                # Preserve the original transaction failure if retirement also
+                # fails. Empty requests cannot clear a prior unknown latch.
+                try:
+                    owner.request_session_retirements(operations)
+                except BaseException:
+                    if not failed:
+                        raise
+        # The native wrapper has confirmed commit and the actual E+1 result.
+        return session
+
+    def delete(self, session_id: str, *, _media_change=None):
+        owner = self._media_owner
+        if owner is None:
+            if _media_change is not None:
+                raise JournalError("The original native media owner is unavailable")
+            with self.lock, self.db:
+                if self._media_guard_locked(session_id) is not None:
+                    raise JournalError("Native media owner changed before Session deletion")
+                if (
+                    self.db.execute(
+                        "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
+                        (session_id,),
+                    ).fetchone()
+                    is not None
+                ):
+                    raise JournalError("Admitted standing task history must be retained")
+                self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+            return
+
+        change = (
+            owner.begin_session_change(session_id, "deleted")
+            if _media_change is None
+            else owner.validate_session_change(_media_change, session_id, "deleted")
+        )
+        operations, failed = (), False
+        try:
+            with self.lock:
+                if self._media_guard_locked(session_id) is not owner:
+                    raise JournalError("Native media owner changed before Session deletion")
+                with owner.session_change_transaction(change, "delete_fence") as view:
+                    if not view.replayed:
+                        operations = owner.fence_session_locked(view.session, "deleted")
+        except BaseException:
+            failed = True
+            raise
+        finally:
+            if operations:
+                try:
+                    owner.request_session_retirements(operations)
+                except BaseException:
+                    if not failed:
+                        raise
+        # A committed fence survives a refused final deletion. Retrying the
+        # same original skips its fence DML and repeats only the settled check.
+        with self.lock:
+            if self._media_guard_locked(session_id) is not owner:
+                raise JournalError("Native media owner changed during Session deletion")
+            with owner.session_change_transaction(change, "delete_finalize") as view:
+                if not view.replayed:
+                    owner.require_delete_settled_locked(view.session)
+                    if (
+                        self.db.execute(
+                            "SELECT 1 FROM entries WHERE session_id=? AND kind='agent.standing-command' LIMIT 1",
+                            (session_id,),
+                        ).fetchone()
+                        is not None
+                    ):
+                        raise JournalError("Admitted standing task history must be retained")
+                    self.db.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+
+    def entry(self, event_id: str) -> JournalEntry:
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE event_id=?", (event_id,)
+            ).fetchone()
+        if not row:
+            raise KeyError(event_id)
+        return JournalEntry.model_validate_json(row[0])
+
+    def _agent_source_scope(self, original, resolved):
+        """Read a complete bounded source chain while admission holds the lock."""
+        if original.kind == "conversation.window":
+            window = SpeechWindow.model_validate(resolved.payload)
+            revisions = self.read(
+                session_id=original.session_id,
+                thread_id=original.thread_id,
+                epoch=original.epoch,
+                kinds=["conversation.window"],
+                utterance_id=window.utterance_id,
+                window_index=window.window_index,
+                limit=200,
+            )
+        elif original.kind == "conversation.user":
+            revisions = self.read(
+                after=original.sequence,
+                session_id=original.session_id,
+                kinds=["conversation.revision"],
+                limit=200,
+            )
+        else:
+            revisions = []
+        return folded_source_scope(original, resolved, revisions, require_complete=True)
+
+    def _agent_context_scope(self, event_id, request, *, closure=None):
+        # The admission caller holds self.lock across every retained root and
+        # its causes. Share one bound so many roots cannot multiply the limit.
+        if closure is None:
+            closure = ContextScopeClosure(request.session_id, request.thread_id, request.epoch)
+        closure.queue(event_id)
+        while (current_id := closure.next_event_id()) is not None:
+            entry = self.entry(current_id)
+            if entry.event_id != current_id:
+                raise ValueError("Native context provenance is unavailable")
+            source_id = context_source_id(entry)
+            original = entry if source_id == current_id else self.entry(source_id)
+            resolved = self.resolve(source_id)
+            validate_context_source(entry, original)
+            validate_context_source(entry, resolved)
+            query = context_revision_query(original, resolved)
+            revisions = self.read(**query) if query is not None else []
+            closure.observe(entry, original, resolved, revisions)
+        return closure.scope
+
+    def agent_export_admission(self, request: AgentExportRequest) -> AgentExportAdmission:
+        """Linearize one request's source admission under the native journal lock.
+
+        This read changes no journal/task state and stores no prompt. The
+        receipt describes this point in time, not a reusable bearer permit or
+        a promise to recall a request after its upload has been admitted.
+        """
+        request = AgentExportRequest.model_validate(request)
+        try:
+            with self.lock:
+                # A standing initial cannot acquire disclosure authority by
+                # presenting the old owner/Decisions packet, even if one native
+                # projection or the initial entry is missing/corrupted.
+                try:
+                    standing = self.db.execute(
+                        "WITH native AS (SELECT kind,writer,"
+                        "CASE WHEN typeof(request)='text' AND length(CAST(request AS BLOB)) "
+                        "BETWEEN 1 AND 65536 THEN CASE WHEN json_valid(request) THEN request END "
+                        "END AS req,"
+                        "CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB)) "
+                        "BETWEEN 1 AND 69632 THEN CASE WHEN json_valid(value) THEN value END "
+                        "END AS val FROM entries) "
+                        "SELECT 1 FROM native WHERE (kind='agent.standing-command' "
+                        "OR writer='standing-supervisor' "
+                        "OR json_extract(req,'$.kind')='agent.standing-command' "
+                        "OR json_extract(val,'$.kind')='agent.standing-command') AND ("
+                        "req IS NULL OR val IS NULL "
+                        "OR coalesce(json_type(req,'$.payload.task_id'),'')!='text' "
+                        "OR coalesce(json_type(val,'$.payload.task_id'),'')!='text' "
+                        "OR json_extract(req,'$.payload.task_id')=? "
+                        "OR json_extract(val,'$.payload.task_id')=? "
+                        "OR EXISTS(SELECT 1 FROM json_each(req,'$.task_refs') "
+                        "WHERE type='text' AND value=?) "
+                        "OR EXISTS(SELECT 1 FROM json_each(val,'$.task_refs') "
+                        "WHERE type='text' AND value=?)) LIMIT 1",
+                        (request.task_id,) * 4,
+                    ).fetchone()
+                    table = self.db.execute(
+                        "SELECT type FROM sqlite_schema WHERE name='standing_task_admissions'"
+                    ).fetchone()
+                    if table is not None:
+                        if table["type"] != "table":
+                            raise JournalError("Standing export authority is unavailable")
+                        from packages.contracts.standing_admission import StandingInitialProof
+                        from packages.contracts.standing_work import canonical_bytes
+
+                        links = self.db.execute(
+                            "SELECT CASE WHEN typeof(claim_id)='text' "
+                            "AND length(CAST(claim_id AS BLOB))=64 THEN claim_id END AS claim_id,"
+                            "CASE WHEN typeof(event_id)='text' "
+                            "AND length(CAST(event_id AS BLOB)) BETWEEN 1 AND 512 "
+                            "THEN event_id END AS event_id,"
+                            "CASE WHEN typeof(sequence)='integer' THEN sequence END AS sequence,"
+                            "CASE WHEN typeof(proof)='text' "
+                            "AND length(CAST(proof AS BLOB)) BETWEEN 1 AND 163840 "
+                            "THEN proof END AS body FROM standing_task_admissions LIMIT 2"
+                        ).fetchall()
+                        if len(links) > 1:
+                            raise JournalError("Standing export authority is unavailable")
+                        linked = None
+                        for link in links:
+                            if type(link["body"]) is not str:
+                                raise JournalError("Standing export authority is unavailable")
+                            proof = StandingInitialProof.from_json(link["body"].encode("utf-8"))
+                            if (
+                                proof.canonical_bytes().decode("utf-8") != link["body"]
+                                or link["claim_id"] != proof.claim.claim_id
+                                or link["event_id"] != proof.event_id
+                                or type(link["sequence"]) is not int
+                                or link["sequence"] != proof.sequence
+                            ):
+                                raise JournalError("Standing export authority is unavailable")
+                            claims = self.db.execute(
+                                "SELECT CASE WHEN typeof(claim)='text' "
+                                "AND length(CAST(claim AS BLOB)) BETWEEN 1 AND 147456 "
+                                "THEN claim END AS body FROM standing_execution_claims "
+                                "WHERE claim_id=? LIMIT 2",
+                                (proof.claim.claim_id,),
+                            ).fetchall()
+                            if len(claims) != 1 or claims[0]["body"] != canonical_bytes(
+                                proof.claim
+                            ).decode("utf-8"):
+                                raise JournalError("Standing export authority is unavailable")
+                            if proof.claim.request.task.task_id == request.task_id:
+                                linked = True
+                    else:
+                        linked = None
+                    if standing is not None or linked is not None:
+                        raise JournalError("Standing tasks require standing export admission")
+                except Exception:
+                    raise JournalError("Standing export authority is unavailable") from None
+                session = self.session(request.session_id)
+                if (session.thread_id, session.epoch) != (request.thread_id, request.epoch):
+                    raise JournalError("Agent export source authority is unavailable")
+                scopes = [request.content_scope]
+                for source_id in request.source_event_ids:
+                    original = self.entry(source_id)
+                    resolved = self.resolve(source_id)
+                    if (
+                        (original.session_id, original.thread_id, original.epoch)
+                        != (request.session_id, request.thread_id, request.epoch)
+                        or (resolved.session_id, resolved.thread_id, resolved.epoch)
+                        != (request.session_id, request.thread_id, request.epoch)
+                        or original.kind not in {"conversation.user", "conversation.window"}
+                        or resolved.kind != original.kind
+                        or original.origin != "authenticated-user"
+                        or resolved.origin != "authenticated-user"
+                        or type(resolved.payload.get("revision", 1)) is not int
+                        or resolved.payload.get("revision", 1)
+                        != request.source_revisions[source_id]
+                        or not isinstance(resolved.payload.get("text"), str)
+                        or not resolved.payload["text"].strip()
+                    ):
+                        raise JournalError("Agent export source authority is unavailable")
+                    if original.kind == "conversation.window":
+                        window = SpeechWindow.model_validate(resolved.payload)
+                        if (window.session_id, window.thread_id, window.epoch) != (
+                            request.session_id,
+                            request.thread_id,
+                            request.epoch,
+                        ):
+                            raise JournalError("Agent export source authority is unavailable")
+                        latest = self.latest_window(
+                            request.session_id, request.epoch, window.utterance_id
+                        )
+                        if (
+                            latest is None
+                            or latest.origin != "authenticated-user"
+                            or latest.thread_id != request.thread_id
+                            or latest.payload.get("text") != window.text
+                        ):
+                            raise JournalError("Agent export source authority is unavailable")
+                        # Later flags may retain the same text, but must not
+                        # revive disclosure withdrawn by the latest window.
+                        scopes.append(latest.payload.get("content_scope", "local_only"))
+                        control = self.window_control(
+                            request.session_id, request.epoch, agent_interrupt=True
+                        )
+                        if control is not None and (
+                            control.origin != "decisions"
+                            or type(control.payload.get("source_sequence")) is not int
+                            or control.payload["source_sequence"] > resolved.sequence
+                        ):
+                            raise JournalError("Agent export source authority is unavailable")
+                    else:
+                        if resolved.payload.get("final") is not True:
+                            raise JournalError("Agent export source authority is unavailable")
+                    scopes.append(self._agent_source_scope(original, resolved))
+                context_closure = ContextScopeClosure(
+                    request.session_id, request.thread_id, request.epoch
+                )
+                for event_id in request.context_event_ids:
+                    scopes.append(
+                        self._agent_context_scope(event_id, request, closure=context_closure)
+                    )
+                effective = combine_scopes(*scopes)
+                if not scope_allowed(request.provider, effective):
+                    raise PermissionError("Agent export disclosure is not permitted")
+                sequence = self.db.execute(
+                    "SELECT coalesce(max(sequence),0) FROM entries"
+                ).fetchone()[0]
+                return AgentExportAdmission(
+                    **request.model_dump(mode="python"),
+                    binding_sha256=request.binding_digest(),
+                    effective_scope=effective,
+                    journal_sequence=sequence,
+                ).validate_request(request)
+        except (KeyError, ValueError, sqlite3.Error) as exc:
+            raise JournalError("Agent export source authority is unavailable") from exc
+
+    def _append_entry_locked(self, request: AppendRequest, role: str) -> JournalEntry:
+        """Transaction-neutral core; caller holds lock and a write transaction."""
+        if request.kind not in ALLOWED_KINDS.get(role, set()):
+            raise PermissionError("Writer cannot publish this event kind")
+        pin = self._memory_context_pin(request, role)
+        encoded = request.model_dump_json()
+        if len(encoded.encode()) > 65536:
+            raise JournalError("Entry exceeds 64 KiB; store large artifacts by reference")
+        session = self.session(request.session_id)
+        if (request.epoch, request.thread_id) != (session.epoch, session.thread_id):
+            raise JournalError("Stale epoch or wrong session thread")
+        if request.kind == "agent.model_attempt":
+            from services.session.auxiliary_attempts import validate_attempt
+
+            try:
+                validate_attempt(self, request)
+            except (ValueError, KeyError, TypeError, UnicodeError, RecursionError) as exc:
+                raise JournalError("Invalid native auxiliary attempt provenance") from exc
+        if request.kind == "converse.synthesis" or (
+            request.kind == "delivery.updated"
+            and {"tts_model", "tts_operation_id"}.intersection(request.payload)
+        ):
+            from services.session.tts_provenance import validate_tts
+
+            try:
+                validate_tts(self, request, role)
+            except (ValueError, KeyError, TypeError, UnicodeError, RecursionError) as exc:
+                raise JournalError("Invalid native speech provenance") from exc
+        if pin is not None and session.channel != "converse":
+            raise JournalError("Memory context requires a Converse session")
+        if request.kind == "conversation.window":
+            from services.session.live_windows import guard_window
+
+            try:
+                window = SpeechWindow.model_validate(request.payload)
+            except ValueError as exc:
+                raise JournalError("Invalid transcript-window payload") from exc
+            guard_window(self, request, window)
+            if window.stt_model is not None and role != "converse":
+                raise JournalError(
+                    "Only native Converse audio admission may publish STT provenance"
+                )
+            if session.channel != "converse" or (
+                window.session_id,
+                window.thread_id,
+                window.epoch,
+            ) != (request.session_id, request.thread_id, request.epoch):
+                raise JournalError("Wrong transcript-window scope")
+            previous = self._window_row(
+                window.session_id, window.epoch, window.utterance_id, window.window_index
+            )
+            if previous is not None:
+                prior = SpeechWindow.model_validate(previous.payload)
+                if window.revision == prior.revision and window == prior:
+                    return previous
+                if window.revision != prior.revision + 1:
+                    raise JournalError("Window revision must increase by one")
+            elif window.revision != 1:
+                raise JournalError("The first window revision must be one")
+        elif request.kind == "conversation.window_capture":
+            from services.session.live_windows import validate_capture
+
+            validate_capture(self, request, role)
+        elif request.kind == "routing.live_window_decided":
+            from services.session.live_decisions_attempts import validate_live_outcome
+
+            validate_live_outcome(request, role)
+        elif request.kind == "routing.window_decided":
+            try:
+                decision = WindowDecision.model_validate(request.payload)
+            except ValueError as exc:
+                raise JournalError("Invalid window decision payload") from exc
+            from services.session.live_windows import guard_legacy_decision
+
+            guard_legacy_decision(self, decision.source_event_id)
+            source = self.resolve(decision.source_event_id)
+            if (
+                source.kind != "conversation.window"
+                or source.origin != "authenticated-user"
+                or (
+                    source.session_id,
+                    source.thread_id,
+                    source.epoch,
+                    source.sequence,
+                    source.payload.get("revision"),
+                    request.causes,
+                )
+                != (
+                    request.session_id,
+                    request.thread_id,
+                    request.epoch,
+                    decision.source_sequence,
+                    decision.source_revision,
+                    [decision.source_event_id],
+                )
+            ):
+                raise JournalError("Window decision does not bind an authenticated source")
+        elif request.kind == "routing.window_status":
+            payload = request.payload
+            source_id = payload.get("source_event_id")
+            if (
+                not isinstance(source_id, str)
+                or not 1 <= len(source_id) <= 128
+                or payload.get("phase")
+                not in {
+                    "classifying",
+                    "retrying",
+                    "classified",
+                    "busy",
+                    "error",
+                    "superseded",
+                    "expired",
+                    "obsolete",
+                    "agent_unavailable",
+                }
+                or not isinstance(payload.get("reason"), str)
+                or not 1 <= len(payload["reason"]) <= 120
+                or (
+                    "attempt" in payload
+                    and (type(payload["attempt"]) is not int or payload["attempt"] not in (1, 2))
+                )
+            ):
+                raise JournalError("Invalid window status payload")
+            from services.session.live_windows import guard_legacy_decision
+
+            guard_legacy_decision(self, source_id)
+            source = self.entry(source_id)
+            if (
+                source.kind != "conversation.window"
+                or source.origin != "authenticated-user"
+                or (source.session_id, source.thread_id, source.epoch, [source.event_id])
+                != (request.session_id, request.thread_id, request.epoch, request.causes)
+                or (
+                    "source_sequence" in payload
+                    and (
+                        type(payload["source_sequence"]) is not int
+                        or payload["source_sequence"] != source.sequence
+                    )
+                )
+                or (
+                    "source_revision" in payload
+                    and (
+                        type(payload["source_revision"]) is not int
+                        or payload["source_revision"] != source.payload.get("revision", 1)
+                    )
+                )
+            ):
+                raise JournalError("Window status does not bind an authenticated source")
+        row = self.db.execute(
+            "SELECT request,value FROM entries WHERE session_id=? AND writer=? AND idem=?",
+            (request.session_id, role, request.idempotency_key),
+        ).fetchone()
+        if row:
+            if json.loads(row[0]) != json.loads(encoded):
+                raise JournalError("Idempotency key reused with different content")
+            return JournalEntry.model_validate_json(row[1])
+        for event_id in request.causes:
+            source = self.entry(event_id)
+            if source.session_id != request.session_id or source.epoch != request.epoch:
+                raise JournalError("Causal reference outside current session epoch")
+        if request.kind in {"conversation.user", "conversation.converse"}:
+            if not isinstance(request.payload.get("text"), str):
+                raise JournalError("Conversation requires text")
+            if request.payload.get("final") is not True:
+                raise JournalError("Only finalized conversation enters the routing journal")
+        if request.kind == "conversation.revision":
+            target = self.entry(request.payload.get("target_event_id", ""))
+            if target.kind != "conversation.user" or target.session_id != request.session_id:
+                raise JournalError("Revision must reference a user message in this session")
+            if target.epoch != request.epoch or not isinstance(request.payload.get("text"), str):
+                raise JournalError("Invalid revision")
+            current = self.resolve(target.event_id)
+            if request.payload.get("revision") != current.payload.get("revision", 1) + 1:
+                raise JournalError("Revision must increase by one")
+        origin = {"owner": "authenticated-user", "agent": "agent-supervisor"}.get(role, role)
+        if request.kind in {"conversation.user", "conversation.window"}:
+            origin = "authenticated-user"
+        event = JournalEntry(**request.model_dump(), sequence=1, origin=origin)
+        if pin is not None:
+            validator = self._converse_context_validators.get(pin.implementation_id)
+            try:
+                admitted = (
+                    validator is not None
+                    and validator(request.session_id, request.thread_id, request.epoch, pin) is True
+                )
+            except Exception:
+                raise JournalError("Converse memory context is unavailable") from None
+            if not admitted:
+                raise JournalError("Converse memory context is unavailable")
+            # No append DML precedes this callback. Reconciliation may
+            # commit source invalidation/quarantine even when it refuses
+            # publication, without committing a partial journal entry.
+        cursor = self.db.execute(
+            "INSERT INTO entries(event_id,session_id,thread_id,epoch,kind,writer,idem,request,value) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
+            (
+                event.event_id,
+                event.session_id,
+                event.thread_id,
+                event.epoch,
+                event.kind,
+                role,
+                event.idempotency_key,
+                encoded,
+                "{}",
+            ),
+        )
+        event.sequence = cursor.lastrowid
+        self.db.execute(
+            "UPDATE entries SET value=? WHERE event_id=?",
+            (event.model_dump_json(), event.event_id),
+        )
+        return event
+
+    def append(self, request: AppendRequest, role: str) -> JournalEntry:
+        if request.kind == "routing.live_window_decided":
+            raise JournalError("Live outcomes require original native result publication")
+        if request.kind == "conversation.window_capture":
+            raise JournalError("Capture annotations require native live publication")
+        if isinstance(request.payload, dict) and "native_media_v2" in request.payload:
+            raise JournalError("Native media publications require the original publication owner")
+        if request.kind == "agent.standing-command":
+            raise JournalError("Standing tasks require native admission")
+        if (
+            request.kind == "agent.command"
+            and isinstance(request.payload, dict)
+            and request.payload.get("op") in {"submit", "steer-requested"}
+        ):
+            raise JournalError("Agent submit and steering intent require native admission")
+        if (
+            role == "decisions"
+            and request.kind in {"routing.decided", "routing.classification_refused"}
+            and len(request.causes) == 1
+        ):
+            return self.decisions_attempts.publish(request, role)
+        with self.lock, self.db:
+            return self._append_entry_locked(request, role)
+
+    @staticmethod
+    def _agent_submit_bytes(text: str):
+        if type(text) is not str:
+            raise AgentSubmitUnavailable
+        return agent_submit_json(text.encode("utf-8"), maximum=MAX_AGENT_SUBMIT_RESPONSE_BYTES)
+
+    def _agent_submit_check_row(self, row) -> JournalEntry:
+        try:
+            request_data = self._agent_submit_bytes(row["request"])
+            value_data = self._agent_submit_bytes(row["value"])
+            entry = submit_entry(value_data)
+        except (ValueError, RecursionError):
+            raise AgentSubmitUnavailable from None
+        if (
+            row["writer"] != "agent"
+            or row["event_id"] != entry.event_id
+            or row["sequence"] != entry.sequence
+            or row["session_id"] != entry.session_id
+            or row["thread_id"] != entry.thread_id
+            or row["epoch"] != entry.epoch
+            or row["kind"] != entry.kind
+            or row["idem"] != entry.idempotency_key
+            or entry.origin != "agent-supervisor"
+        ):
+            raise AgentSubmitUnavailable
+        if type(request_data) is not dict or set(request_data) != set(AppendRequest.model_fields):
+            raise AgentSubmitUnavailable
+        # Reuse the historical grammar without supplying any missing request field.
+        # Only native identity comes from the independently validated stored entry.
+        try:
+            original = submit_entry(
+                {
+                    **request_data,
+                    **{
+                        field: value_data[field]
+                        for field in ("event_id", "sequence", "origin", "created_at")
+                    },
+                }
+            )
+        except (ValueError, RecursionError):
+            raise AgentSubmitUnavailable from None
+        if any(
+            getattr(original, field) != getattr(entry, field)
+            for field in AppendRequest.model_fields
+        ):
+            raise AgentSubmitUnavailable
+        return entry
+
+    def _agent_submit_winner(
+        self, event_id: str, session_id: str, logical_key: str
+    ) -> JournalEntry:
+        row = self.db.execute(
+            "SELECT sequence,event_id,session_id,thread_id,epoch,kind,writer,idem,request,value"
+            " FROM entries WHERE event_id=?",
+            (event_id,),
+        ).fetchone()
+        if row is None:
+            raise AgentSubmitUnavailable
+        if row["session_id"] != session_id:
+            raise AgentSubmitUnavailable
+        entry = self._agent_submit_check_row(row)
+        if entry.payload.get("idempotency_key") != logical_key:
+            raise AgentSubmitUnavailable
+        slot = self.db.execute(
+            "SELECT event_id FROM agent_submit_slots WHERE session_id=? AND logical_key=?",
+            (session_id, logical_key),
+        ).fetchone()
+        if slot is None or slot["event_id"] != event_id:
+            raise AgentSubmitUnavailable
+        return entry
+
+    @contextmanager
+    def _agent_submit_transaction(self):
+        connection = self.db
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            yield
+            connection.commit()
+        except BaseException:
+            try:
+                connection.rollback()
+            except BaseException:
+                self._agent_submit_unavailable = True
+                connection.close()
+            raise
+
+    def _ensure_agent_submit_upgrade(self):
+        with self.lock:
+            if self._agent_submit_ready or self._agent_submit_unavailable:
+                return
+            try:
+                with self._agent_submit_transaction():
+                    self.db.execute(
+                        "CREATE TABLE IF NOT EXISTS agent_submit_slots("
+                        "session_id TEXT NOT NULL, logical_key TEXT NOT NULL, "
+                        "event_id TEXT NOT NULL REFERENCES entries(event_id) ON DELETE CASCADE, "
+                        "PRIMARY KEY(session_id, logical_key))"
+                    )
+                    last = 0
+                    while True:
+                        rows = self.db.execute(
+                            "SELECT sequence,event_id,session_id,thread_id,epoch,kind,"
+                            "writer,idem,request,value FROM entries WHERE sequence>? "
+                            "ORDER BY sequence LIMIT 200",
+                            (last,),
+                        ).fetchall()
+                        if not rows:
+                            break
+                        for row in rows:
+                            last = row["sequence"]
+                            try:
+                                request_data = self._agent_submit_bytes(row["request"])
+                            except (ValueError, RecursionError):
+                                request_data = None
+                            try:
+                                value_data = self._agent_submit_bytes(row["value"])
+                            except (ValueError, RecursionError):
+                                value_data = None
+                            if row["kind"] == "agent.command":
+                                for data in (request_data, value_data):
+                                    if not (
+                                        isinstance(data, dict)
+                                        and data.get("kind") == "agent.command"
+                                        and isinstance(data.get("payload"), dict)
+                                        and type(data["payload"].get("op")) is str
+                                        and data["payload"]["op"]
+                                    ):
+                                        raise AgentSubmitUnavailable
+                            candidate = False
+                            for data in (request_data, value_data):
+                                if (
+                                    isinstance(data, dict)
+                                    and data.get("kind") == "agent.command"
+                                    and isinstance(data.get("payload"), dict)
+                                    and data["payload"].get("op") == "submit"
+                                ):
+                                    candidate = True
+                                    break
+                            if not candidate:
+                                continue
+                            entry = self._agent_submit_check_row(row)
+                            logical = entry.payload.get("idempotency_key")
+                            if not isinstance(logical, str):
+                                raise AgentSubmitUnavailable
+                            existing = self.db.execute(
+                                "SELECT event_id FROM agent_submit_slots"
+                                " WHERE session_id=? AND logical_key=?",
+                                (entry.session_id, logical),
+                            ).fetchone()
+                            if existing is not None:
+                                if existing["event_id"] != entry.event_id:
+                                    raise AgentSubmitUnavailable
+                                continue
+                            self.db.execute(
+                                "INSERT INTO agent_submit_slots(session_id,logical_key,event_id)"
+                                " VALUES(?,?,?)",
+                                (entry.session_id, logical, entry.event_id),
+                            )
+            except BaseException as exc:
+                self._agent_submit_unavailable = True
+                if not isinstance(exc, Exception):
+                    raise
+                raise AgentSubmitUnavailable from None
+            self._agent_submit_ready = True
+
+    def admit_submit(self, request: AppendRequest, role: str) -> AgentSubmitReceipt:
+        try:
+            raw = copy.deepcopy(request.model_dump(mode="python"))
+            proposal = submit_request(raw)
+        except (ValueError, RecursionError, TypeError):
+            raise AgentSubmitUnavailable from None
+        if role != "agent":
+            raise PermissionError("Agent submission requires Agent")
+        with self.lock:
+            self._ensure_agent_submit_upgrade()
+            if self._agent_submit_unavailable:
+                raise AgentSubmitUnavailable
+            try:
+                with self._agent_submit_transaction():
+                    try:
+                        session = self.session(proposal.session_id)
+                    except KeyError as exc:
+                        raise AgentSubmitUnavailable from exc
+                    if (session.thread_id, session.epoch) != (proposal.thread_id, proposal.epoch):
+                        raise AgentSubmitUnavailable
+                    logical = proposal.payload["idempotency_key"]
+                    slot = self.db.execute(
+                        "SELECT event_id FROM agent_submit_slots WHERE session_id=? AND logical_key=?",
+                        (proposal.session_id, logical),
+                    ).fetchone()
+                    if slot is not None:
+                        winner = self._agent_submit_winner(
+                            slot["event_id"], proposal.session_id, logical
+                        )
+                        try:
+                            receipt = AgentSubmitReceipt(
+                                disposition="retained", entry=winner
+                            ).validate_request(proposal)
+                        except ValueError as exc:
+                            raise AgentSubmitConflict from exc
+                        if (
+                            len(receipt.model_dump_json().encode("utf-8"))
+                            > MAX_AGENT_SUBMIT_RESPONSE_BYTES
+                        ):
+                            raise AgentSubmitUnavailable
+                        return receipt
+                    native = self.db.execute(
+                        "SELECT event_id FROM entries WHERE session_id=? AND writer='agent' AND idem=?",
+                        (proposal.session_id, proposal.idempotency_key),
+                    ).fetchone()
+                    if native is not None:
+                        raise AgentSubmitUnavailable
+                    # Exact historical proof above remains usable while Off.
+                    # No await or second transaction separates mode and receipt.
+                    self.agent_control.require_admission()
+                    event = self._append_entry_locked(proposal, role)
+                    self.db.execute(
+                        "INSERT INTO agent_submit_slots(session_id,logical_key,event_id)"
+                        " VALUES(?,?,?)",
+                        (proposal.session_id, logical, event.event_id),
+                    )
+                    try:
+                        receipt = AgentSubmitReceipt(
+                            disposition="created", entry=event
+                        ).validate_request(proposal)
+                    except ValueError as exc:
+                        raise AgentSubmitUnavailable from exc
+                    if (
+                        len(receipt.model_dump_json().encode("utf-8"))
+                        > MAX_AGENT_SUBMIT_RESPONSE_BYTES
+                    ):
+                        raise AgentSubmitUnavailable
+                    return receipt
+            except (AgentSubmitConflict, AgentSubmitUnavailable, PermissionError):
+                raise
+            except Exception:
+                raise AgentSubmitUnavailable from None
+
+    def lookup_submit(
+        self, request: AgentSubmitLookupRequest, role: str
+    ) -> AgentSubmitLookupResult:
+        try:
+            raw = copy.deepcopy(request.model_dump(mode="python"))
+            lookup = AgentSubmitLookupRequest.model_validate(raw)
+        except (ValueError, RecursionError, TypeError):
+            raise AgentSubmitUnavailable from None
+        if role != "agent":
+            raise PermissionError("Agent submission lookup requires Agent")
+        with self.lock:
+            self._ensure_agent_submit_upgrade()
+            if self._agent_submit_unavailable:
+                raise AgentSubmitUnavailable
+            try:
+                try:
+                    session = self.session(lookup.session_id)
+                except KeyError as exc:
+                    raise AgentSubmitUnavailable from exc
+                if (session.thread_id, session.epoch) != (lookup.thread_id, lookup.epoch):
+                    raise AgentSubmitUnavailable
+                slot = self.db.execute(
+                    "SELECT event_id FROM agent_submit_slots WHERE session_id=? AND logical_key=?",
+                    (lookup.session_id, lookup.idempotency_key),
+                ).fetchone()
+                if slot is None:
+                    result = AgentSubmitLookupResult(status="unobserved", entry=None)
+                    try:
+                        return result.validate_request(lookup)
+                    except ValueError as exc:
+                        raise AgentSubmitUnavailable from exc
+                winner = self._agent_submit_winner(
+                    slot["event_id"], lookup.session_id, lookup.idempotency_key
+                )
+                try:
+                    result = AgentSubmitLookupResult(
+                        status="recorded", entry=winner
+                    ).validate_request(lookup)
+                except ValueError as exc:
+                    raise AgentSubmitConflict from exc
+                if len(result.model_dump_json().encode("utf-8")) > MAX_AGENT_SUBMIT_RESPONSE_BYTES:
+                    raise AgentSubmitUnavailable
+                return result
+            except (AgentSubmitConflict, AgentSubmitUnavailable, PermissionError):
+                raise
+            except (sqlite3.Error, JournalError, KeyError, ValueError, RecursionError) as exc:
+                raise AgentSubmitUnavailable from exc
+
+    def resolve(self, event_id: str) -> JournalEntry:
+        event = self.entry(event_id)
+        if event.kind == "conversation.window":
+            window = SpeechWindow.model_validate(event.payload)
+            with self.lock:
+                latest = self._window_row(
+                    window.session_id, window.epoch, window.utterance_id, window.window_index
+                )
+            return latest or event
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? AND kind='conversation.revision' "
+                "AND json_extract(value,'$.payload.target_event_id')=? ORDER BY sequence DESC LIMIT 1",
+                (event.session_id, event_id),
+            ).fetchone()
+        if row:
+            revision = JournalEntry.model_validate_json(row[0])
+            event = event.model_copy(update={"payload": {**event.payload, **revision.payload}})
+        return event
+
+    def _window_row(self, session_id, epoch, utterance_id, window_index=None):
+        query = "SELECT value FROM entries WHERE session_id=? AND epoch=? AND kind='conversation.window' AND json_extract(value,'$.payload.utterance_id')=?"
+        args = [session_id, epoch, utterance_id]
+        if window_index is not None:
+            query += " AND json_extract(value,'$.payload.window_index')=?"
+            args.append(window_index)
+        query += " ORDER BY json_extract(value,'$.payload.window_index') DESC, json_extract(value,'$.payload.revision') DESC, sequence DESC LIMIT 1"
+        row = self.db.execute(query, args).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def latest_window(self, session_id, epoch, utterance_id, window_index=None):
+        with self.lock:
+            session = self.session(session_id)
+            if session.channel != "converse" or session.epoch != epoch:
+                raise JournalError("Stale transcript-window scope")
+            return self._window_row(session_id, epoch, utterance_id, window_index)
+
+    def window_decision(self, source_event_id):
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE kind='routing.window_decided' AND json_extract(value,'$.payload.source_event_id')=? ORDER BY sequence LIMIT 1",
+                (source_event_id,),
+            ).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def pending_windows(self, *, limit=100):
+        """Bounded fair admission from durable, undisposed transcript entries.
+
+        Busy/retrying/classifying receipts do not retire work. Epoch reset is
+        already a durable native fence; old epochs cannot accept new receipts.
+        Rank within sessions so one session's backlog cannot fill every page.
+        """
+        if type(limit) is not int or not 1 <= limit <= 200:
+            raise JournalError("Invalid pending-window query bound")
+        with self.lock:
+            # Unary + removes the column's TEXT affinity without changing the
+            # string value. SQLite can then SEARCH the JSON expression indexes
+            # instead of scanning every receipt for each candidate source.
+            rows = self.db.execute(
+                """WITH pending AS (
+                    SELECT e.sequence,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY e.session_id ORDER BY e.sequence
+                        ) AS session_position
+                    FROM entries e JOIN sessions s ON s.session_id=e.session_id
+                    WHERE e.kind='conversation.window'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM entries c WHERE c.kind='conversation.window_capture'
+                          AND c.writer='converse'
+                          AND json_extract(c.value,'$.payload.source_event_id')=+e.event_id
+                      )
+                      AND e.epoch=json_extract(s.value,'$.epoch')
+                      AND json_extract(s.value,'$.channel')='converse'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM entries d WHERE d.kind='routing.window_decided'
+                          AND json_extract(d.value,'$.payload.source_event_id')=+e.event_id
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM entries d WHERE d.kind='routing.window_status'
+                          AND json_extract(d.value,'$.payload.source_event_id')=+e.event_id
+                          AND json_extract(d.value,'$.payload.phase')
+                              IN ('superseded','expired','obsolete','error')
+                      )
+                ), admitted AS (
+                    SELECT sequence, session_position FROM pending
+                    ORDER BY session_position, sequence LIMIT ?
+                ) SELECT e.value FROM admitted a JOIN entries e ON e.sequence=a.sequence
+                  ORDER BY a.session_position, a.sequence""",
+                (limit,),
+            ).fetchall()
+        return [JournalEntry.model_validate_json(row[0]) for row in rows]
+
+    def window_classification_attempts(self, source_event_id):
+        if not isinstance(source_event_id, str) or not 1 <= len(source_event_id) <= 128:
+            raise JournalError("Invalid window source reference")
+        with self.lock:
+            rows = self.db.execute(
+                """SELECT json_extract(value,'$.payload.attempt') AS attempt,
+                          json_type(value,'$.payload.attempt') AS attempt_type
+                   FROM entries WHERE kind='routing.window_status'
+                   AND json_extract(value,'$.payload.source_event_id')=?
+                   AND json_extract(value,'$.payload.phase')='classifying' LIMIT 2""",
+                (source_event_id,),
+            ).fetchall()
+        attempts = [row["attempt"] for row in rows]
+        # Legacy code reused one unnumbered receipt across both retries. It
+        # cannot prove how many calls started, so do not admit a third call.
+        if any(row["attempt_type"] != "integer" for row in rows) or any(
+            type(attempt) is not int or attempt not in (1, 2) for attempt in attempts
+        ):
+            return 2
+        return max(attempts, default=0)
+
+    def window_response(self, session_id, epoch, utterance_id):
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? AND epoch=? AND kind='converse.window_state' AND json_extract(value,'$.payload.utterance_id')=? AND json_extract(value,'$.payload.phase')='started' ORDER BY sequence LIMIT 1",
+                (session_id, epoch, utterance_id),
+            ).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def window_control(self, session_id, epoch, agent_interrupt=False):
+        condition = (
+            "json_extract(value,'$.payload.agent_route')='INTERRUPT_CURRENT_TASK'"
+            if agent_interrupt
+            else "json_extract(value,'$.payload.conversation')!='IGNORE'"
+        )
+        with self.lock:
+            row = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? AND epoch=? AND kind='routing.window_decided' AND "
+                + condition
+                + " ORDER BY json_extract(value,'$.payload.source_sequence') DESC,sequence DESC LIMIT 1",
+                (session_id, epoch),
+            ).fetchone()
+        return JournalEntry.model_validate_json(row[0]) if row else None
+
+    def window_dispatches(
+        self,
+        *,
+        session_id=None,
+        decision_id=None,
+        semantic_key=None,
+        pending_only=False,
+        interrupt_only=False,
+        after=0,
+        limit=100,
+    ):
+        """Indexed durable receipt lookup; historical prefixes never hide terminal receipts."""
+        if not 1 <= limit <= 200 or after < 0:
+            raise JournalError("Invalid window-dispatch query bound")
+        where = ["e.kind='routing.window_dispatch'", "e.sequence>?"]
+        args = [after]
+        for field, value in (
+            ("session_id", session_id),
+            ("decision_id", decision_id),
+            ("semantic_key", semantic_key),
+        ):
+            if value is not None:
+                where.append(
+                    "e.session_id=?"
+                    if field == "session_id"
+                    else f"json_extract(e.value,'$.payload.{field}')=?"
+                )
+                args.append(value)
+        if interrupt_only:
+            where.extend(
+                [
+                    "json_extract(e.value,'$.payload.agent_route')='INTERRUPT_CURRENT_TASK'",
+                    "json_extract(e.value,'$.payload.state') IN ('applied','unknown')",
+                ]
+            )
+        if pending_only:
+            where.append("json_extract(e.value,'$.payload.state')='queued'")
+            where.append("""NOT EXISTS (SELECT 1 FROM entries t
+                WHERE t.kind='routing.window_dispatch' AND t.session_id=e.session_id
+                AND json_extract(t.value,'$.payload.decision_id')=json_extract(e.value,'$.payload.decision_id')
+                AND json_extract(t.value,'$.payload.state') IN ('applied','rejected','unknown','not_applied'))""")
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT e.value FROM entries e WHERE "
+                + " AND ".join(where)
+                + " ORDER BY e.sequence "
+                + ("ASC" if pending_only else "DESC")
+                + " LIMIT ?",
+                [*args, limit],
+            ).fetchall()
+        return [JournalEntry.model_validate_json(r[0]) for r in rows]
+
+    def recent(self, *, session_id: str, limit=100):
+        if not 1 <= limit <= 200:
+            raise JournalError("limit must be 1..200")
+        with self.lock:
+            rows = self.db.execute(
+                "SELECT value FROM entries WHERE session_id=? ORDER BY sequence DESC LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+        output, size = [], 0
+        for row in rows:
+            size += len(row[0].encode())
+            if size > 262144:
+                break
+            output.append(JournalEntry.model_validate_json(row[0]))
+        return list(reversed(output))
+
+    @contextmanager
+    def _context_read(self):
+        with self.lock:
+            try:
+                yield
+            except sqlite3.Error as exc:
+                # Malformed retained records refuse context, including when an
+                # indexed payload expression cannot be evaluated. Never omit
+                # their correction/qualification and restore an older draft.
+                raise JournalError("Native context records are unavailable") from exc
+
+    def _context_scope(self, source_event_id, through_sequence):
+        source = self.entry(source_event_id)
+        session = self.session(source.session_id)
+        if (
+            source.kind not in {"conversation.user", "conversation.window"}
+            or source.origin != "authenticated-user"
+            or session.channel != "converse"
+            or (source.thread_id, source.epoch) != (session.thread_id, session.epoch)
+        ):
+            raise JournalError("Native context source is not a current Converse user source")
+        if source.kind == "conversation.window":
+            try:
+                window = SpeechWindow.model_validate(source.payload)
+            except ValueError as exc:
+                raise JournalError("Invalid native context window source") from exc
+            if (window.session_id, window.thread_id, window.epoch) != (
+                source.session_id,
+                source.thread_id,
+                source.epoch,
+            ):
+                raise JournalError("Wrong native context window scope")
+        elif source.payload.get("final") is not True or not isinstance(
+            source.payload.get("text"), str
+        ):
+            raise JournalError("Invalid native context user source")
+        latest = self.db.execute("SELECT coalesce(max(sequence),0) FROM entries").fetchone()[0]
+        through = through_sequence if through_sequence is not None else latest
+        if not source.sequence <= through <= latest:
+            raise JournalError("Native context watermark does not cover the source")
+        return source, through
+
+    @staticmethod
+    def _context_base_query(source, through):
+        current_utterance = (
+            source.payload["utterance_id"] if source.kind == "conversation.window" else None
+        )
+        # Choose window heads over the complete frozen scope before the page
+        # cursor or provider disclosure. Later denied corrections never expose
+        # an older public hypothesis. A prior utterance may have a late head.
+        sql = """
+            SELECT e.value FROM entries e
+            WHERE e.session_id=? AND e.thread_id=? AND e.epoch=? AND e.sequence<=?
+            AND e.kind IN ('conversation.user','conversation.window','conversation.converse')
+            AND (
+                (e.kind IN ('conversation.user','conversation.converse') AND e.sequence<?)
+                OR (
+                    e.kind='conversation.window'
+                    AND (? IS NULL OR json_extract(e.value,'$.payload.utterance_id')<>?)
+                    AND EXISTS (
+                        SELECT 1 FROM entries p
+                        WHERE p.session_id=e.session_id AND p.thread_id=e.thread_id
+                        AND p.epoch=e.epoch AND p.kind='conversation.window'
+                        AND p.sequence<?
+                        AND json_extract(p.value,'$.payload.utterance_id')=
+                            json_extract(e.value,'$.payload.utterance_id')
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM entries n
+                        WHERE n.session_id=e.session_id AND n.thread_id=e.thread_id
+                        AND n.epoch=e.epoch AND n.kind='conversation.window'
+                        AND n.sequence<=?
+                        AND json_extract(n.value,'$.payload.utterance_id')=
+                            json_extract(e.value,'$.payload.utterance_id')
+                        AND (
+                            json_extract(n.value,'$.payload.window_index'),
+                            json_extract(n.value,'$.payload.revision'), n.sequence
+                        ) > (
+                            json_extract(e.value,'$.payload.window_index'),
+                            json_extract(e.value,'$.payload.revision'), e.sequence
+                        )
+                    )
+                )
+            )
+        """
+        return sql, [
+            source.session_id,
+            source.thread_id,
+            source.epoch,
+            through,
+            source.sequence,
+            current_utterance,
+            current_utterance,
+            source.sequence,
+            through,
+        ]
+
+    def _context_page(self, request, source, through, sql, parameters, page_type, **extra):
+        if request.before_sequence is not None:
+            sql += " AND e.sequence<?"
+            parameters.append(request.before_sequence)
+        sql += " ORDER BY e.sequence DESC LIMIT ?"
+        parameters.append(request.limit + 1)
+        rows = self.db.execute(sql, parameters)
+        entries, size, exhausted = [], 0, True
+        try:
+            for row in rows:
+                if len(entries) == request.limit:
+                    exhausted = False
+                    break
+                row_size = len(row[0].encode())
+                if row_size > MAX_CONTEXT_PAGE_BYTES:
+                    raise JournalError("Native context entry exceeds the page byte limit")
+                if size + row_size > MAX_CONTEXT_PAGE_BYTES:
+                    exhausted = False
+                    break
+                try:
+                    entry = JournalEntry.model_validate_json(row[0], strict=True)
+                except ValueError as exc:
+                    raise JournalError("Invalid native context entry") from exc
+                entries.append(entry)
+                size += row_size
+        finally:
+            rows.close()
+        try:
+            page = page_type(
+                schema_version="1.0",
+                source_event_id=source.event_id,
+                session_id=source.session_id,
+                thread_id=source.thread_id,
+                epoch=source.epoch,
+                through_sequence=through,
+                entries=entries,
+                next_before_sequence=entries[-1].sequence if not exhausted else None,
+                exhausted=exhausted,
+                **extra,
+            )
+            return page.validate_request(request)
+        except ValueError as exc:
+            raise JournalError("Invalid native context page") from exc
+
+    def context_history(
+        self, *, source_event_id, through_sequence=None, before_sequence=None, limit=100
+    ) -> ContextHistoryPage:
+        """Reverse semantic bases, independent of operational traffic and token capacity."""
+        try:
+            request = ContextHistoryRequest(
+                source_event_id=source_event_id,
+                through_sequence=through_sequence,
+                before_sequence=before_sequence,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise JournalError("Invalid native context history request") from exc
+        with self._context_read():
+            source, through = self._context_scope(request.source_event_id, request.through_sequence)
+            sql, parameters = self._context_base_query(source, through)
+            return self._context_page(request, source, through, sql, parameters, ContextHistoryPage)
+
+    def context_qualifications(
+        self, *, source_event_id, through_sequence, base_event_ids, before_sequence=None, limit=100
+    ) -> ContextQualificationPage:
+        """All matching native corrections and playback evidence at the same watermark.
+
+        Qualification paging must reach explicit exhaustion before the requested
+        bases are projected. Generation stops can precede late obsolete chunks;
+        the qualification cursor is therefore independent of the base cursor.
+        """
+        try:
+            request = ContextQualificationRequest(
+                source_event_id=source_event_id,
+                through_sequence=through_sequence,
+                base_event_ids=base_event_ids,
+                before_sequence=before_sequence,
+                limit=limit,
+            )
+        except ValueError as exc:
+            raise JournalError("Invalid native context qualification request") from exc
+        with self._context_read():
+            source, through = self._context_scope(request.source_event_id, request.through_sequence)
+            base_sql, base_parameters = self._context_base_query(source, through)
+            placeholders = ",".join("?" for _ in request.base_event_ids)
+            bases = [
+                JournalEntry.model_validate_json(row[0], strict=True)
+                for row in self.db.execute(
+                    base_sql + f" AND e.event_id IN ({placeholders})",
+                    [*base_parameters, *request.base_event_ids],
+                )
+            ]
+            if {base.event_id for base in bases} != set(request.base_event_ids):
+                raise JournalError("Qualification bases are not frozen native context records")
+            user_ids = [base.event_id for base in bases if base.kind == "conversation.user"]
+            assistant_ids = [
+                base.event_id for base in bases if base.kind == "conversation.converse"
+            ]
+            clauses, parameters = [], [source.session_id, source.thread_id, source.epoch, through]
+            if user_ids:
+                user_slots = ",".join("?" for _ in user_ids)
+                clauses.append(
+                    "(e.kind='conversation.revision' AND "
+                    f"json_extract(e.value,'$.payload.target_event_id') IN ({user_slots}))"
+                )
+                parameters.extend(user_ids)
+            if assistant_ids:
+                assistant_slots = ",".join("?" for _ in assistant_ids)
+                clauses.append(f"""(
+                    e.kind='delivery.updated' AND (
+                        json_extract(e.value,'$.payload.event_id') IN ({assistant_slots})
+                        OR (
+                            json_extract(e.value,'$.payload.control')='generation_stop'
+                            AND EXISTS (
+                                SELECT 1 FROM entries b
+                                WHERE b.event_id IN ({assistant_slots})
+                                AND json_extract(b.value,'$.payload.runtime_id')=
+                                    json_extract(e.value,'$.payload.runtime_id')
+                                AND json_type(b.value,'$.payload.generation_epoch')='integer'
+                                AND json_type(e.value,'$.payload.next_generation_epoch')='integer'
+                                AND json_extract(e.value,'$.payload.next_generation_epoch')>
+                                    json_extract(b.value,'$.payload.generation_epoch')
+                            )
+                        )
+                    )
+                )""")
+                parameters.extend([*assistant_ids, *assistant_ids])
+            # Window heads need no extra chain: head selection already happened
+            # before disclosure. An all-window request has an empty qualification set.
+            sql = (
+                """
+                SELECT e.value FROM entries e
+                WHERE e.session_id=? AND e.thread_id=? AND e.epoch=? AND e.sequence<=?
+                AND e.kind IN ('conversation.revision','delivery.updated')
+                AND (
+            """
+                + (" OR ".join(clauses) if clauses else "0")
+                + ")"
+            )
+            return self._context_page(
+                request,
+                source,
+                through,
+                sql,
+                parameters,
+                ContextQualificationPage,
+                base_event_ids=request.base_event_ids,
+            )
+
+    def read(
+        self,
+        *,
+        after=0,
+        limit=100,
+        session_id=None,
+        thread_id=None,
+        kinds=None,
+        task_id=None,
+        search=None,
+        epoch=None,
+        utterance_id=None,
+        window_index=None,
+    ) -> list[JournalEntry]:
+        if after < 0 or not 1 <= limit <= 200:
+            raise JournalError("after must be nonnegative; limit must be 1..200")
+        if epoch is not None and (
+            type(epoch) is not int or not 1 <= epoch <= MAX_PLAYBACK_GENERATION
+        ):
+            raise JournalError("Invalid native epoch filter")
+        if utterance_id is not None or window_index is not None:
+            import re
+
+            if (
+                type(utterance_id) is not str
+                or re.fullmatch(r"[A-Za-z0-9_-]{1,128}", utterance_id) is None
+                or type(window_index) is not int
+                or not 0 <= window_index <= 1_000_000
+                or not session_id
+                or not thread_id
+                or epoch is None
+                or kinds != ["conversation.window"]
+            ):
+                raise JournalError("Exact window filters require a native window slot scope")
+        clauses = ["sequence>?"]
+        parameters = [after]
+        for name, value in [("session_id", session_id), ("thread_id", thread_id), ("epoch", epoch)]:
+            if value is not None:
+                clauses.append(f"{name}=?")
+                parameters.append(value)
+        if kinds:
+            if len(kinds) > 20:
+                raise JournalError("Too many kind filters")
+            clauses.append("kind IN (" + ",".join("?" for _ in kinds) + ")")
+            parameters.extend(kinds)
+        if utterance_id is not None:
+            clauses.extend(
+                [
+                    "json_extract(value,'$.payload.utterance_id')=?",
+                    "json_extract(value,'$.payload.window_index')=?",
+                ]
+            )
+            parameters.extend([utterance_id, window_index])
+        if task_id:
+            clauses.append(
+                "EXISTS(SELECT 1 FROM json_each(entries.value,'$.task_refs') WHERE value=?)"
+            )
+            parameters.append(task_id)
+        if search:
+            clauses.append("instr(json_extract(value,'$.payload.text'),?)>0")
+            parameters.append(search[:1000])
+        sql = (
+            "SELECT value FROM entries WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY sequence LIMIT ?"
+        )
+        with self.lock:
+            rows = self.db.execute(sql, [*parameters, limit]).fetchall()
+        output, size = [], 0
+        for row in rows:
+            size += len(row[0].encode())
+            if size > 262144:
+                break
+            output.append(JournalEntry.model_validate_json(row[0]))
+        return output
+
+    def cursor(self, role: str, consumer: str) -> int:
+        with self.lock:
+            row = self.db.execute(
+                "SELECT sequence FROM cursors WHERE writer=? AND consumer=?", (role, consumer)
+            ).fetchone()
+        return row[0] if row else 0
+
+    def acknowledge(self, role: str, consumer: str, sequence: int):
+        with self.lock, self.db:
+            if sequence < self.cursor(role, consumer):
+                raise JournalError("Cursor cannot move backwards")
+            latest = self.db.execute("SELECT coalesce(max(sequence),0) FROM entries").fetchone()[0]
+            if sequence > latest:
+                raise JournalError("Cursor exceeds latest committed event")
+            self.db.execute(
+                "INSERT INTO cursors VALUES(?,?,?) ON CONFLICT(writer,consumer) "
+                "DO UPDATE SET sequence=excluded.sequence",
+                (role, consumer, sequence),
+            )
+
+    def close(self):
+        with self.lock:
+            self.live_captures.close()
+            if not self.media_close_confirmed():
+                raise JournalError("Original native media cleanup is unconfirmed")
+            self.db.close()
+
+    def transcript_scan(self, request):
+        from services.session.transcript_scan import transcript_scan
+
+        return transcript_scan(self, request)
+
+
+class LocalJournal:
+    """In-process adapter used by tests and single-service development, same authority checks."""
+
+    def __init__(self, store: Store, role: str):
+        self.store, self.role = store, role
+
+    async def agent_control_state(self):
+        if self.role not in {"owner", "agent"}:
+            raise PermissionError("Agent control inspection requires owner or Agent")
+        return self.store.agent_control.snapshot()
+
+    async def agent_control_backend(self):
+        if self.role != "agent":
+            raise PermissionError("Agent backend discovery requires Agent")
+        return self.store.agent_control.backend()
+
+    async def admit_steer(self, request):
+        if self.role != "agent":
+            raise PermissionError("Steering intent requires Agent")
+        return self.store.agent_control.admit_steer(request)
+
+    async def lookup_steer(self, request):
+        if self.role != "agent":
+            raise PermissionError("Steering intent lookup requires Agent")
+        return self.store.agent_control.lookup_steer(request)
+
+    async def agent_export_admission(self, request):
+        if self.role != "agent":
+            raise PermissionError("Agent export admission requires Agent")
+        return self.store.agent_export_admission(request)
+
+    async def admit_submit(self, request):
+        return self.store.admit_submit(request, self.role)
+
+    async def lookup_submit(self, request):
+        return self.store.lookup_submit(request, self.role)
+
+    async def append(self, request):
+        return self.store.append(request, self.role)
+
+    async def publish_live_window(self, original):
+        if self.role != "converse":
+            raise PermissionError("Live publication requires Converse")
+        from services.session.live_windows import publish
+
+        return publish(self.store, original)
+
+    async def live_capture_backend(self):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.backend()
+
+    async def register_live_capture(self, original):
+        if self.role != "converse":
+            raise PermissionError("Native capture registration requires Converse")
+        return self.store.live_captures.register(original)
+
+    async def lookup_live_capture(self, original):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.lookup(original)
+
+    async def recover_live_capture(self, query):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.recover(query)
+
+    async def fence_live_capture(self, request):
+        if self.role != "converse":
+            raise PermissionError("Native capture fence requires Converse")
+        return self.store.live_captures.fence(request)
+
+    async def live_capture_for_source(self, reference):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.source_state(reference)
+
+    async def live_decisions_attempt_lookup(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live inference requires Decisions")
+        return self.store.live_decisions_attempts.lookup(request)
+
+    async def live_effect_lookup(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native live consumption lookup requires an authorized role")
+        return self.store.live_effects.lookup(request)
+
+    async def pending_live_effects(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native live pending lookup requires an authorized role")
+        return self.store.live_effects.pending(request)
+
+    async def live_effect_evidence(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native Agent evidence lookup requires an authorized role")
+        return self.store.live_effects.evidence(request)
+
+    async def live_agent_source_authority(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native Agent source qualification requires an authorized role")
+        from services.session.live_agent_sources import authority
+
+        return authority(self.store, request)
+
+    async def live_effect_admit(self, request):
+        return self.store.live_effects.admit(request, self.role)
+
+    async def live_effect_finish(self, request):
+        return self.store.live_effects.finish(request, self.role)
+
+    async def live_effect_start(self, request):
+        return self.store.live_effects.start(request, self.role)
+
+    async def pending_live_decisions(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live pending discovery requires Decisions")
+        return self.store.live_decisions_attempts.pending(request)
+
+    async def live_decisions_attempt_admit(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live inference requires Decisions")
+        return self.store.live_decisions_attempts.admit(request)
+
+    async def live_decisions_attempt_finish(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live inference requires Decisions")
+        return self.store.live_decisions_attempts.finish(request)
+
+    async def publish_live_decision(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Native live result publication requires Decisions")
+        return self.store.live_decisions_attempts.publish_result(request)
+
+    async def lookup_live_decision(self, request):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Live result inspection requires Converse or Decisions")
+        return self.store.live_decisions_attempts.lookup_publication(request)
+
+    async def lookup_live_window(self, reference):
+        if self.role != "converse":
+            raise PermissionError("Live publication lookup requires Converse")
+        from services.session.live_windows import lookup
+
+        return lookup(self.store, reference)
+
+    async def latest_live_window(self, scope):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Live source selection requires Converse or Decisions")
+        from packages.contracts.live_windows import LiveWindowScope
+        from services.session.live_windows import latest
+
+        scope = LiveWindowScope.model_validate(scope, strict=True)
+        return latest(
+            self.store, scope.session_id, scope.thread_id, scope.epoch, scope.utterance_id
+        )
+
+    async def lookup_authorization_revocation(self, request):
+        if self.role != "agent":
+            raise PermissionError("Authorization metadata lookup requires Agent")
+        from services.session.authorizations import lookup_revocation
+
+        return lookup_revocation(self.store, request)
+
+    async def decisions_call_start(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions capture requires Decisions")
+        return self.store.decisions.start(request)
+
+    async def decisions_attempt_lookup(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions attempt recovery requires Decisions")
+        return self.store.decisions_attempts.lookup(request)
+
+    async def decisions_attempt_admit(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions attempt admission requires Decisions")
+        return self.store.decisions_attempts.admit(request)
+
+    async def decisions_attempt_finish(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions attempt completion requires Decisions")
+        return self.store.decisions_attempts.finish(request)
+
+    async def decisions_call_finish(self, call_id, request):
+        if self.role != "decisions":
+            raise PermissionError("Decisions capture requires Decisions")
+        return self.store.decisions.finish(call_id, request)
+
+    async def decisions_calls(
+        self,
+        *,
+        source_event_id: str,
+        session_id: str | None = None,
+        thread_id: str | None = None,
+        epoch: int | None = None,
+    ):
+        if self.role not in {"decisions", "owner"}:
+            raise PermissionError("Decisions call recovery requires Decisions or owner")
+        return self.store.decisions.calls(
+            source_event_id,
+            session_id=session_id,
+            thread_id=thread_id,
+            epoch=epoch,
+        )
+
+    async def read(self, **kwargs):
+        return self.store.read(**kwargs)
+
+    async def transcript_scan(self, request):
+        if self.role != "agent":
+            raise PermissionError("Transcript scan requires Agent")
+        return self.store.transcript_scan(request)
+
+    async def recent(self, **kwargs):
+        return self.store.recent(**kwargs)
+
+    async def context_history(self, **kwargs) -> ContextHistoryPage:
+        if self.role not in {"owner", "converse"}:
+            raise PermissionError("Context history requires owner or Converse")
+        return self.store.context_history(**kwargs)
+
+    async def context_qualifications(self, **kwargs) -> ContextQualificationPage:
+        if self.role not in {"owner", "converse"}:
+            raise PermissionError("Context qualifications require owner or Converse")
+        return self.store.context_qualifications(**kwargs)
+
+    async def session(self, session_id):
+        return self.store.session(session_id)
+
+    async def playback_generation(self, session_id, thread_id, epoch) -> PlaybackGeneration:
+        if self.role not in {"owner", "converse"}:
+            raise PermissionError("Playback-generation recovery requires owner or Converse")
+        return self.store.playback_generation(session_id, thread_id, epoch)
+
+    async def sessions(self):
+        if self.role not in {"owner", "resources"}:
+            raise PermissionError("Listing sessions requires owner or resources")
+        return self.store.sessions()
+
+    async def sessions_page(self, **kwargs):
+        if self.role != "owner":
+            raise PermissionError("Agent session inspection requires owner")
+        return self.store.sessions_page(**kwargs)
+
+    async def create_session(self, request):
+        if self.role != "owner":
+            raise PermissionError("Creating sessions requires owner")
+        return self.store.create_session(request)
+
+    async def resolve(self, event_id):
+        return self.store.resolve(event_id)
+
+    async def latest_window(self, session_id, epoch, utterance_id, window_index=None):
+        return self.store.latest_window(session_id, epoch, utterance_id, window_index)
+
+    async def lookup_stt_publication(self, original):
+        if self.role != "converse":
+            raise PermissionError("STT publication proof requires Converse")
+        from packages.contracts.stt_settlement import STTPublication, validate_publication_proof
+        from services.session.stt_publications import lookup_publication
+
+        original = STTPublication.model_validate(original)
+        return validate_publication_proof(lookup_publication(self.store, original), original)
+
+    async def lookup_stream_publication(self, original):
+        if self.role != "converse":
+            raise PermissionError("Stream publication proof requires Converse")
+        from services.session.stream_publications import lookup_publication
+
+        return lookup_publication(self.store, original)
+
+    async def journal_wake_cursor(self):
+        if self.role not in {"owner", "converse", "decisions"}:
+            raise PermissionError("Journal wake inspection is unavailable for this role")
+        return self.store.journal_wake.snapshot()
+
+    async def wait_for_journal_change(self, cursor, *, wait_ms=1000):
+        if self.role not in {"owner", "converse", "decisions"}:
+            raise PermissionError("Journal wake inspection is unavailable for this role")
+        from packages.contracts.journal_wake import JournalWakeWait
+
+        return await self.store.journal_wake.wait(
+            JournalWakeWait(
+                schema_version="1.0",
+                protocol="journal_wake_v1",
+                cursor=cursor,
+                wait_ms=wait_ms,
+            )
+        )
+
+    async def window_decision(self, source_event_id):
+        return self.store.window_decision(source_event_id)
+
+    async def pending_windows(self, *, limit=100):
+        if self.role not in {"owner", "decisions"}:
+            raise PermissionError("Window admission requires owner or Decisions")
+        return self.store.pending_windows(limit=limit)
+
+    async def window_classification_attempts(self, source_event_id):
+        if self.role not in {"owner", "decisions"}:
+            raise PermissionError("Window admission requires owner or Decisions")
+        return self.store.window_classification_attempts(source_event_id)
+
+    async def window_response(self, session_id, epoch, utterance_id):
+        return self.store.window_response(session_id, epoch, utterance_id)
+
+    async def window_dispatches(self, **query):
+        return self.store.window_dispatches(**query)
+
+    async def window_control(self, session_id, epoch, agent_interrupt=False):
+        return self.store.window_control(session_id, epoch, agent_interrupt)
+
+    async def entry(self, event_id):
+        return self.store.entry(event_id)
+
+    async def cursor(self, consumer):
+        return self.store.cursor(self.role, consumer)
+
+    async def acknowledge(self, consumer, sequence):
+        return self.store.acknowledge(self.role, consumer, sequence)
