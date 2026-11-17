@@ -55,6 +55,10 @@ class DecisionsModelsApi {
   bool _closed = false;
   Future<void>? _closing;
 
+  late final AgentAdviceSettingsApi agentAdvice = AgentAdviceSettingsApi._(
+    this,
+  );
+
   bool sameOwner(DecisionsModelsApi other) =>
       baseUrl == other.baseUrl && _token == other._token;
   bool get hasUnconfirmedChange => _known.any((item) => sameOwner(item.owner));
@@ -217,6 +221,10 @@ class DecisionsModelsApi {
     Map<String, Object?>? body,
     T Function(Object?) decode, {
     Map<String, String>? query,
+    int maxRequestBytes = 4096,
+    int maxResponseBytes = 256 * 1024,
+    bool Function()? current,
+    T Function(Object?)? decodeRefusal,
   }) async {
     final write = method == 'POST';
     if (_closed ||
@@ -235,7 +243,7 @@ class DecisionsModelsApi {
       throw const DecisionsModelFailure('Invalid Decisions model connection');
     }
     final bytes = body == null ? <int>[] : utf8.encode(jsonEncode(body));
-    if (bytes.length > 4096) {
+    if (bytes.length > maxRequestBytes) {
       throw const DecisionsModelFailure(
         'Decisions model request exceeds its bound',
       );
@@ -274,14 +282,21 @@ class DecisionsModelsApi {
           _allOwners.remove(owned);
         }
       };
-      if (_closed) {
+      if (_closed || (current != null && !current())) {
         throw const DecisionsModelFailure('Decisions model transport closed');
       }
-      final raw = await owned.read(request).timeout(requestTimeout);
+      final (status, raw) = await owned
+          .read(
+            request,
+            maxBytes: maxResponseBytes,
+            readRefusal: decodeRefusal != null,
+          )
+          .timeout(requestTimeout);
       if (elapsed.elapsed >= requestTimeout) {
         throw TimeoutException('Decisions model deadline');
       }
-      result = decode(decisionsModelJsonDecode(raw));
+      final decoded = decisionsModelJsonDecode(raw);
+      result = status == 400 ? decodeRefusal!(decoded) : decode(decoded);
       if (elapsed.elapsed >= requestTimeout) {
         throw TimeoutException('Decisions model deadline');
       }
@@ -325,6 +340,132 @@ class DecisionsModelsApi {
   }
 }
 
+class _AgentAdviceSave {
+  _AgentAdviceSave(this.owner, this.original);
+  final AgentAdviceSettingsApi owner;
+  final AgentAdvicePolicyChange original;
+  bool busy = true;
+}
+
+/// Protected optional policy settings share the Decisions transport budget.
+/// An uncertain dispatch keeps its immutable original across same-owner reconnect.
+class AgentAdviceSettingsApi {
+  AgentAdviceSettingsApi._(this._transport);
+
+  static const _path = '/v1/decisions/options/agent-advice-settings';
+  static const _requestBytes = 65536, _responseBytes = 163840;
+  static final _originals = <_AgentAdviceSave>[];
+  static final _changes = StreamController<void>.broadcast();
+  final DecisionsModelsApi _transport;
+
+  bool sameOwner(AgentAdviceSettingsApi other) =>
+      _transport.sameOwner(other._transport);
+
+  Stream<void> get changes => _changes.stream;
+
+  _AgentAdviceSave? get _pending =>
+      _originals.where((item) => sameOwner(item.owner)).firstOrNull;
+
+  AgentAdvicePolicyChange? get pending => _pending?.original;
+  bool get busy => _pending?.busy ?? false;
+
+  Future<AgentAdviceSettingsSnapshot> inspect() => _transport._request(
+    'GET',
+    _path,
+    null,
+    AgentAdviceSettingsSnapshot.fromJson,
+    maxResponseBytes: _responseBytes,
+  );
+
+  Future<AgentAdviceSaveReceipt> save(
+    AgentAdvicePolicyChange original, {
+    required bool Function() current,
+  }) async {
+    if (_pending != null || _originals.length >= 16) {
+      throw const DecisionsModelFailure(
+        'An original Agent advice save is still retained',
+      );
+    }
+    final record = _AgentAdviceSave(this, original);
+    _originals.add(record);
+    _changes.add(null);
+    try {
+      final observed = await inspect();
+      if (!current() || !original.base.sameRevision(observed)) {
+        throw const DecisionsModelFailure(
+          'Agent advice settings changed before saving',
+          status: 409,
+        );
+      }
+      final receipt = await _transport._request<AgentAdviceSaveReceipt?>(
+        'POST',
+        _path,
+        original.body,
+        (raw) => AgentAdviceSaveReceipt.fromJson(raw, original),
+        maxRequestBytes: _requestBytes,
+        maxResponseBytes: _responseBytes,
+        current: current,
+        decodeRefusal: (raw) {
+          validateAgentAdviceSaveRefusal(raw, original);
+          return null;
+        },
+      );
+      _originals.remove(record);
+      if (receipt == null) {
+        throw const DecisionsModelFailure(
+          'The original Agent advice selection was refused',
+          status: 400,
+          dispatched: true,
+        );
+      }
+      return receipt;
+    } on DecisionsModelFailure catch (error) {
+      if (!error.dispatched) _originals.remove(record);
+      rethrow;
+    } finally {
+      record.busy = false;
+      _changes.add(null);
+    }
+  }
+
+  Future<AgentAdviceSaveLookup> lookup({
+    required bool Function() current,
+  }) async {
+    final record = _pending;
+    if (record == null || record.busy) {
+      throw const DecisionsModelFailure(
+        'No Agent advice save is ready to check',
+      );
+    }
+    final original = record.original;
+    record.busy = true;
+    _changes.add(null);
+    try {
+      final observed = await inspect();
+      if (!current() || observed.backendId != original.base.backendId) {
+        throw const DecisionsModelFailure(
+          'Reconnect to the original Decisions settings backend',
+          status: 409,
+        );
+      }
+      final lookup = await _transport._request(
+        'POST',
+        '$_path/lookup',
+        original.body,
+        (raw) => AgentAdviceSaveLookup.fromJson(raw, original),
+        maxRequestBytes: _requestBytes,
+        maxResponseBytes: _responseBytes,
+        current: current,
+      );
+      if (lookup.receipt != null || lookup.fenced) _originals.remove(record);
+      return lookup;
+    } finally {
+      record.busy = false;
+      _changes.add(null);
+    }
+  }
+}
+
 class _DecisionsModelStatus implements Exception {
   _DecisionsModelStatus(this.status);
   final int status;
@@ -349,7 +490,11 @@ class _DecisionsModelRequest {
       _clientClosed &&
       (_reader == null || _cancelSettled);
 
-  Future<List<int>> read(http.Request request) async {
+  Future<(int, List<int>)> read(
+    http.Request request, {
+    required int maxBytes,
+    required bool readRefusal,
+  }) async {
     _started = true;
     try {
       dispatched = true;
@@ -363,7 +508,8 @@ class _DecisionsModelRequest {
         await _awaitCancellation();
         throw const DecisionsModelFailure('Decisions model request ended');
       }
-      if (response.statusCode != 200) {
+      if (response.statusCode != 200 &&
+          !(readRefusal && response.statusCode == 400)) {
         throw _DecisionsModelStatus(response.statusCode);
       }
       if (response.headers['content-type']
@@ -376,7 +522,7 @@ class _DecisionsModelRequest {
             (response.headers['content-encoding'] ?? '').trim().toLowerCase(),
           ) ||
           (response.contentLength != null &&
-              response.contentLength! > 256 * 1024)) {
+              response.contentLength! > maxBytes)) {
         throw const FormatException();
       }
       final bytes = <int>[];
@@ -386,7 +532,7 @@ class _DecisionsModelRequest {
           throw const DecisionsModelFailure('Decisions model request ended');
         }
         final chunk = _reader!.current;
-        if (bytes.length + chunk.length > 256 * 1024) {
+        if (bytes.length + chunk.length > maxBytes) {
           throw const FormatException();
         }
         bytes.addAll(chunk);
@@ -396,7 +542,7 @@ class _DecisionsModelRequest {
           response.contentLength != bytes.length) {
         throw const FormatException();
       }
-      return bytes;
+      return (response.statusCode, bytes);
     } finally {
       _finished = true;
       onSettled?.call();

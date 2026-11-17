@@ -90,11 +90,13 @@ async def test_only_agent_identity_can_use_the_internal_service(env, role, path)
 
 
 async def test_runtime_inspection_never_opens_a_model_and_default_app_has_no_advice_route(env):
+    owner_runtime = "/v1/decisions/options/agent-advice-runtime"
     async with service(env, install=False) as (client, _, _):
         assert (await client.get(BASE + "/runtime")).status_code == 404
         client.headers["Authorization"] = "Bearer " + TOKENS["owner"]
         original = await client.get("/v1/decisions/options/agent-policy")
         assert original.json()["request_admission"] == "unavailable"
+        assert (await client.get(owner_runtime)).status_code == 404
     async with service(env) as (client, _, _):
         for _ in range(3):
             runtime = AgentAdviceRuntimeState.model_validate(
@@ -103,6 +105,11 @@ async def test_runtime_inspection_never_opens_a_model_and_default_app_has_no_adv
             assert runtime.phase == "running" and runtime.new_request_available is True
             assert runtime.observation == "runtime_and_catalog_metadata_only"
             assert runtime.active == runtime.retained == 0
+        assert (await client.get(owner_runtime)).status_code == 403
+        client.headers["Authorization"] = "Bearer " + TOKENS["owner"]
+        owner = await client.get(owner_runtime)
+        assert owner.status_code == 200 and owner.headers["cache-control"] == "no-store"
+        assert AgentAdviceRuntimeState.model_validate(owner.json()) == runtime
         assert not env.adapters
 
 

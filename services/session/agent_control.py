@@ -573,11 +573,12 @@ class AgentControl:
             raise AgentControlUnavailable
         return mode
 
-    def _history(self, initial):
+    def _history(self, initial, *, require_stable_steer=False):
         revision = initial.payload["objective_revision"]
         scope = initial.payload.get("content_scope", "local_only")
         state = "accepted"
         sources = set(initial.payload["source_event_ids"])
+        requested_steer = rejected_steer = None
         after = initial.sequence
         deadline = time.monotonic() + 4.0
         while True:
@@ -625,7 +626,17 @@ class AgentControl:
                 state = event.payload.get("state", state)
                 if state not in {value.value for value in TaskState}:
                     raise AgentControlUnavailable
-                if event.kind == "agent.command" and event.payload.get("op") == "steer-applied":
+                operation = event.payload.get("op") if event.kind == "agent.command" else None
+                if require_stable_steer and operation == "steer-requested":
+                    if (
+                        requested_steer is not None
+                        or event.payload.get("expected_objective_revision") != revision
+                    ):
+                        raise AgentControlUnavailable
+                    requested_steer = event
+                if require_stable_steer and operation == "steer-rejected":
+                    rejected_steer = event
+                if operation == "steer-applied":
                     saved = self._one(
                         "SELECT request FROM agent_steer_intents WHERE event_id=?",
                         (event.payload.get("steer_event_id"),),
@@ -644,6 +655,7 @@ class AgentControl:
                         raise AgentControlUnavailable
                     revision += 1
                     sources.update(proposal.request.source_event_ids)
+                    requested_steer = rejected_steer = None
                 if event.kind == "agent.outcome":
                     if event.payload.get("task", {}).get("state") in {
                         "succeeded",
@@ -651,7 +663,40 @@ class AgentControl:
                         "cancelled",
                     }:
                         state = event.payload["task"]["state"]
+        if require_stable_steer:
+            self._require_stable_steer(initial, revision, requested_steer, rejected_steer)
         return revision, scope, state, sources
+
+    def _require_stable_steer(self, initial, revision, requested, rejected):
+        # The native intent and its event commit together. Refuse an ambiguous
+        # projection even if a history reader sees only one of those records.
+        saved = self._one(
+            "SELECT event_id,request FROM agent_steer_intents "
+            "WHERE submit_event_id=? AND base_revision=?",
+            (initial.event_id, revision),
+        )
+        if saved is None and requested is None:
+            return
+        if saved is None or requested is None or saved["event_id"] != requested.event_id:
+            raise AgentControlUnavailable
+        if rejected is None or (
+            rejected.sequence <= requested.sequence
+            or rejected.payload.get("steer_event_id") != requested.event_id
+            or rejected.payload.get("intent_digest") != requested.payload.get("intent_digest")
+            or rejected.payload.get("actor") != requested.payload.get("actor")
+            or type(rejected.payload.get("objective_revision")) is not int
+            or rejected.payload["objective_revision"] != revision
+            or rejected.payload.get("reason") != "source_changed_before_boundary"
+        ):
+            raise AgentControlConflict
+        original = AgentSteerAdmissionRequest.from_json(saved["request"].encode())
+        proof = self._steer_proof(original)
+        if (
+            proof is None
+            or proof.event_id != requested.event_id
+            or proof.sequence != requested.sequence
+        ):
+            raise AgentControlUnavailable
 
     def _source(self, source_id, task):
         original = self.store.entry(source_id)

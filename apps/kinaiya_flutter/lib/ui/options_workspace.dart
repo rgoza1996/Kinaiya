@@ -25,6 +25,7 @@ import 'agent_runtime_writes.dart';
 import 'options_provider_editor.dart';
 import 'options_tool_permissions.dart';
 import 'options_authorizations.dart';
+import 'options_agent_advice.dart';
 import 'options_converse_model.dart';
 import 'options_stt_model.dart';
 import 'options_tts_model.dart';
@@ -1088,6 +1089,7 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
   Widget _content() => switch (_page) {
     OptionsPage.overview => _overview(),
     OptionsPage.subsystems => _subsystems(),
+    OptionsPage.agentAdvice => _agentAdvice(),
     OptionsPage.models => _modelDefaults(),
     OptionsPage.harnesses => _harnesses(),
     OptionsPage.providers => _providers(),
@@ -1161,6 +1163,21 @@ class _OptionsWorkspaceState extends State<OptionsWorkspace> {
       OptionsSubsystems(
         key: ObjectKey(client?.coreSubsystems),
         api: client?.coreSubsystems,
+        active: () =>
+            client != null && owner.ownsConnection(generation, client),
+      ),
+    ]);
+  }
+
+  Widget _agentAdvice() {
+    final owner = widget.state, client = owner.client;
+    final generation = owner.connectionGeneration;
+    final api = client?.decisionsModels?.agentAdvice;
+    return _scroll([
+      OptionsAgentAdvice(
+        key: ObjectKey(api),
+        api: api,
+        providers: client?.providers,
         active: () =>
             client != null && owner.ownsConnection(generation, client),
       ),

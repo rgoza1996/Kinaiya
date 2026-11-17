@@ -39,7 +39,9 @@ def admit_export(store, request):
             # Task state and complete source/causal-closure admission describe
             # one native point, including across independently opened Stores.
             initial = store.agent_control._initial(request)
-            revision, task_scope, state, sources = store.agent_control._history(initial)
+            revision, task_scope, state, sources = store.agent_control._history(
+                initial, require_stable_steer=True
+            )
             if (
                 revision != request.objective_revision
                 or state != "running"

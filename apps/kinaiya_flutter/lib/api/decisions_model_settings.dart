@@ -3,7 +3,12 @@ library;
 
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
+
+import 'models.dart' show ContentScope;
 import 'tool_permissions.dart' show permissionJsonDecode;
+
+part 'agent_advice_settings.dart';
 
 const decisionsModelRevisionLimit = 9007199254740990;
 const decisionsModelBoundary = 'settled_decisions_operations';
@@ -46,7 +51,12 @@ String _text(Object? value, int bytes) {
       value.codeUnits.any((c) => c < 32 || c == 127)) {
     _bad();
   }
-  // Reject unpaired surrogates rather than silently replacing wire identity.
+  _requireWellFormedUnicode(value);
+  return value;
+}
+
+void _requireWellFormedUnicode(String value) {
+  // Reject unpaired surrogates rather than replacing wire identity.
   for (var i = 0; i < value.length; i++) {
     final c = value.codeUnitAt(i);
     if (c >= 0xd800 && c <= 0xdbff) {
@@ -59,7 +69,6 @@ String _text(Object? value, int bytes) {
       _bad();
     }
   }
-  return value;
 }
 
 String? _optionalText(Object? value, int bytes) =>
