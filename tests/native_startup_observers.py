@@ -7,8 +7,9 @@ Only static code locations, exception types and byte counts leave the wrappers.
 import logging
 import time
 from collections import deque
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 from packages.resources.media_processes import MediaLaunch
 
@@ -42,8 +43,8 @@ def observe_standing_read(operations):
     """Tee one fixture read's original run result/exception; restore on all exits."""
     failures = []
     original = operations.run
-    previous = vars(operations).get("run")
-    had_instance_method = "run" in vars(operations)
+    dispatch = getattr(operations, "dispatch", None)
+    snapshot_phase = "not_entered"
 
     async def observed(*args, **kwargs):
         started = time.monotonic()
@@ -56,19 +57,32 @@ def observe_standing_read(operations):
                         "owner_closed": operations._closed,
                         "active_operations": operations.active_operations,
                         "elapsed_seconds": round(time.monotonic() - started, 6),
+                        "snapshot_phase": snapshot_phase,
                         "chain": _exception_chain(error),
                     }
                 )
+                # Pytest short tracebacks abbreviate nested assertion arguments.
+                _LOG.warning("Initial standing dispatch read refused: %s", failures[0])
             raise
 
-    operations.run = observed
-    try:
+    with ExitStack() as patches:
+        if dispatch is not None:
+            snapshot = dispatch.snapshot
+
+            def observed_snapshot():
+                nonlocal snapshot_phase
+                snapshot_phase = "entered"
+                try:
+                    result = snapshot()
+                except BaseException:
+                    snapshot_phase = "raised"
+                    raise
+                snapshot_phase = "returned"
+                return result
+
+            patches.enter_context(patch.object(dispatch, "snapshot", observed_snapshot))
+        patches.enter_context(patch.object(operations, "run", observed))
         yield failures
-    finally:
-        if had_instance_method:
-            operations.run = previous
-        else:
-            del operations.run
 
 
 def observe_media_commands(monkeypatch):
