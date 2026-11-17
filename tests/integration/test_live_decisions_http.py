@@ -247,23 +247,27 @@ async def test_lost_original_ack_is_observed_without_replaying_inference_or_publ
     await exercise_lost_ack(live, wire, operation, committed)
 
 
-async def test_pre_admission_read_timeout_does_not_count_as_a_lost_finish_ack(
-    live, wire, monkeypatch
-):
+@pytest.fixture
+def held_currentness_entries(monkeypatch):
     entry = JournalClient.entry
-    held = False
+    held = []
 
     async def hold_first_entry(client, event_id):
-        nonlocal held
         result = await entry(client, event_id)
         if not held:
-            held = True
-            await asyncio.Event().wait()  # The real currentness deadline cancels this read.
+            held.append(event_id)
+            await asyncio.Event().wait()
         return result
 
     monkeypatch.setattr(JournalClient, "entry", hold_first_entry)
+    return held
+
+
+async def test_pre_admission_read_timeout_does_not_count_as_a_lost_finish_ack(
+    live, wire, held_currentness_entries
+):
     await exercise_lost_ack(live, wire, "finish", True)
-    assert held
+    assert len(held_currentness_entries) == 1
 
 
 async def exercise_lost_ack(live, wire, operation, committed):

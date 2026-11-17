@@ -22,12 +22,26 @@ from tests.integration.test_live_capture_permission import env as env
 from tests.integration.test_live_capture_permission import fence
 from tests.integration.test_live_completion_worker import Agent
 from tests.integration.test_live_decisions_attempts import live as live
+from tests.integration.test_live_decisions_http import (
+    held_currentness_entries as held_currentness_entries,
+)
 from tests.integration.test_live_decisions_http import response
 from tests.integration.test_live_window_publication import original
 
 
 @pytest.mark.parametrize("fence_kind", ["model", "capture", "context-disclosure"])
 async def test_completed_recovery_rechecks_original_authority(live, monkeypatch, fence_kind):
+    await check_completed_recovery(live, monkeypatch, fence_kind)
+
+
+async def test_early_source_read_refusal_precedes_the_completed_recovery_fixture(
+    live, monkeypatch, held_currentness_entries
+):
+    await check_completed_recovery(live, monkeypatch, "context-disclosure")
+    assert len(held_currentness_entries) == 1
+
+
+async def check_completed_recovery(live, monkeypatch, fence_kind):
     context = live.store.append(
         AppendRequest(
             session_id=live.session.session_id,
@@ -69,21 +83,46 @@ async def test_completed_recovery_rechecks_original_authority(live, monkeypatch,
     settings = DecisionsModelSettings(provider, None)
     replacement_settings = settings
     actual_publish = journal.publish_live_decision
+    actual_admit = journal.live_decisions_attempt_admit
+    admissions = []
+    publication_stop = CaptureNativeUnavailable("Public synthetic stop before original publication")
+
+    async def admit(request):
+        admissions.append(request)
+        return await actual_admit(request)
 
     async def before_publication(proof):
         proposed.append(proof)
-        raise CaptureNativeUnavailable("Public synthetic stop before original publication")
+        raise publication_stop
 
+    monkeypatch.setattr(journal, "live_decisions_attempt_admit", admit)
     monkeypatch.setattr(journal, "publish_live_decision", before_publication)
     try:
         worker = LiveDecisionsWorker(journal, Agent(), settings)
-        with pytest.raises(CaptureNativeUnavailable):
-            await worker._job(
-                SimpleNamespace(source=live.source, stamp=settings.cache_stamp(), lease=None)
-            )
-        state = await journal.live_decisions_attempt_lookup(
-            LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
-        )
+        lookup = LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
+        for observation in range(2):
+            with pytest.raises(CaptureNativeUnavailable) as refused:
+                await worker._job(
+                    SimpleNamespace(source=live.source, stamp=settings.cache_stamp(), lease=None)
+                )
+            if refused.value.__cause__ is publication_stop:
+                break
+            if (
+                observation
+                or str(refused.value) != "Decisions currentness check exceeded its bound"
+                or not isinstance(refused.value.__cause__, TimeoutError)
+            ):
+                raise refused.value
+            # Only a read that expired before the first outgoing admission may
+            # start a fresh observation. An unacknowledged admission stays owned.
+            assert not admissions and not calls and not proposed
+            assert not settings.leases and not journal._submit_exchanges
+            absent = await journal.live_decisions_attempt_lookup(lookup)
+            assert absent.state == "known_absent" and absent.charged_attempts == 0
+            assert absent.last_attempt is None
+            assert live.store.read(kinds=["routing.live_window_decided"]) == []
+        state = await journal.live_decisions_attempt_lookup(lookup)
+        assert len(admissions) == 1
         assert state.state == "completed" and state.charged_attempts == 1
         assert context.event_id in [
             s.source_event_id for s in state.last_attempt.admission.disclosure_sources
