@@ -1,5 +1,38 @@
 {
   "$defs": {
+    "ExternalAgentBind": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "operation": {
+          "const": "bind",
+          "title": "Operation",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/ExternalAgentTarget"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "operation",
+        "target"
+      ],
+      "title": "ExternalAgentBind",
+      "type": "object"
+    },
     "ExternalAgentConnect": {
       "additionalProperties": false,
       "properties": {
@@ -43,6 +76,20 @@
             }
           ],
           "title": "Expected Backend Session Id"
+        },
+        "allowed_content": {
+          "items": {
+            "enum": [
+              "local_only",
+              "public_synthetic",
+              "private_cloud_authorized"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Allowed Content",
+          "type": "array"
         }
       },
       "required": [
@@ -51,7 +98,8 @@
         "operation",
         "profile_id",
         "scope",
-        "expected_backend_session_id"
+        "expected_backend_session_id",
+        "allowed_content"
       ],
       "title": "ExternalAgentConnect",
       "type": "object"
@@ -294,6 +342,41 @@
         "limit"
       ],
       "title": "ExternalAgentReplay",
+      "type": "object"
+    },
+    "ExternalAgentRevoke": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "operation": {
+          "const": "revoke",
+          "title": "Operation",
+          "type": "string"
+        },
+        "attachment_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Attachment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "operation",
+        "attachment_id"
+      ],
+      "title": "ExternalAgentRevoke",
       "type": "object"
     },
     "ExternalAgentScope": {
@@ -556,11 +639,13 @@
   },
   "discriminator": {
     "mapping": {
+      "bind": "#/$defs/ExternalAgentBind",
       "connect": "#/$defs/ExternalAgentConnect",
       "disconnect": "#/$defs/ExternalAgentDisconnect",
       "events": "#/$defs/ExternalAgentReplay",
       "interrupt": "#/$defs/ExternalAgentInterrupt",
       "read_transcript": "#/$defs/ExternalAgentReadTranscript",
+      "revoke": "#/$defs/ExternalAgentRevoke",
       "status": "#/$defs/ExternalAgentInspect",
       "steer": "#/$defs/ExternalAgentSteer",
       "submit": "#/$defs/ExternalAgentSubmit"
@@ -570,6 +655,12 @@
   "oneOf": [
     {
       "$ref": "#/$defs/ExternalAgentConnect"
+    },
+    {
+      "$ref": "#/$defs/ExternalAgentBind"
+    },
+    {
+      "$ref": "#/$defs/ExternalAgentRevoke"
     },
     {
       "$ref": "#/$defs/ExternalAgentDisconnect"

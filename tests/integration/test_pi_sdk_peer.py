@@ -10,6 +10,9 @@ from pathlib import Path
 import pytest
 
 from packages.agent_adapters.pi_sdk import PiPeerUnavailable, PiSdkPeer
+from packages.contracts.external_agent import ExternalAgentRevoke
+from packages.contracts.models import SessionRequest
+from tests.integration.test_external_agent_session import add, bind_to, connection, native
 
 ROOT = Path(__file__).resolve().parents[2]
 SDK_ROOT = os.environ.get("KINAIYA_PI_TEST_SDK_ROOT")
@@ -19,7 +22,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def sdk_sandbox(private, previous=None):
+def sdk_sandbox(private, previous=None, *, transcript=False):
     node = shutil.which("node")
     assert node and shutil.which("bwrap"), "Pi qualification requires Node and bubblewrap"
     sdk = Path(SDK_ROOT).resolve(strict=True)
@@ -70,6 +73,7 @@ def sdk_sandbox(private, previous=None):
         "/node",
         "--no-warnings",
         "/peer.mjs",
+        *(["--transcript"] if transcript else []),
         "/sdk",
         "/private/workspace",
         "/private/agent",
@@ -82,6 +86,8 @@ def sdk_sandbox(private, previous=None):
 
 @pytest.fixture
 def private(tmp_path):
+    tmp_path = tmp_path / "pi"
+    tmp_path.mkdir(mode=0o700)
     for relative in ("home", "workspace", "agent/extensions", "sessions"):
         (tmp_path / relative).mkdir(mode=0o700, parents=True)
     shutil.copyfile(
@@ -101,9 +107,9 @@ def private(tmp_path):
 
 
 @asynccontextmanager
-async def connect(private, previous=None):
+async def connect(private, previous=None, *, transcript=False):
     process = await asyncio.create_subprocess_exec(
-        *sdk_sandbox(private, previous),
+        *sdk_sandbox(private, previous, transcript=transcript),
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -242,3 +248,61 @@ async def test_python_bridge_transport_preserves_one_real_pi_submission(private)
         assert (await peer.status("2" * 32)).busy is False
         assert (await peer.request_close("3" * 32)).disposition == "stopping"
         assert await asyncio.wait_for(process.wait(), 5) == 0
+
+
+async def test_real_pi_requests_transcript_on_demand_from_authenticated_session(private):
+    async with native(private.parent / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        visible = add(peers.store, session, "conversation.user", "Authorized history ☂")
+        add(peers.store, session, "conversation.user", "Private history", scope="local_only")
+        later = add(
+            peers.store, session, "conversation.converse", "Authorized reply.", role="converse"
+        )
+        consent = await peers.owner.authorize(connection(session, backend=None))
+        bound = None
+        reads = []
+
+        async def read_transcript(**position):
+            reads.append(position)
+            return await peers.decisions.read_bound_transcript(bound, **position)
+
+        async with connect(private, transcript=True) as process:
+            peer = await PiSdkPeer.attach(
+                process.stdout, process.stdin, transcript_reader=read_transcript
+            )
+            bound = await peers.decisions.bind(bind_to(consent, peer.session_id))
+
+            async def run(identifier, text):
+                assert (await peer.submit(identifier, text)).disposition == "accepted"
+                async with asyncio.timeout(5):
+                    while True:
+                        current = [event for event in peer.events(0) if event.run_id == identifier]
+                        if any(event.kind == "settled" for event in current):
+                            return [
+                                event.text for event in current if event.kind == "assistant_message"
+                            ]
+                        await asyncio.sleep(0.02)
+
+            assert await run("1" * 32, "ordinary turn") == ["ordinary turn"]
+            assert reads == []
+            (answer,) = await run("2" * 32, "read scoped transcript")
+            assert len(reads) == 3
+            page = json.loads(answer)
+            assert [(entry["event_id"], entry["text"]) for entry in page["entries"]] == [
+                (visible.event_id, "Authorized history ☂"),
+                (later.event_id, "Authorized reply."),
+            ]
+            assert page["has_more"] is False
+
+            await peers.owner.revoke(
+                ExternalAgentRevoke(
+                    contract_version=1,
+                    request_id="revoke-test-grant",
+                    operation="revoke",
+                    attachment_id=consent.attachment_id,
+                )
+            )
+            (answer,) = await run("3" * 32, "read scoped transcript")
+            assert len(reads) == 4 and "Converse transcript page is unavailable" in answer
+            assert (await peer.request_close("4" * 32)).disposition == "stopping"
+            assert await asyncio.wait_for(process.wait(), 5) == 0

@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, m
 from packages.contracts.models import ContentScope
 
 MAX_CURSOR = (1 << 53) - 1
+MAX_EXTERNAL_NATIVE_REQUEST_BYTES = 8192
+MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES = 262144
 BridgeIdentifier = Annotated[
     str, Field(min_length=1, max_length=256, pattern=r"^[^\x00-\x1f\x7f]+$")
 ]
@@ -88,6 +90,24 @@ class ExternalAgentConnect(_Envelope):
     profile_id: BridgeIdentifier
     scope: ExternalAgentScope
     expected_backend_session_id: BridgeIdentifier | None
+    allowed_content: tuple[ContentScope, ...] = Field(min_length=1, max_length=3)
+
+    @field_validator("allowed_content")
+    @classmethod
+    def distinct_content(cls, scopes):
+        if len(set(scopes)) != len(scopes):
+            raise ValueError("External Agent content scopes must be distinct")
+        return scopes
+
+
+class ExternalAgentBind(_Envelope):
+    operation: Literal["bind"]
+    target: ExternalAgentTarget
+
+
+class ExternalAgentRevoke(_Envelope):
+    operation: Literal["revoke"]
+    attachment_id: BridgeAttachmentId
 
 
 class _TargetRequest(_Envelope):
@@ -156,7 +176,9 @@ class ExternalAgentReadTranscript(_TargetRequest):
 
     @model_validator(mode="after")
     def within_snapshot(self):
-        if self.through_sequence is not None and self.after.sequence > self.through_sequence:
+        if (self.through_sequence is not None and self.after.sequence > self.through_sequence) or (
+            self.through_sequence is None and self.after.byte_offset
+        ):
             raise ValueError("Transcript position is beyond its snapshot")
         return self
 
@@ -164,6 +186,8 @@ class ExternalAgentReadTranscript(_TargetRequest):
 class ExternalAgentRequest(RootModel):
     root: Annotated[
         ExternalAgentConnect
+        | ExternalAgentBind
+        | ExternalAgentRevoke
         | ExternalAgentDisconnect
         | ExternalAgentInspect
         | ExternalAgentSubmit
@@ -190,6 +214,22 @@ class ExternalAgentStatus(_Envelope):
     capabilities: ExternalAgentCapabilities
     state: Literal["connected", "detached", "unavailable", "uncertain", "stopped"]
     tasks: tuple[ExternalAgentTask, ...] = Field(max_length=128)
+
+
+class ExternalAgentGrant(_Envelope):
+    kind: Literal["grant"]
+    attachment_id: BridgeAttachmentId
+    original: ExternalAgentConnect
+    phase: Literal["authorized", "bound", "revoked"]
+    backend_session_id: BridgeIdentifier | None
+
+    @model_validator(mode="after")
+    def consistent(self):
+        if (self.phase == "authorized" and self.backend_session_id is not None) or (
+            self.phase == "bound" and self.backend_session_id is None
+        ):
+            raise ValueError("External Agent grant has an inconsistent binding")
+        return self
 
 
 class ExternalAgentDisconnectReceipt(_Envelope):
@@ -266,11 +306,29 @@ class ExternalAgentEventPage(_Envelope):
 class ExternalAgentTranscriptEntry(_Closed):
     sequence: BridgeRevision
     event_id: BridgeIdentifier
+    kind: Literal[
+        "conversation.user", "conversation.converse", "conversation.window", "conversation.revision"
+    ]
     origin: Literal["authenticated-user", "converse"]
+    revision: BridgeRevision
+    revises_event_id: BridgeIdentifier | None
+    utterance_id: BridgeIdentifier | None
+    window_index: BridgeCursor | None
     content_scope: ContentScope
     byte_offset: BridgeCursor
     end_of_entry: bool
     text: str = Field(max_length=32768)
+
+    @model_validator(mode="after")
+    def provenance_shape(self):
+        window = self.kind == "conversation.window"
+        if (
+            (self.utterance_id is not None) != window
+            or (self.window_index is not None) != window
+            or (self.revises_event_id is not None) != (self.kind == "conversation.revision")
+        ):
+            raise ValueError("Transcript entry metadata does not match its native kind")
+        return self
 
 
 class ExternalAgentTranscriptPage(_Envelope):
@@ -285,11 +343,30 @@ class ExternalAgentTranscriptPage(_Envelope):
 
     @model_validator(mode="after")
     def bounded_positions(self):
-        if not (
-            self.after.sequence <= self.next_after.sequence <= self.through_sequence
-            and all(
-                self.after.sequence <= item.sequence <= self.next_after.sequence
-                for item in self.entries
+        position = self.after
+        for entry in self.entries:
+            if position.byte_offset:
+                if (entry.sequence, entry.byte_offset) != (position.sequence, position.byte_offset):
+                    raise ValueError("Transcript continuation does not match its original entry")
+            elif entry.sequence <= position.sequence or entry.byte_offset:
+                raise ValueError("Transcript entries are out of native order")
+            read_bytes = len(entry.text.encode("utf-8"))
+            if not entry.end_of_entry and not read_bytes:
+                raise ValueError("Transcript continuation made no progress")
+            position = ExternalAgentTranscriptPosition(
+                sequence=entry.sequence,
+                byte_offset=0 if entry.end_of_entry else entry.byte_offset + read_bytes,
+            )
+        if (
+            not position.sequence <= self.next_after.sequence <= self.through_sequence
+            or (position.byte_offset and self.next_after != position)
+            or (not position.byte_offset and self.next_after.byte_offset)
+            or (self.has_more and self.next_after == self.after)
+            or (
+                not self.has_more
+                and (
+                    self.next_after.sequence != self.through_sequence or self.next_after.byte_offset
+                )
             )
         ):
             raise ValueError("Transcript entries are outside their snapshot page")
@@ -312,6 +389,7 @@ class ExternalAgentRefusal(_Envelope):
 class ExternalAgentResponse(RootModel):
     root: Annotated[
         ExternalAgentStatus
+        | ExternalAgentGrant
         | ExternalAgentDisconnectReceipt
         | ExternalAgentCommandReceipt
         | ExternalAgentEventPage

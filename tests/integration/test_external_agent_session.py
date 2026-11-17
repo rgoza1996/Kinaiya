@@ -1,0 +1,314 @@
+"""External Agent grants and scoped pages across the real Session HTTP boundary."""
+
+import asyncio
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
+from uuid import uuid4
+
+import pytest
+
+from packages.contracts.client import JournalClient
+from packages.contracts.external_agent import (
+    ExternalAgentBind,
+    ExternalAgentConnect,
+    ExternalAgentReadTranscript,
+    ExternalAgentRevoke,
+    ExternalAgentScope,
+    ExternalAgentTarget,
+    ExternalAgentTranscriptPosition,
+)
+from packages.contracts.external_agent_client import (
+    ExternalAgentNativeConflict,
+    ExternalAgentSessionClient,
+)
+from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow
+from services.common.auth import Auth
+from services.session.api import create_app
+from services.session.store import Store
+from tests.integration.test_required_decisions_readiness import TOKENS, loopback
+
+
+@asynccontextmanager
+async def native(path):
+    store = Store(path)
+    try:
+        async with loopback(create_app(store, Auth(TOKENS))) as url:
+            owner = JournalClient(url, TOKENS["owner"])
+            decisions = JournalClient(url, TOKENS["decisions"])
+            try:
+                yield SimpleNamespace(
+                    store=store,
+                    owner=ExternalAgentSessionClient(owner),
+                    decisions=ExternalAgentSessionClient(decisions),
+                    http=decisions.http,
+                    owner_http=owner.http,
+                )
+            finally:
+                await decisions.close()
+                await owner.close()
+    finally:
+        store.close()
+
+
+def scope_of(session):
+    return ExternalAgentScope(
+        session_id=session.session_id, thread_id=session.thread_id, epoch=session.epoch
+    )
+
+
+def connection(session, *, scopes=("public_synthetic",), backend="pi-original"):
+    return ExternalAgentConnect(
+        contract_version=1,
+        request_id=uuid4().hex,
+        operation="connect",
+        profile_id="pi-fixture",
+        scope=scope_of(session),
+        allowed_content=scopes,
+        expected_backend_session_id=backend,
+    )
+
+
+def bind_to(grant, backend="pi-original"):
+    return ExternalAgentBind(
+        contract_version=1,
+        request_id=uuid4().hex,
+        operation="bind",
+        target=ExternalAgentTarget(attachment_id=grant.attachment_id, backend_session_id=backend),
+    )
+
+
+def read(target, *, position=None, through=None, limit=128):
+    return ExternalAgentReadTranscript(
+        contract_version=1,
+        request_id=uuid4().hex,
+        operation="read_transcript",
+        target=target,
+        after=position or ExternalAgentTranscriptPosition(sequence=0, byte_offset=0),
+        through_sequence=through,
+        limit=limit,
+    )
+
+
+def add(store, session, kind, text, *, scope="public_synthetic", causes=(), role="owner", **extra):
+    return store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind=kind,
+            causes=list(causes),
+            idempotency_key=uuid4().hex,
+            payload={"text": text, "content_scope": scope, "final": True, **extra},
+        ),
+        role,
+    )
+
+
+async def test_session_retains_exact_grant_and_binding_across_restart(tmp_path):
+    path = tmp_path / "journal.sqlite"
+    async with native(path) as peers:
+        conversation = peers.store.create_session(SessionRequest(channel="converse"))
+        original = connection(conversation)
+        with pytest.raises(PermissionError):
+            await peers.decisions.authorize(original)
+        proof = await peers.owner.authorize(original)
+        assert proof.phase == "authorized" and proof.backend_session_id is None
+        pending = bind_to(proof)
+        with pytest.raises(PermissionError):
+            await peers.owner.bind(pending)
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.transcript(read(pending.target), scope=original.scope)
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.bind(bind_to(proof, "wrong-backend"))
+        bound = await peers.decisions.bind(pending)
+        assert bound.phase == "bound" and bound.original == original
+        add(peers.store, conversation, "conversation.user", "Visible through the original binding")
+
+    async with native(path) as peers:
+        assert await peers.decisions.bind(pending) == bound
+        replay = await peers.owner.authorize(original)
+        assert replay.attachment_id == proof.attachment_id and replay.phase == "bound"
+        replaced = original.model_copy(update={"allowed_content": ("local_only",)})
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.owner.authorize(replaced)
+        history = await peers.decisions.transcript(read(pending.target), scope=original.scope)
+        assert [entry.text for entry in history.entries] == ["Visible through the original binding"]
+        assert history.has_more is False
+
+        state = ExternalAgentRevoke(
+            contract_version=1,
+            request_id=uuid4().hex,
+            operation="revoke",
+            attachment_id=proof.attachment_id,
+        )
+        with pytest.raises(PermissionError):
+            await peers.decisions.revoke(state)
+        assert (await peers.owner.revoke(state)).phase == "revoked"
+        assert (await peers.owner.authorize(original)).phase == "revoked"
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.transcript(read(pending.target), scope=original.scope)
+        foreign = peers.store.create_session(SessionRequest(channel="converse"))
+        new = await peers.owner.authorize(connection(foreign))
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.bind(bind_to(new))
+
+
+async def test_only_one_original_backend_can_bind_an_owner_grant(tmp_path):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        conversation = peers.store.create_session(SessionRequest(channel="converse"))
+        agent_chat = peers.store.create_session(SessionRequest(channel="agent"))
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.owner.authorize(connection(agent_chat))
+        original = connection(conversation, backend=None)
+        proof = await peers.owner.authorize(original)
+        competing = (bind_to(proof, "first-backend"), bind_to(proof, "replacement-backend"))
+        first, second = await asyncio.gather(
+            *(peers.decisions.bind(request) for request in competing),
+            return_exceptions=True,
+        )
+        outcomes = (first, second)
+        successes = [outcome for outcome in outcomes if not isinstance(outcome, Exception)]
+        assert len(successes) == 1
+        assert sum(isinstance(outcome, ExternalAgentNativeConflict) for outcome in outcomes) == 1
+        assert (await peers.owner.authorize(original)).backend_session_id == successes[
+            0
+        ].backend_session_id
+
+        repeated_field = original.model_dump_json().replace(
+            '"contract_version":1,',
+            '"contract_version":1,"contract_version":1,',
+        )
+        malformed = await peers.owner_http.post(
+            "/v1/external-agent/authorize",
+            content=repeated_field,
+        )
+        assert malformed.status_code == 422
+
+
+async def test_pages_keep_native_scope_ancestry_and_transcript_revisions(tmp_path):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        unrelated = peers.store.create_session(SessionRequest(channel="converse"))
+        public = add(peers.store, session, "conversation.user", "Public original.")
+        edit = add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "Public correction.",
+            revision=2,
+            target_event_id=public.event_id,
+        )
+        secret = add(peers.store, session, "conversation.user", "Local source.", scope="local_only")
+        add(
+            peers.store,
+            session,
+            "conversation.converse",
+            "Public label on private ancestry.",
+            causes=(secret.event_id,),
+            role="converse",
+        )
+        add(peers.store, unrelated, "conversation.user", "Foreign transcript.")
+        model = SpeechWindow(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            utterance_id="speech-fixture",
+            window_index=0,
+            text="Public speech window.",
+            start_ms=0,
+            end_ms=100,
+            user_speaking=False,
+            capture_ended=True,
+            content_scope="public_synthetic",
+        )
+        window = peers.store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.window",
+                payload=model.model_dump(mode="json"),
+                idempotency_key=uuid4().hex,
+            ),
+            "owner",
+        )
+        add(peers.store, unrelated, "conversation.user", "Foreign text after the selected scope.")
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        initial = await peers.decisions.transcript(
+            read(binding.target, limit=1), scope=scope_of(session)
+        )
+        assert initial.has_more
+        assert initial.through_sequence == window.sequence
+        assert [entry.event_id for entry in initial.entries] == [public.event_id]
+        later = add(peers.store, session, "conversation.user", "After the snapshot.")
+        rest = await peers.decisions.transcript(
+            read(binding.target, position=initial.next_after, through=initial.through_sequence),
+            scope=scope_of(session),
+        )
+        assert [(entry.event_id, entry.text) for entry in rest.entries] == [
+            (edit.event_id, "Public correction."),
+            (window.event_id, "Public speech window."),
+        ]
+        assert rest.entries[0].revises_event_id == public.event_id
+        assert rest.entries[1].utterance_id == "speech-fixture"
+        assert rest.has_more is False
+        fresh = await peers.decisions.transcript(read(binding.target), scope=scope_of(session))
+        assert fresh.entries[-1].event_id == later.event_id
+        with pytest.raises(PermissionError):
+            await peers.owner.transcript(read(binding.target), scope=scope_of(session))
+        response = await peers.owner_http.post(f"/v1/sessions/{session.session_id}/reset")
+        response.raise_for_status()
+        stale = await peers.http.post(
+            "/v1/external-agent/transcript",
+            json=read(binding.target).model_dump(mode="json"),
+        )
+        assert stale.status_code == 409 and stale.json()["reason"] == "scope_changed"
+        assert stale.headers["cache-control"] == "no-store"
+
+
+async def test_utf8_pages_keep_exact_text_and_fence_a_later_scope_change(tmp_path):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        full = "a" * 32767 + "☂" + "été" * 2000
+        entry = add(peers.store, session, "conversation.user", full)
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        first = await peers.decisions.transcript(read(binding.target), scope=scope_of(session))
+        assert first.next_after.byte_offset == 32767
+        assert first.entries[0].end_of_entry is False
+        inside = ExternalAgentTranscriptPosition(sequence=entry.sequence, byte_offset=32768)
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.transcript(
+                read(binding.target, position=inside, through=first.through_sequence),
+                scope=scope_of(session),
+            )
+        parts = [first.entries[0].text]
+        cursor = first
+        while cursor.has_more:
+            cursor = await peers.decisions.transcript(
+                read(binding.target, position=cursor.next_after, through=first.through_sequence),
+                scope=scope_of(session),
+            )
+            parts.extend(item.text for item in cursor.entries)
+            assert len(parts) < 10
+        assert "".join(parts) == full and cursor.entries[-1].end_of_entry
+
+        add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "More restrictive correction.",
+            scope="local_only",
+            revision=2,
+            target_event_id=entry.event_id,
+        )
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.transcript(
+                read(binding.target, position=first.next_after, through=first.through_sequence),
+                scope=scope_of(session),
+            )
+        latest = await peers.decisions.transcript(read(binding.target), scope=scope_of(session))
+        assert latest.entries == ()

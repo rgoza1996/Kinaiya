@@ -120,6 +120,77 @@
       "title": "ExternalAgentCommandReceipt",
       "type": "object"
     },
+    "ExternalAgentConnect": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "operation": {
+          "const": "connect",
+          "title": "Operation",
+          "type": "string"
+        },
+        "profile_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ExternalAgentScope"
+        },
+        "expected_backend_session_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expected Backend Session Id"
+        },
+        "allowed_content": {
+          "items": {
+            "enum": [
+              "local_only",
+              "public_synthetic",
+              "private_cloud_authorized"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Allowed Content",
+          "type": "array"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "operation",
+        "profile_id",
+        "scope",
+        "expected_backend_session_id",
+        "allowed_content"
+      ],
+      "title": "ExternalAgentConnect",
+      "type": "object"
+    },
     "ExternalAgentDisconnectReceipt": {
       "additionalProperties": false,
       "properties": {
@@ -244,6 +315,70 @@
         "events"
       ],
       "title": "ExternalAgentEventPage",
+      "type": "object"
+    },
+    "ExternalAgentGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "grant",
+          "title": "Kind",
+          "type": "string"
+        },
+        "attachment_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Attachment Id",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/ExternalAgentConnect"
+        },
+        "phase": {
+          "enum": [
+            "authorized",
+            "bound",
+            "revoked"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "backend_session_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Backend Session Id"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "kind",
+        "attachment_id",
+        "original",
+        "phase",
+        "backend_session_id"
+      ],
+      "title": "ExternalAgentGrant",
       "type": "object"
     },
     "ExternalAgentMessageEvent": {
@@ -676,6 +811,16 @@
           "title": "Event Id",
           "type": "string"
         },
+        "kind": {
+          "enum": [
+            "conversation.user",
+            "conversation.converse",
+            "conversation.window",
+            "conversation.revision"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "origin": {
           "enum": [
             "authenticated-user",
@@ -683,6 +828,53 @@
           ],
           "title": "Origin",
           "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "revises_event_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revises Event Id"
+        },
+        "utterance_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Utterance Id"
+        },
+        "window_index": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Window Index"
         },
         "content_scope": {
           "enum": [
@@ -712,7 +904,12 @@
       "required": [
         "sequence",
         "event_id",
+        "kind",
         "origin",
+        "revision",
+        "revises_event_id",
+        "utterance_id",
+        "window_index",
         "content_scope",
         "byte_offset",
         "end_of_entry",
@@ -816,6 +1013,7 @@
       "command": "#/$defs/ExternalAgentCommandReceipt",
       "disconnect": "#/$defs/ExternalAgentDisconnectReceipt",
       "events": "#/$defs/ExternalAgentEventPage",
+      "grant": "#/$defs/ExternalAgentGrant",
       "refusal": "#/$defs/ExternalAgentRefusal",
       "status": "#/$defs/ExternalAgentStatus",
       "transcript": "#/$defs/ExternalAgentTranscriptPage"
@@ -825,6 +1023,9 @@
   "oneOf": [
     {
       "$ref": "#/$defs/ExternalAgentStatus"
+    },
+    {
+      "$ref": "#/$defs/ExternalAgentGrant"
     },
     {
       "$ref": "#/$defs/ExternalAgentDisconnectReceipt"

@@ -121,6 +121,10 @@ class Store:
             INSERT INTO schema_meta(version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_meta);
             CREATE TABLE IF NOT EXISTS sessions(
                 session_id TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS external_agent_grants(
+                attachment_id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
+                original TEXT NOT NULL, backend_session_id TEXT UNIQUE,
+                revoked INTEGER NOT NULL CHECK(revoked IN (0,1)));
             CREATE TABLE IF NOT EXISTS entries(
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_id TEXT NOT NULL UNIQUE,

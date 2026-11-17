@@ -1,12 +1,13 @@
 // Private stdio peer for an explicitly selected, independently installed Pi SDK.
 import { Console } from "node:console";
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const SDK_VERSION = "1.5.2";
 const VERSION = 1;
-const MAX_INPUT = 131072;
+const MAX_INPUT = 270336;
 const MAX_OUTPUT = 2097152;
 const ID = /^[0-9a-f]{32}$/;
 const wire = process.stdout.write.bind(process.stdout);
@@ -45,6 +46,7 @@ const fields = {
   submit: ["version", "id", "command", "text"],
   interrupt: ["version", "id", "command", "run_id"],
   close: ["version", "id", "command"],
+  transcript_result: ["version", "id", "command", "run_id", "page"],
 };
 
 function validate(request) {
@@ -58,12 +60,62 @@ function validate(request) {
   }
   if (request.command === "submit" && (typeof request.text !== "string" || !request.text
       || Array.from(request.text).length > 16000)) throw new Error("Invalid Pi peer instruction");
-  if (request.command === "interrupt" && (typeof request.run_id !== "string"
+  if (["interrupt", "transcript_result"].includes(request.command) && (typeof request.run_id !== "string"
       || !ID.test(request.run_id))) throw new Error("Invalid Pi peer run identity");
+  if (request.command === "transcript_result" && request.page !== null
+      && request.page?.kind !== "transcript") throw new Error("Invalid Pi transcript result");
+}
+
+async function transcriptTool(sdkRoot, currentRun, pending) {
+  const { Type } = await import(pathToFileURL(join(sdkRoot, "node_modules/typebox/build/index.mjs")));
+  const cursor = () => Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER });
+  return {
+    name: "kinaiya_read_transcript",
+    label: "Read Converse transcript",
+    description: "Read an authorized page of this Converse transcript. Continue with the returned next_after and through_sequence while has_more is true.",
+    parameters: Type.Object({
+      sequence: Type.Optional(cursor()),
+      byte_offset: Type.Optional(cursor()),
+      through_sequence: Type.Optional(cursor()),
+      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 128 })),
+    }, { additionalProperties: false }),
+    async execute(_toolCallId, params, signal) {
+      const run = currentRun();
+      if (!run || signal?.aborted || pending.size >= 4) {
+        throw new Error("Converse transcript page is unavailable");
+      }
+      const id = randomBytes(16).toString("hex");
+      const page = await new Promise((resolve) => {
+        const cancel = () => finish(null);
+        const timer = setTimeout(cancel, 6000);
+        function finish(value) {
+          pending.delete(id);
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", cancel);
+          resolve(value);
+        }
+        pending.set(id, { runId: run.id, finish });
+        signal?.addEventListener("abort", cancel, { once: true });
+        send({
+          type: "transcript_request", id, run_id: run.id,
+          sequence: params.sequence ?? 0, byte_offset: params.byte_offset ?? 0,
+          through_sequence: params.through_sequence ?? null, limit: params.limit ?? 20,
+        });
+      });
+      if (page === null) throw new Error("Converse transcript page is unavailable");
+      const { entries, next_after, through_sequence, has_more } = page;
+      return {
+        content: [{ type: "text", text: JSON.stringify({ entries, next_after, through_sequence, has_more }) }],
+        details: {},
+      };
+    },
+  };
 }
 
 async function main() {
   const paths = process.argv.slice(2);
+  const transcript = paths[0] === "--transcript";
+  if (transcript) paths.shift();
   if (paths.length < 4 || paths.length > 5 || !paths.every(isAbsolute)) {
     throw new Error("Pi peer requires explicit absolute installation and session paths");
   }
@@ -85,7 +137,12 @@ async function main() {
   const saved = sessionManager.buildSessionContext().model;
   const provider = saved?.provider ?? settingsManager.getDefaultProvider();
   const modelId = saved?.modelId ?? settingsManager.getDefaultModel();
-  const { session } = await createAgentSession({ cwd, agentDir, sessionManager, settingsManager });
+  let active = null;
+  const transcriptCalls = new Map();
+  const customTools = transcript ? [await transcriptTool(sdkRoot, () => active, transcriptCalls)] : [];
+  const { session } = await createAgentSession({
+    cwd, agentDir, sessionManager, settingsManager, customTools,
+  });
   try {
     // SDK 1.5.2 can select a model before extension registrations are applied (#721).
     if (provider && modelId && (session.model?.provider !== provider || session.model?.id !== modelId)) {
@@ -99,7 +156,6 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  let active = null;
   const issued = new Set();
   const busy = () => !!active || session.isStreaming || session.isCompacting
     || session.pendingMessageCount > 0;
@@ -180,9 +236,14 @@ async function main() {
   }
 
   try {
-    send({ type: "ready", session_id: session.sessionId, sdk_version: SDK_VERSION });
+    send({ type: "ready", session_id: session.sessionId, sdk_version: SDK_VERSION, transcript });
     for await (const request of commands()) {
       validate(request);
+      if (request.command === "transcript_result") {
+        const original = transcriptCalls.get(request.id);
+        if (original?.runId === request.run_id) original.finish(request.page);
+        continue;
+      }
       if (issued.has(request.id)) {
         response(request.id, "refused", "duplicate_request");
         continue;
@@ -206,6 +267,7 @@ async function main() {
     }
   } finally {
     unsubscribe();
+    for (const call of transcriptCalls.values()) call.finish(null);
     if (busy()) await session.abort();
     session.dispose();
   }

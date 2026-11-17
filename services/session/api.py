@@ -292,6 +292,9 @@ def create_app(
     from services.settings.subsystem_api import router as subsystem_router
 
     app.include_router(subsystem_router(subsystem_settings, auth))
+    from services.session.external_agent_api import router as external_agent_router
+
+    app.include_router(external_agent_router(store, auth))
     from services.session.agent_advice_api import router as agent_advice_router
 
     app.include_router(agent_advice_router(store, auth))

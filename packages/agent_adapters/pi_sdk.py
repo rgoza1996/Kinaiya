@@ -8,10 +8,18 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
+from packages.contracts.external_agent import (
+    MAX_CURSOR,
+    MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES,
+    ExternalAgentTranscriptPage,
+    ExternalAgentTranscriptPosition,
+)
+
 PI_SDK_PEER = Path(__file__).with_name("pi_peer.mjs")
 PI_SDK_VERSION = "1.5.2"
 MAX_FRAME_BYTES = 2_097_152
 _MAX_INPUT_BYTES = 131_072
+_MAX_CALLBACK_BYTES = MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES + 8192
 _MAX_REQUESTS = 8192
 _MAX_EVENTS = 512
 _MAX_EVENT_BYTES = 8 * MAX_FRAME_BYTES
@@ -107,7 +115,7 @@ async def _read_frame(reader):
 class PiSdkPeer:
     """One SDK process and one response reader across caller timeouts."""
 
-    def __init__(self, reader, writer, session_id):
+    def __init__(self, reader, writer, session_id, transcript_reader):
         self.session_id = session_id
         self._reader, self._writer = reader, writer
         self._send_lock = asyncio.Lock()
@@ -115,10 +123,15 @@ class PiSdkPeer:
         self._events: deque[tuple[PiEvent, int]] = deque()
         self._cursor = self._event_bytes = 0
         self._unavailable = False
+        self._active_run_id = None
+        self._transcript_reader = transcript_reader
+        self._transcript_tasks: dict[str, asyncio.Task] = {}
         self._reader_task = asyncio.create_task(self._receive())
 
     @classmethod
-    async def attach(cls, reader, writer, *, expected_session_id=None, timeout=5):
+    async def attach(
+        cls, reader, writer, *, expected_session_id=None, transcript_reader=None, timeout=5
+    ):
         """Observe one new process. The launcher still owns its lifetime."""
         try:
             frame, _ = await asyncio.wait_for(_read_frame(reader), timeout)
@@ -131,14 +144,15 @@ class PiSdkPeer:
         }:
             raise PiPeerUnavailable("The Pi-selected model is unavailable")
         if (
-            set(frame) != _COMMON | {"session_id", "sdk_version"}
+            set(frame) != _COMMON | {"session_id", "sdk_version", "transcript"}
             or frame["type"] != "ready"
             or not _identifier(frame["session_id"])
             or frame["sdk_version"] != PI_SDK_VERSION
+            or frame["transcript"] is not (transcript_reader is not None)
             or (expected_session_id is not None and frame["session_id"] != expected_session_id)
         ):
             raise PiPeerUnavailable("The Pi session identity did not match")
-        return cls(reader, writer, frame["session_id"])
+        return cls(reader, writer, frame["session_id"], transcript_reader)
 
     async def status(self, request_id, *, timeout=5):
         return await self._call(request_id, "status", {}, timeout)
@@ -215,6 +229,8 @@ class PiSdkPeer:
                     self._record_response(frame)
                 elif frame.get("type") == "event":
                     self._record_event(frame, size)
+                elif frame.get("type") == "transcript_request":
+                    self._transcript_request(frame)
                 else:
                     raise ValueError("Unexpected Pi frame")
         except (ValueError, OSError, TypeError, RecursionError):
@@ -224,6 +240,11 @@ class PiSdkPeer:
             for original in self._requests.values():
                 if not original.reply.done():
                     original.reply.set_result(None)
+            pending = tuple(self._transcript_tasks.values())
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
 
     def _record_response(self, frame):
         identifier = frame.get("id")
@@ -280,9 +301,88 @@ class PiSdkPeer:
             or detail["phase"] not in {"started", "finished", "failed"}
         ):
             raise ValueError("Invalid Pi tool activity")
+        if kind == "running":
+            if self._active_run_id not in (None, run_id):
+                raise ValueError("Pi reported overlapping original runs")
+            self._active_run_id = run_id
+        elif kind in {"settled", "failed", "interrupted", "uncertain"}:
+            if self._active_run_id == run_id:
+                self._active_run_id = None
         self._cursor += 1
         self._events.append((PiEvent(self._cursor, run_id, kind, **detail), size))
         self._event_bytes += size
         while len(self._events) > _MAX_EVENTS or self._event_bytes > _MAX_EVENT_BYTES:
             _, evicted_size = self._events.popleft()
             self._event_bytes -= evicted_size
+
+    def _transcript_request(self, frame):
+        identifier, run_id = frame.get("id"), frame.get("run_id")
+        through, limit = frame.get("through_sequence"), frame.get("limit")
+        if (
+            set(frame)
+            != _COMMON | {"id", "run_id", "sequence", "byte_offset", "through_sequence", "limit"}
+            or self._transcript_reader is None
+            or self._active_run_id is None
+            or run_id != self._active_run_id
+            or type(identifier) is not str
+            or _ID.fullmatch(identifier) is None
+            or identifier in self._transcript_tasks
+            or len(self._transcript_tasks) >= 4
+            or type(limit) is not int
+            or not 1 <= limit <= 128
+            or (
+                through is not None and (type(through) is not int or not 0 <= through <= MAX_CURSOR)
+            )
+        ):
+            raise ValueError("Pi transcript request has no active attachment capability")
+        position = ExternalAgentTranscriptPosition(
+            sequence=frame["sequence"], byte_offset=frame["byte_offset"]
+        )
+        task = asyncio.create_task(
+            self._provide_transcript(identifier, run_id, position, through, limit)
+        )
+        self._transcript_tasks[identifier] = task
+        task.add_done_callback(lambda _: self._transcript_tasks.pop(identifier, None))
+
+    async def _provide_transcript(self, identifier, run_id, position, through, limit):
+        page = None
+        try:
+            async with asyncio.timeout(5):
+                result = await self._transcript_reader(
+                    after=position, through_sequence=through, limit=limit
+                )
+                result = ExternalAgentTranscriptPage.model_validate(result, strict=True)
+                if (
+                    result.after == position
+                    and result.target.backend_session_id == self.session_id
+                    and through in (None, result.through_sequence)
+                    and len(result.model_dump_json().encode("utf-8"))
+                    <= MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES
+                ):
+                    page = result.model_dump(mode="json")
+        except Exception:
+            # The peer receives one typed refusal. Native failures and identities stay local.
+            pass
+        message = (
+            json.dumps(
+                {
+                    "version": 1,
+                    "command": "transcript_result",
+                    "id": identifier,
+                    "run_id": run_id,
+                    "page": page,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            + b"\n"
+        )
+        if len(message) > _MAX_CALLBACK_BYTES:
+            return
+        try:
+            async with asyncio.timeout(2), self._send_lock:
+                if not self._unavailable and self._active_run_id == run_id:
+                    self._writer.write(message)
+                    await self._writer.drain()
+        except (OSError, TimeoutError):
+            pass
