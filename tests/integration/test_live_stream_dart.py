@@ -105,6 +105,12 @@ from tests.integration.test_live_stream_api import live_client, scope_for
             "",
             id="adaptive_live_idle_dependency_loss",
         ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-held-dependency-loss",
+            "",
+            id="adaptive_live_held_speaker_dependency_loss",
+        ),
     ],
     indirect=["converse_incremental_env"],
 )
@@ -151,7 +157,7 @@ async def test_actual_dart_native_live_stream_rollover(
         if entrypoint == "adaptive_live_call_native_test.dart":
             native.app.mount("/session", session_app(env.store, AUTH))
 
-        if env.playback_mode in {"dependency_loss", "dependency_idle"}:
+        if env.playback_mode in {"dependency_loss", "dependency_idle", "dependency_held_speaker"}:
 
             @native.app.post(
                 "/fixture/required-live-decisions/stop",
@@ -167,6 +173,13 @@ async def test_actual_dart_native_live_stream_rollover(
                 async with asyncio.timeout(3):
                     while not capture.cleanup_complete():
                         await asyncio.sleep(0.01)
+                if env.playback_mode == "dependency_held_speaker":
+                    async with asyncio.timeout(5):
+                        while not any(
+                            e.payload.get("control") == "generation_stop"
+                            for e in env.store.read(kinds=["delivery.updated"])
+                        ):
+                            await asyncio.sleep(0.01)
                 state = await capture.mic.inspect()
                 return {
                     "decisions_ready": native.dependency.ready,
@@ -247,6 +260,7 @@ async def test_actual_dart_native_live_stream_rollover(
                             "widget_replacement",
                             "client_replacement",
                             "dependency_loss",
+                            "dependency_held_speaker",
                         }
                         else 3
                         if advanced
@@ -274,7 +288,11 @@ async def test_actual_dart_native_live_stream_rollover(
                     1 if consumer and not held_reply and not playback else 0
                 )
                 if playback:
-                    if env.playback_mode in {"dependency_loss", "dependency_idle"}:
+                    if env.playback_mode in {
+                        "dependency_loss",
+                        "dependency_idle",
+                        "dependency_held_speaker",
+                    }:
                         assert not native.worker.ready and not native.dependency.ready
                         assert env.runtime.enabled
                     if env.playback_mode == "dependency_idle":

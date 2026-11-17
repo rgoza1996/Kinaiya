@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "f792d83753e4dd28be771922ec4621648273930277e74f55601bccb77e985c51",
+  "text": "Analyzing kinaiya_flutter...                                    \n\n   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • test/adaptive_live_call_native_test.dart:843:15 • curly_braces_in_flow_control_structures\n   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • test/adaptive_live_call_native_test.dart:845:15 • curly_braces_in_flow_control_structures\n   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • test/adaptive_live_call_native_test.dart:1125:11 • curly_braces_in_flow_control_structures\n\n3 issues found. (ran in 1.2s)\n"
+}

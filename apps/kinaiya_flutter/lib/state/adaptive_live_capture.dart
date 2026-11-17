@@ -50,6 +50,8 @@ class AdaptiveLiveCapture {
   // Half of the declared sixty-second FIFO remains available for input arriving
   // during native finish/cleanup. This bounds segments; it is not input pacing.
   static const _segmentSamples = maxIncrementalPcmSamples ~/ 2;
+  // Control-plane liveness only; PCM and inference never wait for this timer.
+  static const _permissionInterval = Duration(seconds: 1);
   final LiveStreamApi api;
   final LiveStreamRecoveryApi recovery;
   final SpeechAudio audio;
@@ -63,6 +65,9 @@ class AdaptiveLiveCapture {
   final Set<Future<void>> _actual = {};
   Future<void>? _lifetime, _armingDone, _browserStop, _playbackStop;
   Future<void>? _noticeLifetime, _noticeClose;
+  Future<void>? _permissionLifetime;
+  Timer? _permissionTimer;
+  Completer<void>? _permissionWake;
   Future<bool>? _settling;
   Future<IncrementalPcmState>? _waiting;
   int? _waitingEpoch, _localEpoch;
@@ -152,6 +157,7 @@ class AdaptiveLiveCapture {
       status = 'Listening (live)';
       final receipt =
           _decoder!.capture!.body['receipt'] as Map<String, Object?>;
+      _permissionLifetime = _watchPermission();
       _noticeLifetime = _watchNotices(receipt['registered_sequence'] as int);
       _started.complete(true);
       _notify();
@@ -250,9 +256,6 @@ class AdaptiveLiveCapture {
           if (entries.length < 16) break;
         }
         _check();
-        // A native permission fence need not append a transcript entry. Quiet
-        // input and an unchanged wake cursor must still discover that fence.
-        await _inspectCapture();
         final original = JournalWakeWait(noticeCursor);
         final attempt = notices.wait(original);
         _track(attempt.settled);
@@ -266,6 +269,32 @@ class AdaptiveLiveCapture {
         status = 'Live updates are unavailable. Stop status is being checked.';
         _requestStop('disconnected');
       }
+    }
+  }
+
+  Future<void> _watchPermission() async {
+    try {
+      while (_current()) {
+        // Permission fences need no transcript entry. An independent owner
+        // observes them even while journal delivery awaits speaker cleanup.
+        await _inspectCapture();
+        _check();
+        final wake = Completer<void>();
+        _permissionWake = wake;
+        _permissionTimer = Timer(_permissionInterval, wake.complete);
+        await wake.future;
+        _permissionTimer?.cancel();
+        _permissionTimer = null;
+        _permissionWake = null;
+      }
+    } catch (_) {
+      if (!_stopped) {
+        status = 'Live input is unavailable. Stop status is being checked.';
+        _requestStop('disconnected');
+      }
+    } finally {
+      _permissionTimer?.cancel();
+      _permissionTimer = null;
     }
   }
 
@@ -467,6 +496,12 @@ class AdaptiveLiveCapture {
     _stopped = true;
     _ready = false;
     if (!_wake.isCompleted) _wake.complete();
+    _permissionTimer?.cancel();
+    _permissionTimer = null;
+    final permissionWake = _permissionWake;
+    if (permissionWake != null && !permissionWake.isCompleted) {
+      permissionWake.complete();
+    }
     _negative = negative;
     _negativeAttempt = recovery.cancelOriginal(_negative!);
     _noticeClose = notices.close();
@@ -517,6 +552,7 @@ class AdaptiveLiveCapture {
       if (_browserStop != null) await _browserStop;
       if (_armingDone != null) await _armingDone;
       if (_lifetime != null) await _lifetime;
+      if (_permissionLifetime != null) await _permissionLifetime;
       if (_noticeLifetime != null) await _noticeLifetime;
       if (_noticeClose != null) await _noticeClose;
       while (_actual.isNotEmpty) {

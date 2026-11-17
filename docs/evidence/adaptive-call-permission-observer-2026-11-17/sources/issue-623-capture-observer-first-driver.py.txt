@@ -1,0 +1,400 @@
+"""#623: actual fresh native HTTP/IPC and Dart decoder rollover ownership."""
+
+import asyncio
+import json
+import os
+import shutil
+import socket
+from pathlib import Path
+from urllib.parse import urljoin
+
+import pytest
+import uvicorn
+from fastapi import Depends
+from flutter_project_helpers import isolated_flutter_project
+
+from services.session.api import create_app as session_app
+from tests.integration.test_incremental_whistle_converse import AUTH
+from tests.integration.test_incremental_whistle_converse import (
+    converse_incremental_env as converse_incremental_env,
+)
+from tests.integration.test_live_stream_api import live_client, scope_for
+
+
+@pytest.mark.parametrize(
+    "entrypoint,converse_incremental_env,rotation_fault",
+    [
+        pytest.param(
+            "live_stream_native_live_test.dart", None, "", id="live_stream_native_live_test.dart"
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            None,
+            "",
+            id="adaptive_live_call_native_test.dart",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call",
+            "",
+            id="adaptive_live_call_consumer",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call",
+            "refused",
+            id="adaptive_live_rotation_refused",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call",
+            "lost",
+            id="adaptive_live_rotation_lost",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-held",
+            "",
+            id="adaptive_live_held_reply",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback",
+            "",
+            id="adaptive_live_playback_stop",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-ended",
+            "",
+            id="adaptive_live_playback_ended",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-mute",
+            "",
+            id="adaptive_live_playback_mute",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-held-stop",
+            "",
+            id="adaptive_live_playback_held_stop",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-replacement",
+            "",
+            id="adaptive_live_playback_widget_replacement",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-reconnect",
+            "",
+            id="adaptive_live_playback_client_replacement",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-dependency-loss",
+            "",
+            id="adaptive_live_dependency_loss",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-idle-dependency-loss",
+            "",
+            id="adaptive_live_idle_dependency_loss",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-held-dependency-loss",
+            "",
+            id="adaptive_live_held_speaker_dependency_loss",
+        ),
+    ],
+    indirect=["converse_incremental_env"],
+)
+async def test_actual_dart_native_live_stream_rollover(
+    converse_incremental_env, tmp_path, entrypoint, rotation_fault
+):
+    flutter = shutil.which("flutter")
+    root = Path(__file__).resolve().parents[2]
+    cached = root / "apps/kinaiya_flutter/.dart_tool"
+    if flutter is None or not all(
+        (cached / name).is_file() for name in ("package_config.json", "package_graph.json")
+    ):
+        pytest.skip("Pinned Flutter SDK and existing dependency cache required; no installation")
+    project = isolated_flutter_project(root, tmp_path / "native-stream-flutter")
+    prepared = project / ".dart_tool"
+    prepared.mkdir()
+    package_config = json.loads((cached / "package_config.json").read_text())
+    for package in package_config["packages"]:
+        package["rootUri"] = (
+            project.as_uri() + "/"
+            if package["name"] == "kinaiya_flutter"
+            else urljoin((cached / "package_config.json").as_uri(), package["rootUri"])
+        )
+    (prepared / "package_config.json").write_text(json.dumps(package_config))
+    shutil.copyfile(cached / "package_graph.json", prepared / "package_graph.json")
+    original_lock = (project / "pubspec.lock").read_bytes()
+    requests = []
+    env = converse_incremental_env
+    consumer = getattr(env, "live_consumer", False)
+    held_reply = getattr(env, "held_reply", False)
+    playback = getattr(env, "playback", False)
+    advanced = consumer and not rotation_fault and not held_reply and not playback
+    actions = (
+        [
+            "WAIT_WITH_BACKCHANNEL",
+            "RESPOND_WITHOUT_INTERRUPTING_USER" if held_reply else "RESPOND_INTERRUPT_USER",
+        ]
+        if consumer
+        else None
+    )
+    if playback:
+        actions = ["WAIT_WITH_BACKCHANNEL", "IGNORE"]
+    async with live_client(env, conversation_actions=actions) as native:
+        if entrypoint == "adaptive_live_call_native_test.dart":
+            native.app.mount("/session", session_app(env.store, AUTH))
+
+        if env.playback_mode in {"dependency_loss", "dependency_idle", "dependency_held_speaker"}:
+
+            @native.app.post(
+                "/fixture/required-live-decisions/stop",
+                dependencies=[Depends(AUTH.require("owner"))],
+            )
+            async def stop_required_live_decisions():
+                # Test-only control: stop the real worker, then observe its actual
+                # readiness API through the original required-service monitor.
+                await native.worker.close()
+                await native.dependency.refresh()
+                assert not native.dependency.ready and env.runtime.enabled
+                capture = next(iter(native.app.state.live_streams.captures.values()))
+                async with asyncio.timeout(3):
+                    while not capture.cleanup_complete():
+                        await asyncio.sleep(0.01)
+                if env.playback_mode == "dependency_held_speaker":
+                    async with asyncio.timeout(5):
+                        while not any(
+                            e.payload.get("control") == "generation_stop"
+                            for e in env.store.read(kinds=["delivery.updated"])
+                        ):
+                            await asyncio.sleep(0.01)
+                state = await capture.mic.inspect()
+                return {
+                    "decisions_ready": native.dependency.ready,
+                    "capture_open": state.capture_open,
+                    "native_cleanup": capture.cleanup_complete(),
+                    "legacy_enabled": env.runtime.enabled,
+                }
+
+        @native.app.middleware("http")
+        async def observe(request, call_next):
+            result = await call_next(request)
+            requests.append((request.method, request.url.path, result.status_code))
+            return result
+
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(16)
+        port = sock.getsockname()[1]
+        # live_client owns the actual app lifespan; the HTTP facade must not start it twice.
+        server = uvicorn.Server(uvicorn.Config(native.app, lifespan="off", log_level="error"))
+        actual = asyncio.create_task(server.serve(sockets=[sock]))
+        process = None
+        try:
+            async with asyncio.timeout(3):
+                while not server.started:
+                    if actual.done():
+                        await actual
+                    await asyncio.sleep(0)
+            process = await asyncio.create_subprocess_exec(
+                flutter,
+                "test",
+                "--no-pub",
+                "--reporter",
+                "expanded",
+                "test/" + entrypoint,
+                cwd=project,
+                env={
+                    **os.environ,
+                    "KINAIYA_LIVE_STREAM_URL": f"http://127.0.0.1:{port}",
+                    "KINAIYA_LIVE_STREAM_TOKEN": "o" * 40,
+                    "KINAIYA_LIVE_STREAM_SCOPE": json.dumps(scope_for(env)),
+                    "KINAIYA_CALL_LIVE_CONSUMER": "true" if consumer else "false",
+                    "KINAIYA_CALL_ROTATION_FAULT": rotation_fault,
+                    "KINAIYA_CALL_HELD_REPLY": "true" if held_reply else "false",
+                    "KINAIYA_CALL_PLAYBACK": "true" if playback else "false",
+                    "KINAIYA_CALL_PLAYBACK_MODE": env.playback_mode,
+                },
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            async with asyncio.timeout(90):
+                output, _ = await process.communicate()
+            (tmp_path / "native-live-stream-dart.log").write_bytes(output)
+            assert process.returncode == 0, (
+                output.decode(errors="replace") + "\nNative requests: " + repr(requests)
+            )
+            assert b"All tests passed!" in output
+            assert (project / "pubspec.lock").read_bytes() == original_lock
+            if entrypoint == "adaptive_live_call_native_test.dart":
+                live_requests = [
+                    (method, path, status)
+                    for method, path, status in requests
+                    if path.startswith("/v2/converse/audio/live-stream/")
+                ]
+                assert live_requests and all(status == 200 for _, _, status in live_requests)
+                assert all(status < 500 for _, _, status in requests)
+                for phase, count in (
+                    ("begin", 1),
+                    (
+                        "pcm",
+                        0
+                        if env.playback_mode == "dependency_idle"
+                        else 1
+                        if env.playback_mode
+                        in {
+                            "mute",
+                            "held_stop",
+                            "widget_replacement",
+                            "client_replacement",
+                            "dependency_loss",
+                            "dependency_held_speaker",
+                        }
+                        else 3
+                        if advanced
+                        else 2,
+                    ),
+                    ("finish", 1 if consumer and not held_reply and not playback else 0),
+                    ("cancel", 0),
+                    ("cancel-original", 1),
+                    ("next-utterance", 1 if advanced else 0),
+                ):
+                    assert (
+                        sum(
+                            method == "POST" and path.endswith("/" + phase)
+                            for method, path, _ in live_requests
+                        )
+                        == count
+                    )
+                captures = list(native.app.state.live_streams.captures.values())
+                assert len(captures) == 1
+                capture = captures[0]
+                assert capture.capture_fenced and capture.cleanup_complete()
+                assert capture.native.lease.settled and not env.runtime.stt_model_settings.leases
+                assert env.engine.begin_calls == (2 if advanced else 1)
+                assert env.engine.finish_calls == (
+                    1 if consumer and not held_reply and not playback else 0
+                )
+                if playback:
+                    if env.playback_mode in {
+                        "dependency_loss",
+                        "dependency_idle",
+                        "dependency_held_speaker",
+                    }:
+                        assert not native.worker.ready and not native.dependency.ready
+                        assert env.runtime.enabled
+                    if env.playback_mode == "dependency_idle":
+                        assert env.tts_calls == [] and native.calls == []
+                        assert env.store.read(kinds=["conversation.converse"]) == []
+                        assert not any(path == "/v1/converse/speech" for _, path, _ in requests)
+                        assert not any(
+                            entry.payload.get("status") == "played"
+                            for entry in env.store.read(kinds=["delivery.updated"])
+                        )
+                        return
+                    assert env.tts_calls == [
+                        {"input": "Public synthetic acknowledgment.", "profile": "Kokoro 82M"}
+                    ]
+                    assert [
+                        (method, path, status)
+                        for method, path, status in requests
+                        if path == "/v1/converse/speech"
+                    ] == [("POST", "/v1/converse/speech", 200)]
+                    replies = env.store.read(kinds=["conversation.converse"])
+                    assert (
+                        len(replies) == 1
+                        and replies[0].payload["live_effect"] == "converse_backchannel"
+                    )
+                    assert replies[0].payload["text"] == "Public synthetic acknowledgment."
+                    played = [
+                        e
+                        for e in env.store.read(kinds=["delivery.updated"])
+                        if e.payload.get("status") == "played"
+                    ]
+                    if env.playback_mode == "natural_end":
+                        assert len(played) == 1
+                        assert played[0].payload["event_id"] == replies[0].event_id
+                        assert played[0].payload["played_seconds"] == pytest.approx(4 / 24000)
+                    else:
+                        assert played == []
+                    return
+                if consumer:
+                    observed = [
+                        e
+                        for e in env.store.read(kinds=["converse.window_state"])
+                        if e.payload.get("phase") == "live_output_observed"
+                    ]
+                    assert {e.payload["live_effect"] for e in observed} == {
+                        "converse_backchannel",
+                        "converse_reply",
+                    }
+                    if held_reply:
+                        assert [e.payload["provider_output"] for e in observed] == [
+                            "",
+                            "Public synthetic buffered reply.",
+                        ]
+                        assert env.store.read(kinds=["conversation.converse"]) == []
+                    else:
+                        assert all(e.payload["provider_output"] == "" for e in observed)
+                return
+            assert all(status == 200 for _, _, status in requests)
+            for phase, count in (
+                ("begin", 2),
+                ("next-utterance", 1),
+                ("pcm", 2),
+                ("finish", 2),
+                ("cancel", 1),
+                ("cancel-original", 1),
+            ):
+                assert (
+                    sum(
+                        method == "POST" and path.endswith("/" + phase)
+                        for method, path, _ in requests
+                    )
+                    == count
+                )
+            assert (
+                sum(
+                    method == "GET" and path.endswith("/next-utterance")
+                    for method, path, _ in requests
+                )
+                == 1
+            )
+            capture = native.app.state.live_streams.captures["d" * 32]
+            assert (
+                sum(
+                    method == "GET" and path.endswith("/cancel-original")
+                    for method, path, _ in requests
+                )
+                == 1
+            )
+            assert (
+                sum(
+                    method == "POST" and path.endswith("/cancel-original/lookup")
+                    for method, path, _ in requests
+                )
+                == 1
+            )
+            assert capture.capture_fenced and capture.capture_task.done()
+            assert capture.native.lease.settled
+            assert not env.runtime.stt_model_settings.leases
+            assert env.engine.begin_calls == 3 and env.engine.finish_calls == 2
+        finally:
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
+            server.should_exit = True
+            await asyncio.wait_for(asyncio.shield(actual), 5)
+            sock.close()

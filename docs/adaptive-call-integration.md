@@ -136,14 +136,18 @@ entry and playback counters. Limits are 2 MiB, 32 nesting levels and 65,536 JSON
 values. Existing settings codecs and legacy polling retain their prior behavior.
 Closing a wake body before dispatch refuses without enrolling a waiter (#682).
 
-After each bounded scoped journal drain, the original Call also looks up its
-current decoder's exact native capture permission through the enrolled metadata
-channel. A native permission fence can leave the transcript cursor unchanged;
-the existing bounded wake return therefore still leads to this read when input
-is quiet. Closed, missing or unavailable permission stops local capture/playback
-and starts original cancellation/readback. The lookup grants no PCM
-acknowledgment, inference or replacement capture. Its actual HTTP lifetime joins
-the other retained obligations, including when its facade fails.
+An independent Call observer looks up the current decoder's exact native capture
+permission through the enrolled metadata channel. It owns one read at a time
+and a cancellable nominal one-second control heartbeat. Speech delivery or an
+unresolved speaker stop cannot block that observer. A native permission fence
+needs no transcript entry or fresh PCM. Closed, missing or unavailable permission
+fences new local input and requests microphone/speaker stop plus original native
+cancellation/readback. The
+lookup grants no PCM acknowledgment, inference or replacement capture; PCM and
+model work do not wait for its heartbeat. Stop cancels the timer/wakes the
+observer synchronously. Its lifetime and actual HTTP reads join the retained
+cleanup obligations, including when a facade fails. This is not a physical or
+provider latency guarantee.
 
 Stop fences new admission synchronously. Native cancellation/readback, original
 HTTP sends, decoder cleanup, browser acquisition/stop, local FIFO release and
@@ -212,6 +216,12 @@ by quiet input and an armed capture that receives no PCM at all. Local cleanup
 must complete without another packet or bridge event. A subsequent explicit Call
 observes unavailable capability without rearming or selecting another mode.
 Legacy Converse availability remains separate from this v2 dependency fence.
+That record qualifies the earlier journal-coupled observer. The
+[independent permission-observer record](evidence/adaptive-call-permission-observer-2026-11-17/README.md)
+adds a forced ordering: a real positive lookup response is delayed until native
+capture closure and generation-stop publication, then released unchanged while
+the local speaker stop is held. Mic revocation must proceed independently;
+speaker/FIFO/Call ownership remains retained until the same original settles.
 
 ## Remaining integration
 

@@ -54,16 +54,47 @@ class _NativeOutputHttp extends http.BaseClient {
   void close() => inner.close();
 }
 
+class _DelayedLookup {
+  bool enabled = false, held = false;
+  Map<String, Object?>? proof;
+  final release = Completer<void>();
+}
+
 class _ObservedNotices extends http.BaseClient {
-  _ObservedNotices(this.entries, {this.cancelProofs});
+  _ObservedNotices(this.entries, {this.cancelProofs, this.delayedLookup});
   final List<Map<String, Object?>> entries;
   final List<Map<String, Object?>>? cancelProofs;
+  final _DelayedLookup? delayedLookup;
   final http.Client inner = IOClient(
     _NativeLoopbackHttp().createHttpClient(null),
   );
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final result = await inner.send(request);
+    final delayed = delayedLookup;
+    if (delayed != null &&
+        delayed.enabled &&
+        !delayed.held &&
+        request.url.path == '/v2/converse/audio/live-stream/lookup') {
+      final bytes = await result.stream.toBytes();
+      expect(result.statusCode, 200);
+      expect(bytes.length, lessThanOrEqualTo(448 * 1024));
+      delayed.proof = (jsonDecode(utf8.decode(bytes)) as Map)
+          .cast<String, Object?>();
+      delayed.held = true;
+      // Delay the original adapter send Future; preserve every native byte.
+      await delayed.release.future;
+      return http.StreamedResponse(
+        Stream.value(bytes),
+        result.statusCode,
+        headers: result.headers,
+        contentLength: result.contentLength,
+        request: result.request,
+        reasonPhrase: result.reasonPhrase,
+        isRedirect: result.isRedirect,
+        persistentConnection: result.persistentConnection,
+      );
+    }
     final cancellation =
         cancelProofs != null &&
         request.method == 'POST' &&
@@ -123,6 +154,7 @@ class PublicPcmAudio extends CaptureAudio
   final queuedAudio = <(String, int, int?)>[];
   Completer<void>? playbackDone;
   Completer<void>? heldPlaybackStop;
+  int playbackStopWaits = 0;
   IncrementalPcmRotation? lastRotation;
   IncrementalPcmPacket? pending;
   Completer<IncrementalPcmState>? waiting;
@@ -145,7 +177,10 @@ class PublicPcmAudio extends CaptureAudio
   Future<void> awaitPlayback() => playbackDone?.future ?? Future.value();
   @override
   Future<void> stopPlayback() async {
-    if (heldPlaybackStop != null) await heldPlaybackStop!.future;
+    if (heldPlaybackStop != null) {
+      playbackStopWaits++;
+      await heldPlaybackStop!.future;
+    }
     if (playbackDone != null && !playbackDone!.isCompleted) {
       playbackDone!.complete();
     }
@@ -595,6 +630,7 @@ void main() {
       final mutedSurface = const {'mute', 'held_stop'}.contains(playbackMode);
       final semantics = mutedSurface ? tester.ensureSemantics() : null;
       Completer<void>? heldPlayback;
+      final delayedLookup = _DelayedLookup();
       try {
         if (mutedSurface) {
           tester.view.physicalSize = const Size(1280, 900);
@@ -617,7 +653,11 @@ void main() {
           ownerToken: token!,
           httpClient: _NativeOutputHttp(),
           realSpeechControls: true,
-          liveFactory: () => _ObservedNotices([], cancelProofs: cancelProofs),
+          liveFactory: () => _ObservedNotices(
+            [],
+            cancelProofs: cancelProofs,
+            delayedLookup: delayedLookup,
+          ),
           journalFactory: () => _ObservedNotices(observed),
           captureFactory: () => MockClient(
             (_) async => http.Response(
@@ -750,6 +790,70 @@ void main() {
               (entry['payload'] as Map)['status'] == 'played',
         );
         expect(hasPlayed(), isFalse);
+        if (playbackMode == 'dependency_held_speaker') {
+          delayedLookup.enabled = true;
+          try {
+            await nativeSpin(tester, () => delayedLookup.held);
+            expect(
+              (delayedLookup.proof!['capture'] as Map)['capture_open'],
+              isTrue,
+            );
+            heldPlayback = audio.heldPlaybackStop = Completer<void>();
+            final control = IOClient(
+              _NativeLoopbackHttp().createHttpClient(null),
+            );
+            final response = await tester.runAsync(
+              () => control.post(
+                Uri.parse('$url/fixture/required-live-decisions/stop'),
+                headers: {'authorization': 'Bearer $token'},
+              ),
+            );
+            control.close();
+            expect(response!.statusCode, 200);
+            expect(jsonDecode(response.body), {
+              'decisions_ready': false,
+              'capture_open': false,
+              'native_cleanup': true,
+              'legacy_enabled': true,
+            });
+            // An older real positive read arrives before the already-published
+            // native stop; its speaker Future must not block mic revocation.
+            delayedLookup.release.complete();
+            await nativeSpin(tester, () => audio.playbackStopWaits > 0);
+            await nativeSpin(tester, () => !audio.armed);
+            expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+            expect(audio.releases, 0);
+            expect(await audio.isPlaying, isTrue);
+            await tester.pump(const Duration(seconds: 4));
+            expect(audio.armed, isFalse);
+            expect(audio.arms, 1);
+            expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+            heldPlayback.complete();
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            expect(await audio.isPlaying, isFalse);
+            expect(audio.releases, 1);
+            expect(audio.acknowledgments, 1);
+            expect(audio.queuedAudio, hasLength(1));
+            expect(hasPlayed(), isFalse);
+          } finally {
+            if (!delayedLookup.release.isCompleted) {
+              delayedLookup.release.complete();
+            }
+            if (heldPlayback != null && !heldPlayback.isCompleted) {
+              heldPlayback.complete();
+            }
+            await tester.pumpWidget(const SizedBox.shrink());
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            state.dispose();
+          }
+          return;
+        }
         if (playbackMode == 'dependency_loss') {
           await verifyDependencyLoss();
           return;
@@ -1019,6 +1123,9 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         state.dispose();
       } finally {
+        if (!delayedLookup.release.isCompleted) {
+          delayedLookup.release.complete();
+        }
         if (heldPlayback != null && !heldPlayback.isCompleted) {
           heldPlayback.complete();
         }
