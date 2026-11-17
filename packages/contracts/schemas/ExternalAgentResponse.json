@@ -54,6 +54,76 @@
       "title": "ExternalAgentCapabilities",
       "type": "object"
     },
+    "ExternalAgentClaimReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "claim",
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/ExternalAgentTarget"
+        },
+        "decision_event_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Decision Event Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "command_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Command Digest",
+          "type": "string"
+        },
+        "admission_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Admission Id",
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "original",
+            "retained"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "kind",
+        "target",
+        "decision_event_id",
+        "idempotency_key",
+        "command_digest",
+        "admission_id",
+        "disposition"
+      ],
+      "title": "ExternalAgentClaimReceipt",
+      "type": "object"
+    },
     "ExternalAgentCommandReceipt": {
       "additionalProperties": false,
       "properties": {
@@ -1010,6 +1080,7 @@
   },
   "discriminator": {
     "mapping": {
+      "claim": "#/$defs/ExternalAgentClaimReceipt",
       "command": "#/$defs/ExternalAgentCommandReceipt",
       "disconnect": "#/$defs/ExternalAgentDisconnectReceipt",
       "events": "#/$defs/ExternalAgentEventPage",
@@ -1032,6 +1103,9 @@
     },
     {
       "$ref": "#/$defs/ExternalAgentCommandReceipt"
+    },
+    {
+      "$ref": "#/$defs/ExternalAgentClaimReceipt"
     },
     {
       "$ref": "#/$defs/ExternalAgentEventPage"

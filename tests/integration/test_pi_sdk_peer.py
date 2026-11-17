@@ -9,10 +9,18 @@ from pathlib import Path
 
 import pytest
 
+from packages.agent_adapters.external_submission import PiSubmission
 from packages.agent_adapters.pi_sdk import PiPeerUnavailable, PiSdkPeer
 from packages.contracts.external_agent import ExternalAgentRevoke
+from packages.contracts.external_agent_client import ExternalAgentNativeUnavailable
 from packages.contracts.models import SessionRequest
-from tests.integration.test_external_agent_session import add, bind_to, connection, native
+from tests.integration.test_external_agent_session import (
+    add,
+    bind_to,
+    connection,
+    native,
+    queued_claim,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 SDK_ROOT = os.environ.get("KINAIYA_PI_TEST_SDK_ROOT")
@@ -305,4 +313,57 @@ async def test_real_pi_requests_transcript_on_demand_from_authenticated_session(
             (answer,) = await run("3" * 32, "read scoped transcript")
             assert len(reads) == 4 and "Converse transcript page is unavailable" in answer
             assert (await peer.request_close("4" * 32)).disposition == "stopping"
+            assert await asyncio.wait_for(process.wait(), 5) == 0
+
+
+async def test_session_claim_cannot_replay_a_real_pi_run_after_peer_restart(private):
+    async with native(private.parent / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        instruction = "/fixture-command recorded Decisions work"
+        source = add(peers.store, session, "conversation.user", instruction)
+        grant = await peers.owner.authorize(connection(session, backend=None))
+        async with connect(private) as process:
+            peer = await PiSdkPeer.attach(process.stdout, process.stdin)
+            binding = bind_to(grant, peer.session_id)
+            await peers.decisions.bind(binding)
+            request = queued_claim(peers.store, session, source, binding)
+            submission = PiSubmission(peers.decisions, peer)
+            original = await submission.submit(request)
+            assert original.disposition == "accepted"
+            assert (await submission.submit(request)).task.task_id == original.task.task_id
+            async with asyncio.timeout(5):
+                while not any(event.kind == "settled" for event in peer.events(0)):
+                    await asyncio.sleep(0.02)
+            output = [event.text for event in peer.events(0) if event.kind == "assistant_message"]
+            assert output == [instruction]
+
+            class DropFirstReply:
+                async def claim(self, proposal):
+                    reply = await peers.decisions.claim(proposal)
+                    assert reply.disposition == "original"
+                    raise ExternalAgentNativeUnavailable
+
+            second = add(peers.store, session, "conversation.user", "Lost Session reply")
+            lost = queued_claim(peers.store, session, second, binding)
+            with pytest.raises(ExternalAgentNativeUnavailable):
+                await PiSubmission(DropFirstReply(), peer).submit(lost)
+            assert (await submission.submit(lost)).disposition == "uncertain"
+            assert [
+                event.text for event in peer.events(0) if event.kind == "assistant_message"
+            ] == output
+            assert (await peer.request_close("b" * 32)).disposition == "stopping"
+            assert await asyncio.wait_for(process.wait(), 5) == 0
+
+        (session_file,) = (private / "sessions").glob("*.jsonl")
+        async with connect(private, session_file) as process:
+            peer = await PiSdkPeer.attach(
+                process.stdout,
+                process.stdin,
+                expected_session_id=binding.target.backend_session_id,
+            )
+            recovered = await PiSubmission(peers.decisions, peer).submit(request)
+            assert recovered.task.task_id == original.task.task_id
+            assert recovered.disposition == "uncertain" and peer.events(0) == ()
+            assert (await peer.status("c" * 32)).busy is False
+            assert (await peer.request_close("d" * 32)).disposition == "stopping"
             assert await asyncio.wait_for(process.wait(), 5) == 0

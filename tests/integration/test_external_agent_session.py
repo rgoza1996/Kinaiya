@@ -10,10 +10,13 @@ import pytest
 from packages.contracts.client import JournalClient
 from packages.contracts.external_agent import (
     ExternalAgentBind,
+    ExternalAgentClaim,
     ExternalAgentConnect,
     ExternalAgentReadTranscript,
     ExternalAgentRevoke,
     ExternalAgentScope,
+    ExternalAgentSource,
+    ExternalAgentSubmit,
     ExternalAgentTarget,
     ExternalAgentTranscriptPosition,
 )
@@ -21,7 +24,14 @@ from packages.contracts.external_agent_client import (
     ExternalAgentNativeConflict,
     ExternalAgentSessionClient,
 )
-from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow
+from packages.contracts.models import (
+    AppendRequest,
+    Decision,
+    SessionRequest,
+    SpeechWindow,
+    WindowDecision,
+    window_agent_key,
+)
 from services.common.auth import Auth
 from services.session.api import create_app
 from services.session.store import Store
@@ -102,6 +112,179 @@ def add(store, session, kind, text, *, scope="public_synthetic", causes=(), role
         ),
         role,
     )
+
+
+def queued_claim(store, session, source, binding, instruction=None):
+    revision = source.payload.get("revision", 1)
+    instruction = source.payload["text"] if instruction is None else instruction
+    if source.kind == "conversation.window":
+        decision = WindowDecision(
+            source_event_id=source.event_id,
+            source_sequence=source.sequence,
+            source_revision=revision,
+            conversation="WAIT_FOR_NEXT_WINDOW",
+            agent_route="QUEUE_UNTIL_TASK_DONE",
+        )
+        kind = "routing.window_decided"
+        key = window_agent_key(decision.decision_id, decision.agent_route)
+    else:
+        decision = Decision(
+            source_event_ids=[source.event_id],
+            source_revision=revision,
+            route="queue",
+            instruction=instruction,
+            idempotency_key=uuid4().hex,
+        )
+        kind, key = "routing.decided", decision.idempotency_key
+    event = store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind=kind,
+            payload=decision.model_dump(mode="json"),
+            causes=[source.event_id],
+            idempotency_key=key,
+        ),
+        "decisions",
+    )
+    return ExternalAgentClaim(
+        contract_version=1,
+        request_id=uuid4().hex,
+        operation="claim",
+        decision_event_id=event.event_id,
+        command=ExternalAgentSubmit(
+            contract_version=1,
+            request_id=uuid4().hex,
+            operation="submit",
+            target=binding.target,
+            source=ExternalAgentSource(event_ids=(source.event_id,), revision=revision),
+            idempotency_key=key,
+            instruction=instruction,
+            content_scope="public_synthetic",
+            execution_policy="backend_owned",
+            queue_if_busy=True,
+        ),
+    )
+
+
+async def test_one_exact_claim_survives_duplicate_delivery_and_restart(tmp_path):
+    path = tmp_path / "journal.sqlite"
+    async with native(path) as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        source = add(peers.store, session, "conversation.user", "Original request")
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        request = queued_claim(peers.store, session, source, binding)
+        duplicate = request.model_copy(
+            update={
+                "request_id": "correlation-replay",
+                "command": request.command.model_copy(
+                    update={"request_id": "nested-correlation-replay"}
+                ),
+            }
+        )
+        with pytest.raises(PermissionError):
+            await peers.owner.claim(request)
+        competing = await asyncio.gather(
+            peers.decisions.claim(request),
+            peers.decisions.claim(duplicate),
+        )
+        assert {reply.disposition for reply in competing} == {"original", "retained"}
+        (admission_id,) = {reply.admission_id for reply in competing}
+
+    async with native(path) as peers:
+        retained = await peers.decisions.claim(request)
+        assert retained.disposition == "retained" and retained.admission_id == admission_id
+        changed = request.model_copy(
+            update={"command": request.command.model_copy(update={"instruction": "Changed text"})}
+        )
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(changed)
+        another_route = queued_claim(peers.store, session, source, binding)
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(another_route)
+
+
+async def test_claim_checks_native_route_text_revision_and_disclosure(tmp_path):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        source = add(peers.store, session, "conversation.user", "Queued text")
+        request = queued_claim(peers.store, session, source, binding)
+        forged = request.model_copy(update={"decision_event_id": source.event_id})
+        changed = request.model_copy(
+            update={
+                "command": request.command.model_copy(
+                    update={"instruction": "Altered forwarded text"}
+                )
+            }
+        )
+        for invalid in (forged, changed):
+            with pytest.raises(ExternalAgentNativeConflict):
+                await peers.decisions.claim(invalid)
+        add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "Newer text",
+            revision=2,
+            target_event_id=source.event_id,
+        )
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(request)
+        private = add(peers.store, session, "conversation.user", "Local text", scope="local_only")
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(queued_claim(peers.store, session, private, binding))
+
+        handed_off = add(peers.store, session, "conversation.user", "Previously dispatched text")
+        previous = queued_claim(peers.store, session, handed_off, binding)
+        decision = peers.store.entry(previous.decision_event_id)
+        peers.store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="routing.dispatch",
+                causes=[handed_off.event_id],
+                idempotency_key=uuid4().hex,
+                payload={"decision_id": decision.payload["decision_id"], "state": "unknown"},
+            ),
+            "decisions",
+        )
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(previous)
+
+        model = SpeechWindow(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            utterance_id="claim-window",
+            window_index=0,
+            revision=1,
+            text="Verified spoken work",
+            start_ms=0,
+            end_ms=120,
+            user_speaking=False,
+            capture_ended=True,
+            content_scope="public_synthetic",
+        )
+        rolling = peers.store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="conversation.window",
+                payload=model.model_dump(mode="json"),
+                idempotency_key=uuid4().hex,
+            ),
+            "owner",
+        )
+        claimed = await peers.decisions.claim(queued_claim(peers.store, session, rolling, binding))
+        assert claimed.disposition == "original"
 
 
 async def test_session_retains_exact_grant_and_binding_across_restart(tmp_path):

@@ -1,10 +1,10 @@
 # External Agent bridge v1
 
 The bridge contract, Session attachment grants, and the Pi SDK peer implement
-the connection and transcript boundaries for
+the connection, transcript, and original submission boundaries for
 [issue #547](https://github.com/rgoza1996/Kinaiya/issues/547). The application
 integration still requires managed peer startup, Decisions task delivery,
-durable command recovery, and an end-to-end Converse rehearsal.
+durable result recovery, and an end-to-end Converse rehearsal.
 
 ## Commands and observations
 
@@ -84,6 +84,23 @@ are retained within the lifetime of the original peer and replay has a bounded
 window. The application owner needs durable attachment records and original
 request receipts to reconcile after an owner restart.
 
+## Original submission
+
+Decisions uses the native `POST /v1/external-agent/claim` route to reserve one
+send for a finalized Decisions queue action or a rolling-window queue action.
+Session verifies the recorded decision, source identity, current revision,
+instruction and disclosure scope. A recorded prior dispatch or another grant
+for the same source blocks a new send. Source checks and the claim write
+share one native transaction.
+
+The first committed claim assigns an admission ID. The adapter uses it as the
+Pi run identity and sends the instruction only when the reply says
+`original`. A duplicate claim returns `retained` with the same admission
+ID, including after Session restarts. The adapter can use the original live
+peer's observed reply. After a lost reply or peer replacement, an unresolved
+original remains uncertain. The receipt describes command acceptance and
+completed work remains an observation from the backend.
+
 ## Verification
 
 The isolated integration uses Node 22.22.1 and a private bubblewrap filesystem
@@ -104,5 +121,7 @@ backend failure. It also verifies that the real Pi SDK reads every authorized
 page across the authenticated Session routes and receives a refusal after
 revocation. The ordinary turn makes zero transcript reads. Focused Session
 tests cover concurrent binding, restart, reset, revisions and byte-accurate
-paging. Full Converse routing and the production peer launcher remain open
-in #547.
+paging. A real Pi replay rehearsal sends a recorded Decisions instruction
+once, refuses another send after a lost native acknowledgment, and reopens
+the same Pi session without starting the original again. Full Converse
+routing and the production peer launcher remain open in #547.

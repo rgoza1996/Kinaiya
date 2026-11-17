@@ -7,13 +7,16 @@ from contextlib import contextmanager
 from packages.contracts.external_agent import (
     MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
     MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES,
+    ExternalAgentClaimReceipt,
     ExternalAgentConnect,
     ExternalAgentGrant,
     ExternalAgentTranscriptEntry,
     ExternalAgentTranscriptPage,
     ExternalAgentTranscriptPosition,
 )
+from packages.contracts.models import Decision, WindowDecision, window_agent_key
 from packages.contracts.transcript_scan import checked_entry, transcript_json
+from packages.providers.disclosure import combine_scopes
 
 _HISTORY_ORIGINS = {
     "conversation.user": {"authenticated-user"},
@@ -174,6 +177,151 @@ class ExternalAgentAccess:
                     (request.attachment_id,),
                 )
             return self._lookup(database, request.attachment_id, request.request_id)
+
+    def claim(self, request):
+        """Grant one fresh send opportunity for one exact authenticated route."""
+        command = request.command
+        target = command.target
+        digest = request.command_digest()
+        primary = command.source.event_ids[0]
+
+        def receipt(admission_id, disposition):
+            return ExternalAgentClaimReceipt(
+                contract_version=1,
+                request_id=request.request_id,
+                kind="claim",
+                target=target,
+                decision_event_id=request.decision_event_id,
+                idempotency_key=command.idempotency_key,
+                command_digest=digest,
+                admission_id=admission_id,
+                disposition=disposition,
+            )
+
+        with self._transaction(write=True) as database:
+            original = database.execute(
+                "SELECT command_digest,admission_id,decision_event_id,source_event_id "
+                "FROM external_agent_claims WHERE attachment_id=? AND idempotency_key=?",
+                (target.attachment_id, command.idempotency_key),
+            ).fetchone()
+            if original is not None:
+                if (
+                    original["command_digest"],
+                    original["decision_event_id"],
+                    original["source_event_id"],
+                ) != (digest, request.decision_event_id, primary):
+                    raise ExternalAgentConflict
+                return receipt(original["admission_id"], "retained")
+            grant = self._lookup(database, target.attachment_id, request.request_id)
+            scope = grant.original.scope
+            self._current(scope)
+            if (
+                grant.phase != "bound"
+                or grant.backend_session_id != target.backend_session_id
+                or command.content_scope not in grant.original.allowed_content
+            ):
+                raise ExternalAgentConflict
+            route = self._submission_route(request, scope)
+            if database.execute(
+                "SELECT 1 FROM external_agent_claims WHERE decision_event_id=? OR source_event_id=?",
+                (request.decision_event_id, primary),
+            ).fetchone() or self._already_dispatched(database, scope, route, primary):
+                raise ExternalAgentConflict
+            admission_id = secrets.token_hex(16)
+            database.execute(
+                "INSERT INTO external_agent_claims (attachment_id,idempotency_key,command_digest,"
+                "admission_id,decision_event_id,source_event_id) VALUES (?,?,?,?,?,?)",
+                (
+                    target.attachment_id,
+                    command.idempotency_key,
+                    digest,
+                    admission_id,
+                    request.decision_event_id,
+                    primary,
+                ),
+            )
+            return receipt(admission_id, "original")
+
+    def _submission_route(self, request, scope):
+        command = request.command
+        source_id = command.source.event_ids[0]
+        try:
+            source = self.store.entry(source_id)
+            recorded = self.store.entry(request.decision_event_id)
+        except KeyError:
+            raise ExternalAgentConflict from None
+        identity = (scope.session_id, scope.thread_id, scope.epoch)
+        if (
+            (source.session_id, source.thread_id, source.epoch) != identity
+            or (recorded.session_id, recorded.thread_id, recorded.epoch) != identity
+            or recorded.origin != "decisions"
+            or recorded.causes != [source_id]
+            or recorded.sequence <= source.sequence
+            or source.kind
+            not in {"conversation.user", "conversation.revision", "conversation.window"}
+            or (
+                source.origin != "authenticated-user"
+                and (source.kind, source.origin) != ("conversation.revision", "converse")
+            )
+            or source.payload.get("revision", 1) != command.source.revision
+        ):
+            raise ExternalAgentConflict
+        resolved = self.store.resolve(
+            source.payload["target_event_id"]
+            if source.kind == "conversation.revision"
+            else source_id
+        )
+        if (
+            (resolved.session_id, resolved.thread_id, resolved.epoch) != identity
+            or resolved.payload.get("revision", 1) != command.source.revision
+            or resolved.payload.get("text") != source.payload.get("text")
+        ):
+            raise ExternalAgentScopeChanged
+        if recorded.kind == "routing.decided" and source.kind != "conversation.window":
+            decision = Decision.model_validate(recorded.payload)
+            if (
+                decision.route != "queue"
+                or tuple(decision.source_event_ids) != command.source.event_ids
+                or decision.source_revision != command.source.revision
+                or decision.idempotency_key != command.idempotency_key
+                or decision.instruction != command.instruction
+            ):
+                raise ExternalAgentConflict
+        elif recorded.kind == "routing.window_decided" and source.kind == "conversation.window":
+            decision = WindowDecision.model_validate(recorded.payload)
+            if (
+                decision.agent_route != "QUEUE_UNTIL_TASK_DONE"
+                or command.source.event_ids != (decision.source_event_id,)
+                or (decision.source_sequence, decision.source_revision)
+                != (source.sequence, command.source.revision)
+                or window_agent_key(decision.decision_id, decision.agent_route)
+                != command.idempotency_key
+                or source.payload.get("text") != command.instruction
+            ):
+                raise ExternalAgentConflict
+        else:
+            raise ExternalAgentConflict
+        for event_id in command.source.event_ids:
+            floor = self.store._agent_context_scope(event_id, scope)
+            if combine_scopes(floor, command.content_scope) != command.content_scope:
+                raise ExternalAgentConflict
+        return decision.decision_id
+
+    @staticmethod
+    def _already_dispatched(database, scope, decision_id, source_id):
+        return (
+            database.execute(
+                "SELECT 1 FROM entries WHERE session_id=? AND thread_id=? AND epoch=? AND ("
+                "(writer='decisions' AND (kind='routing.dispatch' OR "
+                "(kind='routing.window_dispatch' AND json_extract(value,'$.payload.state') IS NOT 'queued')) "
+                "AND json_extract(value,'$.payload.decision_id')=?) OR "
+                "(writer='agent' AND kind='agent.command' AND json_extract(value,'$.payload.op')='submit' "
+                "AND EXISTS (SELECT 1 FROM json_each(entries.value,'$.causes') WHERE json_each.value=?))) "
+                "LIMIT 1",
+                (scope.session_id, scope.thread_id, scope.epoch, decision_id, source_id),
+            ).fetchone()
+            is not None
+        )
 
     def transcript(self, request):
         """Observe current scope and qualified native entries in one read snapshot."""

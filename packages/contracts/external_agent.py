@@ -1,5 +1,7 @@
 """Transport-independent owner and routing contract for external Agents."""
 
+import hashlib
+import json
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
@@ -8,6 +10,7 @@ from packages.contracts.models import ContentScope
 
 MAX_CURSOR = (1 << 53) - 1
 MAX_EXTERNAL_NATIVE_REQUEST_BYTES = 8192
+MAX_EXTERNAL_COMMAND_BYTES = 131072
 MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES = 262144
 BridgeIdentifier = Annotated[
     str, Field(min_length=1, max_length=256, pattern=r"^[^\x00-\x1f\x7f]+$")
@@ -151,6 +154,26 @@ class ExternalAgentInterrupt(_TaskCommand):
     operation: Literal["interrupt"]
 
 
+class ExternalAgentClaim(_Envelope):
+    operation: Literal["claim"]
+    decision_event_id: BridgeIdentifier
+    command: ExternalAgentSubmit
+
+    def command_digest(self):
+        # HTTP request IDs correlate replies. The task key and exact action
+        # determine whether another delivery is the same original.
+        payload = {
+            "version": self.contract_version,
+            "decision_event_id": self.decision_event_id,
+            "command": self.command.model_dump(mode="json", exclude={"request_id"}),
+        }
+        return hashlib.sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+
+
 class ExternalAgentReplay(_TargetRequest):
     operation: Literal["events"]
     after: BridgeCursor
@@ -193,6 +216,7 @@ class ExternalAgentRequest(RootModel):
         | ExternalAgentSubmit
         | ExternalAgentSteer
         | ExternalAgentInterrupt
+        | ExternalAgentClaim
         | ExternalAgentReplay
         | ExternalAgentReadTranscript,
         Field(discriminator="operation"),
@@ -245,6 +269,16 @@ class ExternalAgentCommandReceipt(_Envelope):
     idempotency_key: BridgeIdentifier
     task: ExternalAgentTask
     disposition: Literal["queued", "accepted", "requested", "uncertain"]
+
+
+class ExternalAgentClaimReceipt(_Envelope):
+    kind: Literal["claim"]
+    target: ExternalAgentTarget
+    decision_event_id: BridgeIdentifier
+    idempotency_key: BridgeIdentifier
+    command_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    admission_id: BridgeAttachmentId
+    disposition: Literal["original", "retained"]
 
 
 class _Event(_Closed):
@@ -392,6 +426,7 @@ class ExternalAgentResponse(RootModel):
         | ExternalAgentGrant
         | ExternalAgentDisconnectReceipt
         | ExternalAgentCommandReceipt
+        | ExternalAgentClaimReceipt
         | ExternalAgentEventPage
         | ExternalAgentTranscriptPage
         | ExternalAgentRefusal,

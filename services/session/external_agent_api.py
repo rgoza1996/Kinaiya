@@ -7,9 +7,11 @@ from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
 from packages.contracts.external_agent import (
+    MAX_EXTERNAL_COMMAND_BYTES,
     MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
     MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES,
     ExternalAgentBind,
+    ExternalAgentClaim,
     ExternalAgentConnect,
     ExternalAgentReadTranscript,
     ExternalAgentRefusal,
@@ -24,18 +26,18 @@ from services.session.external_agent import (
 )
 
 
-async def _body(incoming, model):
+async def _body(incoming, model, limit):
     if incoming.scope.get("query_string"):
         raise HTTPException(422, "External Agent native operations take a JSON body")
     raw = bytearray()
     try:
         async with asyncio.timeout(2):
             async for chunk in incoming.stream():
-                if len(raw) + len(chunk) > MAX_EXTERNAL_NATIVE_REQUEST_BYTES:
+                if len(raw) + len(chunk) > limit:
                     raise HTTPException(413, "External Agent request exceeds its bound")
                 raw.extend(chunk)
         bounded = bytes(raw)
-        transcript_json(bounded, MAX_EXTERNAL_NATIVE_REQUEST_BYTES)
+        transcript_json(bounded, limit)
         return model.model_validate_json(bounded, strict=True)
     except TimeoutError:
         raise HTTPException(408, "External Agent request body is unavailable") from None
@@ -43,8 +45,8 @@ async def _body(incoming, model):
         raise HTTPException(422, "Invalid external Agent request") from None
 
 
-async def _invoke(incoming, model, method):
-    request = await _body(incoming, model)
+async def _invoke(incoming, model, method, limit=MAX_EXTERNAL_NATIVE_REQUEST_BYTES):
+    request = await _body(incoming, model, limit)
     try:
         result = await run_in_threadpool(method, request)
         body = result.model_dump_json().encode("utf-8")
@@ -89,5 +91,9 @@ def router(store, auth):
     @native.post("/transcript", dependencies=[decisions])
     async def transcript(request: Request):
         return await _invoke(request, ExternalAgentReadTranscript, access.transcript)
+
+    @native.post("/claim", dependencies=[decisions])
+    async def claim(request: Request):
+        return await _invoke(request, ExternalAgentClaim, access.claim, MAX_EXTERNAL_COMMAND_BYTES)
 
     return native

@@ -170,6 +170,12 @@ class PiSdkPeer:
     async def request_close(self, request_id, *, timeout=5):
         return await self._call(request_id, "close", {}, timeout)
 
+    def submission_reply(self, request_id):
+        original = self._requests.get(request_id)
+        if original is not None and original.command == "submit" and original.reply.done():
+            return original.reply.result()
+        return None
+
     async def _call(self, request_id, command, detail, timeout):
         if type(request_id) is not str or _ID.fullmatch(request_id) is None:
             raise ValueError("Invalid Pi request identity")

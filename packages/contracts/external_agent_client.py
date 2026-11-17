@@ -6,9 +6,12 @@ import secrets
 import httpx
 
 from packages.contracts.external_agent import (
+    MAX_EXTERNAL_COMMAND_BYTES,
     MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
     MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES,
     ExternalAgentBind,
+    ExternalAgentClaim,
+    ExternalAgentClaimReceipt,
     ExternalAgentConnect,
     ExternalAgentGrant,
     ExternalAgentReadTranscript,
@@ -32,9 +35,17 @@ class ExternalAgentSessionClient:
     def __init__(self, journal):
         self.journal = journal
 
-    async def _request(self, action, original, model, bound=MAX_EXTERNAL_NATIVE_REQUEST_BYTES):
+    async def _request(
+        self,
+        action,
+        original,
+        model,
+        bound=MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
+        *,
+        input_bound=MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
+    ):
         wire = original.model_dump_json().encode("utf-8")
-        if len(wire) > MAX_EXTERNAL_NATIVE_REQUEST_BYTES:
+        if len(wire) > input_bound:
             raise ValueError("External Agent request exceeds its declared bound")
         try:
             async with asyncio.timeout(5):
@@ -83,6 +94,20 @@ class ExternalAgentSessionClient:
         if grant.phase != "revoked" or grant.attachment_id != original.attachment_id:
             raise ExternalAgentNativeUnavailable
         return grant
+
+    async def claim(self, request):
+        original = ExternalAgentClaim.model_validate(request, strict=True)
+        result = await self._request(
+            "claim", original, ExternalAgentClaimReceipt, input_bound=MAX_EXTERNAL_COMMAND_BYTES
+        )
+        if (
+            result.target != original.command.target
+            or result.decision_event_id != original.decision_event_id
+            or result.idempotency_key != original.command.idempotency_key
+            or result.command_digest != original.command_digest()
+        ):
+            raise ExternalAgentNativeUnavailable
+        return result
 
     async def transcript(self, request, *, scope):
         expected = ExternalAgentScope.model_validate(scope, strict=True)

@@ -125,6 +125,11 @@ class Store:
                 attachment_id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
                 original TEXT NOT NULL, backend_session_id TEXT UNIQUE,
                 revoked INTEGER NOT NULL CHECK(revoked IN (0,1)));
+            CREATE TABLE IF NOT EXISTS external_agent_claims(
+                attachment_id TEXT NOT NULL REFERENCES external_agent_grants(attachment_id),
+                idempotency_key TEXT NOT NULL, command_digest TEXT NOT NULL,
+                admission_id TEXT NOT NULL UNIQUE, decision_event_id TEXT NOT NULL UNIQUE,
+                source_event_id TEXT NOT NULL UNIQUE, PRIMARY KEY(attachment_id,idempotency_key));
             CREATE TABLE IF NOT EXISTS entries(
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_id TEXT NOT NULL UNIQUE,

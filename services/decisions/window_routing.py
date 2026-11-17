@@ -30,6 +30,7 @@ from packages.contracts.models import (
     WindowDecision,
     new_id,
 )
+from packages.contracts.models import window_agent_key as _stable_key
 from packages.providers.decision_capture import _capture, capture_prompt_scope, capture_sources
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from services.decisions.prompts import DEFAULT_PROMPT, instructions, prompt_stamp
@@ -674,11 +675,6 @@ class WindowClassifier:
             "expected_objective_revision": decision.expected_objective_revision,
             "reason_code": decision.reason_code,
         }
-
-
-def _stable_key(decision_id: str, route: str) -> str:
-    digest = hashlib.sha256(f"{decision_id}:{route}".encode()).hexdigest()[:32]
-    return f"window:{route.lower()}:{digest}"
 
 
 class WindowAgentDispatcher:
