@@ -1,7 +1,7 @@
 # Independent Decisions consumer policies (#566, #567)
 
 This increment adds **read-only configuration inspection** for an optional Agent
-advisory policy. Request execution, an Agent client, protected Options writes and
+advisory policy. Public request execution, an Agent client, protected Options writes and
 the complete service/resource/external-agent matrix remain unfinished. Neither
 issue is complete. A policy declaration never activates Agent or Decisions.
 
@@ -74,13 +74,14 @@ observed on each read.
 
 The [native Agent upload-admission increment](decisions-agent-admission.md)
 adds current-task/source/disclosure checks and one coherent SQLite snapshot.
-It supplies a prerequisite for the eventual measured provider callback and does
-not enable advice request execution.
+The [internal operation owner](decisions-agent-operations.md) now binds that
+callback to measured execution, exact recovery and actual cleanup. It is not
+installed in the service or exposed through an Agent client; advice admission
+remains unavailable.
 
-Before enabling requests, wire native admission into each actual provider upload,
-deliver complete qualified history, and retain measured prompts, original-operation
-ownership, exact recovery after an uncertain response, bounded retention and
-confirmed cleanup. Preserve raw model output;
+Before enabling requests, integrate the authenticated Agent bridge and current
+runtime guards, deliver complete qualified history, and qualify the internal
+owner through the full service lifecycle. Preserve raw model output;
 the optional advice cannot grant permissions, execute a handoff, determine task
 success or impose Converse's routing format. Agent startup must remain usable
 when this optional consumer is absent or unavailable. Required Converse readiness

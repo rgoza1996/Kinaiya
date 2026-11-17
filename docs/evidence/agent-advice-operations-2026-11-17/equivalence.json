@@ -1,0 +1,25 @@
+{
+  "baseline": "6c718b67a0d0ec51a8f483d30d677af4236488c7",
+  "original_schema_count": 608,
+  "changed_original_schemas": [],
+  "new_schemas": [
+    "packages/contracts/schemas/AgentAdviceCall.json",
+    "packages/contracts/schemas/AgentAdviceLookup.json",
+    "packages/contracts/schemas/AgentAdviceModelPin.json",
+    "packages/contracts/schemas/AgentAdviceObservation.json"
+  ],
+  "assertions": [
+    {
+      "path": "tests/unit/test_standing_resource_finalization_contracts.py",
+      "original_assertions": 74,
+      "new_assertions": 74,
+      "missing_original_assertions": []
+    },
+    {
+      "path": "tests/integration/test_agent_advice_export.py",
+      "original_assertions": 25,
+      "new_assertions": 27,
+      "missing_original_assertions": []
+    }
+  ]
+}

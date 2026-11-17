@@ -27,8 +27,9 @@ own disclosure scope, combined with the native task and retained input scopes.
 The policy digest, instruction scope and provider identity are declarations from
 the trusted Decisions caller, bound into the exact response. Session does not
 observe the Decisions host configuration or measure the uploaded prompt. The
-future Decisions operation owner must capture its actual policy/provider and
-install this admission callback at each measured count/generation dispatch.
+internal [Decisions operation owner](decisions-agent-operations.md) now captures
+its actual policy/provider and installs this callback at each measured
+count/generation dispatch.
 An authenticated Agent request and current Agent runtime/task guards remain
 required before that consumer can be enabled.
 
@@ -56,10 +57,10 @@ constant diagnostics. Authentication retains the native 401/403 behavior.
 
 This is a point-in-time native observation, not a reusable export permit, an
 execution permission, model-output assessment or task-success claim. Repeating
-this read grants no model retry. Original advice-operation enrollment, exact
-uncertain-result recovery, measured model execution and confirmed cleanup remain
-unfinished, along with protected policy persistence/Options and the full service
-and external-agent matrix. Standing-task advice still needs its own standing
+this read grants no model retry. The internal owner supplies original enrollment,
+exact recovery, measured execution and retained cleanup. Authenticated Agent and
+service integration, protected policy persistence/Options and the full service
+and external-agent matrix remain unfinished. Standing-task advice needs its own standing
 authority integration; ordinary-task metadata cannot bypass that boundary.
 
 Qualification preserves the first unsupported-fixture failure (#690) and the

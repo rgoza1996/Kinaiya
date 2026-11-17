@@ -1,0 +1,198 @@
+{
+  "utc": "2026-11-17T17:51:18.681252+00:00",
+  "baseline": "6c718b67a0d0ec51a8f483d30d677af4236488c7",
+  "branch": "codex/566-decisions-consumers",
+  "pr": 689,
+  "parent_pr": 683,
+  "issues": [
+    566,
+    567,
+    692,
+    693,
+    694,
+    695
+  ],
+  "scope": "Internal original advice owner; public admission remains unavailable",
+  "runs": [
+    {
+      "name": "issue-566-advice-owner-first-313",
+      "exit_code": 1,
+      "log_sha256": "6546edc9974699f372fb2f20eefc7e6bbcb8a64308d34c2bd400e894e3e8e0a5",
+      "final": false
+    },
+    {
+      "name": "issue-692-observer-cancel-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "bf1d88a52a477597493c5836d0aba4fc0f814c942a32f3cf6d5a916287de494c",
+      "final": false
+    },
+    {
+      "name": "issue-566-owner-native-first-313",
+      "exit_code": 1,
+      "log_sha256": "2dc2b71d888a203b86c5438615e33a4f149bed32fd41004a861e027fa5b6d2c9",
+      "final": true
+    },
+    {
+      "name": "issue-693-original-custody-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "9e7203b52a39550561de1ae954c4d5bb0110b06433cc4780e04b970d70e59bfd",
+      "final": false
+    },
+    {
+      "name": "issue-566-resource-owner-first-313",
+      "exit_code": 1,
+      "log_sha256": "906924f3bd5d40d7dab7fe3fb5a2b1a73a5df6d14841bbe990bd76a9c0bc764b",
+      "final": false
+    },
+    {
+      "name": "issue-694-resource-owner-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "fe70509b4ca4250a255e708640d2a0971fe430e4bdcd848a6b587d024033791d",
+      "final": false
+    },
+    {
+      "name": "issue-566-metadata-close-first-313",
+      "exit_code": 1,
+      "log_sha256": "e1eac7f5662c5c071d80b2827929efb0d52988cbc5579f0a0601e3efd7aa3e1e",
+      "final": false
+    },
+    {
+      "name": "issue-695-metadata-close-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "14ab224db5879bb19b0afb8288a6dfe54ff9f0d94095653b8bf36ccfdf62b36b",
+      "final": false
+    },
+    {
+      "name": "issue-695-owner-close-first-313",
+      "exit_code": 1,
+      "log_sha256": "93e9f44a031693275f00becc7e27c0cd9d5883305395de34e2a8dd597fefbb73",
+      "final": false
+    },
+    {
+      "name": "issue-695-operation-ownership-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "e54a1d4f6844798deead99729173037418f2dc19b7478b766f6cbb837c247796",
+      "final": false
+    },
+    {
+      "name": "issue-566-owner-broader-313",
+      "exit_code": 0,
+      "log_sha256": "500e6b6e53ddec2981bacb5ec4dbd3a5cb862fcb4bcaac9bb51c57acb9f14a63",
+      "final": true
+    },
+    {
+      "name": "issue-566-owner-broader-314",
+      "exit_code": 0,
+      "log_sha256": "590d96f98644f5944091b5adcb74d2b3122ff05124919de508d9bd8dc9bea836",
+      "final": true
+    },
+    {
+      "name": "issue-566-owner-ruff-check",
+      "exit_code": 0,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "final": true
+    },
+    {
+      "name": "issue-566-owner-ruff-format",
+      "exit_code": 0,
+      "log_sha256": "8f580b7c5466f13b0b7f4756c582534afeeecd0731b84acce6bdf477a6384023",
+      "final": true
+    },
+    {
+      "name": "issue-566-owner-schema-export",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "final": true
+    }
+  ],
+  "first_source_captures": [
+    {
+      "name": "issue-566-advice-owner-first-sources.json",
+      "sha256": "fcbd9deb421652a8af5de1e6bfcfb51d80fccabc3ad7f30a2c595997a33bbb6b"
+    },
+    {
+      "name": "issue-566-owner-native-first-sources.json",
+      "sha256": "6d49298d936f08e3160bac9c4ab5b0cc2d3cee71ef3001d6ddaf342b1ccb734e"
+    },
+    {
+      "name": "issue-566-resource-owner-first-sources.json",
+      "sha256": "fccddd1fab7bf1f074b32a8d96442f6fb07d0a99e318ce78013723e22fb3bc77"
+    },
+    {
+      "name": "issue-566-metadata-close-first-sources.json",
+      "sha256": "cabe09a27548e354f182e20fde9290fa49c6cb5c537d0992157574df3ebbe06c"
+    },
+    {
+      "name": "issue-695-owner-close-first-sources.json",
+      "sha256": "88c2d35fc8c1f64614be8ee07fb097d75cc49511b51ec03e04bd49b136c3a89c"
+    }
+  ],
+  "final_code_pins": {
+    "packages/contracts/agent_advice_operations.py": "d67985ea0d434277b408876b5d1e83b06cabab3b48f69beda8d7154b29398d7e",
+    "packages/contracts/agent_tools.py": "602d2c4b8f175a647cd4ee4b4605cb6caa5355112d2fa87ab81e5d6d625a1a0f",
+    "packages/contracts/client.py": "d2441620e8578fa13adf61ab47bcec80e3fcbbdb03e0963733ae516bda4845cb",
+    "scripts/export_contracts.py": "915b4703e92c428b537a150a2c333cf25c8669b141b7de70819931066c202914",
+    "services/decisions/agent_operations.py": "5e181909eac7b282b4032976472a062e80d187e2e6dff15321598e6034877949",
+    "services/decisions/agent_policy.py": "aa4d864f3f74a08d5c9f4af6383a72fbbb5a4b27a780e84f6a1ba6b487b11c34",
+    "tests/integration/advice_native_wire.py": "aefd36983df7564ac0f53f053fa662041569421b3b5870fdd84a12debb1cf0b0",
+    "tests/integration/test_agent_advice_export.py": "513637c796ce7c73af57e7fa7ccdedf974b387a720e10c1173ad55bd5271e3f5",
+    "tests/integration/test_agent_advice_operations.py": "683756a2af17e20740262fcc4eee09cb21ec0e15f8f1ea123c7470e5a77034a0",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "fea98e95e4411fab8c8731d9191c32f6fbc3ce69c6d0d3fd692338ec6d36f0ae"
+  },
+  "final_pytest_targets": [
+    "tests/unit/test_decisions_consumer_policies.py",
+    "tests/integration/test_decisions_consumer_options.py",
+    "tests/unit/test_decisions_prompt_config.py",
+    "tests/unit/test_independent_decisions_modes.py",
+    "tests/unit/test_subsystem_topology.py",
+    "tests/unit/test_setup_subsystem_modes.py",
+    "tests/unit/test_core_subsystem_settings.py",
+    "tests/unit/test_core_subsystem_schema_exports.py",
+    "tests/integration/test_required_decisions_readiness.py",
+    "tests/unit/test_required_decisions.py",
+    "tests/integration/test_native_d1_selection.py",
+    "tests/integration/test_openrouter_decisions_selection.py",
+    "tests/unit/test_measured_chat_binding.py",
+    "tests/unit/test_standing_resource_finalization_contracts.py",
+    "tests/integration/test_agent_advice_export.py",
+    "tests/unit/test_agent_export_contract.py",
+    "tests/integration/test_agent_export_admission.py",
+    "tests/integration/test_agent_submit_admission.py",
+    "tests/integration/test_agent_submit_admission_faults.py",
+    "tests/integration/test_agent_operating_mode.py",
+    "tests/unit/test_agent_operating_mode_native.py",
+    "tests/unit/test_agent_control_contract.py",
+    "tests/unit/test_agent_control_bootstrap.py",
+    "tests/integration/test_agent_advice_operations.py",
+    "tests/unit/test_agent_tools.py",
+    "tests/unit/test_complete_provider_budget.py",
+    "tests/unit/test_resource_provider_cleanup.py",
+    "tests/unit/test_lmstudio_provider.py",
+    "tests/integration/test_auxiliary_models.py",
+    "tests/integration/test_journal_wake_http.py",
+    "tests/unit/test_standing_agent_client.py",
+    "tests/unit/test_standing_resources_finalization_client_deadline.py",
+    "tests/unit/test_standing_resources_barrier_client_deadline.py",
+    "tests/unit/test_standing_export_api_client.py",
+    "tests/integration/test_live_decisions_http.py"
+  ],
+  "published_predecessor_ci": {
+    "head": "6c718b67a0d0ec51a8f483d30d677af4236488c7",
+    "standard_run": 44126055515,
+    "standard_jobs_passed": 8,
+    "manual_jobs_skipped": 4,
+    "installer_run": 44126055486,
+    "installer_jobs_passed": 6,
+    "qualifies_new_operation_code": false
+  },
+  "historical_ci_failure": {
+    "issue": 696,
+    "head": "2879743ec409187bc5d2c1ad12e6ad854dc2dabe",
+    "run": 44116828666,
+    "job": 134157085226,
+    "raw_log_sha256": "466097659de59fe1dd5a184c51f5a7e3638634c3034d22106cee207c90f95fa0",
+    "status": "unresolved intermittent; assertion unchanged",
+    "log": "logs/ci-parent-287-python313.log.json",
+    "source": "sources/ci-parent-287-live-http.json"
+  }
+}

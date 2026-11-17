@@ -7,6 +7,7 @@ from pydantic import TypeAdapter
 
 from packages.contracts import (
     agent_advice,
+    agent_advice_operations,
     agent_control,
     agent_export,
     agent_submit,
@@ -222,6 +223,10 @@ for name in (
 for cls in (
     agent_advice.AgentAdviceExportRequest,
     agent_advice.AgentAdviceExportAdmission,
+    agent_advice_operations.AgentAdviceCall,
+    agent_advice_operations.AgentAdviceLookup,
+    agent_advice_operations.AgentAdviceModelPin,
+    agent_advice_operations.AgentAdviceObservation,
     decisions_consumers.DecisionsAgentPolicy,
     decisions_consumers.DecisionsAgentPolicyState,
     capture_modes.CaptureModeSelection,

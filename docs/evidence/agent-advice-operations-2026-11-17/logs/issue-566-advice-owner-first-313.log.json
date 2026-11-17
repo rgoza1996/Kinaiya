@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "6546edc9974699f372fb2f20eefc7e6bbcb8a64308d34c2bd400e894e3e8e0a5",
+  "text": ".......F..........                                                       [100%]\n=================================== FAILURES ===================================\n_____ test_cancel_before_task_entry_returns_a_confirmed_native_observation _____\ntests/integration/test_agent_advice_operations.py:224: in test_cancel_before_task_entry_returns_a_confirmed_native_observation\n    result = await env.owner.wait(lookup)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nservices/decisions/agent_operations.py:164: in wait\n    await asyncio.shield(original.task)\nE   asyncio.exceptions.CancelledError\n=========================== short test summary info ============================\nFAILED tests/integration/test_agent_advice_operations.py::test_cancel_before_task_entry_returns_a_confirmed_native_observation\n1 failed, 17 passed in 6.54s\n"
+}

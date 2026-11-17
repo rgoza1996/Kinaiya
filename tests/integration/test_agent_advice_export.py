@@ -1,5 +1,6 @@
 """#566 native task/source admission, independent of model behavior or Converse."""
 
+import asyncio
 import hashlib
 import json
 from pathlib import Path
@@ -20,6 +21,7 @@ from packages.contracts.agent_control import AgentTaskIdentity
 from packages.contracts.agent_submit import submit_entry
 from packages.contracts.client import JournalClient
 from packages.contracts.models import AppendRequest, SessionRequest
+from packages.contracts.operation_ownership import ActualOperation, actual_owner
 from services.common.auth import Auth
 from services.session.agent_advice import AgentAdviceConflict, AgentAdviceUnavailable, admit_export
 from services.session.api import create_app
@@ -477,3 +479,45 @@ def test_new_native_advice_schema_is_exported_without_changing_legacy_contracts(
     )
     assert json.loads(path.read_bytes()) == model.model_json_schema()
     assert model.model_json_schema()["additionalProperties"] is False
+
+
+async def test_cancelled_metadata_wait_keeps_actual_response_close_owned(env):
+    original = request(env)
+    raw = admit_export(env.store, original).canonical_bytes()
+    entered, release = asyncio.Event(), asyncio.Event()
+    closed = False
+
+    class Body(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield raw
+
+        async def aclose(self):
+            nonlocal closed
+            entered.set()
+            await release.wait()
+            closed = True
+
+    async def handle(_):
+        return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Body())
+
+    ownership = ActualOperation(lambda owner: None)
+    caller = object()
+    ownership.hold(caller)
+    client = JournalClient(
+        "http://session", TOKENS["decisions"], transport=httpx.MockTransport(handle)
+    )
+    try:
+        with actual_owner(ownership):
+            waiting = asyncio.create_task(client.agent_advice_export_admission(original))
+        await entered.wait()
+        waiting.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+        ownership.release(caller)
+        assert ownership.finished is False and closed is False
+        release.set()
+        await asyncio.wait_for(ownership.join(), 1)
+        assert ownership.finished is True and ownership.failed is False and closed is True
+    finally:
+        release.set()
+        await client.close()

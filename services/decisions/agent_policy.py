@@ -8,7 +8,11 @@ from pydantic import ValidationError
 
 from packages.contracts.decisions_consumers import DecisionsAgentPolicy, DecisionsAgentPolicyState
 from packages.providers.disclosure import scope_allowed
-from services.settings.provider_factory import inspect_recipe
+from services.settings.provider_factory import capture_recipes, inspect_recipe
+
+
+class AgentPolicyUnavailable(RuntimeError):
+    pass
 
 
 def configured_agent_policy(config):
@@ -66,6 +70,25 @@ class AgentPolicyOwner:
             policy_sha256=self._digest,
             catalog_status=status,
         )
+
+    def capture(self, expected_digest):
+        """Capture secrets only for an explicitly enrolled original operation."""
+        if self._policy is None or self._digest != expected_digest:
+            raise AgentPolicyUnavailable("Independent Agent advice policy is unavailable")
+        captured = None
+        try:
+            captured = capture_recipes(
+                self._catalog,
+                [(self._policy.catalog_binding, self._policy.reasoning)],
+                role="agent",
+            )[0]
+            if not scope_allowed(captured.recipe.info, self._policy.content_scope):
+                raise ValueError("Agent advice instructions cannot reach this provider")
+            return self._policy, captured
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            if captured is not None:
+                captured.release()
+            raise AgentPolicyUnavailable("Independent Agent advice policy is unavailable") from None
 
 
 def router(owner, auth):

@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "AgentExportProviderInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        },
+        "disclosure_policy": {
+          "anyOf": [
+            {
+              "enum": [
+                "public_synthetic_only",
+                "owner_authorized"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disclosure Policy"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "local"
+      ],
+      "title": "AgentExportProviderInfo",
+      "type": "object"
+    },
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "policy_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Policy Sha256",
+      "type": "string"
+    },
+    "catalog_binding": {
+      "$ref": "#/$defs/CatalogModelBinding"
+    },
+    "catalog_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Catalog Revision",
+      "type": "integer"
+    },
+    "provider": {
+      "$ref": "#/$defs/AgentExportProviderInfo"
+    },
+    "reasoning": {
+      "anyOf": [
+        {
+          "enum": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reasoning"
+    }
+  },
+  "required": [
+    "policy_sha256",
+    "catalog_binding",
+    "catalog_revision",
+    "provider",
+    "reasoning"
+  ],
+  "title": "AgentAdviceModelPin",
+  "type": "object"
+}

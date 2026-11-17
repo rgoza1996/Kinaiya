@@ -655,6 +655,12 @@ def schema_pin():
     additive |= {"DecisionsAgentPolicy", "DecisionsAgentPolicyState"}
     additive |= {"AgentAdviceExportRequest", "AgentAdviceExportAdmission"}
     additive |= {
+        "AgentAdviceCall",
+        "AgentAdviceLookup",
+        "AgentAdviceModelPin",
+        "AgentAdviceObservation",
+    }
+    additive |= {
         "LiveEffectQuery",
         "LiveEffectAdmit",
         "LiveEffectReceipt",

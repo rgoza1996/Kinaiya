@@ -1,0 +1,415 @@
+{
+  "$defs": {
+    "AgentAdviceModelPin": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        "catalog_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Catalog Revision",
+          "type": "integer"
+        },
+        "provider": {
+          "$ref": "#/$defs/AgentExportProviderInfo"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Reasoning"
+        }
+      },
+      "required": [
+        "policy_sha256",
+        "catalog_binding",
+        "catalog_revision",
+        "provider",
+        "reasoning"
+      ],
+      "title": "AgentAdviceModelPin",
+      "type": "object"
+    },
+    "AgentExportProviderInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "local": {
+          "title": "Local",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": false,
+          "title": "Streaming",
+          "type": "boolean"
+        },
+        "disclosure_policy": {
+          "anyOf": [
+            {
+              "enum": [
+                "public_synthetic_only",
+                "owner_authorized"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disclosure Policy"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "local"
+      ],
+      "title": "AgentExportProviderInfo",
+      "type": "object"
+    },
+    "AgentTaskIdentity": {
+      "additionalProperties": false,
+      "description": "Immutable canonical native initial-submit identity, never a mutable Task.",
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "task_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Task Id",
+          "type": "string"
+        },
+        "submit_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Submit Event Id",
+          "type": "string"
+        },
+        "submit_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Submit Sequence",
+          "type": "integer"
+        },
+        "submit_idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Submit Idempotency Key",
+          "type": "string"
+        },
+        "submit_payload_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Submit Payload Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "task_id",
+        "submit_event_id",
+        "submit_sequence",
+        "submit_idempotency_key",
+        "submit_payload_digest"
+      ],
+      "title": "AgentTaskIdentity",
+      "type": "object"
+    },
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "protocol": {
+      "const": "measured_agent_advice_v1",
+      "default": "measured_agent_advice_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "instance_id": {
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "logical_request_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+      "title": "Logical Request Id",
+      "type": "string"
+    },
+    "request_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "policy_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Policy Sha256",
+      "type": "string"
+    },
+    "task": {
+      "$ref": "#/$defs/AgentTaskIdentity"
+    },
+    "objective_revision": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Objective Revision",
+      "type": "integer"
+    },
+    "phase": {
+      "enum": [
+        "pending",
+        "running",
+        "closing",
+        "completed",
+        "cancelled",
+        "failed",
+        "setup_unconfirmed",
+        "cleanup_unconfirmed"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "cancellation_requested": {
+      "title": "Cancellation Requested",
+      "type": "boolean"
+    },
+    "cleanup": {
+      "enum": [
+        "pending",
+        "confirmed",
+        "unconfirmed"
+      ],
+      "title": "Cleanup",
+      "type": "string"
+    },
+    "model_pin": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentAdviceModelPin"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "content_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "model_returned": {
+      "title": "Model Returned",
+      "type": "boolean"
+    },
+    "output_state": {
+      "enum": [
+        "not_returned",
+        "retained",
+        "resource_refused",
+        "invalid_text"
+      ],
+      "title": "Output State",
+      "type": "string"
+    },
+    "model_output": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Output"
+    },
+    "output_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Output Sha256"
+    },
+    "output_bytes": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Output Bytes"
+    },
+    "generation_admission_observed": {
+      "title": "Generation Admission Observed",
+      "type": "boolean"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "enum": [
+            "provider_failed",
+            "native_admission_refused",
+            "policy_unavailable",
+            "invalid_output",
+            "output_exceeds_bound",
+            "original_setup_unconfirmed",
+            "actual_cleanup_unconfirmed"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Error"
+    },
+    "output_authority": {
+      "const": "untrusted_model_data",
+      "default": "untrusted_model_data",
+      "title": "Output Authority",
+      "type": "string"
+    },
+    "task_status_assessment": {
+      "const": "not_assessed",
+      "default": "not_assessed",
+      "title": "Task Status Assessment",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instance_id",
+    "logical_request_id",
+    "request_sha256",
+    "policy_sha256",
+    "task",
+    "objective_revision",
+    "phase",
+    "cancellation_requested",
+    "cleanup",
+    "model_pin",
+    "content_scope",
+    "model_returned",
+    "output_state",
+    "model_output",
+    "output_sha256",
+    "output_bytes",
+    "generation_admission_observed",
+    "error"
+  ],
+  "title": "AgentAdviceObservation",
+  "type": "object"
+}
