@@ -1,0 +1,94 @@
+"""#685: explicit retirement evidence cannot invent permission or physical stop."""
+
+import copy
+import json
+from pathlib import Path
+
+import pytest
+
+from packages.contracts.live_captures import LiveCaptureRecoveryQuery, LiveCaptureRecoveryState
+from packages.contracts.live_streams import (
+    LiveStreamAbortProof,
+    LiveStreamRetire,
+    LiveStreamRetireCapability,
+    LiveStreamRetireProof,
+)
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def fixture():
+    return json.loads(
+        (ROOT / "apps/kinaiya_flutter/test/fixtures/live_stream_retire_native.json").read_text()
+    )
+
+
+def test_actual_native_retirement_and_additive_closed_required_schemas():
+    value = fixture()
+    proof = LiveStreamRetireProof.model_validate(value["proof"])
+    assert proof.original == LiveStreamRetire.model_validate(value["request"])
+    assert proof.cleanup_confirmed and proof.native_closed()
+    assert proof.capture.receipt is not None and proof.capture.fence is None
+    assert proof.capture.backend != proof.capture.original.backend
+    assert not proof.capture.capture_open
+    for model in (
+        LiveStreamRetire,
+        LiveStreamRetireCapability,
+        LiveStreamRetireProof,
+        LiveCaptureRecoveryQuery,
+        LiveCaptureRecoveryState,
+    ):
+        schema = json.loads(
+            (ROOT / "packages/contracts/schemas" / f"{model.__name__}.json").read_text()
+        )
+        assert schema == model.model_json_schema()
+        assert schema["additionalProperties"] is False
+        assert set(schema["required"]) == set(schema["properties"])
+    with pytest.raises(ValueError):
+        LiveStreamAbortProof.model_validate(value["proof"])
+
+
+@pytest.mark.parametrize(
+    "change", ["missing", "registration", "open", "unknown", "digest", "scope", "extra", "boolean"]
+)
+def test_retirement_refuses_unqualified_or_cross_original_stop_claims(change):
+    proof = copy.deepcopy(fixture()["proof"])
+    if change == "missing":
+        proof["capture"] = None
+    elif change == "registration":
+        proof["capture"]["receipt"] = None
+        proof["capture"]["backend"] = proof["capture"]["original"]["backend"]
+    elif change == "open":
+        proof["capture"]["capture_open"] = True
+    elif change == "unknown":
+        proof["outcome"] = "unknown"
+    elif change == "digest":
+        proof["request_sha256"] = "a" * 64
+    elif change == "scope":
+        proof["capture"]["original"]["epoch"] += 1
+    elif change == "extra":
+        proof["physical_stop"] = True
+    else:
+        proof["cleanup_confirmed"] = 1
+    with pytest.raises(ValueError):
+        LiveStreamRetireProof.model_validate(proof)
+
+
+def test_missing_same_backend_registration_remains_unknown():
+    proof = fixture()["proof"]
+    proof["capture"]["receipt"] = None
+    proof["capture"]["backend"] = proof["capture"]["original"]["backend"]
+    proof["outcome"], proof["cleanup_confirmed"] = "unknown", False
+    parsed = LiveStreamRetireProof.model_validate(proof)
+    assert not parsed.native_closed()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"epoch": True}, {"epoch": 1.0}, {"epoch": 0}, {"scope": "all"}, {"owner_instance": "x"}],
+)
+def test_recovery_query_never_coerces_identity_or_expands_scope(change):
+    original = fixture()["proof"]["capture"]["original"]
+    query = {k: v for k, v in original.items() if k != "backend"}
+    with pytest.raises(ValueError):
+        LiveCaptureRecoveryQuery.model_validate(query | change)

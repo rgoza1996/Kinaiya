@@ -28,6 +28,53 @@ Map<String, Object?> packet() => {
 
 void main() {
   test(
+    'local segment boundaries detach exact counters and bind only a newer local epoch',
+    () {
+      final raw = {'capture_epoch': 7, 'next_sequence': 2, 'sample_offset': 3};
+      final original = IncrementalPcmBoundary.fromJson(raw);
+      raw['sample_offset'] = 4;
+      expect(original.sampleOffset, 3);
+      expect(() => original.body['sample_offset'] = 4, throwsUnsupportedError);
+      final valid = {
+        'schema_version': '1.0',
+        'protocol': 'browser_pcm_segment_v1',
+        'original': original.body,
+        'capture_epoch': 8,
+      };
+      final proof = IncrementalPcmRotation.fromJson(valid, original);
+      expect(proof.epoch, 8);
+      for (final patch in [
+        {'schema_version': '2.0'},
+        {'protocol': 'converse_live_stream_v2'},
+        {'capture_epoch': 7},
+        {'capture_epoch': 8.0},
+        {'capture_epoch': 9007199254740992},
+        {'extra': true},
+        {
+          'original': {...original.body, 'sample_offset': 4},
+        },
+      ]) {
+        expect(
+          () => IncrementalPcmRotation.fromJson({...valid, ...patch}, original),
+          throwsFormatException,
+        );
+      }
+      for (final patch in [
+        {'capture_epoch': true},
+        {'next_sequence': 100001},
+        {'sample_offset': 960001},
+        {'sample_offset': 0},
+        {'next_sequence': 1},
+        {'extra': 0},
+      ]) {
+        expect(
+          () => IncrementalPcmBoundary.fromJson({...original.body, ...patch}),
+          throwsFormatException,
+        );
+      }
+    },
+  );
+  test(
     'canonical PCM packet detaches its bytes and exact local acknowledgment identity',
     () {
       final raw = packet();

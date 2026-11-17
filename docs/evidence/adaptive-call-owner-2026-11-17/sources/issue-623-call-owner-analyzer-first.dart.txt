@@ -1,0 +1,457 @@
+import 'dart:async';
+
+import '../api/live_stream_client.dart';
+import '../api/live_streams.dart';
+import '../api/models.dart';
+import '../api/owned_settings_client.dart';
+import '../audio/speech_audio.dart';
+
+class _CaptureStopped implements Exception {
+  const _CaptureStopped();
+}
+
+/// One explicitly armed browser/native capture. Public deadlines never donate
+/// its actual microphone, packet, HTTP, decoder or negative-recovery ownership.
+class AdaptiveLiveCapture {
+  AdaptiveLiveCapture({
+    required this.api,
+    required this.recovery,
+    required this.audio,
+    required this.initial,
+    required this.current,
+    required this.onChanged,
+  }) : _begin = initial {
+    if (_retained.isNotEmpty ||
+        audio is! SegmentedPcmCaptureAudio ||
+        audio is! IncrementalSpeakingAudio ||
+        !(audio as SegmentedPcmCaptureAudio).supportsIncrementalPcmRollover ||
+        !(audio as IncrementalSpeakingAudio).supportsIncrementalSpeaking ||
+        recovery.initial.digest != initial.digest ||
+        !recovery.sameOwner(api)) {
+      throw StateError(
+        'Original Adaptive Live capture is unavailable or retained',
+      );
+    }
+    _retained.add(this);
+  }
+
+  static final Set<AdaptiveLiveCapture> _retained = {};
+  static bool get hasRetainedCapture => _retained.isNotEmpty;
+  // Half of the declared sixty-second FIFO remains available for input arriving
+  // during native finish/cleanup. This bounds segments; it is not input pacing.
+  static const _segmentSamples = maxIncrementalPcmSamples ~/ 2;
+  final LiveStreamApi api;
+  final LiveStreamRecoveryApi recovery;
+  final SpeechAudio audio;
+  final LiveStreamOperation initial;
+  final bool Function() current;
+  final void Function() onChanged;
+  final _started = Completer<bool>();
+  final Set<Future<void>> _actual = {};
+  Future<void>? _lifetime, _armingDone, _browserStop;
+  Future<bool>? _settling;
+  Future<IncrementalPcmState>? _waiting;
+  int? _waitingEpoch, _localEpoch;
+  IncrementalPcmBoundary? _rotation;
+  LiveStreamOperation _begin;
+  LiveStreamProof? _decoder;
+  LiveStreamAbortOperation? _negative;
+  OwnedSettingsAttempt<LiveStreamAbortProof>? _negativeAttempt;
+  LiveStreamAbortProof? _negativeProof;
+  bool _stopped = false, _ready = false, _retired = false, _configured = false;
+  String? _boundaryFor;
+  Completer<void> _wake = Completer<void>();
+  String status = 'Starting live input';
+
+  SegmentedPcmCaptureAudio get _pcm => audio as SegmentedPcmCaptureAudio;
+  IncrementalSpeakingAudio get _speaking => audio as IncrementalSpeakingAudio;
+  bool get active => _ready && !_stopped;
+  bool get retired => _retired;
+  bool get stopping => _stopped && !_retired;
+  String get utteranceId => _begin.body['utterance_id'] as String;
+
+  bool _current() {
+    try {
+      return !_stopped && current();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _check() {
+    if (!_current()) throw const _CaptureStopped();
+  }
+
+  void _notify() {
+    // Presentation failure cannot abandon the original capture cleanup.
+    try {
+      onChanged();
+    } catch (_) {}
+  }
+
+  void _track(Future<void> original) {
+    _actual.add(original);
+    unawaited(
+      original.then<void>(
+        (_) => _actual.remove(original),
+        onError: (Object _, StackTrace __) => _actual.remove(original),
+      ),
+    );
+  }
+
+  Future<bool> start() {
+    _lifetime ??= _run();
+    return _started.future;
+  }
+
+  Future<void> _run() async {
+    try {
+      _check();
+      if (audio is NativePcmCaptureAudio) {
+        await (audio as NativePcmCaptureAudio).configureNativePcmCapture(false);
+        _check();
+      }
+      if (audio is WindowSpeechAudio) {
+        await (audio as WindowSpeechAudio).configureWindows(false);
+        _check();
+      }
+      await _pcm.configureIncrementalPcmCapture(true);
+      _configured = true;
+      _check();
+      final armed = audio.startArmed();
+      _armingDone = armed.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace __) {},
+      );
+      final result = await armed;
+      _check();
+      if (result != 'armed')
+        throw StateError('Microphone acquisition is unavailable');
+      final local = await _pcm.incrementalPcmState();
+      _check();
+      _validateLocal(local);
+      _localEpoch = local.epoch;
+      _decoder = await _perform(_begin);
+      _ready = true;
+      status = 'Listening (live)';
+      _started.complete(true);
+      _notify();
+      while (_current()) {
+        final local = await _pcm.incrementalPcmState();
+        _check();
+        _validateLocal(local);
+        if (_boundaryFor == utteranceId ||
+            local.sampleOffset >= _segmentSamples) {
+          await _rollover(local);
+          continue;
+        }
+        final packet = await _pcm.peekIncrementalPcm();
+        _check();
+        if (packet == null) {
+          if (_waiting == null || _waitingEpoch != _localEpoch) {
+            _waitingEpoch = _localEpoch;
+            _waiting = _pcm.waitIncrementalPcm(_localEpoch!);
+            _track(_waiting!.then<void>((_) {}));
+          }
+          final waiting = _waiting!;
+          final input = await Future.any([
+            waiting.then((_) => true),
+            _wake.future.then((_) => false),
+          ]);
+          if (input && identical(_waiting, waiting)) _waiting = null;
+          _check();
+          continue;
+        }
+        final prefix = await _pcm.incrementalPcmState();
+        _check();
+        _validateLocal(prefix);
+        if (!packet.continues(prefix)) {
+          throw StateError('Original PCM packet changed');
+        }
+        final decoder = _decoder!;
+        final original = LiveStreamOperation.fromJson(LiveStreamPhase.pcm, {
+          ..._begin.body,
+          'stream_id': decoder.streamId,
+          'worker_incarnation': decoder.workerIncarnation,
+          'sequence': packet.sequence,
+          'sample_offset': packet.sampleOffset,
+          'user_speaking': packet.userSpeaking,
+          'pcm16_base64': packet.pcm16Base64,
+        });
+        await _perform(original);
+        _check();
+        final after = await _pcm.incrementalPcmState();
+        _check();
+        _validateLocal(after);
+        if (!packet.continues(after))
+          throw StateError('Acknowledgment crossed its local original');
+        await _pcm.acknowledgeIncrementalPcm(packet);
+        _check();
+      }
+    } on _CaptureStopped {
+      _requestStop('replaced');
+    } catch (_) {
+      status = 'Live input is unavailable. Stop status is being checked.';
+      _requestStop('cancelled');
+    } finally {
+      if (!_started.isCompleted) _started.complete(false);
+    }
+  }
+
+  void _validateLocal(IncrementalPcmState local) {
+    if (!local.active ||
+        local.cleanupPending ||
+        local.fault != null ||
+        local.epoch == null ||
+        (_localEpoch != null && local.epoch != _localEpoch)) {
+      throw StateError('Original incremental capture is unavailable');
+    }
+  }
+
+  Future<LiveStreamProof> _observe(LiveStreamOperation original) async {
+    _check();
+    final attempt = recovery.reconcile(original);
+    _track(attempt.settled);
+    final proof = await attempt.result;
+    await attempt.settled;
+    _check();
+    return proof;
+  }
+
+  Future<LiveStreamProof> _perform(LiveStreamOperation original) async {
+    _check();
+    final attempt = api.dispatch(original);
+    _track(attempt.settled);
+    LiveStreamProof? proof;
+    try {
+      proof = await attempt.result;
+    } catch (_) {
+      // A facade failure is not a no-effect proof. Retain its actual send,
+      // then inspect only the exact original; never resend PCM or begin.
+    }
+    await attempt.settled;
+    _check();
+    final elapsed = Stopwatch()..start();
+    while (proof == null || !proof.confirmed) {
+      proof = await _observe(original);
+      if (proof.confirmed) break;
+      if (proof.outcome == 'not_dispatched' ||
+          elapsed.elapsed > const Duration(seconds: 10)) {
+        throw StateError('Original native input remains unconfirmed');
+      }
+      // Metadata settlement only; fresh PCM dispatch has no snapshot timer.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      _check();
+    }
+    return proof;
+  }
+
+  Future<bool> userSpeaking() async {
+    _check();
+    final result = await _speaking.incrementalUserSpeaking(_localEpoch!);
+    _check();
+    return result;
+  }
+
+  void requestBoundary(String originalUtterance) {
+    if (!_current() || originalUtterance != utteranceId || _boundaryFor != null)
+      return;
+    _boundaryFor = originalUtterance;
+    if (!_wake.isCompleted) _wake.complete();
+  }
+
+  Future<void> _rollover(IncrementalPcmState local) async {
+    final speaking = await userSpeaking();
+    final decoder = _decoder!;
+    final finish = LiveStreamOperation.fromJson(LiveStreamPhase.finish, {
+      ..._begin.body,
+      'stream_id': decoder.streamId,
+      'worker_incarnation': decoder.workerIncarnation,
+      'sequence': local.nextSequence,
+      'sample_offset': local.sampleOffset,
+      'user_speaking': speaking,
+      'capture_ended': false,
+    });
+    var finalProof = await _perform(finish);
+    final elapsed = Stopwatch()..start();
+    while (!finalProof.segmentRetired) {
+      if (elapsed.elapsed > const Duration(seconds: 10)) {
+        throw StateError('Original native decoder cleanup remains pending');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      _check();
+      finalProof = await _observe(finish);
+    }
+    _check();
+    final original = IncrementalPcmBoundary.fromState(local);
+    _rotation = original;
+    final rotated = await _pcm.rotateIncrementalPcm(original);
+    _localEpoch = rotated.epoch;
+    _check();
+    final next = _boundaryFor == utteranceId
+        ? LiveStreamOperation.advanceUtterance(finalProof)
+        : LiveStreamOperation.fromJson(LiveStreamPhase.begin, {
+            ..._begin.body,
+            'segment_index': (_begin.body['segment_index'] as int) + 1,
+          });
+    final started = await _perform(next);
+    _begin = next;
+    _decoder = started;
+    _boundaryFor = null;
+    _wake = Completer<void>();
+    _waiting = null;
+    _rotation = null;
+    _notify();
+  }
+
+  bool ownsUtterance(Object? value) {
+    if (value == initial.body['utterance_id']) return true;
+    if (value is! String) return false;
+    final prefix = '${initial.body['capture_id']}_';
+    if (!value.startsWith(prefix)) return false;
+    final raw = value.substring(prefix.length),
+        index = int.tryParse(value.substring(prefix.length));
+    return index != null &&
+        '$index' == raw &&
+        index > 0 &&
+        index <= (_begin.body['segment_index'] as int);
+  }
+
+  /// Native journal metadata, never model text, binds output to this capture's
+  /// unguessable logical domain. Native speech rechecks its own effect authority.
+  bool accepts(JournalEntry entry) {
+    if (!active ||
+        !_current() ||
+        entry.origin != 'converse' ||
+        entry.sessionId != initial.body['session_id'] ||
+        entry.threadId != initial.body['thread_id'] ||
+        entry.epoch != initial.body['epoch'] ||
+        !{
+          'conversation.converse',
+          'converse.window_state',
+        }.contains(entry.kind) ||
+        !{
+          'converse_reply',
+          'converse_backchannel',
+        }.contains(entry.payload['live_effect']))
+      return false;
+    final state = entry.kind == 'converse.window_state';
+    final source =
+        entry.payload[state ? 'source_event_id' : 'window_source_id'];
+    final effect = entry.payload['live_effect_key'];
+    return ownsUtterance(
+          entry.payload[state ? 'utterance_id' : 'window_utterance_id'],
+        ) &&
+        source is String &&
+        source.isNotEmpty &&
+        source.length <= 128 &&
+        entry.causes.length == 1 &&
+        entry.causes.single == source &&
+        effect is String &&
+        RegExp(r'^live-effect:[a-f0-9]{32}$').hasMatch(effect);
+  }
+
+  void inputFault() {
+    status = 'Microphone input stopped. Stop status is being checked.';
+    _requestStop('cancelled');
+  }
+
+  void _requestStop(String reason) {
+    if (_stopped) return;
+    _stopped = true;
+    _ready = false;
+    if (!_wake.isCompleted) _wake.complete();
+    _negative = LiveStreamAbortOperation(initial, reason);
+    _negativeAttempt = recovery.cancelOriginal(_negative!);
+    _track(_negativeAttempt!.settled);
+    // Attach immediately even while a native/HTTP owner is still held.
+    unawaited(
+      _negativeAttempt!.result.then<void>(
+        (proof) => _negativeProof = proof,
+        onError: (Object _, StackTrace __) {},
+      ),
+    );
+    if (_armingDone != null) {
+      _browserStop = audio.stopArmed();
+      unawaited(
+        _browserStop!.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
+      );
+    }
+    _notify();
+    unawaited(settle());
+  }
+
+  Future<bool> stop([String reason = 'cancelled']) {
+    _requestStop(reason);
+    return settle();
+  }
+
+  Future<bool> settle() {
+    if (_retired) return Future.value(true);
+    if (!_stopped) return Future.value(false);
+    if (_settling != null) return _settling!;
+    final original = _settle();
+    _settling = original;
+    unawaited(
+      original.then<void>((_) {
+        if (identical(_settling, original)) _settling = null;
+        _notify();
+      }),
+    );
+    return original;
+  }
+
+  Future<bool> _settle() async {
+    try {
+      if (_browserStop != null) await _browserStop;
+      if (_armingDone != null) await _armingDone;
+      if (_lifetime != null) await _lifetime;
+      while (_actual.isNotEmpty) {
+        await Future.wait(List.of(_actual));
+      }
+      if (_negativeProof?.cleanupConfirmed != true) {
+        final attempt = recovery.lookupCancellation(_negative!);
+        _track(attempt.settled);
+        _negativeProof = await attempt.result;
+        await attempt.settled;
+      }
+      if (_negativeProof?.cleanupConfirmed != true) return false;
+      if (_localEpoch == null && _armingDone != null) {
+        // Cancellation can precede the first state read after acquisition.
+        // Arm and stop have both settled; this retained owner prevents a
+        // successor acquisition until its original FIFO is retired.
+        final local = await _pcm.incrementalPcmState();
+        if (local.active || local.cleanupPending) return false;
+        _localEpoch = local.epoch;
+      }
+      if (_rotation != null) {
+        final observed = await _pcm.rotateIncrementalPcm(_rotation!);
+        _localEpoch = observed.epoch;
+        _rotation = null;
+      }
+      if (_localEpoch != null) {
+        var local = await _pcm.incrementalPcmState();
+        if (local.active || local.cleanupPending || local.epoch != _localEpoch)
+          return false;
+        try {
+          await _pcm.releaseIncrementalPcm(_localEpoch!);
+        } catch (_) {
+          local = await _pcm.incrementalPcmState();
+          if (local.epoch != null || local.active || local.cleanupPending)
+            return false;
+        }
+        _localEpoch = null;
+      }
+      if (_configured) await _pcm.configureIncrementalPcmCapture(false);
+      await recovery.close();
+      _retired = true;
+      _retained.remove(this);
+      status = 'Microphone stopped';
+      return true;
+    } catch (_) {
+      status =
+          'Microphone stop is unconfirmed. Check stop status before calling again.';
+      return false;
+    }
+  }
+}

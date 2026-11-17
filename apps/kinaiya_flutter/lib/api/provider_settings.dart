@@ -644,7 +644,8 @@ class ProviderChangeReceipt {
 }
 
 /// Reject duplicate fields, unsafe integer spellings and deep/oversized JSON.
-Object? providerJsonDecode(List<int> bytes) => _JsonReader(bytes).read();
+Object? providerJsonDecode(List<int> bytes, {int maxBytes = 256 * 1024}) =>
+    _JsonReader(bytes, maxBytes).read();
 
 class _ConfidenceNumber {
   const _ConfidenceNumber(this.value);
@@ -652,9 +653,9 @@ class _ConfidenceNumber {
 }
 
 class _JsonReader {
-  _JsonReader(List<int> bytes)
+  _JsonReader(List<int> bytes, int maxBytes)
     : text = utf8.decode(bytes, allowMalformed: false) {
-    if (bytes.length > 256 * 1024) _bad();
+    if (bytes.length > maxBytes) _bad();
   }
   final String text;
   int at = 0, values = 0;

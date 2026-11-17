@@ -48,7 +48,7 @@
     output: { revision: 0, listing: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
     input: { revision: 0, devices: [], selected: null, failed: false, pending: null, watching: false },
     nativePcm: { enabled: false, ctx: null, source: null, node: null, sink: null, closing: null, failed: false, recording: false, heard: false, overflow: false, chunks: [], samples: 0, pre: [], preSamples: 0 },
-    incrementalPcm: { enabled: false, fifo: null, lastEpoch: 0, speaking: false },
+    incrementalPcm: { enabled: false, fifo: null, lastEpoch: 0, speaking: false, rotation: null },
     waiters: [], // pending awaitPlayback resolvers.
     armed: false,
     clip: { recording: false, startMs: 0 },
@@ -579,6 +579,7 @@
     if (!Number.isSafeInteger(epoch) || epoch < 1) throw new Error('Capture identity unavailable');
     state.vad.epoch = s.lastEpoch = epoch;
     s.speaking = false;
+    s.rotation = null;
     // One fixed PCM allocation also bounds object count and avoids a callback-
     // sized chunk list or growing work when a slow consumer catches up.
     s.fifo = { epoch: epoch, samples: new Int16Array(960000), buffered: 0, received: 0,
@@ -664,6 +665,41 @@
     f.offset += f.pending.sample_count; f.buffered -= f.pending.sample_count;
     f.sequence++; f.acknowledged = original; f.pending = null;
     return 'confirmed';
+  }
+
+  function rotateStreamPcm(raw) {
+    var s = state.incrementalPcm, f = s.fifo, original;
+    if (!f || typeof raw !== 'string' || raw.length > 512) return 'mismatch';
+    try { original = JSON.parse(raw); } catch (e) { return 'mismatch'; }
+    if (!original || typeof original !== 'object' || Array.isArray(original) ||
+        Object.keys(original).sort().join(',') !== 'capture_epoch,next_sequence,sample_offset' ||
+        Object.keys(original).some(function (key) { return !Number.isSafeInteger(original[key]); }) ||
+        JSON.stringify(original) !== raw.replace(/\s/g, '') ||
+        original.capture_epoch < 1 || original.next_sequence < 1 || original.next_sequence > 100000 ||
+        original.sample_offset < 0 || original.sample_offset > 960000) return 'mismatch';
+    if (s.rotation && s.rotation.receipt.capture_epoch === f.epoch &&
+        ['capture_epoch', 'next_sequence', 'sample_offset'].every(function (key) {
+          return s.rotation.original[key] === original[key];
+        })) return JSON.stringify(s.rotation.receipt);
+    if (!state.armed || f.fault || state.micStop || state.micAcquire ||
+        !state.nativePcm.node || state.nativePcm.closing) return 'unavailable';
+    if (original.capture_epoch !== f.epoch || original.next_sequence !== f.sequence ||
+        original.sample_offset !== f.offset) return 'mismatch';
+    if (f.pending) return 'busy';
+    var epoch = Math.max(state.vad.epoch + 1, s.lastEpoch + 1);
+    if (!Number.isSafeInteger(epoch) || epoch < 1) return 'unavailable';
+    // The caller separately owns native finish/publication/cleanup. This only
+    // reclaims the acknowledged local prefix; input arriving during that native
+    // wait stays in the fixed allocation and belongs to the next decoder.
+    notifyStreamPcm();
+    f.samples.copyWithin(0, f.offset, f.received);
+    f.samples.fill(0, f.buffered);
+    f.received = f.buffered;
+    f.offset = 0; f.sequence = 1; f.pending = f.acknowledged = null;
+    f.epoch = state.vad.epoch = s.lastEpoch = epoch;
+    s.rotation = { original: original, receipt: { schema_version: '1.0',
+      protocol: 'browser_pcm_segment_v1', original: original, capture_epoch: epoch } };
+    return JSON.stringify(s.rotation.receipt);
   }
 
   function nativeSamples(samples) {
@@ -1116,7 +1152,16 @@
         max_stream_samples: 960000, max_chunk_samples: 16000 });
     },
     streamPcmPeek: streamPcmPacket,
+    streamPcmSpeaking: function (raw) {
+      var s = state.incrementalPcm, f = s.fifo;
+      if (typeof raw !== 'string' || !/^[1-9][0-9]{0,15}$/.test(raw) ||
+          !Number.isSafeInteger(Number(raw)) || !f || f.epoch !== Number(raw) ||
+          !s.enabled || !state.armed || f.fault || !state.nativePcm.node ||
+          state.nativePcm.closing || state.micStop || state.micAcquire) return 'unavailable';
+      return s.speaking ? 'yes' : 'no';
+    },
     streamPcmAck: acknowledgeStreamPcm,
+    streamPcmRotate: rotateStreamPcm,
     streamPcmWait: function (raw) {
       var f = state.incrementalPcm.fifo;
       if (typeof raw !== 'string' || !f || raw !== String(f.epoch)) return Promise.resolve('unavailable');
@@ -1134,7 +1179,7 @@
           !Number.isSafeInteger(Number(raw)) || !f || f.epoch !== Number(raw)) return 'mismatch';
       if (inputBusy() || state.nativePcm.ctx || state.nativePcm.closing) return 'busy';
       notifyStreamPcm();
-      s.fifo = null; s.speaking = false;
+      s.fifo = null; s.speaking = false; s.rotation = null;
       return 'released';
     },
     inputDevices: listInputs,

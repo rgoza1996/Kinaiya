@@ -1,0 +1,4 @@
+{
+  "sha256": "3c3f5a6e06154534d03a71a869da3ee743d02682d222e74594162927eae45c4b",
+  "utf8": "Traceback (most recent call last):\n  File \"/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/scripts/export_contracts.py\", line 8, in <module>\n    from packages.contracts import (\n    ...<54 lines>...\n    )\nImportError: cannot import name 'capture_modes' from 'packages.contracts' (/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/lib/python3.13/site-packages/packages/contracts/__init__.py)\n"
+}

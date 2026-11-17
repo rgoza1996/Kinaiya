@@ -1,0 +1,4 @@
+{
+  "sha256": "1fa8f173ac6b27d7356039393a345036e29b61238b5677cf431011819767eabf",
+  "utf8": "info • Method invocation or property access on a 'dynamic' target. Try giving the target a type • test/live_stream_native_live_test.dart:135:9 • avoid_dynamic_calls\n1 issue found. (ran in 0.6s)\n"
+}

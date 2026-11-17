@@ -17,6 +17,8 @@ credentials cannot use these endpoints. LocalJournal enforces the same roles.
 
 The body is bounded to 4,096 bytes and five seconds for acquisition. Unknown or
 coerced fields/versions, duplicate JSON keys and nonfinite numbers are refused.
+An authenticated disconnect before or during body acquisition is refused with
+400 before a waiter is enrolled; it creates no journal mutation (#682).
 The result carries no transcript, token, model output, permission, success,
 publication receipt, native-worker release or capture-state claim. JournalClient
 uses the existing retained bounded raw exchange and sole response-close owner;

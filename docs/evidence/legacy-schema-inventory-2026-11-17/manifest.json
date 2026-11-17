@@ -1,0 +1,87 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/684",
+  "baseline": "b39b4303e50be844f92be4e93d6c082147ecb356",
+  "source": "tests/unit/test_standing_resource_finalization_contracts.py",
+  "original_source_sha256": "75d25ca3483034089d3a44bdbb779cbd2a38e9911f419391efaaf2a280a58a37",
+  "current_source_sha256": "4cfd5b305dd4c8c0b940b6ddf65496c5736615abc808bd332c6bc2dfa22a42a8",
+  "assertions_unchanged": 74,
+  "legacy_count": 184,
+  "legacy_digest": "21351c70f152823480441448d140c49cd561aa9be0a9a4e760c1d8035257328a",
+  "schema_comparison": {
+    "base": "50272e8a9dcc3786994ce63651126f88fddbc22f",
+    "base_schema_count": 594,
+    "current_schema_count": 599,
+    "changed_existing": [],
+    "added": [
+      "packages/contracts/schemas/LiveStreamAbort.json",
+      "packages/contracts/schemas/LiveStreamAbortCapability.json",
+      "packages/contracts/schemas/LiveStreamAbortProof.json",
+      "packages/contracts/schemas/LiveStreamNextUtterance.json",
+      "packages/contracts/schemas/LiveUtteranceCapability.json"
+    ]
+  },
+  "runtime_equivalence": {
+    "reference": "b39b4303e50be844f92be4e93d6c082147ecb356",
+    "qualification": "../adaptive-call-permission-observer-2026-11-17/README.md",
+    "changed_python_inputs": [
+      "tests/unit/test_standing_resource_finalization_contracts.py"
+    ],
+    "production_python_inputs_changed": [],
+    "frontend_inputs_changed": []
+  },
+  "runs": [
+    {
+      "name": "issue-684-legacy-schema-first",
+      "final_source_qualification": false,
+      "receipt_sha256": "9cf2aedbdf96b543eff8e3ab42eeba88ef74d36bfd93fbb75e7d69184781255d",
+      "log_sha256": "657d22b705e01abb05048abc819f4ca7a97bc9b8def53d78831f86e1fb2b4c1d",
+      "log_archive_sha256": "e97e784889eda4bc44db33034a9877e4abbca3e2a2a23089fa4338a2ebe60f4b"
+    },
+    {
+      "name": "issue-684-schema-contracts-313",
+      "final_source_qualification": true,
+      "receipt_sha256": "0ac972953f6ba65facf500533b1b16f76069530f175c06e083225a55b0cc90a5",
+      "log_sha256": "2cf3374736de83db7dc2540be6f91b60c324a92c76e5fbe03bee733951de187d",
+      "log_archive_sha256": "8079274c9ad8d513feff8d8ab655d233d4c523fcbe155fc24500ad0bede1db2f"
+    },
+    {
+      "name": "issue-684-schema-contracts-314",
+      "final_source_qualification": true,
+      "receipt_sha256": "4448f898384603fc1206eb55764d7c20c42636e1289d3576218ce5c07c363cc6",
+      "log_sha256": "2585bb21f18dfda52f3a3769e2cec522f8f14b556faa8ce589712bf27f9fbf4e",
+      "log_archive_sha256": "88c5a62e740eea5f7d7def6ded36add302265eecea2c622c954200c92e2be42b"
+    },
+    {
+      "name": "issue-684-schema-ruff",
+      "final_source_qualification": true,
+      "receipt_sha256": "0596a8acd3a6f00e18745cd9ba7a99c9d4a908aa81059a3623d307dc61bb3d2e",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e"
+    },
+    {
+      "name": "issue-684-schema-format",
+      "final_source_qualification": true,
+      "receipt_sha256": "e3609c7f9ce5b842248c81b3758ec670d5987c2b75d1a5da7421b3c9bffb3429",
+      "log_sha256": "9e9cd6f518b4ad0c220836b89fb628cf31519acb847a28635efecbe923a57489",
+      "log_archive_sha256": "3fd81716e0a9ff2d01c61e4bec70e5d74e458ce752a00788acad0e427f9b0a5e"
+    }
+  ],
+  "failed_ci_jobs": [
+    {
+      "job": 134031749643,
+      "head": "05f73fae87664e2f9ccbcb0888b3a1bd68bd2672",
+      "name": "python (3.12, hosted)",
+      "log_sha256": "7240c8cb9a2cfac40c310fe9a425d0a073c1c702088b90737668749743a66c41",
+      "log_archive_sha256": "3b2198a1543c4f52d151361b2f997f9d9a32b2f9cdc27198febf6f9b84bc956e",
+      "receipt_sha256": "c833bf0f04b6b78801c0ed119b8bfd5052221a7ece2ceabf11db5ee38d55ebee"
+    },
+    {
+      "job": 134031749835,
+      "head": "05f73fae87664e2f9ccbcb0888b3a1bd68bd2672",
+      "name": "python (3.14, hosted)",
+      "log_sha256": "2130e31d501b3165e0e4448344c1f47d3eeedae2bf96ba12ea0cbfa05b5a1fec",
+      "log_archive_sha256": "4b1680e2789c379a369ad6383d80fa358cccc118ca08222628de4ebbacda0df5",
+      "receipt_sha256": "ceb14fe8157b1c1016d25112152e8486cdc8ed24e4835f302f6c3d9b49636846"
+    }
+  ]
+}

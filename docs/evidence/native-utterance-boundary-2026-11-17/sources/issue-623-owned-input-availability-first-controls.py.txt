@@ -1,0 +1,33 @@
+from types import SimpleNamespace
+
+import pytest
+
+from packages.providers.whistle_stream_owner import CapturedWhistleStream
+from services.converse.stt_model_settings import STTModelSettings
+from services.converse.live_stream_api import BASE
+from tests.integration.test_incremental_whistle_converse import converse_incremental_env
+from tests.integration.test_live_stream_api import live_client
+
+
+async def test_selected_nonincremental_host_never_claims_live_input_available(converse_incremental_env):
+    env=converse_incremental_env
+    calls=[]
+    async def transcribe(*args,**kwargs):
+        calls.append(True)
+        raise AssertionError('Availability entered a synthetic provider')
+    unsupported=SimpleNamespace(transcribe=transcribe)
+    settings=STTModelSettings(env.runtime,None,unsupported)
+    env.runtime.stt_model_settings=settings
+    env.runtime._stt_options_configured=True
+    env.runtime._stt_options_unavailable=False
+    try:
+        assert settings._host_available()
+        with pytest.raises(ValueError): CapturedWhistleStream(unsupported)
+        async with live_client(env) as live:
+            for suffix in ['/ownership','/next-utterance']:
+                response=await live.client.get(BASE+suffix)
+                assert response.status_code==200
+                assert response.json()['available'] is False
+            assert calls==[] and not settings.leases and not live.app.state.live_streams.captures
+    finally:
+        await settings.close()

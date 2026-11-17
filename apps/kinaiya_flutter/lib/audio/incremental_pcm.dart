@@ -158,3 +158,62 @@ class IncrementalPcmPacket {
       state.sampleOffset == sampleOffset &&
       state.bufferedSamples >= sampleCount;
 }
+
+/// Exact acknowledged local prefix, separate from native finish authority.
+class IncrementalPcmBoundary {
+  IncrementalPcmBoundary.fromJson(Object? value) {
+    final raw = _object(value, {
+      'capture_epoch',
+      'next_sequence',
+      'sample_offset',
+    });
+    epoch = _integer(raw['capture_epoch'], maxIncrementalPcmEpoch, minimum: 1);
+    nextSequence = _integer(raw['next_sequence'], 100000, minimum: 1);
+    sampleOffset = _integer(raw['sample_offset'], maxIncrementalPcmSamples);
+    if (sampleOffset < nextSequence - 1 ||
+        sampleOffset > (nextSequence - 1) * maxIncrementalPcmChunkSamples) {
+      throw _invalid;
+    }
+  }
+  factory IncrementalPcmBoundary.fromState(IncrementalPcmState original) =>
+      IncrementalPcmBoundary.fromJson({
+        'capture_epoch': original.epoch,
+        'next_sequence': original.nextSequence,
+        'sample_offset': original.sampleOffset,
+      });
+  late final int epoch, nextSequence, sampleOffset;
+  Map<String, Object?> get body => Map.unmodifiable({
+    'capture_epoch': epoch,
+    'next_sequence': nextSequence,
+    'sample_offset': sampleOffset,
+  });
+  bool matches(IncrementalPcmBoundary other) =>
+      epoch == other.epoch &&
+      nextSequence == other.nextSequence &&
+      sampleOffset == other.sampleOffset;
+}
+
+/// Local rotation only: no native inference, physical-stop or utterance claim.
+class IncrementalPcmRotation {
+  IncrementalPcmRotation.fromJson(
+    Object? value,
+    IncrementalPcmBoundary expected,
+  ) {
+    final raw = _object(value, {
+      'schema_version',
+      'protocol',
+      'original',
+      'capture_epoch',
+    });
+    original = IncrementalPcmBoundary.fromJson(raw['original']);
+    epoch = _integer(raw['capture_epoch'], maxIncrementalPcmEpoch, minimum: 1);
+    if (raw['schema_version'] != '1.0' ||
+        raw['protocol'] != 'browser_pcm_segment_v1' ||
+        !original.matches(expected) ||
+        epoch <= original.epoch) {
+      throw _invalid;
+    }
+  }
+  late final IncrementalPcmBoundary original;
+  late final int epoch;
+}

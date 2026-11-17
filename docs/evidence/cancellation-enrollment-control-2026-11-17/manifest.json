@@ -1,0 +1,83 @@
+{
+  "baseline": "a3be77b5f0cd0ca970da71b85d9cb2ba9351a4c3",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/687",
+  "runs": [
+    {
+      "name": "issue-687-facade-deadline-probe",
+      "final_test_source_qualification": false,
+      "log_archive": "logs/issue-687-facade-deadline-probe.log.json",
+      "log_sha256": "4916bfa85f6fad149bbf33254fc6d85810a94f9ca7521be4e8afc98248aa8f62",
+      "log_archive_sha256": "9d3056cd4db136541c58a680fc26c95f111da48f5e57eae1e0456175395034c0",
+      "receipt": "logs/issue-687-facade-deadline-probe-receipt.json",
+      "receipt_sha256": "f9113a241eccbaf1ff0d332fddf4766649876fb7430880d8b469bace2111a2a1"
+    },
+    {
+      "name": "issue-687-cancel-enrollment-313",
+      "final_test_source_qualification": true,
+      "log_archive": "logs/issue-687-cancel-enrollment-313.log.json",
+      "log_sha256": "62638b94e5c4ea634a45a3a9665b5401489154c676071aaee9805881efa188c0",
+      "log_archive_sha256": "8fd6638ef7f4cb968df373cb2d3f1db5ad5014a5251bd3b608a73bbb8133375a",
+      "receipt": "logs/issue-687-cancel-enrollment-313-receipt.json",
+      "receipt_sha256": "3e0c25080df790cf9589e3094471606435aa57ae008ef135095a123ea1c8de3f"
+    },
+    {
+      "name": "issue-687-cancel-enrollment-314",
+      "final_test_source_qualification": true,
+      "log_archive": "logs/issue-687-cancel-enrollment-314.log.json",
+      "log_sha256": "9c803c65ac357f7d4812057a3fc3b7ef02ef02dc98193eba5c27cf7547bc9f97",
+      "log_archive_sha256": "d588b3dd483764aac1de90354c2512e89a7e7a01c003f5fb1f2abebb85ccb07c",
+      "receipt": "logs/issue-687-cancel-enrollment-314-receipt.json",
+      "receipt_sha256": "ea457f396469c15f78d101f19e722dccf55684e26c086255d841528456b74afb"
+    },
+    {
+      "name": "issue-687-ruff-final",
+      "final_test_source_qualification": true,
+      "log_archive": "logs/issue-687-ruff-final.log.json",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "receipt": "logs/issue-687-ruff-final-receipt.json",
+      "receipt_sha256": "79b2d6ef3d339d70c5154008d654310978cff9a65a0f8aebc46da3bf2a2d3b49"
+    },
+    {
+      "name": "issue-687-format-final",
+      "final_test_source_qualification": true,
+      "log_archive": "logs/issue-687-format-final.log.json",
+      "log_sha256": "d7b6d3e48a181d2e7166104c2577b52ac52edff727a32ae7f7f7d3ce821a2727",
+      "log_archive_sha256": "9f02d838f2c08b7c05f8b772b8332fa038cc2c189c73b5b44f5cc8a12d75a0c1",
+      "receipt": "logs/issue-687-format-final-receipt.json",
+      "receipt_sha256": "876abb20b8ee94125928fd288ccdd2d7570d93eac30dbb2a4b4ead23219f60ff"
+    }
+  ],
+  "original_ci_failure": {
+    "role": "original CI failure, not passing qualification",
+    "run": 44091623901,
+    "job": 134067933659,
+    "head": "17a2350bc41c4bc8def052b2e1a8de5cc33e9222",
+    "conclusion": "failure",
+    "log_archive": "logs/pr-683-predecessor-job-134067933659.log.json",
+    "log_sha256": "281b02c807fe4e162a085c5914c77e82c2c98ed94bccd014e691d2ca17989045",
+    "log_archive_sha256": "a1d27cf62826eeb8f51526cd4328c1635a080ef94170d6484f214b79d4b5c3e5",
+    "download_receipt": "logs/pr-683-predecessor-job-134067933659-receipt.json",
+    "download_receipt_sha256": "b4642afe852d820d8c7777ece42b26826f3f7d69e056076af202bb21de49a01d"
+  },
+  "sources": [
+    {
+      "path": "sources/ci-first-abort-control.py.txt",
+      "sha256": "8e93180b9e63ccc28d86575bbaba4170faba8a2e55488affad104980d3e4fadf"
+    },
+    {
+      "path": "sources/pre-repair-control.py.txt",
+      "sha256": "cece33b0fc96ed4f0e31e4742d9e1957457ce5467582e12fd6a84d92c545abfb"
+    },
+    {
+      "path": "sources/facade-deadline-probe.py.txt",
+      "sha256": "144afee6ac87d497f9b856bbb84777fa0426e3320f34d0cc5985f08445542d9b"
+    }
+  ],
+  "test_source_sha256": "175a181c1b6ff1f9e0dd72d911ff6034e2a16cd88b49c2d1aca3b58c9b486979",
+  "limitations": [
+    "Probe establishes a permitted deadline ordering, not the exact unavailable CI scheduler state.",
+    "Python3.11 is not locally qualified; updated CI must qualify it.",
+    "The557 runtime composition was not rerun after this isolated test correction; production and all340 frontend inputs remain unchanged."
+  ]
+}

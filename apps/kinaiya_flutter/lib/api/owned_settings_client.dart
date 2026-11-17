@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/connection.dart';
 import '../config/service_root.dart';
+import 'journal_json.dart';
 import 'provider_settings.dart' show providerJsonDecode;
 
 enum SettingsDomain {
@@ -18,6 +19,8 @@ enum SettingsDomain {
   standingDispatch,
   coreSubsystems,
   converseCapture,
+  converseLiveStream,
+  converseLiveUpdates,
 }
 
 class OwnedSettingsFailure implements Exception {
@@ -63,6 +66,8 @@ class OwnedSettingsTransport {
     SettingsDomain.standingDispatch => 'Standing dispatch',
     SettingsDomain.coreSubsystems => 'Core subsystem settings',
     SettingsDomain.converseCapture => 'Converse capture mode',
+    SettingsDomain.converseLiveStream => 'Adaptive Live stream',
+    SettingsDomain.converseLiveUpdates => 'Live updates',
   };
   String get _connectionLabel => switch (domain) {
     SettingsDomain.model => 'model',
@@ -72,11 +77,19 @@ class OwnedSettingsTransport {
     SettingsDomain.standingDispatch => 'standing dispatch',
     SettingsDomain.coreSubsystems => 'Core subsystem settings',
     SettingsDomain.converseCapture => 'Converse capture mode',
+    SettingsDomain.converseLiveStream => 'Adaptive Live stream',
+    SettingsDomain.converseLiveUpdates => 'live updates',
   };
-  int get _requestBytes => domain == SettingsDomain.standing ? 131072 : 4096;
+  int get _requestBytes => switch (domain) {
+    SettingsDomain.standing => 131072,
+    SettingsDomain.converseLiveStream => 96000,
+    _ => 4096,
+  };
   int get _responseBytes => switch (domain) {
     SettingsDomain.standing => 262144,
     SettingsDomain.standingDispatch => 32768,
+    SettingsDomain.converseLiveStream => 448 * 1024,
+    SettingsDomain.converseLiveUpdates => 2 * 1024 * 1024,
     _ => 16384,
   };
   final String baseUrl, _token;
@@ -195,8 +208,13 @@ class OwnedSettingsTransport {
       if (elapsed.elapsed >= resultTimeout) {
         throw TimeoutException('$_label deadline');
       }
-      // Reuse the bounded duplicate-key/unsafe-number/UTF8 rejecting codec.
-      result = decode(providerJsonDecode(raw));
+      // Journal payloads include finite decimals that settings do not admit.
+      // Both codecs preserve strict identity integers and reject duplicate keys.
+      result = decode(
+        domain == SettingsDomain.converseLiveUpdates
+            ? journalJsonDecode(raw)
+            : providerJsonDecode(raw, maxBytes: _responseBytes),
+      );
     } on _SettingsStatus catch (error) {
       failure = OwnedSettingsFailure(
         '$_label request was refused',

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from packages.contracts.live_captures import LiveCaptureState
 from packages.contracts.live_windows import LiveWindowPublicationProof
 from packages.contracts.models import ContentScope
+from packages.contracts.stt_settlement import digest
 from packages.contracts.whistle_stream_owner import ConverseStreamProof
 
 PROTOCOL = "converse_live_stream_v2"
@@ -25,6 +26,13 @@ class _Closed(BaseModel):
 class LiveStreamCapability(_Closed):
     schema_version: Literal["2.0"]
     protocol: Literal["converse_live_stream_v2"]
+    owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$")
+    available: bool
+
+
+class LiveUtteranceCapability(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_utterance_v1"]
     owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$")
     available: bool
 
@@ -51,6 +59,103 @@ class LiveStreamScope(LiveStreamIdentity):
 
 class LiveStreamBegin(LiveStreamScope):
     segment_index: int = Field(ge=0, le=1000000)
+
+
+class LiveStreamAbortCapability(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_abort_v1"]
+    owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$")
+
+
+class LiveStreamAbort(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_abort_v1"]
+    initial: LiveStreamBegin
+    reason: Literal["owner_off", "cancelled", "disconnected", "replaced", "shutdown"]
+
+    @model_validator(mode="after")
+    def initial_segment(self):
+        if self.initial.segment_index != 0:
+            raise ValueError("A negative original requires its exact initial begin")
+        return self
+
+
+class LiveStreamAbortProof(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_abort_v1"]
+    original: LiveStreamAbort
+    request_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    outcome: Literal["unknown", "in_progress", "confirmed"]
+    capture: LiveCaptureState | None
+    cleanup_confirmed: bool
+
+    @model_validator(mode="after")
+    def original_negative(self):
+        if self.request_sha256 != digest(self.original.model_dump(mode="json")):
+            raise ValueError("A negative proof changed its exact original")
+        if self.capture is not None:
+            initial, native = self.original.initial, self.capture.original
+            if any(
+                getattr(initial, key) != getattr(native, key)
+                for key in ("owner_instance", "capture_id", "session_id", "thread_id", "epoch")
+            ):
+                raise ValueError("A negative proof changed its native scope")
+        if self.outcome == "confirmed" and not self.native_closed():
+            raise ValueError("A negative confirmation requires qualified native closure")
+        if self.cleanup_confirmed and self.outcome != "confirmed":
+            raise ValueError("Cleanup requires confirmed native closure")
+        return self
+
+    def native_closed(self):
+        return bool(
+            self.capture is not None and not self.capture.capture_open and self.capture.fence
+        )
+
+
+class LiveStreamRetireCapability(LiveStreamAbortCapability):
+    protocol: Literal["native_live_retire_v1"]
+
+
+class LiveStreamRetire(LiveStreamAbort):
+    protocol: Literal["native_live_retire_v1"]
+
+
+class LiveStreamRetireProof(LiveStreamAbortProof):
+    protocol: Literal["native_live_retire_v1"]
+    original: LiveStreamRetire
+
+    def native_closed(self):
+        state = self.capture
+        # A missing registration under the same current backend/scope is unknown.
+        # A changed native owner/scope permanently excludes a late registration;
+        # it does not establish any physical or HTTP cleanup by itself (#685).
+        return bool(
+            state is not None
+            and not state.capture_open
+            and (
+                state.fence is not None
+                or state.original.backend != state.backend
+                or not state.scope_current
+            )
+        )
+
+
+class LiveStreamNextUtterance(LiveStreamBegin):
+    boundary_protocol: Literal["native_live_utterance_v1"]
+    segment_index: int = Field(ge=1, le=1000000)
+    previous_utterance_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    previous_finish_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def distinct_domain(self):
+        # Monotonic native segments make these names unique without keeping an
+        # unbounded set of every utterance encountered during a long Call.
+        if (
+            self.utterance_id != f"{self.capture_id}_{self.segment_index}"
+            or self.utterance_id == self.previous_utterance_id
+        ):
+            raise ValueError("An explicit utterance boundary requires its new native domain")
+        return self
 
 
 class LiveStreamPcm(LiveStreamBegin):

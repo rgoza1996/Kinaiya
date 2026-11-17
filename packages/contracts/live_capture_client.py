@@ -4,6 +4,8 @@ from packages.contracts.live_captures import (
     MAX_RESULT_BYTES,
     LiveCaptureBackend,
     LiveCaptureFence,
+    LiveCaptureRecoveryQuery,
+    LiveCaptureRecoveryState,
     LiveCaptureRegistration,
     LiveCaptureSourceState,
     LiveCaptureState,
@@ -49,6 +51,14 @@ async def fence(client, request):
         or result.fence.request != request
     ):
         raise ValueError("Native capture response did not settle its original fence")
+    return result
+
+
+async def recover(client, query):
+    query = LiveCaptureRecoveryQuery.model_validate(query, strict=True)
+    result = await _exchange(client, "/recover", query, LiveCaptureRecoveryState)
+    if result.original != query:
+        raise ValueError("Native recovery changed its original query")
     return result
 
 

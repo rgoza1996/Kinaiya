@@ -24,6 +24,93 @@ async function armed(options={}) {
   return f;
 }
 
+for (const ending of ['stop', 'natural']) {
+  test(`backchannel ${ending} keeps speaker PCM outside the mic FIFO and preserves live input`,async()=>{
+    const f=await armed(),epoch=Number(f.api.captureEpoch());
+    assert.equal(f.seen.gets[0].audio.echoCancellation,true);
+    assert.equal(f.seen.gets[0].audio.noiseSuppression,true);
+    const speaker=Buffer.from([16,0,32,0,48,0,64,0]).toString('base64');
+    assert.equal(await f.api.queuePcm(speaker,24000),'queued');
+    assert.equal(f.api.playbackActive(),'yes');
+    assert.equal(f.seen.gets.length,1);
+    assert.equal(state(f).received_samples,0,'local speaker output is never appended as mic input');
+    assert.equal(packet(f),null);
+    let inputReady=false,playbackEnded=false;
+    const input=f.api.streamPcmWait(String(epoch)).then(()=>{inputReady=true;});
+    const drain=f.api.awaitPlayback().then(()=>{playbackEnded=true;});
+    await Promise.resolve();
+    assert.equal(inputReady,false,'speaker output cannot wake captured-input readiness');
+    assert.equal(playbackEnded,false,'queued PCM is not a completed local source');
+    f.feed(new Float32Array([0.25,-0.25]));
+    await input;
+    const first=packet(f);
+    assert.equal(first.capture_epoch,epoch);
+    assert.equal(first.sample_offset,0);
+    assert.equal(first.sample_count,2);
+    assert.deepEqual([0,2].map(i=>Buffer.from(first.pcm16_base64,'base64').readInt16LE(i)),[8191,-8192]);
+    if (ending==='stop') assert.equal(f.api.stopAudio(),'stopped');
+    else {
+      assert.equal(f.seen.sources.length,1);
+      f.seen.sources[0].onended();
+    }
+    await drain;
+    assert.equal(f.api.playbackActive(),'no');
+    assert.equal(state(f).active,true,'speaker completion cannot mute the mic');
+    assert.equal(Number(f.api.captureEpoch()),epoch);
+    assert.deepEqual(packet(f),first);
+    f.feed(new Float32Array([0.5]));
+    assert.equal(acknowledge(f,first),'confirmed');
+    const next=packet(f);
+    assert.equal(next.capture_epoch,epoch);
+    assert.equal(next.sequence,2);
+    assert.equal(next.sample_offset,2);
+    assert.equal(next.sample_count,1);
+    assert.equal(Buffer.from(next.pcm16_base64,'base64').readInt16LE(0),16383);
+    assert.equal(f.seen.gets.length,1);
+    assert.equal(acknowledge(f,next),'confirmed');
+    await f.api.stopArmed();
+    assert.equal(f.api.streamPcmRelease(String(epoch)),'released');
+  });
+}
+
+test('fresh speaking is independent of a retained packet and legacy windows',async()=>{
+  const f=await armed(),epoch=Number(f.api.captureEpoch());
+  assert.equal(typeof f.api.streamPcmSpeaking,'function');
+  f.feed(new Float32Array([0.5]));
+  const frozen=packet(f);
+  assert.equal(frozen.user_speaking,false);
+  f.api.vadSample(0.9,1000,epoch);
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'yes');
+  assert.equal(f.api.windowSpeaking(),'no');
+  assert.deepEqual(packet(f),frozen);
+  f.api.vadSample(0,1001,epoch);
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'no');
+  assert.deepEqual(packet(f),frozen);
+  await f.api.stopArmed();
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'unavailable');
+});
+
+test('fresh speaking refuses stale malformed and retired capture identities',async()=>{
+  const f=await armed(),epoch=Number(f.api.captureEpoch());
+  assert.equal(typeof f.api.streamPcmSpeaking,'function');
+  for(const raw of ['',0,null,String(epoch+1),'01','1e0','1.0','9007199254740992']) {
+    assert.equal(f.api.streamPcmSpeaking(raw),'unavailable');
+  }
+  const boundary={capture_epoch:epoch,next_sequence:1,sample_offset:0};
+  const rotation=JSON.parse(f.api.streamPcmRotate(JSON.stringify(boundary)));
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'unavailable');
+  assert.equal(f.api.streamPcmSpeaking(String(rotation.capture_epoch)),'no');
+  await f.api.stopArmed();
+});
+
+test('fresh speaking cannot treat a faulted input as observed silence',async()=>{
+  const f=await armed(),epoch=Number(f.api.captureEpoch());
+  assert.equal(typeof f.api.streamPcmSpeaking,'function');
+  f.feed(new Float32Array([NaN]));
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'unavailable');
+  await f.api.stopArmed();
+});
+
 test('incremental FIFO retains every ordered PCM sample until exact acknowledgment', async()=>{
   const f=await armed();
   assert.equal(f.seen.gets.length,1);
@@ -196,4 +283,112 @@ test('one retained readiness notification wakes on original PCM or capture retir
   await retirement;
   assert.equal(f.api.streamPcmRelease(String(epoch)),'released');
   assert.equal(await f.api.streamPcmWait(String(epoch)),'unavailable');
+});
+
+function boundary(f) {
+  const current=state(f);
+  return {capture_epoch:current.capture_epoch,next_sequence:current.next_sequence,sample_offset:current.sample_offset};
+}
+function rotate(f,original) { return f.api.streamPcmRotate(JSON.stringify(original)); }
+
+test('segment rollover preserves every unacknowledged sample and the original live microphone',async()=>{
+  const f=await armed();
+  assert.equal(typeof f.api.streamPcmRotate,'function');
+  const epoch=Number(f.api.captureEpoch());
+  f.api.vadSample(0.9,1000,epoch);
+  f.feed(new Float32Array([0.5,-0.5]));const first=packet(f);
+  assert.equal(acknowledge(f,first),'confirmed');
+  const original=boundary(f);
+  // These samples arrive while the caller waits for its exact native finish.
+  f.feed(new Float32Array([0.25,-0.25,1]));
+  const proof=JSON.parse(rotate(f,original));
+  assert.equal(proof.schema_version,'1.0');assert.equal(proof.protocol,'browser_pcm_segment_v1');
+  assert.deepEqual(proof.original,original);assert.ok(proof.capture_epoch>epoch);
+  assert.equal(Number(f.api.captureEpoch()),proof.capture_epoch);
+  const after=state(f);
+  assert.equal(after.sample_offset,0);assert.equal(after.next_sequence,1);
+  assert.equal(after.received_samples,3);assert.equal(after.buffered_samples,3);
+  assert.equal(after.active,true);
+  const next=packet(f);
+  assert.equal(next.user_speaking,true,'decoder rollover does not end the speaker');
+  assert.equal(next.capture_epoch,proof.capture_epoch);
+  assert.deepEqual([0,2,4].map(i=>Buffer.from(next.pcm16_base64,'base64').readInt16LE(i)),[8191,-8192,32767]);
+  assert.equal(acknowledge(f,first),'mismatch','a preceding segment cannot acknowledge the new packet');
+  assert.equal(rotate(f,original),JSON.stringify(proof),'exact local rollover readback is idempotent');
+  assert.deepEqual(packet(f),next);
+  f.feed(new Float32Array([-1]));
+  assert.equal(acknowledge(f,next),'confirmed');
+  assert.equal(packet(f).sample_offset,3);
+  assert.equal(f.seen.gets.length,1);assert.equal(f.seen.stopped,0);assert.equal(f.seen.recorders.length,0);
+  await f.api.stopArmed();
+});
+
+test('segment rollover refuses a pending packet stale boundaries and malformed originals',async()=>{
+  const f=await armed();assert.equal(typeof f.api.streamPcmRotate,'function');
+  f.feed(new Float32Array([0.5]));const first=packet(f),before=state(f);
+  assert.equal(rotate(f,boundary(f)),'busy');assert.deepEqual(packet(f),first);
+  assert.equal(acknowledge(f,first),'confirmed');const original=boundary(f);
+  for(const raw of ['{','[]','{}','x'.repeat(513),
+    JSON.stringify({...original,extra:true}),JSON.stringify({...original,next_sequence:2.5}),
+    JSON.stringify({...original,sample_offset:0}),JSON.stringify({...original,capture_epoch:before.capture_epoch+1}),
+    `{"capture_epoch":${original.capture_epoch},"next_sequence":2,"next_sequence":2,"sample_offset":1}`,
+    `{"capture_epoch":${original.capture_epoch},"next_sequence":2e0,"sample_offset":1}`]) {
+    assert.equal(f.api.streamPcmRotate(raw),'mismatch');
+    assert.equal(state(f).sample_offset,1);
+  }
+  const proof=JSON.parse(rotate(f,original));assert.ok(proof.capture_epoch>original.capture_epoch);
+  await f.api.stopArmed();
+});
+
+test('sequential decoder boundaries can exceed sixty seconds without releasing the armed mic',async()=>{
+  const f=await armed();assert.equal(typeof f.api.streamPcmRotate,'function');
+  let total=0;
+  for(let segment=0;segment<4;segment++) {
+    for(let block=0;block<30;block++) {
+      f.feed(new Float32Array(16000).fill((block%2?1:-1)*0.25));
+      for(let p=packet(f);p;p=packet(f)) {
+        total+=p.sample_count;assert.equal(acknowledge(f,p),'confirmed');
+      }
+    }
+    const original=boundary(f);
+    assert.equal(original.sample_offset,480000);
+    const proof=JSON.parse(rotate(f,original));assert.ok(proof.capture_epoch>original.capture_epoch);
+    assert.equal(state(f).received_samples,0);assert.equal(state(f).fault,null);
+  }
+  assert.equal(total,1920000);assert.equal(f.seen.gets.length,1);assert.equal(f.seen.stopped,0);
+  await f.api.stopArmed();
+});
+
+test('rollover wakes the old local notification and keeps the new notification owned',async()=>{
+  const f=await armed();assert.equal(typeof f.api.streamPcmRotate,'function');
+  const original=boundary(f),wait=f.api.streamPcmWait(String(original.capture_epoch));
+  const proof=JSON.parse(rotate(f,original));
+  assert.equal(JSON.parse(await wait).capture_epoch,original.capture_epoch);
+  assert.equal(await f.api.streamPcmWait(String(original.capture_epoch)),'unavailable');
+  const next=f.api.streamPcmWait(String(proof.capture_epoch));
+  assert.equal(f.api.streamPcmWait(String(proof.capture_epoch)),next);
+  f.feed(new Float32Array([0.5]));
+  assert.equal(JSON.parse(await next).capture_epoch,proof.capture_epoch);
+  await f.api.stopArmed();
+});
+
+test('fault or held actual cleanup cannot roll a local decoder segment into fresh capacity',async()=>{
+  const closing=gate(),f=await armed({closeGate:closing});
+  assert.equal(typeof f.api.streamPcmRotate,'function');
+  f.feed(new Float32Array([0.5]));assert.equal(acknowledge(f,packet(f)),'confirmed');
+  const original=boundary(f);f.feed(new Float32Array([NaN]));
+  assert.equal(rotate(f,original),'unavailable');
+  assert.equal(state(f).capture_epoch,original.capture_epoch);
+  closing.resolve();await f.api.stopArmed();
+  assert.equal(rotate(f,original),'unavailable');
+});
+
+test('a clean stopped microphone cannot roll while its original context cleanup is held',async()=>{
+  const closing=gate(),f=await armed({closeGate:closing});
+  f.feed(new Float32Array([0.5]));assert.equal(acknowledge(f,packet(f)),'confirmed');
+  const original=boundary(f),stop=f.api.stopArmed();
+  assert.equal(state(f).fault,null);assert.equal(state(f).cleanup_pending,true);
+  assert.equal(rotate(f,original),'unavailable');assert.equal(state(f).capture_epoch,original.capture_epoch);
+  closing.resolve();await stop;
+  assert.equal(f.api.streamPcmRelease(String(original.capture_epoch)),'released');
 });

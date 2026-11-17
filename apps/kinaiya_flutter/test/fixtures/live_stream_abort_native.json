@@ -1,0 +1,103 @@
+{
+  "source": "actual native owner HTTP and SQLite negative fence; synthetic public fixtures; no microphone, STT or model start",
+  "capability": {
+    "schema_version": "1.0",
+    "protocol": "native_live_abort_v1",
+    "owner_instance": "68aea49e95b21c10ef74fffdf75a6b21"
+  },
+  "request": {
+    "schema_version": "1.0",
+    "protocol": "native_live_abort_v1",
+    "initial": {
+      "schema_version": "2.0",
+      "protocol": "converse_live_stream_v2",
+      "owner_instance": "68aea49e95b21c10ef74fffdf75a6b21",
+      "capture_id": "dddddddddddddddddddddddddddddddd",
+      "segment_index": 0,
+      "session_id": "31091702-c8e2-4f9e-aa3d-423fb6376d20",
+      "thread_id": "14c98657-e51d-4b88-b3d4-42d378042e21",
+      "epoch": 1,
+      "utterance_id": "public-owned-lease",
+      "content_scope": "local_only"
+    },
+    "reason": "disconnected"
+  },
+  "proof": {
+    "schema_version": "1.0",
+    "protocol": "native_live_abort_v1",
+    "original": {
+      "schema_version": "1.0",
+      "protocol": "native_live_abort_v1",
+      "initial": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "68aea49e95b21c10ef74fffdf75a6b21",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "session_id": "31091702-c8e2-4f9e-aa3d-423fb6376d20",
+        "thread_id": "14c98657-e51d-4b88-b3d4-42d378042e21",
+        "epoch": 1,
+        "utterance_id": "public-owned-lease",
+        "content_scope": "local_only",
+        "segment_index": 0
+      },
+      "reason": "disconnected"
+    },
+    "request_sha256": "1b56261ae14dca3d9f20da59aed71160708d074d19bfd8ef5ce037c37f3b93ff",
+    "outcome": "confirmed",
+    "capture": {
+      "schema_version": "2.0",
+      "protocol": "native_live_capture_v2",
+      "original": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "backend": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "backend_id": "1ae5a4e8e92772f02f3cee6ec9f84519",
+          "controller_id": "2a5fe2f15a860e03ca9efff8aa896527"
+        },
+        "owner_instance": "68aea49e95b21c10ef74fffdf75a6b21",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "session_id": "31091702-c8e2-4f9e-aa3d-423fb6376d20",
+        "thread_id": "14c98657-e51d-4b88-b3d4-42d378042e21",
+        "epoch": 1
+      },
+      "backend": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "backend_id": "1ae5a4e8e92772f02f3cee6ec9f84519",
+        "controller_id": "2a5fe2f15a860e03ca9efff8aa896527"
+      },
+      "receipt": null,
+      "fence": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "request": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend_id": "1ae5a4e8e92772f02f3cee6ec9f84519",
+              "controller_id": "2a5fe2f15a860e03ca9efff8aa896527"
+            },
+            "owner_instance": "68aea49e95b21c10ef74fffdf75a6b21",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "31091702-c8e2-4f9e-aa3d-423fb6376d20",
+            "thread_id": "14c98657-e51d-4b88-b3d4-42d378042e21",
+            "epoch": 1
+          },
+          "request_id": "31220b6459d1b95f6ddf2ce0a8cb9348",
+          "reason": "disconnected"
+        },
+        "fence_id": "d9268f53eb0b2239839167be3ef36a8d"
+      },
+      "scope_current": true,
+      "capture_open": false
+    },
+    "cleanup_confirmed": true
+  }
+}

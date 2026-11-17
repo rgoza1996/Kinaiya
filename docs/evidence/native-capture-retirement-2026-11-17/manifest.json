@@ -1,0 +1,413 @@
+{
+  "baseline": "17a2350bc41c4bc8def052b2e1a8de5cc33e9222",
+  "branch": "codex/623-adaptive-call-integration",
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/685",
+  "runs": [
+    {
+      "name": "issue-623-controller-replacement-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-623-controller-replacement-first.log.json",
+      "log_sha256": "2832a01f8b09d4238523edc408e9f3ba5ae912b7d86678e7f3832d6ebee3572c",
+      "log_archive_sha256": "b0b10cb23732de962487388106dfa9f32db51aa6f9bb51d1f6ffd82f6cd0672d",
+      "receipt": "logs/issue-623-controller-replacement-first-receipt.json",
+      "receipt_sha256": "fe179cf2374dce7ef90574c91009ce311e3f39bf9fc8e279af0b852770cdafff"
+    },
+    {
+      "name": "issue-685-analyzer-first",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-analyzer-first.log.json",
+      "log_sha256": "43e083c8b41860e4ed7b6676d69409d329e4db5b40270e71615243c67010595c",
+      "log_archive_sha256": "a27665e91bd98069cabe7fe2c22eb2e9565860d9ebaa0f4d08767b4491406012",
+      "receipt": "logs/issue-685-analyzer-first-receipt.json",
+      "receipt_sha256": "fd285a6bb011e1b661a2e2543bbf720810347ebc72ee749b4b06c7234426368c"
+    },
+    {
+      "name": "issue-685-browser-complete",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-browser-complete.log.json",
+      "log_sha256": "c32ed536a1ba0b3594883a8cb1990d0e6a7c75251abe393dfa683aadfd4de670",
+      "log_archive_sha256": "b16030f54c6998ca6fbf04e18e287756bfaa69d7a474ba02462b29b5d2b996e1",
+      "receipt": "logs/issue-685-browser-complete-receipt.json",
+      "receipt_sha256": "23f3ceddc68db37d0db31879abfb31c6213053db0a071ab1a7793361f49b4c09"
+    },
+    {
+      "name": "issue-685-browser-final",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-browser-final.log.json",
+      "log_sha256": "1c70938d567dcfbca64fedb9c2dc99cfebfefdebe469dbbc7a409002ce75443a",
+      "log_archive_sha256": "73eb66d2d0b8c945bd6dbe9e49c563a67f6c1f27c3f3e85d17a2a5b905772597",
+      "receipt": "logs/issue-685-browser-final-receipt.json",
+      "receipt_sha256": "e4cc5e97c02952b918d60d6c7ad7abf3e8b4e3cc9d80a5141c627a243a8b1ff8"
+    },
+    {
+      "name": "issue-685-format-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-format-final.log.json",
+      "log_sha256": "1eb6982f50cec372bfd7d07aa0257837009aa24a11b8489eaaf3a94c00ee348d",
+      "log_archive_sha256": "5ce8f6e1b275e84f96b906eea6c842795d026b1e344e270781305d8037457e48",
+      "receipt": "logs/issue-685-format-final-receipt.json",
+      "receipt_sha256": "b38b4f5424234fb8e7bdea094d8d5837e084d60991c4a8d38b729a1fc03f3f16"
+    },
+    {
+      "name": "issue-685-full-frontend",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-full-frontend.log.json",
+      "log_sha256": "74f09396b1fd85f53b2ffca3b3648cbb3245b133cb43794f7ea8150db6d42b99",
+      "log_archive_sha256": "04799177a0e2e1fcbba4381a9533dff6a9facfafa3bd37907bc8ccbd3fc6685e",
+      "receipt": "logs/issue-685-full-frontend-receipt.json",
+      "receipt_sha256": "b6590cdcdb69d511ae47fecc0fe85d468fabda22dfa42903db2394970ec4af8d"
+    },
+    {
+      "name": "issue-685-native-retirement-first",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-685-native-retirement-first.log.json",
+      "log_sha256": "3cffb20c6f4e3d4149d437a3c32714cd021fb07b53507869e6e12c772426a13e",
+      "log_archive_sha256": "c426e5e2d4faa5bdf9abc3772e421f7f8e38ccd39e55d8e9d4803e2890795318",
+      "receipt": "logs/issue-685-native-retirement-first-receipt.json",
+      "receipt_sha256": "4d4ee0dfb7ed8e8e9e598a5aa865a8248de659995635ed8799b93e0c1e29618a"
+    },
+    {
+      "name": "issue-685-pending-history-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-685-pending-history-first.log.json",
+      "log_sha256": "4c623884a906328869f2ee4d2ce810bad4a4ec3b391e335b1dfca33228efea0c",
+      "log_archive_sha256": "32ed5e4b5af486fd09f9884b12578422528cbc950405984438301ac19cfc1c24",
+      "receipt": "logs/issue-685-pending-history-first-receipt.json",
+      "receipt_sha256": "8a285bf9124fc269229ed6f0bfc2da51646a2580288cc6a3e4f0d62029b3a26f"
+    },
+    {
+      "name": "issue-685-pending-history-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-pending-history-repaired.log.json",
+      "log_sha256": "ff8c461a9128bea80f40501f995f2a1f26a2b22335ab06cf29af2002b0ea0b9a",
+      "log_archive_sha256": "dd69387d6a5fdb4511a3dac28e4eb8d641e1b1ae8bc52bbce17430808b2db014",
+      "receipt": "logs/issue-685-pending-history-repaired-receipt.json",
+      "receipt_sha256": "519aecf50b0db76e1880e2a81d6724cf4f7b6a789bb869dc0c32f033721ea47c"
+    },
+    {
+      "name": "issue-685-pending-registration-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-685-pending-registration-first.log.json",
+      "log_sha256": "a5bf9ce5e1b1f7d40e31c01eca6e8028c4601db0d098d463a850a41c4b246862",
+      "log_archive_sha256": "c63c3eb5cb7e225ab424c3c09fd10d97e57c61492758e850f60968076dc9e28f",
+      "receipt": "logs/issue-685-pending-registration-first-receipt.json",
+      "receipt_sha256": "4207bf4234315540a6e597a012a415746c99911aa76a8457bf55e968e9ef49eb"
+    },
+    {
+      "name": "issue-685-pending-registration-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-685-pending-registration-repaired.log.json",
+      "log_sha256": "3ca584c4a45ed37c9476fca378902e26067becf64c0a50abe589ead78c2a43f9",
+      "log_archive_sha256": "ec230de6837c8c013dfde464dd7844919f556f087d39df580aee3219ffefaef4",
+      "receipt": "logs/issue-685-pending-registration-repaired-receipt.json",
+      "receipt_sha256": "84a82329aebaf29e38a049fc490164a5c22aa7b94c052200e2fe7b4b2cd07e19"
+    },
+    {
+      "name": "issue-685-retirement-dart-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-685-retirement-dart-first.log.json",
+      "log_sha256": "3da53a7483ef44c4c06028f67b890b1f959a9d4bf711cefd0be8a495da71d6b6",
+      "log_archive_sha256": "89c57f64dbc37efc1c2bf0cbdbaaf7f72a3b96012cc93d921a12c7fc9046ca54",
+      "receipt": "logs/issue-685-retirement-dart-first-receipt.json",
+      "receipt_sha256": "bb9eb8937e9d61ec7ca44dbe1367a3ff0960ed3c07f80d982d07e7003842f585"
+    },
+    {
+      "name": "issue-685-retirement-dart-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "current_recorded_pins_match": false,
+      "log_archive": "logs/issue-685-retirement-dart-repaired.log.json",
+      "log_sha256": "f09f22a918af69972929d973862af2d56d8056d7c171dfab13636b430b2e302d",
+      "log_archive_sha256": "e0c3988fc84d96d02bea18d6af815fca63785d8cf0d64847459565dd956e700b",
+      "receipt": "logs/issue-685-retirement-dart-repaired-receipt.json",
+      "receipt_sha256": "03e3eb8a2527da82caafd3e7ea1d631cf1f5eb9fc22d1bc3320ee8fa43b08da7"
+    },
+    {
+      "name": "issue-685-retirement-final-313",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-retirement-final-313.log.json",
+      "log_sha256": "2b4fad22b8179c29ed0a87834fc8e1a157f3efb539ba5e692e1378c6f453e201",
+      "log_archive_sha256": "482b2c7e0f7e89051f745c0aa7447f144faab4241e159cdeca56f3be0b90c746",
+      "receipt": "logs/issue-685-retirement-final-313-receipt.json",
+      "receipt_sha256": "ca0dc582cc43fec175fa6ef7002ef2e111a9e0a2dbe1c97abf48428737406a46"
+    },
+    {
+      "name": "issue-685-retirement-final-314",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-retirement-final-314.log.json",
+      "log_sha256": "8e7438fa4e3463d4fd7277381661bbbfe60e8ede1e9e9620b8564e1e93eba421",
+      "log_archive_sha256": "624d1e5243ce1c54c0103e6bf873c2dba5c4914bec8a1f436edab4b1f4554bf6",
+      "receipt": "logs/issue-685-retirement-final-314-receipt.json",
+      "receipt_sha256": "b30f8eb8f0be77e7f55179a1b83dac1a1c012e6142f67fe9715e3a75f28f4dd6"
+    },
+    {
+      "name": "issue-685-retirement-web-build",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-retirement-web-build.log.json",
+      "log_sha256": "c2ae8e04f4bcb29dfbed57b3838d4b91c0f0f411968a727ff273ca545e1af963",
+      "log_archive_sha256": "f44c3c32848a74a3fdddef14ec5d210b635fe11e3ab6f580837f0865b4468e5f",
+      "receipt": "logs/issue-685-retirement-web-build-receipt.json",
+      "receipt_sha256": "7614d87836903b5e210f272274747b4a66ceaa2d0623a63efc811b4b36faf380"
+    },
+    {
+      "name": "issue-685-ruff-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "current_recorded_pins_match": true,
+      "log_archive": "logs/issue-685-ruff-final.log.json",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "receipt": "logs/issue-685-ruff-final-receipt.json",
+      "receipt_sha256": "b1dbb7abee08975048a811a85aabdea10b0099b5f2ce9bd0f8ff8aba786f0ac7"
+    }
+  ],
+  "first_sources": [
+    {
+      "path": "sources/issue-623-controller-replacement-first-capture.py.txt",
+      "sha256": "d2296d2707ecd78dda704edbd784ba7d75921de18e93c5aac2057a00620cbbf6"
+    },
+    {
+      "path": "sources/issue-623-controller-replacement-first-contract.py.txt",
+      "sha256": "567094075e5391953287165c6ba8329a2f175c61a36c0e0a745a1beaa899d80d"
+    },
+    {
+      "path": "sources/issue-623-controller-replacement-first-control.py.txt",
+      "sha256": "e19e8fb691e3f44448be0ddc8480ca0420dee44b85d7aeb392e323c0068bbcfd"
+    },
+    {
+      "path": "sources/issue-623-controller-replacement-first-dart.dart.txt",
+      "sha256": "422fec406b547a15b2e770beb9a4e5ffcff59b88ef471b3cc56f57d45b3aeca5"
+    },
+    {
+      "path": "sources/issue-623-controller-replacement-first-native.py.txt",
+      "sha256": "4791284c6769b9c28bc3c9905b413aabcefe76e3a2d57a09e17a71a81f2a62b6"
+    },
+    {
+      "path": "sources/issue-623-controller-replacement-first-store.py.txt",
+      "sha256": "ce4814d2b74ea66b58079b71ba2e677086bdef721dfceafed24f384445b726c5"
+    },
+    {
+      "path": "sources/issue-685-retirement-dart-first-codec.dart.txt",
+      "sha256": "8df9b50ffc6eb19c0e1153f087b4fbc83b02ea84028ad54a7079d0e6f82bd85c"
+    },
+    {
+      "path": "sources/issue-685-retirement-dart-first-control.dart.txt",
+      "sha256": "268c5d2ae0fa1a0c18d06c842faa0dd519ce601e7e9d22d205d8002c27145e6e"
+    },
+    {
+      "path": "sources/issue-685-retirement-dart-first-driver.py.txt",
+      "sha256": "5539c304b59a39bc7387d9b95409738f74251fcc3f8bd5f5cee42048b6a3f705"
+    },
+    {
+      "path": "sources/issue-685-retirement-dart-first-fixture.py.txt",
+      "sha256": "12fca724b7d6498b3702dfa95691ccd025eb99a7dec45e9548e30de88a64ea4c"
+    },
+    {
+      "path": "sources/issue-685-retirement-dart-first-owner.dart.txt",
+      "sha256": "7393565fd86a73ac864557ba887b8142fba41b4e17ae3255a14492059808abff"
+    },
+    {
+      "path": "sources/issue-685-retirement-dart-first-transport.dart.txt",
+      "sha256": "f5d2b136799971a9da2676bca16f287219653fa594f841db6ac58dff29cbb940"
+    },
+    {
+      "path": "sources/issue-685-pending-registration-first-codec.dart.txt",
+      "sha256": "8df9b50ffc6eb19c0e1153f087b4fbc83b02ea84028ad54a7079d0e6f82bd85c"
+    },
+    {
+      "path": "sources/issue-685-pending-registration-first-contract.py.txt",
+      "sha256": "0179608ef825e2121ce0e1d7277a8d97955b714774d807b529db86cd8608a7cb"
+    },
+    {
+      "path": "sources/issue-685-pending-registration-first-control.py.txt",
+      "sha256": "8ef99b0f1b18455899b50dbd9e6d9f09c35e93a32714c464745c232e70995114"
+    },
+    {
+      "path": "sources/issue-685-pending-registration-first-dart-unit.dart.txt",
+      "sha256": "4022960b7015c35bb33bc68b0f6e4f74dae80b2adbf787c55ba0af743926e7f9"
+    },
+    {
+      "path": "sources/issue-685-pending-registration-first-python-unit.py.txt",
+      "sha256": "acde896a2fdb73bac1deead2098bcf5bac047d2d0f6e9cc9f681823c22ebd28f"
+    },
+    {
+      "path": "sources/issue-685-pending-history-first-control.py.txt",
+      "sha256": "072320aaf2640b76cab69cecdc8523667c0cad6fd1e7785c8a670b9eef2b7077"
+    },
+    {
+      "path": "sources/issue-685-pending-history-first-registry.py.txt",
+      "sha256": "db6a2265af401b62a269a22f20691ad2a600942e6cab86000ce772d83ec3fdc6"
+    }
+  ],
+  "code_sha256": {
+    "apps/kinaiya_flutter/lib/api/live_stream_client.dart": "f5d2b136799971a9da2676bca16f287219653fa594f841db6ac58dff29cbb940",
+    "apps/kinaiya_flutter/lib/api/live_streams.dart": "38e1155a6bea0397d48f4a9e8bda3802e27ad7ef25c9fb3d4162c94f2a7738b1",
+    "apps/kinaiya_flutter/lib/state/adaptive_live_capture.dart": "7393565fd86a73ac864557ba887b8142fba41b4e17ae3255a14492059808abff",
+    "apps/kinaiya_flutter/lib/ui/character_view.dart": "e95c8eea5d934624ffb294086e0629fb65a1aa29b54c7b2d924d6bb6660e3a41",
+    "apps/kinaiya_flutter/test/adaptive_live_call_native_test.dart": "b0c8cf1b16e13811a36648cf233ee4a58ac8dd2136d246fa10936db6ceb686b9",
+    "apps/kinaiya_flutter/test/fixtures/live_stream_retire_native.json": "59c7f31b9b131d67c973256da4bdd55aac3df58fe219e50d5ce1f3653002c7d7",
+    "apps/kinaiya_flutter/test/live_stream_retire_test.dart": "70f8fc2d312a8a54c49132200130586d1e65fe16273d8578c293e61c9d3309c6",
+    "packages/contracts/client.py": "843270fd12698912bce972f9c71fd39ed43e4efd2e838d6942ec812f62b7fd54",
+    "packages/contracts/live_capture_client.py": "1d4c6c7a6770232e7b252f593b6633a7920f2592ad6373ec5d3f612191396144",
+    "packages/contracts/live_captures.py": "d9ef9bb0b64692bf63f3e4b8fba9111a8e348932fc31ec83d0c8993a0d10cf39",
+    "packages/contracts/live_streams.py": "7067c6ad793045a30279f4388be0d650ff2ba89fd01a03e67a40c46e23f269bd",
+    "packages/contracts/schemas/LiveCaptureRecoveryQuery.json": "dc600440e604781bb8aed8a48ebb5417606c0419fd0a28852b5e44aaaf16fd7e",
+    "packages/contracts/schemas/LiveCaptureRecoveryState.json": "7b2f462f92b8dcfd3bb3a8b06a9773db09c00ff66efb49b8ffdebf4e43d49b66",
+    "packages/contracts/schemas/LiveStreamRetire.json": "f23a69336dadae833727ced8469a350ff9fed3fb9f2aa8698a7fc990f226cca9",
+    "packages/contracts/schemas/LiveStreamRetireCapability.json": "ac93bc6602f92b94aa89088ba29782da31c226edd1945fd484caf7f188e2838d",
+    "packages/contracts/schemas/LiveStreamRetireProof.json": "abf818eba20c22c505e20c0b98981456dfc13380d049877c899b9b43e6974738",
+    "scripts/export_contracts.py": "2ef8c0d72b86328b6823ae782765278bb03e4c9082c43b6dbc2f6f0d644dc707",
+    "services/converse/live_stream_api.py": "f1d50f58ca4dd891fc4ea61c1359045f0f7762e97b1c8dacde6240d2fc98e875",
+    "services/converse/live_streams.py": "db59103056c5100aa709386283f2991cd5b0c270f3a53b3a9d71a79faadd1995",
+    "services/session/live_capture_api.py": "d086e4e1bfea25bc17948089d77fff82e34e327ae7a7aabf65826299078f5705",
+    "services/session/live_captures.py": "7ece3b9d5f7233ce1080b35a430a8b46508f19408d9824d4ea1f3d617d596505",
+    "services/session/store.py": "4669bc767305599cb821984a6bc5b84044beb0dcb8ddf67fd7e9792c3fd662e7",
+    "tests/integration/test_incremental_whistle_converse.py": "12fca724b7d6498b3702dfa95691ccd025eb99a7dec45e9548e30de88a64ea4c",
+    "tests/integration/test_live_capture_recovery.py": "f4f79ccddda03562dd3fb7ca9db73ca9204f77d41ae518ee72abf90962936bb9",
+    "tests/integration/test_live_stream_abort.py": "072320aaf2640b76cab69cecdc8523667c0cad6fd1e7785c8a670b9eef2b7077",
+    "tests/integration/test_live_stream_dart.py": "5539c304b59a39bc7387d9b95409738f74251fcc3f8bd5f5cee42048b6a3f705",
+    "tests/unit/test_live_retirement_contracts.py": "1accce49bac82927a94d07a167a7fbeeade4099ac613d469c73049770b788f46",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "f0cae6e8a410defd58f3e6654914063f1ab4dfb99382eb047cae87f98b3d6ab1"
+  },
+  "unchanged_locks": {
+    "pyproject.toml": "d7854964ae228637f88e175a6941670e153e6f367a46fadbbd6d31fb05893961",
+    "requirements-dev.lock": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "requirements-runtime.lock": "75ac9da4ae40fd46d241c12d2523f7b5d7b661befa12b4c3e2dc7b27fbc220d1",
+    "apps/kinaiya_flutter/pubspec.lock": "de83a37ef60bc743efbb89f0d09c540d2049bed7ba5e81edd02999976430b882"
+  },
+  "web_artifacts": {
+    ".last_build_id": "e1388db66e4c2af467b02a9490eb521fe918e63aa6639226fec8af107cfcb8e6",
+    "KORINA_VAD_LICENSE.txt": "a0b02c8ae84b8a6539f075cfddb8dee3bbdd196948d3460dbd7f526d1a245102",
+    "assets/AssetManifest.bin": "4e28706e71597c77661a20df1bc2ebb49b077313fba97676dfed9a66194d4038",
+    "assets/AssetManifest.bin.json": "4d08ffe976550ece7015470f4f8c89f2335ff8a543b292a104322e6c69b5d75d",
+    "assets/FontManifest.json": "af26997d33a21a0ec43fabe2c0c29877fae06bbbbe16ea9064b28293ac034107",
+    "assets/NOTICES": "0d72bbb61aba682a71b7557b168031b6b2f58021b2f8173204ca01a222dd9428",
+    "assets/assets/character/kinaiya-activity-v1.png": "c89deb785e27cb8a741fbcf697b991e46f9b03ab2256342a2c340d555761d4c2",
+    "assets/assets/character/kinaiya-activity-v1.prompts.md": "14fcb49958ba3182a407b22f2f5d47d735e4535f961d6420456b10a41bdc7e6a",
+    "assets/assets/character/kinaiya-core-v1.png": "4eabec3223bc1a921645ce086a1f9fbf8b0098e66c1017e73af826197ff39412",
+    "assets/assets/character/kinaiya-core-v1.prompts.md": "aaeec65427c4d808e252e06dded6391c689dd060453a1709363a3f5b73134beb",
+    "assets/assets/character/kinaiya-identity-v2.prompts.md": "9516424119f50518044b4dfd800ea5ed200db9c4b901c2e186b801cd98515202",
+    "assets/assets/character/kinaiya-seated-idle-v1.png": "1322c7fa9ba76ad0cbc6ac8409564d5247d0366bf53fe368f9a39338ac938259",
+    "assets/assets/character/kinaiya-seated-idle-v1.prompts.md": "60241303808476ad69505c66d778ed0f61c09c5c2d1947d48420280b794ba5c4",
+    "assets/assets/character/kinaiya-seated-idle-v2.png": "f3b08dde1f248a2ffa8156f24aecf5b8c96eba79f5a91fe39069ddd44a803861",
+    "assets/assets/character/kinaiya-sleep-transition-v1.png": "60bb899628041c1e48fd45a2cecbce5c78e9119f30468689f365ca8cca12c4e2",
+    "assets/assets/character/kinaiya-sleep-transition-v2.png": "cb26c777b9677e0021e9dda3c983b3e08cf8f07b8a6ef2fcdba5cf1eca4a188b",
+    "assets/assets/character/kinaiya-sleep-transition-v3.png": "dac0b49a10bfa261d03ac49676986cfe70b3c69f85089efc2f800d03a23eecb6",
+    "assets/assets/character/kinaiya-sleep-v1.prompts.md": "1e1689a6596ae98df1fb66d480f882d7933ad136e9f662aa2e571d736364250c",
+    "assets/assets/character/kinaiya-sleep-v2.prompts.md": "4522d05e168ddac77c36c3d92014e4678cf30480c648c9e38f98170f7fe78632",
+    "assets/assets/character/kinaiya-sleep-v3.prompts.md": "fa217f7ea0988bd53e95f7c0b0baf89b68f3c15c9eb21cbc5d3878df77bea71c",
+    "assets/assets/character/kinaiya-sleeping-idle-v1.png": "030fbcf046acd0087cb7b6fa967c9f4757f89b1eb8aeb6669ea04b7a2a826276",
+    "assets/assets/character/kinaiya-sleeping-idle-v2.png": "068d98efd497601139b1ec976f1a4b691b0e28d885ab0592cccb4ae57a83a698",
+    "assets/assets/character/kinaiya-sleeping-idle-v3.png": "1e4c38af6f789dfb35eeacecdc2ac328c86cb6b2e694840cd7fc76bb4e54e110",
+    "assets/assets/character/pack.json": "edb79da50e9566460e05f9122be99c9edd53549a3777e943966c8c12bbbc8ae9",
+    "assets/assets/design/README.md": "a4e332987d530e99067d7c26375822cdf0cd6d712ac6035aa7c62ac88a8b2939",
+    "assets/assets/design/kinaiya-expression-reference-v2.png": "594d8d8675517d0d66467ea20e289f6903d2f7d301af188d1586c066691658de",
+    "assets/assets/design/kinaiya-expression-reference.png": "ca82097c4401cabfbb290fefb5c4387a918941003afc98315114c18992f3b989",
+    "assets/assets/design/kinaiya-moonlit-background-v1.png": "57a227625a0443661802b48eef47d2d8e5e24650bd301175a9802c678b8b502a",
+    "assets/assets/design/kinaiya-moonlit-desktop-v2.png": "8c6171df7c248e977717eebe97380be5e6419df676af7fbd2f0f8159739abee0",
+    "assets/assets/design/kinaiya-moonlit-phone-v2.png": "8d9a99372645f1ff4743921fd26bd525fb4979546ab5f66104c71e96eba09d28",
+    "assets/assets/design/kinaiya-moonlit-v2.prompts.md": "25d8e3c8ca605acba7838d0307152f3d359bbc99d64f299595e848bc576d7c9a",
+    "assets/assets/design/kinaiya-options-gear-v1.png": "db007a16d63b8d9b5fd7fe177ef380c012f65d593c3ddfb71a76946f0ea4d50a",
+    "assets/assets/design/kinaiya-sleeping-home-v1.png": "617217a193bb965619ca75c5ee4fb1cb1fbff6b0b88b4efc9fbd60e4856fdfbb",
+    "assets/assets/design/kinaiya-sleeping-home-v2.png": "ec2cd865ea3434a53868b0abad767c5de1dd9064f94ca6c0edb35104f5f9a673",
+    "assets/assets/design/kinaiya-speech-mouth-portraits-v1.png": "d7aedd4fd20d44daac5c81ee43d4ffa70a5f74ba2c9b7f8ae188112004703585",
+    "assets/assets/design/kinaiya-speech-mouth-portraits-v1.prompts.md": "ec24a1e2b248639f5de7589edcbdf5ae11ba58a2fb61ebbdafd8adad22cf1629",
+    "assets/assets/fonts/Inter-Bold.ttf": "288316099b1e0a47a4716d159098005eef7c0066921f34e3200393dbdb01947f",
+    "assets/assets/fonts/Inter-Regular.ttf": "40d692fce188e4471e2b3cba937be967878f631ad3ebbbdcd587687c7ebe0c82",
+    "assets/assets/fonts/Inter-SemiBold.ttf": "78a843fade9d4612a5567302fb595b56976eb5fcebf4fea5a5912d638bafcde3",
+    "assets/assets/mascot/kinaiya-mascot.png": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977",
+    "assets/fonts/MaterialIcons-Regular.otf": "6e8d337a2644f2aaaac8e4265bb08a23a18c2c9a34a884793db99ffa89e4ab9e",
+    "assets/fonts/fallback/Roboto-Regular.ttf": "79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95",
+    "assets/shaders/ink_sparkle.frag": "2dca5ab93d4ec29e963f996f3916320ba60825e9537dfb149a68008c7a16b026",
+    "assets/shaders/stretch_effect.frag": "ab412f07a5b9b50b67a885b24dbe16929738ae28630407d6490c924caf0a3220",
+    "audio_bridge.js": "d1e356a346af5012f6c19593cc25c4e51151a59e6ce261febfe601c7692a160c",
+    "audio_bridge.test.js": "fd9d3d96f8b86fec8625dd373545f80df949bd588ff68d8305b03dd28a8da391",
+    "audio_import_activation.test.js": "2b0ea0380f59b2088d7f2f458f354458b1e88fa5316d3033a1d714cbfa0aa69d",
+    "audio_input_feedback_adversarial.test.js": "a06bea4a0b3375bf391134b533c001c9b07817cb86d5cc60f39419692d1db860",
+    "audio_output_selection.test.js": "12f7f7f6d76b0d86b8e34d73afa7b1390f29dad1160ea50ba6bc58df7fb44153",
+    "canvaskit/canvaskit.js": "bb559f6080c7d312ac2a912b4abec9f68ff3d3022d4a603c7796b9b31460642b",
+    "canvaskit/canvaskit.js.symbols": "384f80b392972c83fd4f262527e3d06215a297d33ed59732c726721e9d9311bd",
+    "canvaskit/canvaskit.wasm": "fbed517a43e82452404446683f00f2e876d835aed84410695759e67b6bb01cd3",
+    "canvaskit/chromium/canvaskit.js": "6018b12bd8ed37e6952eee72d59c1cf7ad707ccdb74a0a45190010f77edd9068",
+    "canvaskit/chromium/canvaskit.js.symbols": "31c86fac6042dd8b756150832c1d15495d0d07742e2718f75dbdde5a5a91455e",
+    "canvaskit/chromium/canvaskit.wasm": "ae8ff1d858140f7b1300ced3fa89fb8c9dce0a400a0f4f1e11f6dcfb3315fdcf",
+    "canvaskit/skwasm.js": "71d7d3e34bf71b52bdba3b588b103bba8148ba28de5754083e01b3398e7a6e1c",
+    "canvaskit/skwasm.js.symbols": "9137f1a3ae744dea575043abfc6e063a047e910e6dab1ee53e496c975d1c033e",
+    "canvaskit/skwasm.wasm": "e540fd5e8303b7b68ec2718cb49e9c421f8ade3075b15e02a7059a62654df9a1",
+    "canvaskit/skwasm_heavy.js": "cec554b46ddcf4c0e63d799e0556d546f42d2c3f69316fb4f67ed776f6104558",
+    "canvaskit/skwasm_heavy.js.symbols": "b6b79ed497e11d4cd13cc46724f9e289eacc744d2d185e31c72d595cdf62772b",
+    "canvaskit/skwasm_heavy.wasm": "565f5cc1cca6ab120f11934b105f01fec4b58b480c82e0889dca93af8e6f8635",
+    "canvaskit/webparagraph/canvaskit.js": "3110e3e4d9b7b5657d336f253aaca8acca5777cde9319fb69ac302d6ff5a8b23",
+    "canvaskit/webparagraph/canvaskit.js.symbols": "44d6c47919106235cf32252252490cdf798d907ee874ba343ab53dc94bc2a9dc",
+    "canvaskit/webparagraph/canvaskit.wasm": "0ce1b05082efdc8529550e8a01f6ff0593972d55525035010e26f5600aa9f254",
+    "canvaskit/wimp.js": "8fd8a47480c6eb0a374d159912d0b3fb15661b41f5c113ecdd39c2f01f2bee46",
+    "canvaskit/wimp.js.symbols": "b4907ebd33131302a8cd99f7c55f52357bdfde04f421b605a616ba8764ae1de4",
+    "canvaskit/wimp.wasm": "e924eaafd801d41e017d178f3fd5cf8a417f641fe35c9ed34a4e1d7582283e0c",
+    "credential_bridge.js": "809d271a1d23fba4a0abebb294ba94249425283389e46b267d16df825c52be51",
+    "export_incremental_pcm_rollover_fixture.js": "95236a982b45d3fccec158a765db343b13589dbda0fc835723b2570966613f0f",
+    "flutter.js": "2beb1ce6b159c71540aa66030af1d7964b6a92377cc78473745e02f97b74effe",
+    "flutter_bootstrap.js": "d8c3ee7ac21125f5f005304122c2f52b4b3b0389dd0894b0dfb3238ffeeafdf7",
+    "flutter_service_worker.js": "a131df5ca46154cc4eb79044f7f5a14029c2f8bfccf8cef34e3ec3b5a9f5a88c",
+    "incremental_pcm_capture.test.js": "356f75f68ac01d72985b61e0bf6acfaa52f5d218eb3ea26855c7bd7250fff0f2",
+    "index.html": "f298506763628afdbccab15a3ba7d10ca2f1e864af5074f2dd55b85bf8e090e4",
+    "input_discovery_feedback.test.js": "a03e22269c8ab84d7a90a60fec0c16e607b96253cefa59e6645c932fa4476f07",
+    "main.dart.js": "c4a9416fe0239bb18b6a219d9db546b5bf73b2d22e710e725e1d2147842c6a0b",
+    "manifest.json": "23d79dc33e1b8fb9f98e6531f4a5539aa476e08f3f5b139fc3e13f3d1940405c",
+    "native_call_input_selection.test.js": "052d8c138c103104be54ce16e62495494d57d96f09684c0ac9a6e8e090af84be",
+    "presentation_bridge.cases.js": "7aaa2bb541fa249cfe0c17f1621e266a24d293c65088a17d31832d7c58779628",
+    "presentation_bridge.js": "bf101a1875cb3966ba57b58aee889b730c04a6b2853d38ce0c624a1aaaabdd46",
+    "version.json": "dc4c7ec020c2cebdded25f34e69c18d98406f034645d8a283327209d3e8a0200",
+    "window_capture_worklet.js": "a69e88851764bf40314d79df945616af667bf433aed6f90b2a1bd34e811c30e1"
+  },
+  "flutter_sdk": {
+    "frameworkVersion": "3.47.8",
+    "channel": "stable",
+    "repositoryUrl": "https://github.com/flutter/flutter.git",
+    "frameworkRevision": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "frameworkCommitDate": "2026-10-22 21:37:31 -0700",
+    "engineRevision": "cf636b1dfb818dd6a3ff16e390e93b1a036969c8",
+    "engineCommitDate": "2026-10-23 02:13:38.000Z",
+    "engineContentHash": "dfd2e6cb7d319db05e3bf1503f3e2ac60f6288a2",
+    "engineBuildDate": "2026-10-22 20:34:48.330",
+    "dartSdkVersion": "3.13.7",
+    "devToolsVersion": "2.60.0",
+    "flutterVersion": "3.47.8"
+  },
+  "limitations": [
+    "Synthetic native/HTTP/IPC/software-audio controls, no physical audio or echo qualification.",
+    "Surviving Converse owner with replaced Session capture controller, not killed/replaced service processes.",
+    "Wasm compiler dry run, not Wasm build/runtime.",
+    "Six unconfigured full-Flutter native-endpoint skips; four stream controls separately run in composition.",
+    "Initial browser command ran131 cases; the corrected seven-entrypoint command ran237. Both exact invocations retained."
+  ]
+}

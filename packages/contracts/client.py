@@ -324,6 +324,11 @@ class JournalClient:
 
         return await state(self, "lookup", original)
 
+    async def recover_live_capture(self, query):
+        from packages.contracts.live_capture_client import recover
+
+        return await recover(self, query)
+
     async def fence_live_capture(self, request):
         from packages.contracts.live_capture_client import fence
 

@@ -16,11 +16,18 @@ class ControlledApi extends KinaiyaClient {
   ControlledApi({
     String captureMode = 'legacy_silence',
     http.Client Function()? captureFactory,
+    http.Client Function()? liveFactory,
+    http.Client Function()? journalFactory,
+    super.httpClient,
+    this.realSpeechControls = false,
+    String serviceBase = 'http://fixture',
+    super.converseBase = 'http://127.0.0.1:8762',
+    super.ownerToken = 'synthetic',
   }) : super(
-         sessionBase: 'http://fixture',
-         agentBase: 'http://fixture',
-         converseBase: 'http://127.0.0.1:8762',
-         ownerToken: 'synthetic',
+         sessionBase: serviceBase,
+         agentBase: serviceBase,
+         liveStreamClientFactory: liveFactory,
+         journalWakeClientFactory: journalFactory,
          captureModeClientFactory:
              captureFactory ?? captureModeFixtureFactory(captureMode),
          artifactClientFactory: () => throw StateError(
@@ -28,6 +35,7 @@ class ControlledApi extends KinaiyaClient {
          ),
        );
   final transcription = Completer<Map<String, Object?>>();
+  final bool realSpeechControls;
   int interrupts = 0;
   @override
   Future<Map<String, Object?>> converseHealth() async => {'enabled': true};
@@ -40,6 +48,9 @@ class ControlledApi extends KinaiyaClient {
   @override
   Future<void> interruptSpeech(String id, {int? expectedGeneration}) async {
     interrupts++;
+    if (realSpeechControls) {
+      await super.interruptSpeech(id, expectedGeneration: expectedGeneration);
+    }
   }
 }
 

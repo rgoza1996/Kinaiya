@@ -515,6 +515,22 @@ class STTModelSettings(STTAdmissionRecovery):
     def selected_info(self):
         return self._selected(self._read()[1])
 
+    def owned_stream_available(self):
+        """Inspect the original selected protocol, without a lease or provider probe."""
+        try:
+            # Catalog STT recipes currently declare buffered Meta transcription,
+            # not the private owned Whistle protocol. Never open that recipe or
+            # unseal its credential merely to inspect live-input availability.
+            if self.closed or self.selection().source != "host" or not self._host_available():
+                return False
+            from packages.providers.whistle_stream_owner import CapturedWhistleStream
+
+            # Construction only binds the already-owned private HTTP client;
+            # reservation, decoder dispatch and capture remain separate effects.
+            return CapturedWhistleStream(self.host_provider).bound()
+        except (OSError, ValueError, RuntimeError, sqlite3.Error, TypeError, AttributeError):
+            return False
+
     def selection(self):
         return self._read()[1]
 

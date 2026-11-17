@@ -137,6 +137,8 @@ for name in (
     "LiveCaptureFenceReceipt",
     "LiveCaptureState",
     "LiveCaptureSourceState",
+    "LiveCaptureRecoveryQuery",
+    "LiveCaptureRecoveryState",
 ):
     cls = getattr(live_captures, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
@@ -193,9 +195,17 @@ for module, names in (
 )
 for name in (
     "LiveStreamCapability",
+    "LiveStreamAbortCapability",
+    "LiveStreamAbort",
+    "LiveStreamAbortProof",
+    "LiveStreamRetireCapability",
+    "LiveStreamRetire",
+    "LiveStreamRetireProof",
+    "LiveUtteranceCapability",
     "LiveStreamIdentity",
     "LiveStreamScope",
     "LiveStreamBegin",
+    "LiveStreamNextUtterance",
     "LiveStreamPcm",
     "LiveStreamFinish",
     "LiveStreamCancel",

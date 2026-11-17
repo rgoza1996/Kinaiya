@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "657d22b705e01abb05048abc819f4ca7a97bc9b8def53d78831f86e1fb2b4c1d",
+  "text": "F                                                                        [100%]\n=================================== FAILURES ===================================\n_________ test_old_codecs_schema_bytes_and_depth_limits_are_preserved __________\ntests/unit/test_standing_resource_finalization_contracts.py:705: in test_old_codecs_schema_bytes_and_depth_limits_are_preserved\n    assert schema_pin() == (184, OLD_SCHEMA_HASH)\nE   AssertionError: assert (189, '098fab...9c8cc86052de') == (184, '21351c...d8035257328a')\nE     \nE     At index 0 diff: 189 != 184\nE     Use -v to get more diff\n=========================== short test summary info ============================\nFAILED tests/unit/test_standing_resource_finalization_contracts.py::test_old_codecs_schema_bytes_and_depth_limits_are_preserved\n1 failed in 0.23s\n"
+}

@@ -1,0 +1,5 @@
+{
+  "source": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-685-native-fixtures/test_negative_original_confirm0/native-retirement.json",
+  "target": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/fixtures/live_stream_retire_native.json",
+  "sha256": "59c7f31b9b131d67c973256da4bdd55aac3df58fe219e50d5ce1f3653002c7d7"
+}

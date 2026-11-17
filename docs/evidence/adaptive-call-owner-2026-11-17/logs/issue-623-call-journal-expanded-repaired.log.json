@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "aedec2154c9cb41b43125d0e6545f573ba1020682845aeb9966ef5878871c8d2",
+  "text": "00:00 +0: loading /home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/journal_wake_client_test.dart\n00:00 +0: native journal decimal metadata does not stop the scoped reader\n00:00 +1: wake binds the exact original and monotonic owner cursor\n00:00 +2: scoped pages refuse swapped, repeated and noninteger identities\n00:00 +3: journal codec rejects ambiguous or unbounded data before web conversion\n00:00 +4: seeded journal payloads preserve standard JSON values and Unicode\n00:00 +5: normal and mock parent enroll independent readers before closure\n00:00 +6: All tests passed!\n"
+}

@@ -31,11 +31,35 @@ class _WebSpeechAudio
         SpeechPlaybackAudio,
         AdaptiveVadAudio,
         NativePcmCaptureAudio,
-        IncrementalPcmCaptureAudio,
+        SegmentedPcmCaptureAudio,
+        IncrementalSpeakingAudio,
         AudioInputSelection,
         AudioOutputSelection {
   bool get _ready => _bridge != null;
   bool _nativePcmEnabled = false;
+
+  @override
+  bool get supportsIncrementalSpeaking {
+    final method = _bridge?.getProperty<JSAny?>('streamPcmSpeaking'.toJS);
+    return supportsIncrementalPcmCapture &&
+        method != null &&
+        method.isA<JSFunction>();
+  }
+
+  @override
+  Future<bool> incrementalUserSpeaking(int captureEpoch) async {
+    _captureEpoch(captureEpoch);
+    final value = await _str1(
+      'streamPcmSpeaking',
+      captureEpoch.toString().toJS,
+    );
+    if (value != 'yes' && value != 'no') {
+      throw StateError(
+        'Current incremental speaking observation is unavailable',
+      );
+    }
+    return value == 'yes';
+  }
 
   @override
   bool get supportsIncrementalPcmCapture =>
@@ -50,6 +74,29 @@ class _WebSpeechAudio
         final method = _bridge?.getProperty<JSAny?>(name.toJS);
         return method != null && method.isA<JSFunction>();
       });
+
+  @override
+  bool get supportsIncrementalPcmRollover {
+    final method = _bridge?.getProperty<JSAny?>('streamPcmRotate'.toJS);
+    return supportsIncrementalPcmCapture &&
+        method != null &&
+        method.isA<JSFunction>();
+  }
+
+  @override
+  Future<IncrementalPcmRotation> rotateIncrementalPcm(
+    IncrementalPcmBoundary original,
+  ) async {
+    if (!supportsIncrementalPcmRollover) {
+      throw StateError('Incremental microphone rollover is unavailable');
+    }
+    return IncrementalPcmRotation.fromJson(
+      jsonDecode(
+        await _str1('streamPcmRotate', jsonEncode(original.body).toJS),
+      ),
+      original,
+    );
+  }
 
   @override
   Future<void> configureIncrementalPcmCapture(bool enabled) async {

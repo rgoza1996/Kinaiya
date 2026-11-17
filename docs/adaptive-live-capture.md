@@ -73,6 +73,13 @@ native Agent consumer behind trusted embedding. Backchannel and full-reply
 effects share the original Converse generation/speech owner and preserve the
 armed capture. Normal host/Call integration and complete rollout remain open.
 
+The [host and Call integration work](adaptive-call-integration.md) assembles the
+native owners behind the still-disabled release gate and adds exact frontend
+stream transport. Its gated Call owner now joins contiguous PCM, logical
+boundaries, passive updates and retained cancellation/cleanup. Complete playback
+and lifecycle qualification, timing comparison and default enablement remain
+unfinished.
+
 Only fresh eligible transcript or speaking/capture-state changes can admit new
 Adaptive inference. Persisted duplicate hypotheses do not spin the worker.
 Keep one in-flight inference per worker by default, coalesce pending work to the

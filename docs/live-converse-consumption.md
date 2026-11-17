@@ -60,12 +60,27 @@ authority, alongside runtime, owner admission, playback generation, memory and
 task-context checks. Missing or wrong ownership refuses. A raw speaking-hint
 event-ID change therefore does not by itself suppress an authorized v2 reply.
 
+The gated Call client binds negative generation-stop controls to the original
+native runtime and conversation scope. Stopping local playback preserves the
+armed input, and retiring native input does not prove the local speaker stopped.
+The [Call playback contract and qualification](adaptive-call-integration.md)
+keep these facts separate from synthesis EOF and actual local source completion.
+
 ## Completion and recovery
 
 Provider completion wakes the loop even while its one original native wait is
 still pending. It does not cancel/replace that read or spin on its own status
 observations. A noninterrupting buffered reply remains pending while the user
 speaks; provider EOF alone is not a declined response or a released consumer.
+A gated Call client therefore cannot use `live_output_observed` as a logical
+utterance boundary. The additive v2 state phase `live_no_audio_ready` is separate:
+the original full-reply producer must be reclaimable, unabandoned, have no
+published chunks and still pass native source/selection/authority checks. Its
+effect-keyed observation repeats the original source, utterance, behavior,
+generation (possibly null) and disclosure scope. The original retained append
+owner prevents replay. This supports an empty/no-audio reply without treating
+provider completion, model answer quality, or a held reply as acoustic completion
+or physical playback. Backchannels do not emit this full-reply readiness phase.
 A terminal failed wake observation leaves the loop slot before its error is
 reported, so a later native publication can be observed. Any unsettled original
 read/close still belongs to the original run owner; this is not a model or
@@ -81,8 +96,10 @@ separate facts.
 
 The native controls are in
 [`test_live_converse_consumer.py`](../tests/integration/test_live_converse_consumer.py).
-Normal host/Call wiring, complete owner/process replacement, echo/self-
-transcription, mute/accessibility/no-audio qualification, representative timing
+Gated host/Call wiring and synthetic playback, mute and accessibility controls
+are recorded in the [integration contract](adaptive-call-integration.md).
+Complete owner/process replacement, physical echo/self-transcription,
+remaining no-audio/dependency-loss qualification, representative timing
 comparison and qualified default migration still require full #623 integration.
 Model answer, persona, classification and speech quality are diagnostic outcomes,
 not architectural acceptance gates.

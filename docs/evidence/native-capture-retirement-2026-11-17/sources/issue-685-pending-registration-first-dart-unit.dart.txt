@@ -1,0 +1,122 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:kinaiya_flutter/api/live_stream_client.dart';
+import 'package:kinaiya_flutter/api/live_streams.dart';
+
+Map<String, Object?> fixture() =>
+    jsonDecode(
+          File(
+            'test/fixtures/live_stream_retire_native.json',
+          ).readAsStringSync(),
+        )
+        as Map<String, Object?>;
+Map<String, Object?> object(Object? value) => value as Map<String, Object?>;
+
+LiveStreamRetireOperation original() {
+  final request = object(fixture()['request']);
+  return LiveStreamRetireOperation(
+    LiveStreamOperation.fromJson(LiveStreamPhase.begin, request['initial']),
+    request['reason'] as String,
+  );
+}
+
+void main() {
+  test(
+    'actual native controller replacement proof has a separate protocol',
+    () {
+      final value = fixture();
+      final request = original();
+      final proof = LiveStreamRetireProof.fromJson(value['proof'], request);
+      expect(proof.confirmed, isTrue);
+      expect(proof.cleanupConfirmed, isTrue);
+      expect(proof.capture!.registered, isTrue);
+      expect(proof.capture!.body['fence'], isNull);
+      expect(proof.capture!.permanentlyClosed, isTrue);
+      expect(
+        LiveStreamRetireCapability.fromJson(value['capability']).ownerInstance,
+        request.initial.body['owner_instance'],
+      );
+      expect(
+        () => LiveStreamAbortProof.fromJson(value['proof'], request),
+        throwsFormatException,
+      );
+      expect(
+        () => LiveStreamAbortCapability.fromJson(value['capability']),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'retirement rejects missing registration, stale identity and physical claims',
+    () {
+      for (final patch in <void Function(Map<String, Object?>)>[
+        (v) => v['capture'] = null,
+        (v) => object(v['capture'])['receipt'] = null,
+        (v) => object(v['capture'])['capture_open'] = true,
+        (v) => v['outcome'] = 'unknown',
+        (v) => v['request_sha256'] = 'a' * 64,
+        (v) => v['cleanup_confirmed'] = 1,
+        (v) => v['physical_stop'] = true,
+        (v) => object(object(v['capture'])['original'])['epoch'] = 2,
+        (v) => v['protocol'] = 'native_live_abort_v1',
+      ]) {
+        final proof = object(fixture()['proof']);
+        patch(proof);
+        expect(
+          () => LiveStreamRetireProof.fromJson(proof, original()),
+          throwsFormatException,
+        );
+      }
+    },
+  );
+
+  test(
+    'retirement channel survives ordinary close and never sends positive input',
+    () async {
+      final value = fixture(), request = original();
+      final requests = <String>[];
+      final client = LiveStreamApi(
+        baseUrl: 'http://127.0.0.1:8762',
+        ownerToken: 'synthetic-owner',
+        clientFactory: () => MockClient((call) async {
+          requests.add('${call.method} ${call.url.path}');
+          if (call.method == 'POST') {
+            expect(jsonDecode(call.body), value['request']);
+          }
+          return http.Response(
+            jsonEncode(
+              call.method == 'GET' ? value['capability'] : value['proof'],
+            ),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final recovery = client.recoveryFor(request.initial);
+      expect(
+        (await recovery.inspectRetirement().result).ownerInstance,
+        request.initial.body['owner_instance'],
+      );
+      await client.close();
+      expect(
+        (await recovery.retireOriginal(request).result).cleanupConfirmed,
+        isTrue,
+      );
+      expect(
+        (await recovery.lookupRetirement(request).result).cleanupConfirmed,
+        isTrue,
+      );
+      await recovery.close();
+      expect(requests, [
+        'GET /v2/converse/audio/live-stream/retire-original',
+        'POST /v2/converse/audio/live-stream/retire-original',
+        'POST /v2/converse/audio/live-stream/retire-original/lookup',
+      ]);
+    },
+  );
+}

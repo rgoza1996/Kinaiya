@@ -1,0 +1,4 @@
+{
+  "sha256": "ee6f27ee0bd91adad24c0306b25b7d8196394e821c080d64d469788654b57072",
+  "utf8": "ERROR: file or directory not found: tests/unit/test_stt_model_settings.py\n\n\nno tests ran in 0.00s\n"
+}

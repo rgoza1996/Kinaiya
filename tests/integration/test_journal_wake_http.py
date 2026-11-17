@@ -120,6 +120,49 @@ async def test_wire_envelope_and_byte_bounds(env, kind, status):
     assert not env.store.journal_wake.waiters
 
 
+@pytest.mark.parametrize("prefix", [b"", b'{"schema_version":'])
+async def test_disconnect_during_body_is_refused_without_server_error_or_waiter(env, prefix):
+    before = env.store.journal_wake.snapshot()
+    messages = iter(
+        [
+            {"type": "http.request", "body": prefix, "more_body": True},
+            {"type": "http.disconnect"},
+        ]
+    )
+    sent = []
+
+    async def receive():
+        return next(messages, {"type": "http.disconnect"})
+
+    async def send(message):
+        sent.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": BASE + "/wait",
+        "raw_path": (BASE + "/wait").encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [
+            (b"host", b"session.local"),
+            (b"content-type", b"application/json"),
+            (b"authorization", ("Bearer " + env.auth.tokens["owner"]).encode()),
+        ],
+        "client": ("127.0.0.1", 12000),
+        "server": ("127.0.0.1", 8760),
+    }
+    # A real ASGI disconnect, not task cancellation or a substituted exception.
+    # The peer may already be gone; no server exception may escape either way.
+    await asyncio.wait_for(env.transport.app(scope, receive, send), 3)
+    assert [m["status"] for m in sent if m["type"] == "http.response.start"] == [400]
+    assert env.store.journal_wake.snapshot() == before
+    assert not env.store.journal_wake.waiters and env.store.read() == []
+
+
 async def test_real_client_cancel_does_not_erase_its_original_http_wait(env, monkeypatch):
     client = JournalClient(
         "http://session.local", env.auth.tokens["decisions"], transport=env.transport

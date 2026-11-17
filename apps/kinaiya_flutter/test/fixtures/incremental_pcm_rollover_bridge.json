@@ -1,0 +1,79 @@
+{
+  "source": "actual trusted bridge; public synthetic WebAudio; no physical audio or inference",
+  "before": {
+    "capture_epoch": 1,
+    "sample_rate": 16000,
+    "buffered_samples": 0,
+    "received_samples": 2,
+    "sample_offset": 2,
+    "next_sequence": 2,
+    "active": true,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  },
+  "original": {
+    "capture_epoch": 1,
+    "next_sequence": 2,
+    "sample_offset": 2
+  },
+  "retained": {
+    "capture_epoch": 1,
+    "sample_rate": 16000,
+    "buffered_samples": 3,
+    "received_samples": 5,
+    "sample_offset": 2,
+    "next_sequence": 2,
+    "active": true,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  },
+  "rotation": {
+    "schema_version": "1.0",
+    "protocol": "browser_pcm_segment_v1",
+    "original": {
+      "capture_epoch": 1,
+      "next_sequence": 2,
+      "sample_offset": 2
+    },
+    "capture_epoch": 2
+  },
+  "after": {
+    "capture_epoch": 2,
+    "sample_rate": 16000,
+    "buffered_samples": 3,
+    "received_samples": 3,
+    "sample_offset": 0,
+    "next_sequence": 1,
+    "active": true,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  },
+  "packet": {
+    "capture_epoch": 2,
+    "sequence": 1,
+    "sample_offset": 0,
+    "sample_count": 3,
+    "sample_rate": 16000,
+    "user_speaking": true,
+    "pcm16_base64": "/x8A4P9/"
+  },
+  "stopped": {
+    "capture_epoch": 2,
+    "sample_rate": 16000,
+    "buffered_samples": 3,
+    "received_samples": 3,
+    "sample_offset": 0,
+    "next_sequence": 1,
+    "active": false,
+    "fault": null,
+    "cleanup_pending": false,
+    "max_stream_samples": 960000,
+    "max_chunk_samples": 16000
+  }
+}

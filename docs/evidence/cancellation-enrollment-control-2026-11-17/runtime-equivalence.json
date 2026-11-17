@@ -1,0 +1,9 @@
+{
+  "runtime_commit": "a3be77b5f0cd0ca970da71b85d9cb2ba9351a4c3",
+  "changed_since557_python_inputs": [
+    "tests/integration/test_live_stream_abort.py"
+  ],
+  "production_python_unchanged": true,
+  "all340_frontend_inputs_unchanged": true,
+  "verification_note": "557 composition qualifies runtimea3be77b5; only cancellation fixture changes afterward. Complete modified module qualifies separately with38 cases per interpreter; no claim557 rerun after this test-only correction."
+}

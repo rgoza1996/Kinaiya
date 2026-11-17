@@ -124,6 +124,26 @@ abstract interface class IncrementalPcmCaptureAudio {
   Future<void> releaseIncrementalPcm(int captureEpoch);
 }
 
+/// Optional local decoder-segment rollover on the same physical microphone.
+/// Caller must first qualify the exact native finish and actual decoder/HTTP
+/// retirement. This operation keeps every unacknowledged buffered sample and
+/// changes only local packet identity; it grants no native capture permission.
+abstract interface class SegmentedPcmCaptureAudio
+    implements IncrementalPcmCaptureAudio {
+  bool get supportsIncrementalPcmRollover;
+  Future<IncrementalPcmRotation> rotateIncrementalPcm(
+    IncrementalPcmBoundary original,
+  );
+}
+
+/// Fresh local observation for the exact active PCM epoch. An unavailable or
+/// stale input throws; it must not masquerade as observed silence. Packet hints
+/// remain frozen independently until their exact native acknowledgment.
+abstract interface class IncrementalSpeakingAudio {
+  bool get supportsIncrementalSpeaking;
+  Future<bool> incrementalUserSpeaking(int captureEpoch);
+}
+
 /// Session-local preference, not proof that a microphone has been acquired.
 class AudioInputDevice {
   const AudioInputDevice({

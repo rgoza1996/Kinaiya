@@ -4,6 +4,7 @@ import asyncio
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.requests import ClientDisconnect
 
 from packages.contracts.journal_wake import (
     MAX_BYTES,
@@ -66,6 +67,10 @@ def install_journal_wake(app, store, auth):
             original = JournalWakeWait.model_validate(wake_json(bytes(raw)))
         except TimeoutError:
             raise HTTPException(408, "Journal wake body deadline expired") from None
+        except ClientDisconnect:
+            # Closing this passive reader before dispatch is a client refusal,
+            # not a server fault or evidence that a native waiter was enrolled.
+            raise HTTPException(400, "Journal wake body was disconnected") from None
         except (ValueError, TypeError, RecursionError):
             raise HTTPException(422, "Invalid journal wake request") from None
         try:

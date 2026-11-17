@@ -1,0 +1,41 @@
+"""Observe the real bounded facade independently of its held native original."""
+import asyncio
+
+from tests.integration.test_incremental_whistle_converse import converse_incremental_env as converse_incremental_env
+from tests.integration.test_live_stream_abort import abort_body, initial_body, confirmed
+from tests.integration.test_live_stream_api import live_client
+from services.converse.live_stream_api import BASE
+
+
+async def test_completed_http_facade_cannot_be_cancelled_while_native_fence_is_held(converse_incremental_env, monkeypatch):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        original = abort_body(await initial_body(env, live))
+        entered, release = asyncio.Event(), asyncio.Event()
+        native_fence = env.journal.fence_live_capture
+        calls = []
+
+        async def held(request):
+            calls.append(request)
+            entered.set()
+            await release.wait()
+            return await native_fence(request)
+
+        monkeypatch.setattr(env.journal, 'fence_live_capture', held)
+        operation = asyncio.create_task(live.client.post(BASE + '/cancel-original', json=original))
+        owner = None
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            response = await asyncio.wait_for(asyncio.shield(operation), 3)
+            assert response.status_code == 200
+            assert response.json()['outcome'] == 'in_progress'
+            assert response.json()['cleanup_confirmed'] is False
+            assert operation.done() and operation.cancel() is False
+            owner = live.app.state.live_streams.captures[original['initial']['capture_id']]
+            assert not owner.mic.fence_task.done() and len(calls) == 1
+            print('Observed bounded HTTP completion before cancellation; original native fence remains held.')
+        finally:
+            release.set()
+        await asyncio.wait_for(asyncio.shield(owner.mic.fence_task), 3)
+        confirmed((await live.client.post(BASE + '/cancel-original/lookup', json=original)).json(), original)
+        assert len(calls) == 1 and env.engine.begin_calls == 0

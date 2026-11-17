@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_utterance_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "available": {
+      "title": "Available",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "available"
+  ],
+  "title": "LiveUtteranceCapability",
+  "type": "object"
+}

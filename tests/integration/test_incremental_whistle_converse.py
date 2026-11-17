@@ -23,6 +23,7 @@ from packages.providers.whistle_ipc import socket_path
 from packages.providers.whistle_worker import serve
 from services.common.auth import Auth
 from services.converse.api import create_app as create_converse_app
+from services.converse.live import LiveConverseController
 from services.converse.runtime import ConverseRuntime
 from services.converse.windows import WindowConverseController
 from services.decisions.window_routing import WindowClassifier
@@ -144,7 +145,48 @@ class _FakeCoordinator:
 
 
 @pytest.fixture
-async def converse_incremental_env(tmp_path: Path):
+async def converse_incremental_env(tmp_path: Path, request):
+    held_reply = getattr(request, "param", None) == "adaptive-call-held"
+    playback_mode = {
+        "adaptive-call-playback": "native_stop",
+        "adaptive-call-playback-ended": "natural_end",
+        "adaptive-call-playback-mute": "mute",
+        "adaptive-call-playback-held-stop": "held_stop",
+        "adaptive-call-playback-replacement": "widget_replacement",
+        "adaptive-call-playback-reconnect": "client_replacement",
+        "adaptive-call-dependency-loss": "dependency_loss",
+        "adaptive-call-idle-dependency-loss": "dependency_idle",
+        "adaptive-call-held-dependency-loss": "dependency_held_speaker",
+        "adaptive-call-controller-replacement": "controller_replacement",
+        "adaptive-call-idle-controller-replacement": "controller_idle",
+        "adaptive-call-session-reset": "session_reset",
+        "adaptive-call-idle-session-reset": "session_reset_idle",
+        "adaptive-call-session-delete": "session_delete",
+        "adaptive-call-idle-session-delete": "session_delete_idle",
+    }.get(getattr(request, "param", None), "")
+    playback = bool(playback_mode)
+    live_consumer = playback or getattr(request, "param", None) in {
+        "adaptive-call",
+        "adaptive-call-held",
+        "adaptive-call-playback",
+    }
+    tts_calls = []
+
+    def public_tts(request):
+        assert request.url.path == "/v1/audio/speech"
+        assert request.headers["Authorization"] == "Bearer " + AUTH.tokens["converse"]
+        tts_calls.append(json.loads(request.content))
+        frame = {
+            "audio": base64.b64encode(b"\x10\x00\x20\x00\x30\x00\x40\x00").decode(),
+            "sample_rate": 24000,
+            "index": 0,
+        }
+        return httpx.Response(
+            200,
+            content=(json.dumps(frame) + "\n").encode(),
+            headers={"content-type": "application/x-ndjson"},
+        )
+
     directory = Path(tempfile.mkdtemp(prefix="whistle-int-", dir="/tmp"))
     endpoint = WhistleEndpoint(directory)
     engine = _IncrementalEngine()
@@ -205,6 +247,7 @@ async def converse_incremental_env(tmp_path: Path):
         speech = SpeechClient(
             "http://127.0.0.1:8765",
             AUTH.tokens["converse"],
+            transport=httpx.MockTransport(public_tts) if playback else None,
             stt_provider="whistle",
             stt_url="http://127.0.0.1:8764",
             stt_transport=httpx.ASGITransport(app=resources_app),
@@ -214,9 +257,16 @@ async def converse_incremental_env(tmp_path: Path):
         cleanup.callback(store.close)
         journal = LocalJournal(store, "converse")
         session = store.create_session(SessionRequest(channel="converse"))
-        runtime = ConverseRuntime(journal, ScriptedProvider(["Hello!"]))
+        replies = ["", "Public synthetic buffered reply."] if held_reply else ["", ""]
+        if playback:
+            replies = ["Public synthetic acknowledgment."]
+        runtime = ConverseRuntime(
+            journal, ScriptedProvider(replies if live_consumer else ["Hello!"])
+        )
         cleanup.push_async_callback(runtime.close)
-        window_controller = WindowConverseController(runtime)
+        window_controller = (LiveConverseController if live_consumer else WindowConverseController)(
+            runtime
+        )
         cleanup.push_async_callback(window_controller.close)
         converse_app = create_converse_app(
             runtime, AUTH, speech=speech, window_controller=window_controller
@@ -229,6 +279,11 @@ async def converse_incremental_env(tmp_path: Path):
             )
         )
         yield SimpleNamespace(
+            live_consumer=live_consumer,
+            held_reply=held_reply,
+            playback=playback,
+            playback_mode=playback_mode,
+            tts_calls=tts_calls,
             client=client,
             session=session,
             journal=journal,

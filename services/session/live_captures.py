@@ -14,6 +14,8 @@ from packages.contracts.live_captures import (
     LiveCaptureFence,
     LiveCaptureFenceReceipt,
     LiveCaptureReceipt,
+    LiveCaptureRecoveryQuery,
+    LiveCaptureRecoveryState,
     LiveCaptureRegistration,
     LiveCaptureSourceState,
     LiveCaptureState,
@@ -222,6 +224,21 @@ class LiveCaptureStore:
                 raise LiveCaptureUnavailable(
                     "Original native capture state is unavailable"
                 ) from None
+
+    def recover(self, query):
+        query = _strict(LiveCaptureRecoveryQuery, query)
+        with self.store.lock:
+            try:
+                self._backend()
+                row = self._row(query.owner_instance, query.capture_id)
+                return LiveCaptureRecoveryState(
+                    schema_version="2.0",
+                    protocol=PROTOCOL,
+                    original=query,
+                    capture=None if row is None else self._state(row[0], row),
+                )
+            except (ValueError, sqlite3.Error, TypeError, RecursionError):
+                raise LiveCaptureUnavailable("Original native recovery is unavailable") from None
 
     def _new_row(self, original, receipt, fence):
         if self.store.db.execute("SELECT count(*) FROM live_captures").fetchone()[0] >= MAX_RECORDS:
