@@ -170,6 +170,38 @@ class LiveStreamRecoveryApi {
     );
   }
 
+  OwnedSettingsAttempt<LiveStreamRetireCapability> inspectRetirement() =>
+      _transport.start(
+        'GET',
+        '${LiveStreamApi._base}/retire-original',
+        null,
+        LiveStreamRetireCapability.fromJson,
+      );
+
+  OwnedSettingsAttempt<LiveStreamRetireProof> retireOriginal(
+    LiveStreamRetireOperation original,
+  ) {
+    _checkAbort(original);
+    return _transport.start(
+      'POST',
+      '${LiveStreamApi._base}/retire-original',
+      original.body,
+      (value) => LiveStreamRetireProof.fromJson(value, original),
+    );
+  }
+
+  OwnedSettingsAttempt<LiveStreamRetireProof> lookupRetirement(
+    LiveStreamRetireOperation original,
+  ) {
+    _checkAbort(original);
+    return _transport.start(
+      'POST',
+      '${LiveStreamApi._base}/retire-original/lookup',
+      original.body,
+      (value) => LiveStreamRetireProof.fromJson(value, original),
+    );
+  }
+
   OwnedSettingsAttempt<LiveStreamProof> lookup(LiveStreamOperation original) {
     _check(original);
     return _transport.start(

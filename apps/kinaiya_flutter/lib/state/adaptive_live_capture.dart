@@ -74,9 +74,9 @@ class AdaptiveLiveCapture {
   IncrementalPcmBoundary? _rotation;
   LiveStreamOperation _begin;
   LiveStreamProof? _decoder;
-  LiveStreamAbortOperation? _negative;
-  OwnedSettingsAttempt<LiveStreamAbortProof>? _negativeAttempt;
-  LiveStreamAbortProof? _negativeProof;
+  LiveStreamRetireOperation? _negative;
+  OwnedSettingsAttempt<LiveStreamRetireProof>? _negativeAttempt;
+  LiveStreamRetireProof? _negativeProof;
   bool _stopped = false, _ready = false, _retired = false, _configured = false;
   String? _boundaryFor;
   String? _runtimeId;
@@ -492,7 +492,7 @@ class AdaptiveLiveCapture {
 
   void _requestStop(String reason) {
     if (_stopped) return;
-    final negative = LiveStreamAbortOperation(initial, reason);
+    final negative = LiveStreamRetireOperation(initial, reason);
     _stopped = true;
     _ready = false;
     if (!_wake.isCompleted) _wake.complete();
@@ -503,7 +503,7 @@ class AdaptiveLiveCapture {
       permissionWake.complete();
     }
     _negative = negative;
-    _negativeAttempt = recovery.cancelOriginal(_negative!);
+    _negativeAttempt = recovery.retireOriginal(_negative!);
     _noticeClose = notices.close();
     _track(_negativeAttempt!.settled);
     // Attach immediately even while a native/HTTP owner is still held.
@@ -559,7 +559,7 @@ class AdaptiveLiveCapture {
         await Future.wait(List.of(_actual));
       }
       if (_negativeProof?.cleanupConfirmed != true) {
-        final attempt = recovery.lookupCancellation(_negative!);
+        final attempt = recovery.lookupRetirement(_negative!);
         _track(attempt.settled);
         _negativeProof = await attempt.result;
         await attempt.settled;

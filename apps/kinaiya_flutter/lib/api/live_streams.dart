@@ -156,20 +156,29 @@ class LiveUtteranceCapability {
 }
 
 class LiveStreamAbortCapability {
-  LiveStreamAbortCapability.fromJson(Object? value) {
+  LiveStreamAbortCapability.fromJson(Object? value)
+    : this._(value, 'native_live_abort_v1');
+  LiveStreamAbortCapability._(Object? value, String protocol) {
     final raw = _object(value, {
       'schema_version',
       'protocol',
       'owner_instance',
     });
-    _version(raw, 'native_live_abort_v1', '1.0');
+    _version(raw, protocol, '1.0');
     ownerInstance = _hex(raw['owner_instance'], 32);
   }
   late final String ownerInstance;
 }
 
+class LiveStreamRetireCapability extends LiveStreamAbortCapability {
+  LiveStreamRetireCapability.fromJson(Object? value)
+    : super._(value, 'native_live_retire_v1');
+}
+
 class LiveStreamAbortOperation {
-  LiveStreamAbortOperation(this.initial, String reason) {
+  LiveStreamAbortOperation(LiveStreamOperation initial, String reason)
+    : this._(initial, reason, 'native_live_abort_v1');
+  LiveStreamAbortOperation._(this.initial, String reason, String protocol) {
     if (initial.phase != LiveStreamPhase.begin ||
         initial.isUtteranceBoundary ||
         initial.body['segment_index'] != 0 ||
@@ -179,7 +188,7 @@ class LiveStreamAbortOperation {
     body =
         _freeze({
               'schema_version': '1.0',
-              'protocol': 'native_live_abort_v1',
+              'protocol': protocol,
               'initial': initial.body,
               'reason': reason,
             })
@@ -192,8 +201,22 @@ class LiveStreamAbortOperation {
   late final String digest;
 }
 
+class LiveStreamRetireOperation extends LiveStreamAbortOperation {
+  LiveStreamRetireOperation(LiveStreamOperation initial, String reason)
+    : super._(initial, reason, 'native_live_retire_v1');
+}
+
 class LiveStreamAbortProof {
-  LiveStreamAbortProof.fromJson(Object? value, this.original) {
+  LiveStreamAbortProof.fromJson(
+    Object? value,
+    LiveStreamAbortOperation original,
+  ) : this._(value, original, 'native_live_abort_v1');
+  LiveStreamAbortProof._(
+    Object? value,
+    this.original,
+    String protocol, {
+    bool permitObsolete = false,
+  }) {
     final raw = _object(value, {
       'schema_version',
       'protocol',
@@ -203,7 +226,7 @@ class LiveStreamAbortProof {
       'capture',
       'cleanup_confirmed',
     });
-    _version(raw, 'native_live_abort_v1', '1.0');
+    _version(raw, protocol, '1.0');
     if (!_equal(raw['original'], original.body) ||
         _hex(raw['request_sha256'], 64) != original.digest ||
         !{'unknown', 'in_progress', 'confirmed'}.contains(raw['outcome'])) {
@@ -220,7 +243,8 @@ class LiveStreamAbortProof {
     if ((confirmed &&
             (capture == null ||
                 capture!.captureOpen ||
-                capture!.body['fence'] == null)) ||
+                !(capture!.body['fence'] != null ||
+                    (permitObsolete && capture!.permanentlyClosed)))) ||
         (cleanupConfirmed && !confirmed)) {
       throw _invalid;
     }
@@ -230,6 +254,13 @@ class LiveStreamAbortProof {
   late final LiveCaptureObservation? capture;
   late final bool cleanupConfirmed;
   bool get confirmed => outcome == 'confirmed';
+}
+
+class LiveStreamRetireProof extends LiveStreamAbortProof {
+  LiveStreamRetireProof.fromJson(
+    Object? value,
+    LiveStreamRetireOperation original,
+  ) : super._(value, original, 'native_live_retire_v1', permitObsolete: true);
 }
 
 /// Detach and hash once. Recovery never recreates or resends a mutation.
@@ -445,6 +476,11 @@ class LiveCaptureObservation {
   }
   late final bool registered, captureOpen;
   late final Map<String, Object?> body;
+  bool get permanentlyClosed =>
+      !captureOpen &&
+      (body['fence'] != null ||
+          !_equal(_object(body['original'])['backend'], body['backend']) ||
+          body['scope_current'] == false);
 }
 
 Map<String, Object?> _entry(Object? value, Map<String, Object?> binding) {

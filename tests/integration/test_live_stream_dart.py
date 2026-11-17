@@ -14,6 +14,7 @@ from fastapi import Depends
 from flutter_project_helpers import isolated_flutter_project
 
 from services.session.api import create_app as session_app
+from services.session.live_captures import LiveCaptureStore
 from tests.integration.test_incremental_whistle_converse import AUTH
 from tests.integration.test_incremental_whistle_converse import (
     converse_incremental_env as converse_incremental_env,
@@ -111,6 +112,18 @@ from tests.integration.test_live_stream_api import live_client, scope_for
             "",
             id="adaptive_live_held_speaker_dependency_loss",
         ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-controller-replacement",
+            "",
+            id="adaptive_live_native_controller_replacement",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-idle-controller-replacement",
+            "",
+            id="adaptive_live_idle_native_controller_replacement",
+        ),
     ],
     indirect=["converse_incremental_env"],
 )
@@ -188,6 +201,30 @@ async def test_actual_dart_native_live_stream_rollover(
                     "legacy_enabled": env.runtime.enabled,
                 }
 
+        if env.playback_mode in {"controller_replacement", "controller_idle"}:
+
+            @native.app.post(
+                "/fixture/native-capture-controller/replace",
+                dependencies=[Depends(AUTH.require("owner"))],
+            )
+            async def replace_native_capture_controller():
+                capture = next(iter(native.app.state.live_streams.captures.values()))
+                original = capture.mic.original
+                replacement = LiveCaptureStore(env.store)
+                assert replacement.activate()
+                env.store.live_captures = replacement
+                state = await capture.mic.inspect()
+                # This changes real persisted native authority, without calling
+                # capture.fence or supplying a transcript/bridge notification.
+                assert state.backend.backend_id == original.backend.backend_id
+                return {
+                    "capture_open": state.capture_open,
+                    "registration_retained": state.receipt is not None,
+                    "controller_replaced": state.backend.controller_id
+                    != original.backend.controller_id,
+                    "explicit_fence": state.fence is not None,
+                }
+
         @native.app.middleware("http")
         async def observe(request, call_next):
             result = await call_next(request)
@@ -251,7 +288,7 @@ async def test_actual_dart_native_live_stream_rollover(
                     (
                         "pcm",
                         0
-                        if env.playback_mode == "dependency_idle"
+                        if env.playback_mode in {"dependency_idle", "controller_idle"}
                         else 1
                         if env.playback_mode
                         in {
@@ -261,6 +298,7 @@ async def test_actual_dart_native_live_stream_rollover(
                             "client_replacement",
                             "dependency_loss",
                             "dependency_held_speaker",
+                            "controller_replacement",
                         }
                         else 3
                         if advanced
@@ -268,7 +306,8 @@ async def test_actual_dart_native_live_stream_rollover(
                     ),
                     ("finish", 1 if consumer and not held_reply and not playback else 0),
                     ("cancel", 0),
-                    ("cancel-original", 1),
+                    ("cancel-original", 0),
+                    ("retire-original", 1),
                     ("next-utterance", 1 if advanced else 0),
                 ):
                     assert (
@@ -295,7 +334,7 @@ async def test_actual_dart_native_live_stream_rollover(
                     }:
                         assert not native.worker.ready and not native.dependency.ready
                         assert env.runtime.enabled
-                    if env.playback_mode == "dependency_idle":
+                    if env.playback_mode in {"dependency_idle", "controller_idle"}:
                         assert env.tts_calls == [] and native.calls == []
                         assert env.store.read(kinds=["conversation.converse"]) == []
                         assert not any(path == "/v1/converse/speech" for _, path, _ in requests)

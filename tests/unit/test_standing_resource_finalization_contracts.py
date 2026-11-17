@@ -642,6 +642,14 @@ def schema_pin():
         "LiveStreamNextUtterance",
         "LiveUtteranceCapability",
     }
+    # #685: additive native retirement/recovery contracts preserve the legacy pin.
+    additive |= {
+        "LiveCaptureRecoveryQuery",
+        "LiveCaptureRecoveryState",
+        "LiveStreamRetire",
+        "LiveStreamRetireCapability",
+        "LiveStreamRetireProof",
+    }
     # Native consumer ownership has its own independently pinned family.
     additive |= {
         "LiveEffectQuery",

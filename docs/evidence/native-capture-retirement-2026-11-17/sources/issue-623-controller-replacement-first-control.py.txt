@@ -1,0 +1,431 @@
+"""#623: a negative original must fence even a start that has not arrived."""
+
+import asyncio
+
+import httpx
+import pytest
+
+from packages.contracts.stt_settlement import digest
+from services.converse.live_stream_api import BASE
+from services.session.live_captures import LiveCaptureStore
+from tests.integration.test_incremental_whistle_converse import AUTH
+from tests.integration.test_incremental_whistle_converse import (
+    converse_incremental_env as converse_incremental_env,
+)
+from tests.integration.test_live_stream_api import begin_body, live_client
+
+
+def abort_body(initial, reason="cancelled"):
+    return {
+        "schema_version": "1.0",
+        "protocol": "native_live_abort_v1",
+        "initial": initial,
+        "reason": reason,
+    }
+
+
+async def initial_body(env, live):
+    owner = (await live.client.get(BASE + "/ownership")).json()["owner_instance"]
+    return begin_body(env, owner)
+
+
+def confirmed(proof, original):
+    assert proof["original"] == original and proof["request_sha256"] == digest(original)
+    assert proof["outcome"] == "confirmed" and proof["cleanup_confirmed"]
+    assert not proof["capture"]["capture_open"] and proof["capture"]["fence"] is not None
+    assert proof["capture"]["original"]["capture_id"] == original["initial"]["capture_id"]
+
+
+async def test_negative_original_precedes_late_begin_without_registration_or_stt(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        original = abort_body(initial)
+        missing = await live.client.post(BASE + "/cancel-original/lookup", json=original)
+        assert missing.status_code == 200 and missing.json()["outcome"] == "unknown"
+        assert live.app.state.live_streams.captures == {}
+        assert not env.runtime.stt_model_settings.leases and env.engine.begin_calls == 0
+        # The existing identity-only cancellation contract is unchanged.
+        legacy = {
+            key: initial[key]
+            for key in ("schema_version", "protocol", "owner_instance", "capture_id")
+        }
+        assert (
+            await live.client.post(BASE + "/cancel", json={**legacy, "reason": "cancelled"})
+        ).status_code == 409
+        stopped = await live.client.post(BASE + "/cancel-original", json=original)
+        assert stopped.status_code == 200
+        confirmed(stopped.json(), original)
+        assert stopped.json()["capture"]["receipt"] is None
+        assert (await live.client.post(BASE + "/begin", json=initial)).status_code == 409
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+        assert not env.runtime.stt_model_settings.leases and env.engine.begin_calls == 0
+        assert env.store.read(kinds=["conversation.window"]) == []
+
+
+async def test_negative_original_holds_actual_native_fence_and_deduplicates_delivery(
+    converse_incremental_env,
+    monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        original = abort_body(await initial_body(env, live))
+        entered, release = asyncio.Event(), asyncio.Event()
+        fence = env.journal.fence_live_capture
+        calls = []
+
+        async def held(request):
+            calls.append(request)
+            entered.set()
+            await release.wait()
+            return await fence(request)
+
+        monkeypatch.setattr(env.journal, "fence_live_capture", held)
+        operation = asyncio.create_task(live.client.post(BASE + "/cancel-original", json=original))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            first = await asyncio.wait_for(asyncio.shield(operation), 3)
+            assert first.status_code == 200
+            assert (
+                first.json()["outcome"] == "in_progress" and not first.json()["cleanup_confirmed"]
+            )
+            duplicate = await live.client.post(BASE + "/cancel-original", json=original)
+            assert duplicate.status_code == 200 and not duplicate.json()["cleanup_confirmed"]
+            assert len(calls) == 1
+            assert (
+                await live.client.post(BASE + "/begin", json=original["initial"])
+            ).status_code == 409
+            assert env.engine.begin_calls == 0 and not env.runtime.stt_model_settings.leases
+        finally:
+            release.set()
+            await asyncio.wait_for(asyncio.shield(operation), 3)
+        owner = live.app.state.live_streams.captures[original["initial"]["capture_id"]]
+        await asyncio.wait_for(asyncio.shield(owner.mic.fence_task), 3)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+
+
+async def test_negative_original_during_held_registration_preserves_no_stt_effect(
+    converse_incremental_env,
+    monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        entered, release = asyncio.Event(), asyncio.Event()
+        register = env.journal.register_live_capture
+
+        async def held(request):
+            entered.set()
+            await release.wait()
+            return await register(request)
+
+        monkeypatch.setattr(env.journal, "register_live_capture", held)
+        operation = asyncio.create_task(live.client.post(BASE + "/begin", json=initial))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            original = abort_body(initial, "disconnected")
+            stopped = await live.client.post(BASE + "/cancel-original", json=original)
+            assert stopped.status_code == 200 and not stopped.json()["cleanup_confirmed"]
+            assert not stopped.json()["capture"]["capture_open"]
+            assert stopped.json()["capture"]["fence"] is not None
+            assert not env.runtime.stt_model_settings.leases and env.engine.begin_calls == 0
+        finally:
+            release.set()
+            started = await asyncio.wait_for(asyncio.shield(operation), 3)
+        assert started.status_code in (409, 503)
+        owner = live.app.state.live_streams.captures[initial["capture_id"]]
+        await asyncio.wait_for(asyncio.gather(*owner.tasks(), return_exceptions=True), 3)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+        assert not env.runtime.stt_model_settings.leases and env.engine.begin_calls == 0
+        assert await owner.close()
+        assert await live.app.state.live_streams.close()
+
+
+@pytest.mark.parametrize("role", [None, "agent", "converse", "decisions", "resources"])
+@pytest.mark.parametrize("suffix", ["/cancel-original", "/cancel-original/lookup"])
+async def test_negative_original_requires_owner_before_any_metadata_effect(
+    converse_incremental_env,
+    role,
+    suffix,
+):
+    env = converse_incremental_env
+    headers = {"Authorization": "" if role is None else "Bearer " + AUTH.tokens[role]}
+    result = await env.client.post(BASE + suffix, headers=headers, json={})
+    assert result.status_code == (401 if role is None else 403)
+    assert env.engine.begin_calls == 0 and env.app.state.live_streams.captures == {}
+
+
+async def test_persistent_negative_readback_and_late_begin_survive_registry_retirement(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        original = abort_body(initial)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original", json=original)).json(), original
+        )
+        registry = live.app.state.live_streams
+        for index in range(70):
+            other = abort_body({**initial, "capture_id": f"{index:032x}"})
+            confirmed((await live.client.post(BASE + "/cancel-original", json=other)).json(), other)
+            assert len(registry.captures) <= registry.history_limit + 1
+        assert initial["capture_id"] not in registry.captures
+        # Read-only recovery can inspect the persisted fence without reenrolling
+        # capture, registration, a provider or a new negative mutation.
+        count = len(registry.captures)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+        assert len(registry.captures) == count
+        assert (await live.client.post(BASE + "/begin", json=initial)).status_code in (409, 503)
+        assert not env.runtime.stt_model_settings.leases and env.engine.begin_calls == 0
+
+
+async def test_lost_fence_ack_uses_exact_native_readback_without_a_second_mutation(
+    converse_incremental_env,
+    monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        original = abort_body(await initial_body(env, live))
+        fence, lookup = env.journal.fence_live_capture, env.journal.lookup_live_capture
+        calls = []
+        block_lookup = False
+
+        async def lost(request):
+            nonlocal block_lookup
+            calls.append(request)
+            await fence(request)
+            block_lookup = True
+            raise httpx.ReadError("Public synthetic lost fence acknowledgment")
+
+        async def inspect(request):
+            if block_lookup:
+                raise httpx.ReadError("Public synthetic metadata link unavailable")
+            return await lookup(request)
+
+        monkeypatch.setattr(env.journal, "fence_live_capture", lost)
+        monkeypatch.setattr(env.journal, "lookup_live_capture", inspect)
+        uncertain = await live.client.post(BASE + "/cancel-original", json=original)
+        assert uncertain.status_code == 200
+        assert (
+            uncertain.json()["outcome"] == "unknown" and not uncertain.json()["cleanup_confirmed"]
+        )
+        assert len(calls) == 1 and env.engine.begin_calls == 0
+        block_lookup = False
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+        assert len(calls) == 1 and not env.runtime.stt_model_settings.leases
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"owner_instance": "a" * 32},
+        {"session_id": "other"},
+        {"thread_id": "other"},
+        {"epoch": 2},
+        {"utterance_id": "other"},
+        {"content_scope": "public_synthetic"},
+    ],
+)
+async def test_negative_original_cannot_substitute_a_known_initial_start(
+    converse_incremental_env,
+    change,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        assert (await live.client.post(BASE + "/begin", json=initial)).status_code == 200
+        changed = abort_body({**initial, **change})
+        for suffix in ("/cancel-original", "/cancel-original/lookup"):
+            assert (await live.client.post(BASE + suffix, json=changed)).status_code == 409
+        owner = live.app.state.live_streams.captures[initial["capture_id"]]
+        assert not owner.capture_fenced and len(env.runtime.stt_model_settings.leases) == 1
+        original = abort_body(initial)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original", json=original)).json(), original
+        )
+
+
+async def test_negative_original_keeps_actual_decoder_cleanup_and_original_reason(
+    converse_incremental_env,
+    monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        assert (await live.client.post(BASE + "/begin", json=initial)).status_code == 200
+        owner = live.app.state.live_streams.captures[initial["capture_id"]]
+        entered, release = asyncio.Event(), asyncio.Event()
+        drain = owner.states[-1].client.drain
+
+        async def held():
+            entered.set()
+            await release.wait()
+            await drain()
+
+        monkeypatch.setattr(owner.states[-1].client, "drain", held)
+        original = abort_body(initial, "replaced")
+        try:
+            stopped = await live.client.post(BASE + "/cancel-original", json=original)
+            await asyncio.wait_for(entered.wait(), 3)
+            assert stopped.status_code == 200 and stopped.json()["outcome"] == "confirmed"
+            assert not stopped.json()["cleanup_confirmed"] and not owner.native.lease.settled
+            assert (
+                await live.client.post(
+                    BASE + "/cancel-original", json=abort_body(initial, "owner_off")
+                )
+            ).status_code == 409
+        finally:
+            release.set()
+        await asyncio.wait_for(asyncio.gather(*owner.tasks(), return_exceptions=True), 3)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+        assert owner.native.lease.settled and not env.runtime.stt_model_settings.leases
+
+
+async def test_negative_capability_and_fence_work_with_owner_off_and_no_stt_selection(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    async with live_client(env, native_stt=False) as live:
+        env.runtime.enabled = False
+        assert not (await live.client.get(BASE + "/ownership")).json()["available"]
+        original = abort_body(await initial_body(env, live), "owner_off")
+        capability = await live.client.get(BASE + "/cancel-original")
+        assert capability.status_code == 200
+        assert capability.json()["owner_instance"] == original["initial"]["owner_instance"]
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original", json=original)).json(), original
+        )
+        assert env.runtime.stt_model_settings is None and env.engine.begin_calls == 0
+
+
+async def test_negative_original_confirms_replaced_native_controller_after_actual_cleanup(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        assert (await live.client.post(BASE + "/begin", json=initial)).status_code == 200
+        capture = live.app.state.live_streams.captures[initial["capture_id"]]
+        registration = capture.mic.original
+        replacement = LiveCaptureStore(env.store)
+        assert replacement.activate()
+        env.store.live_captures = replacement
+        state = await capture.mic.inspect()
+        assert state.original == registration and state.receipt is not None
+        assert state.backend.backend_id == registration.backend.backend_id
+        assert state.backend.controller_id != registration.backend.controller_id
+        assert not state.capture_open and state.fence is None
+
+        original = abort_body(initial, "replaced")
+        stopped = await live.client.post(BASE + "/cancel-original", json=original)
+        assert stopped.status_code == 200
+        proof = stopped.json()
+        assert capture.cleanup_complete() and capture.native.lease.settled
+        assert not env.runtime.stt_model_settings.leases
+        assert proof["outcome"] == "confirmed" and proof["cleanup_confirmed"]
+        assert proof["original"] == original and proof["request_sha256"] == digest(original)
+        assert proof["capture"] == state.model_dump(mode="json")
+        assert env.engine.begin_calls == 1 and env.engine.step == 0
+        assert live.calls == [] and env.store.read(kinds=["conversation.window"]) == []
+
+
+@pytest.mark.parametrize("role", [None, "agent", "converse", "decisions", "resources"])
+async def test_negative_capability_requires_owner(converse_incremental_env, role):
+    env = converse_incremental_env
+    headers = {"Authorization": "" if role is None else "Bearer " + AUTH.tokens[role]}
+    response = await env.client.get(BASE + "/cancel-original", headers=headers)
+    assert response.status_code == (401 if role is None else 403)
+    assert env.app.state.live_streams.captures == {} and env.engine.begin_calls == 0
+
+
+async def test_cancel_before_original_backend_bind_preserves_negative_reason_and_no_stt(
+    converse_incremental_env,
+    monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        entered, release = asyncio.Event(), asyncio.Event()
+        backend = env.journal.live_capture_backend
+
+        async def held():
+            entered.set()
+            await release.wait()
+            return await backend()
+
+        monkeypatch.setattr(env.journal, "live_capture_backend", held)
+        start = asyncio.create_task(live.client.post(BASE + "/begin", json=initial))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            original = abort_body(initial, "disconnected")
+            stopped = await live.client.post(BASE + "/cancel-original", json=original)
+            assert stopped.status_code == 200 and stopped.json()["outcome"] == "in_progress"
+            assert stopped.json()["capture"] is None and not stopped.json()["cleanup_confirmed"]
+        finally:
+            release.set()
+            result = await asyncio.wait_for(asyncio.shield(start), 3)
+        assert result.status_code in (409, 503)
+        owner = live.app.state.live_streams.captures[initial["capture_id"]]
+        await asyncio.wait_for(asyncio.gather(*owner.tasks(), return_exceptions=True), 3)
+        readback = (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json()
+        confirmed(readback, original)
+        assert readback["capture"]["fence"]["request"]["reason"] == "disconnected"
+        assert not owner.stt_attempted and not env.runtime.stt_model_settings.leases
+        assert env.engine.begin_calls == 0
+
+
+async def test_cancelled_http_facade_does_not_cancel_the_retained_native_fence(
+    converse_incremental_env,
+    monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        original = abort_body(await initial_body(env, live))
+        entered, release = asyncio.Event(), asyncio.Event()
+        fence = env.journal.fence_live_capture
+        calls = []
+
+        async def held(request):
+            calls.append(request)
+            entered.set()
+            await release.wait()
+            return await fence(request)
+
+        monkeypatch.setattr(env.journal, "fence_live_capture", held)
+        operation = asyncio.create_task(live.client.post(BASE + "/cancel-original", json=original))
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            operation.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await operation
+            owner = live.app.state.live_streams.captures[original["initial"]["capture_id"]]
+            assert not owner.mic.fence_task.done() and len(calls) == 1
+        finally:
+            release.set()
+        await asyncio.wait_for(asyncio.shield(owner.mic.fence_task), 3)
+        confirmed(
+            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            original,
+        )
+        assert len(calls) == 1 and env.engine.begin_calls == 0

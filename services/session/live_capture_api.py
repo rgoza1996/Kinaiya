@@ -10,6 +10,8 @@ from packages.contracts.live_captures import (
     MAX_REQUEST_BYTES,
     LiveCaptureBackend,
     LiveCaptureFence,
+    LiveCaptureRecoveryQuery,
+    LiveCaptureRecoveryState,
     LiveCaptureRegistration,
     LiveCaptureSourceState,
     LiveCaptureState,
@@ -95,6 +97,15 @@ def install_live_captures(app, store, auth):
     )
     async def lookup(request: Request):
         return invoke("lookup", await body(request, LiveCaptureRegistration, read))
+
+    @app.post(
+        BASE + "/recover",
+        dependencies=[Depends(read)],
+        response_model=LiveCaptureRecoveryState,
+        openapi_extra=schema(LiveCaptureRecoveryQuery),
+    )
+    async def recover(request: Request):
+        return invoke("recover", await body(request, LiveCaptureRecoveryQuery, read))
 
     @app.post(
         BASE + "/fence",

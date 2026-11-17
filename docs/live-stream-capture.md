@@ -153,6 +153,38 @@ It cannot dispatch PCM, start capture, finish a decoder or advance an utterance.
 The Call owner must retain and close this channel through actual settlement;
 closing either facade alone is not a native cancellation receipt.
 
+## Native controller replacement and retirement (#685)
+
+The separate additive `native_live_retire_v1`, schema 1.0, uses owner
+`retire-original` and `retire-original/lookup` endpoints beside the unchanged
+`cancel-original` protocol. Its capability must be inspected explicitly before
+Call admission. It repeats the complete original initial begin and fixed reason;
+it grants no positive capture, PCM, inference or replacement permission.
+
+Retirement can confirm permanent native permission closure from an exact fence,
+a changed native backend/controller, or an obsolete session scope. A missing
+registration under the same current backend and scope remains unknown. The old
+abort protocol still requires its explicit native fence. Neither protocol
+equates logical closure with microphone, socket, STT, decoder or speaker cleanup.
+Actual original cleanup and the explicit pre-STT flag remain separately checked.
+A held registration Task can have closed permission while cleanup is unconfirmed.
+
+The read-only Session `live-captures/recover` endpoint accepts the closed
+`LiveCaptureRecoveryQuery` identity and session/thread/epoch. Converse and
+Decisions can inspect it through their normal authenticated journal interfaces.
+Its bounded `LiveCaptureRecoveryState` repeats that exact query and returns the
+original persisted registration/fence and current native state, or null when
+absent. Scope mismatch refuses. It starts no capture, claims no controller,
+writes no ledger and fabricates no fence. This lets a retirement lookup recover
+an old backend binding after a recoverable temporary Converse record retires.
+
+An original whose failed registration has no durable native row remains pinned
+in the bounded Converse registry. History pressure cannot erase its only cleanup
+proof. The existing total96 record ceiling still applies; exhaustion refuses
+new work. Recoverable terminal records retain their64-entry history target.
+This qualifies controller replacement within a surviving Converse owner, not
+the death/replacement of that service process or physical-device recovery.
+
 ## Owner HTTP contract
 
 The explicit `converse_live_stream_v2`, schema 2.0, lives under
@@ -177,9 +209,10 @@ collection has a five-second deadline. Responses are uncached and bounded to
 448 KiB. Native PCM remains 1–16,000 contiguous samples per request, at most
 960,000 samples per decoder, with one pending original at a time.
 
-There are at most 32 active and 64 historical logical captures, with the existing
-bounded stream history per capture. Only positively fenced and actually retired
-captures can be removed for historical capacity. Native journal, permission and
+There are at most 32 active and 96 total logical captures, with a64-entry
+recoverable terminal-history target and the existing bounded stream history per
+capture. Only permanently closed, actually retired captures with durable native
+recovery metadata can be removed for historical capacity. Native journal, permission and
 model-resource bounds remain independent. Exhaustion refuses admission rather
 than erasing uncertain work.
 

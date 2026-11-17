@@ -98,7 +98,8 @@ class _ObservedNotices extends http.BaseClient {
     final cancellation =
         cancelProofs != null &&
         request.method == 'POST' &&
-        request.url.path.contains('/cancel-original');
+        (request.url.path.contains('/cancel-original') ||
+            request.url.path.contains('/retire-original'));
     if (!request.url.path.endsWith('/v1/transcript') && !cancellation) {
       return result;
     }
@@ -613,7 +614,9 @@ void main() {
   );
 
   testWidgets(
-    playbackMode.startsWith('dependency_')
+    playbackMode.startsWith('controller_')
+        ? 'native controller replacement retires original Call without replay $playbackMode'
+        : playbackMode.startsWith('dependency_')
         ? 'required Decisions loss stops quiet capture without fresh PCM $playbackMode'
         : playbackMode == 'client_replacement'
         ? 'client replacement retains original native recovery and unresolved local speaker'
@@ -707,6 +710,79 @@ void main() {
         await tester.ensureVisible(start);
         await tester.tap(start);
         await nativeSpin(tester, () => activities.any((a) => a.listening));
+        Future<void> verifyControllerReplacement() async {
+          Completer<void>? controllerStop;
+          try {
+            if (playbackMode == 'controller_replacement') {
+              controllerStop = audio.heldPlaybackStop = Completer<void>();
+            }
+            final control = IOClient(
+              _NativeLoopbackHttp().createHttpClient(null),
+            );
+            final response = await tester.runAsync(
+              () => control.post(
+                Uri.parse('$url/fixture/native-capture-controller/replace'),
+                headers: {'authorization': 'Bearer $token'},
+              ),
+            );
+            control.close();
+            expect(response!.statusCode, 200);
+            expect(jsonDecode(response.body), {
+              'capture_open': false,
+              'registration_retained': true,
+              'controller_replaced': true,
+              'explicit_fence': false,
+            });
+            await nativeSpin(tester, () => !audio.armed);
+            await nativeSpin(
+              tester,
+              () => cancelProofs.any(
+                (proof) => proof['cleanup_confirmed'] == true,
+              ),
+            );
+            if (controllerStop != null) {
+              expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+              expect(audio.releases, 0);
+              expect(await audio.isPlaying, isTrue);
+              await tester.pump(const Duration(seconds: 4));
+              expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+              expect(audio.arms, 1);
+              expect(audio.releases, 0);
+              controllerStop.complete();
+            }
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            expect(await audio.isPlaying, isFalse);
+            expect(audio.arms, 1);
+            expect(audio.releases, 1);
+            expect(audio.clips, 0);
+            expect(
+              audio.acknowledgments,
+              playbackMode == 'controller_idle' ? 0 : 1,
+            );
+            expect(
+              audio.queuedAudio,
+              hasLength(playbackMode == 'controller_idle' ? 0 : 1),
+            );
+            await tester.pump(const Duration(seconds: 4));
+            expect(audio.arms, 1);
+            expect(activities.last.stopPending, isFalse);
+            expect(activities.last.stopUnconfirmed, isFalse);
+          } finally {
+            if (controllerStop != null && !controllerStop.isCompleted) {
+              controllerStop.complete();
+            }
+            await tester.pumpWidget(const SizedBox.shrink());
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            state.dispose();
+          }
+        }
+
         Future<void> verifyDependencyLoss() async {
           try {
             final control = IOClient(
@@ -770,6 +846,10 @@ void main() {
           await verifyDependencyLoss();
           return;
         }
+        if (playbackMode == 'controller_idle') {
+          await verifyControllerReplacement();
+          return;
+        }
         audio.feed();
         await nativeSpin(tester, () => audio.queuedAudio.isNotEmpty);
         expect(audio.queuedAudio, [
@@ -790,6 +870,11 @@ void main() {
               (entry['payload'] as Map)['status'] == 'played',
         );
         expect(hasPlayed(), isFalse);
+        if (playbackMode == 'controller_replacement') {
+          await verifyControllerReplacement();
+          expect(hasPlayed(), isFalse);
+          return;
+        }
         if (playbackMode == 'dependency_held_speaker') {
           delayedLookup.enabled = true;
           try {

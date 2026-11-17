@@ -100,13 +100,44 @@ class LiveStreamAbortProof(_Closed):
                 for key in ("owner_instance", "capture_id", "session_id", "thread_id", "epoch")
             ):
                 raise ValueError("A negative proof changed its native scope")
-        if self.outcome == "confirmed" and (
-            self.capture is None or self.capture.capture_open or self.capture.fence is None
-        ):
-            raise ValueError("A negative confirmation requires its persistent native fence")
+        if self.outcome == "confirmed" and not self.native_closed():
+            raise ValueError("A negative confirmation requires qualified native closure")
         if self.cleanup_confirmed and self.outcome != "confirmed":
             raise ValueError("Cleanup requires confirmed native closure")
         return self
+
+    def native_closed(self):
+        return bool(
+            self.capture is not None and not self.capture.capture_open and self.capture.fence
+        )
+
+
+class LiveStreamRetireCapability(LiveStreamAbortCapability):
+    protocol: Literal["native_live_retire_v1"]
+
+
+class LiveStreamRetire(LiveStreamAbort):
+    protocol: Literal["native_live_retire_v1"]
+
+
+class LiveStreamRetireProof(LiveStreamAbortProof):
+    protocol: Literal["native_live_retire_v1"]
+    original: LiveStreamRetire
+
+    def native_closed(self):
+        state = self.capture
+        # A missing registration under the same current backend/scope is unknown.
+        # A changed native owner/scope permanently excludes a late registration;
+        # it does not establish any physical or HTTP cleanup by itself (#685).
+        return bool(
+            state is not None
+            and not state.capture_open
+            and (
+                state.fence is not None
+                or state.original.backend != state.backend
+                or not state.scope_current
+            )
+        )
 
 
 class LiveStreamNextUtterance(LiveStreamBegin):

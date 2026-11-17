@@ -1355,7 +1355,7 @@ class _CharacterViewState extends State<CharacterView> {
     });
     final recovery = api.liveStreams.recoveryFor(initial);
     try {
-      final negative = await recovery.inspectCancellation().result;
+      final negative = await recovery.inspectRetirement().result;
       if (!sourceCurrent() ||
           negative.ownerInstance != capability.ownerInstance) {
         await recovery.close();

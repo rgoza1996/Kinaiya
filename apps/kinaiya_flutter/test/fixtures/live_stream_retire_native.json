@@ -1,0 +1,97 @@
+{
+  "capability": {
+    "schema_version": "1.0",
+    "protocol": "native_live_retire_v1",
+    "owner_instance": "a6d09b65fde0cece87eb8fcbd78d5797"
+  },
+  "request": {
+    "schema_version": "1.0",
+    "protocol": "native_live_retire_v1",
+    "initial": {
+      "schema_version": "2.0",
+      "protocol": "converse_live_stream_v2",
+      "owner_instance": "a6d09b65fde0cece87eb8fcbd78d5797",
+      "capture_id": "dddddddddddddddddddddddddddddddd",
+      "segment_index": 0,
+      "session_id": "fc53db32-6bc2-4dea-a835-55aadd2a9d30",
+      "thread_id": "6b2555d2-4e5d-46fc-9cf1-3f91dd212ba6",
+      "epoch": 1,
+      "utterance_id": "public-owned-lease",
+      "content_scope": "local_only"
+    },
+    "reason": "replaced"
+  },
+  "proof": {
+    "schema_version": "1.0",
+    "protocol": "native_live_retire_v1",
+    "original": {
+      "schema_version": "1.0",
+      "protocol": "native_live_retire_v1",
+      "initial": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "a6d09b65fde0cece87eb8fcbd78d5797",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "session_id": "fc53db32-6bc2-4dea-a835-55aadd2a9d30",
+        "thread_id": "6b2555d2-4e5d-46fc-9cf1-3f91dd212ba6",
+        "epoch": 1,
+        "utterance_id": "public-owned-lease",
+        "content_scope": "local_only",
+        "segment_index": 0
+      },
+      "reason": "replaced"
+    },
+    "request_sha256": "030d5fc99b60e53402d01139ceed71cc89b8914767a8e5c6727aa91c979ed88e",
+    "outcome": "confirmed",
+    "capture": {
+      "schema_version": "2.0",
+      "protocol": "native_live_capture_v2",
+      "original": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "backend": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "backend_id": "83b8675bdc38942f283aec1c43b664e7",
+          "controller_id": "edd46f01663addebcac5b2ed9eafce85"
+        },
+        "owner_instance": "a6d09b65fde0cece87eb8fcbd78d5797",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "session_id": "fc53db32-6bc2-4dea-a835-55aadd2a9d30",
+        "thread_id": "6b2555d2-4e5d-46fc-9cf1-3f91dd212ba6",
+        "epoch": 1
+      },
+      "backend": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "backend_id": "83b8675bdc38942f283aec1c43b664e7",
+        "controller_id": "9b78eb3568ae8d0d87bc8b1af37f5b79"
+      },
+      "receipt": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "original": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "backend": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend_id": "83b8675bdc38942f283aec1c43b664e7",
+            "controller_id": "edd46f01663addebcac5b2ed9eafce85"
+          },
+          "owner_instance": "a6d09b65fde0cece87eb8fcbd78d5797",
+          "capture_id": "dddddddddddddddddddddddddddddddd",
+          "session_id": "fc53db32-6bc2-4dea-a835-55aadd2a9d30",
+          "thread_id": "6b2555d2-4e5d-46fc-9cf1-3f91dd212ba6",
+          "epoch": 1
+        },
+        "registration_id": "e368398ed6aaecdc0816346fcc5fe7ea",
+        "registered_sequence": 0
+      },
+      "fence": null,
+      "scope_current": true,
+      "capture_open": false
+    },
+    "cleanup_confirmed": true
+  }
+}

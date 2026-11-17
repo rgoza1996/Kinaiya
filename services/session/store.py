@@ -1983,6 +1983,11 @@ class LocalJournal:
             raise PermissionError("Native capture metadata requires Converse or Decisions")
         return self.store.live_captures.lookup(original)
 
+    async def recover_live_capture(self, query):
+        if self.role not in {"converse", "decisions"}:
+            raise PermissionError("Native capture metadata requires Converse or Decisions")
+        return self.store.live_captures.recover(query)
+
     async def fence_live_capture(self, request):
         if self.role != "converse":
             raise PermissionError("Native capture fence requires Converse")

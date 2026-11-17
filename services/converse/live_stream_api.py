@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from packages.contracts.live_captures import LiveCaptureRegistration
+from packages.contracts.live_captures import LiveCaptureRecoveryQuery, LiveCaptureRegistration
 from packages.contracts.live_streams import (
     LiveStreamAbort,
     LiveStreamAbortCapability,
@@ -22,6 +22,9 @@ from packages.contracts.live_streams import (
     LiveStreamNextUtterance,
     LiveStreamPcm,
     LiveStreamProof,
+    LiveStreamRetire,
+    LiveStreamRetireCapability,
+    LiveStreamRetireProof,
     LiveStreamScope,
     LiveUtteranceCapability,
 )
@@ -69,7 +72,16 @@ class LiveStreamRegistry:
         )
 
     def _trim(self):
-        terminal = [capture for capture in self.captures.values() if capture.cleanup_complete()]
+        terminal = []
+        for capture in self.captures.values():
+            if not capture.cleanup_complete():
+                continue
+            state = capture.mic.fenced_state
+            # A failed registration across controller replacement may have no
+            # persistent row. Keep its only recovery original inside the total
+            # record bound instead of donating unprovable history space (#685).
+            if state.receipt is not None or state.fence is not None:
+                terminal.append(capture)
         for capture in terminal[: max(0, len(terminal) - self.history_limit)]:
             self.captures.pop(capture.scope.capture_id)
             self.runtime._incremental_stream_owners.discard(capture)
@@ -239,6 +251,23 @@ class LiveStreamRegistry:
         try:
             if capture is not None and capture.mic is not None:
                 observed = await capture.mic.inspect()
+            elif capture is None and isinstance(body, LiveStreamRetire):
+                recovered = await self.runtime.journal.recover_live_capture(
+                    LiveCaptureRecoveryQuery(
+                        schema_version="2.0",
+                        protocol="native_live_capture_v2",
+                        **body.initial.model_dump(
+                            include={
+                                "owner_instance",
+                                "capture_id",
+                                "session_id",
+                                "thread_id",
+                                "epoch",
+                            }
+                        ),
+                    )
+                )
+                observed = recovered.capture
             elif capture is None:
                 # Temporary records retire only after actual cleanup. Their
                 # persistent Session fence remains independently readable;
@@ -259,17 +288,28 @@ class LiveStreamRegistry:
         # A late positive facade may have arrived while metadata was read.
         # Its actual owner still counts even though the native fence forbids STT.
         capture = self.abort_owned(body)
-        fenced = observed is not None and not observed.capture_open and observed.fence is not None
-        pending = capture is not None and any(not task.done() for task in capture.tasks())
-        return LiveStreamAbortProof(
+        model = (
+            LiveStreamRetireProof if isinstance(body, LiveStreamRetire) else LiveStreamAbortProof
+        )
+        closed = model(
             schema_version="1.0",
-            protocol="native_live_abort_v1",
+            protocol=body.protocol,
             original=body,
             request_sha256=digest(body.model_dump(mode="json")),
-            outcome="confirmed" if fenced else "in_progress" if pending else "unknown",
+            outcome="unknown",
+            capture=observed,
+            cleanup_confirmed=False,
+        ).native_closed()
+        pending = capture is not None and any(not task.done() for task in capture.tasks())
+        return model(
+            schema_version="1.0",
+            protocol=body.protocol,
+            original=body,
+            request_sha256=digest(body.model_dump(mode="json")),
+            outcome="confirmed" if closed else "in_progress" if pending else "unknown",
             capture=observed,
             cleanup_confirmed=bool(
-                fenced and (capture is None or capture.abort_cleanup_complete())
+                closed and (capture is None or capture.abort_cleanup_complete())
             ),
         )
 
@@ -412,6 +452,26 @@ def install_live_streams(app, runtime, auth, speech, dependency, reserve_api_mod
     @routes.post("/cancel-original/lookup", openapi_extra=documented(LiveStreamAbort))
     async def abort_lookup(request: Request):
         return response(await registry.abort_proof(await parse(request, LiveStreamAbort)))
+
+    @routes.get("/retire-original")
+    async def retirement_capability(request: Request):
+        if request.query_params:
+            raise HTTPException(400, "Retirement capability has no query envelope")
+        return response(
+            LiveStreamRetireCapability(
+                schema_version="1.0",
+                protocol="native_live_retire_v1",
+                owner_instance=registry.instance,
+            )
+        )
+
+    @routes.post("/retire-original", openapi_extra=documented(LiveStreamRetire))
+    async def retire(request: Request):
+        return response(await registry.abort(await parse(request, LiveStreamRetire)))
+
+    @routes.post("/retire-original/lookup", openapi_extra=documented(LiveStreamRetire))
+    async def retirement_lookup(request: Request):
+        return response(await registry.abort_proof(await parse(request, LiveStreamRetire)))
 
     app.include_router(routes)
     return registry

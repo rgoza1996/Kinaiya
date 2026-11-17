@@ -157,6 +157,8 @@ async def converse_incremental_env(tmp_path: Path, request):
         "adaptive-call-dependency-loss": "dependency_loss",
         "adaptive-call-idle-dependency-loss": "dependency_idle",
         "adaptive-call-held-dependency-loss": "dependency_held_speaker",
+        "adaptive-call-controller-replacement": "controller_replacement",
+        "adaptive-call-idle-controller-replacement": "controller_idle",
     }.get(getattr(request, "param", None), "")
     playback = bool(playback_mode)
     live_consumer = playback or getattr(request, "param", None) in {

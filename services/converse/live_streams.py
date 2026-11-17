@@ -9,6 +9,7 @@ from packages.contracts.live_streams import (
     LiveStreamAbort,
     LiveStreamBegin,
     LiveStreamNextUtterance,
+    LiveStreamRetire,
     LiveStreamScope,
 )
 from packages.contracts.live_windows import LiveWindowPublicationProof
@@ -28,7 +29,12 @@ class LiveIncrementalStreams(IncrementalStreams):
         super().__init__(runtime, speech, self)
         self.dependency = dependency
         if negative_original is not None:
-            negative_original = LiveStreamAbort.model_validate(negative_original, strict=True)
+            model = (
+                LiveStreamRetire
+                if isinstance(negative_original, LiveStreamRetire)
+                else LiveStreamAbort
+            )
+            negative_original = model.model_validate(negative_original, strict=True)
             if negative_original.initial != self.initial_begin:
                 raise ValueError("Negative owner requires its exact initial begin")
         # Negative-only construction must remain possible while owner-off. It

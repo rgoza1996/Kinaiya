@@ -86,6 +86,18 @@ Its [qualification record](evidence/native-utterance-boundary-2026-11-17/README.
 also retains the #681 availability defect, original failing controls and local
 repair evidence.
 
+The gated Call additionally requires the separate `native_live_retire_v1`
+capability on the same native owner before microphone acquisition. It uses that
+original negative channel for stop and metadata readback, preserving the old
+`native_live_abort_v1` endpoints for existing clients. Exact native controller or
+scope replacement can close permission without inventing an explicit fence;
+actual registration/decoder/HTTP/STT and local microphone/speaker cleanup remain
+separate. A pending original registration cannot donate cleanup capacity.
+Passive native identity recovery preserves an old persisted backend binding
+after temporary Converse history retires. Originals with no durable native row
+retain their sole proof within the existing total registry bound; history
+pressure cannot erase them. See [native retirement](live-stream-capture.md#native-controller-replacement-and-retirement-685).
+
 The [qualification record](evidence/adaptive-call-integration-2026-11-17/README.md)
 retains commands, unchanged input pins, first failures and repairs. Actual
 Dart transport runs against fresh native HTTP, SQLite and synthetic Whistle IPC

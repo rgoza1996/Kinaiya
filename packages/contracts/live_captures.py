@@ -53,6 +53,16 @@ class LiveCaptureRegistration(_Closed):
     epoch: int = Field(ge=1, le=MAX_INTEGER)
 
 
+class LiveCaptureRecoveryQuery(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_capture_v2"]
+    owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$", min_length=32, max_length=32)
+    capture_id: str = Field(pattern=r"^[a-f0-9]{32}$", min_length=32, max_length=32)
+    session_id: str = Field(min_length=1, max_length=128)
+    thread_id: str = Field(min_length=1, max_length=128)
+    epoch: int = Field(ge=1, le=MAX_INTEGER)
+
+
 class LiveCaptureReceipt(_Closed):
     schema_version: Literal["2.0"]
     protocol: Literal["native_live_capture_v2"]
@@ -100,6 +110,22 @@ class LiveCaptureState(_Closed):
         )
         if self.capture_open != expected:
             raise ValueError("Native capture permission contradicts its original state")
+        return self
+
+
+class LiveCaptureRecoveryState(_Closed):
+    schema_version: Literal["2.0"]
+    protocol: Literal["native_live_capture_v2"]
+    original: LiveCaptureRecoveryQuery
+    capture: LiveCaptureState | None
+
+    @model_validator(mode="after")
+    def exact_scope(self):
+        if self.capture is not None and any(
+            getattr(self.original, key) != getattr(self.capture.original, key)
+            for key in ("owner_instance", "capture_id", "session_id", "thread_id", "epoch")
+        ):
+            raise ValueError("Native recovery changed its original capture scope")
         return self
 
 

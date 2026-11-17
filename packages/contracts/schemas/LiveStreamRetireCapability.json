@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_retire_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance"
+  ],
+  "title": "LiveStreamRetireCapability",
+  "type": "object"
+}
