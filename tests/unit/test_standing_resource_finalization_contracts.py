@@ -653,7 +653,6 @@ def schema_pin():
     # Native consumer ownership has its own independently pinned family.
     # #566: optional Agent policy inspection is additive; retain original184.
     additive |= {"DecisionsAgentPolicy", "DecisionsAgentPolicyState"}
-    additive |= {"ExternalAgentRequest", "ExternalAgentResponse"}
     additive |= {"AgentAdviceExportRequest", "AgentAdviceExportAdmission"}
     additive |= {
         "AgentAdviceCall",
@@ -680,6 +679,7 @@ def schema_pin():
         "LiveAgentSourceQuery",
         "LiveAgentSourceState",
     }
+    additive |= {"ExternalAgentRequest", "ExternalAgentResponse"}
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,
