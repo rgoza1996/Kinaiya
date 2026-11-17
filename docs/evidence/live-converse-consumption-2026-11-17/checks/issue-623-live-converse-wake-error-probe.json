@@ -1,0 +1,12 @@
+{
+  "wake_calls": 1,
+  "first_read_done": true,
+  "same_failed_read_retained": true,
+  "last_error": "OSError",
+  "consumer_running": true,
+  "native_outcome_confirmed": true,
+  "record_exists": false,
+  "provider_calls": 0,
+  "completion_observed": false,
+  "controller_sha256": "dec0766f02452aced0439fd5d61dfaa633a67a4e53118217196e34ab33945869"
+}

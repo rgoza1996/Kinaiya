@@ -266,6 +266,10 @@ class WindowConverseController:
     async def state(self, source, phase, **fields):
         return await self._native("append", self._state_request(source, phase, **fields))
 
+    async def _source_current(self, prepared):
+        original = await self._native("resolve", prepared.source.event_id)
+        return original.event_id == prepared.source.event_id
+
     async def current(self, prepared):
         source = prepared.source
         if not self._local_current(prepared):
@@ -276,8 +280,7 @@ class WindowConverseController:
             source.thread_id,
         ):
             return None
-        original = await self._native("resolve", source.event_id)
-        if original.event_id != source.event_id:
+        if not await self._source_current(prepared):
             return None
         control = await self._native("window_control", source.session_id, source.epoch)
         if control is not None and control.payload["source_sequence"] > source.sequence:
@@ -343,6 +346,20 @@ class WindowConverseController:
         except NativeJournalUnavailable:
             await self._native_failure(prepared)
 
+    async def _response_record(self, prepared, latest):
+        return await self._native(
+            "window_response",
+            prepared.source.session_id,
+            prepared.source.epoch,
+            latest.utterance_id,
+        )
+
+    def _bind_reply(self, prepared, request):
+        return request
+
+    def _instructions(self, prepared, frame):
+        return self.runtime.personality + frame.block
+
     async def _native_failure(self, prepared):
         self.last_error = "journal_unavailable"
         self._abandon(prepared)
@@ -382,9 +399,7 @@ class WindowConverseController:
                     return False
                 if not prepared.chunks:
                     return True
-                if await self._native(
-                    "window_response", source.session_id, source.epoch, latest.utterance_id
-                ):
+                if await self._response_record(prepared, latest):
                     return False
                 if not self._local_current(prepared):
                     return False
@@ -398,9 +413,7 @@ class WindowConverseController:
                     **self.runtime.model_payload(prepared),
                 )
             if not prepared.started:
-                recorded = await self._native(
-                    "window_response", source.session_id, source.epoch, latest.utterance_id
-                )
+                recorded = await self._response_record(prepared, latest)
                 if recorded is None:
                     await self._native("append", prepared.start_request)
                 elif (
@@ -425,7 +438,7 @@ class WindowConverseController:
                     if await self.current(prepared) is None:
                         return False
                 if prepared.reply_request is None:
-                    prepared.reply_request = AppendRequest(
+                    request = AppendRequest(
                         session_id=source.session_id,
                         thread_id=source.thread_id,
                         epoch=source.epoch,
@@ -475,6 +488,7 @@ class WindowConverseController:
                         },
                         idempotency_key=f"window-reply:{source.event_id}:{index}",
                     )
+                    prepared.reply_request = self._bind_reply(prepared, request)
                 if prepared.memory_lease is None:
                     entry = await self._native("append", prepared.reply_request)
                 else:
@@ -510,7 +524,7 @@ class WindowConverseController:
                 self._abandon(prepared)
                 return None
         frame = prepared.task_context_frame
-        instructions = self.runtime.personality + frame.block
+        instructions = self._instructions(prepared, frame)
         if prepared.prepare_request is None:
             prepared.prepare_request = self._state_request(
                 source,

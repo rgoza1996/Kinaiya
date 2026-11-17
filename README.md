@@ -383,6 +383,12 @@ Here $x_t$ is the current message, $H_t$ is relevant conversation history, $z_t$
 
 [Decisions runtime](services/decisions/runtime.py) · [Live-window routing](services/decisions/window_routing.py) · [Routing design](Roadmap.md#6-asynchronous-decisions)
 
+The optional [Adaptive Live v2 path](docs/adaptive-live-capture.md) adds explicit
+backchannel intent and completion-driven scheduling behind its existing gate.
+Its [native Converse consumer](docs/live-converse-consumption.md) shares the
+original dialogue/speech owner. Normal host/Call integration and default rollout
+remain unfinished in #623; this does not enable a new runtime default.
+
 ### 2. Shared transcript: context selection under a token budget
 
 **Status:** Persistent retrieval and complete-request token admission are implemented experimentally; utility-optimized snippet selection remains research.

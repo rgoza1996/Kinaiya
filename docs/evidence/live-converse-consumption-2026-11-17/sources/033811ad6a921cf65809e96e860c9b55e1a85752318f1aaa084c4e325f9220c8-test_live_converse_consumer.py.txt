@@ -1,0 +1,262 @@
+"""Actual native v2 conversation effects, with synthetic generation only."""
+
+import asyncio
+import copy
+
+import pytest
+
+from packages.contracts.live_decisions_attempts import LiveDecisionsSource
+from packages.contracts.live_effect_pending import LiveEffectPendingItem
+from packages.providers.text import ScriptedProvider
+from services.common.auth import Auth
+from services.converse.api import create_app
+from services.converse.live import LiveConverseController
+from services.converse.runtime import ConverseRuntime
+from services.session.live_windows import publish
+from services.session.store import LocalJournal
+from tests.integration.test_live_capture_permission import env as env
+from tests.integration.test_live_capture_permission import fence
+from tests.integration.test_live_decisions_attempts import live as live
+from tests.integration.test_live_effect_http import TOKENS
+from tests.integration.test_live_effects import outcome
+from tests.integration.test_live_window_publication import original
+
+
+def selected(live, conversation):
+    proof = outcome(live, conversation)
+    entry = live.owner.lookup_publication(proof).receipt
+    return LiveEffectPendingItem(event_id=entry.event_id, sequence=entry.sequence, publication=proof)
+
+
+def consumer(live, text):
+    class Observed(ScriptedProvider):
+        def __init__(self):
+            super().__init__(text if isinstance(text, list) else [text])
+            self.inputs = []
+
+        async def stream(self, messages):
+            self.inputs.append(copy.deepcopy(messages))
+            async for delta in super().stream(messages):
+                yield delta
+
+    provider = Observed()
+    runtime = ConverseRuntime(
+        LocalJournal(live.store, "converse"), provider,
+        personality="Public owner persona; keep the actual source and model output.",
+        personality_scope="public_synthetic",
+    )
+    return LiveConverseController(runtime), provider
+
+
+def revised(live, **changes):
+    current = copy.copy(live)
+    current.pair = publish(live.store, original(live, **changes))
+    current.source = LiveDecisionsSource.of(current.pair, live.source.capture)
+    return current
+
+
+async def completed(controller, item, effect):
+    async with asyncio.timeout(4):
+        while True:
+            result = await controller.process_live(item, effect)
+            if result is not None and result.completion is not None:
+                return result
+            await asyncio.sleep(0)
+
+
+@pytest.mark.parametrize(
+    "conversation,effect", [
+        ("WAIT_WITH_BACKCHANNEL", "converse_backchannel"),
+        ("RESPOND_INTERRUPT_USER", "converse_reply"),
+    ],
+)
+async def test_native_converse_uses_original_owner_and_preserves_model_output(live, conversation, effect):
+    text = "  Public synthetic response.\n"
+    controller, provider = consumer(live, text)
+    item = selected(live, conversation)
+    before = live.store.db.execute("SELECT request,receipt,fence FROM live_captures").fetchall()
+    try:
+        result = await completed(controller, item, effect)
+        assert result.completion.status == "recorded", controller.last_error
+        replies = live.store.read(kinds=["conversation.converse"])
+        assert len(replies) == 1
+        event = replies[0]
+        assert event.origin == "converse" and event.causes == [live.pair.source.event_id]
+        assert event.payload["window_behavior"] == conversation
+        assert event.payload["live_effect"] == effect
+        assert event.event_id == result.completion.evidence.event_id
+        assert len(provider.inputs) == 1
+        assert provider.inputs[0][-1] == {"role": "user", "content": live.pair.source.payload["text"]}
+        assert provider.inputs[0][0]["content"].startswith(controller.runtime.personality)
+        assert '"conversation":"' + conversation + '"' in provider.inputs[0][0]["content"]
+        observed = [e for e in live.store.read(kinds=["converse.window_state"]) if e.payload.get("phase") == "live_output_observed"]
+        assert len(observed) == 1
+        assert observed[0].payload["provider_output"] == text
+        assert observed[0].payload["provider_output_complete"] is True
+        assert await controller.process_live(item, effect) == result
+        assert len(provider.inputs) == 1 and len(live.store.read(kinds=["conversation.converse"])) == 1
+        assert live.store.db.execute("SELECT request,receipt,fence FROM live_captures").fetchall() == before
+        assert live.store.window_response(live.session.session_id, live.session.epoch, live.pair.source.payload["utterance_id"]) is None
+        assert await controller.runtime.validate_speech(event.event_id, event.payload["generation_epoch"]) == event
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+async def test_native_backchannel_can_return_no_acknowledgment_without_a_rewrite(live):
+    controller, provider = consumer(live, "")
+    item = selected(live, "WAIT_WITH_BACKCHANNEL")
+    try:
+        result = await completed(controller, item, "converse_backchannel")
+        assert result.completion.status == "declined"
+        assert len(provider.inputs) == 1
+        assert live.store.read(kinds=["conversation.converse"]) == []
+        observed = [e for e in live.store.read(kinds=["converse.window_state"]) if e.payload.get("phase") == "live_output_observed"]
+        assert len(observed) == 1 and observed[0].payload["provider_output"] == ""
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+async def test_noninterrupting_native_reply_waits_for_actual_speaking_hint(live):
+    assert live.pair.source.payload["user_speaking"] is True
+    controller, provider = consumer(live, "Public buffered reply.")
+    item = selected(live, "RESPOND_WITHOUT_INTERRUPTING_USER")
+    try:
+        await controller.process_live(item, "converse_reply")
+        prepared = controller.pending[live.session.session_id]
+        await asyncio.wait_for(asyncio.shield(prepared.task), 2)
+        assert len(provider.inputs) == 1
+        assert live.store.read(kinds=["conversation.converse"]) == []
+        held = await controller.process_live(item, "converse_reply")
+        assert held.completion is None
+        assert not prepared.abandoned
+        changed = original(live, revision=2, user_speaking=False)
+        publish(live.store, changed)
+        await controller.flush(prepared)
+        result = await completed(controller, item, "converse_reply")
+        assert result.completion.status == "recorded"
+        assert len(provider.inputs) == 1
+        replies = live.store.read(kinds=["conversation.converse"])
+        assert len(replies) == 1 and replies[0].payload["text"] == "Public buffered reply."
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+@pytest.mark.parametrize("change", ["text", "scope", "restored", "capture_fenced"])
+async def test_held_reply_cannot_survive_changed_native_user_authority(live, change):
+    controller, provider = consumer(live, "Public reply that must stay unplayed.")
+    item = selected(live, "RESPOND_WITHOUT_INTERRUPTING_USER")
+    try:
+        await controller.process_live(item, "converse_reply")
+        prepared = controller.pending[live.session.session_id]
+        await asyncio.wait_for(asyncio.shield(prepared.task), 2)
+        assert len(provider.inputs) == 1
+        if change == "capture_fenced":
+            live.store.live_captures.fence(fence(live.source.capture.original))
+        else:
+            changes = {"text": "Public changed instruction"} if change != "scope" else {"content_scope": "local_only"}
+            publish(live.store, original(live, revision=2, **changes))
+        if change == "restored":
+            publish(live.store, original(live, revision=3, user_speaking=False))
+        elif change != "capture_fenced":
+            publish(live.store, original(live, revision=3, user_speaking=False, **changes))
+        await controller.flush(prepared)
+        result = await completed(controller, item, "converse_reply")
+        assert result.completion.status == "declined"
+        assert len(provider.inputs) == 1
+        assert live.store.read(kinds=["conversation.converse"]) == []
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+@pytest.mark.parametrize("action", ["WAIT_FOR_NEXT_WINDOW", "IGNORE"])
+async def test_later_native_wait_controls_the_original_buffered_reply(live, action):
+    controller, provider = consumer(live, "Public buffered reply.")
+    item = selected(live, "RESPOND_WITHOUT_INTERRUPTING_USER")
+    try:
+        await controller.process_live(item, "converse_reply")
+        prepared = controller.pending[live.session.session_id]
+        await asyncio.wait_for(asyncio.shield(prepared.task), 2)
+        current = revised(live, revision=2, user_speaking=False)
+        selected(current, action)
+        await controller.tick()
+        result = await completed(controller, item, "converse_reply")
+        assert len(provider.inputs) == 1
+        if action == "WAIT_FOR_NEXT_WINDOW":
+            assert result.completion.status == "declined"
+            assert prepared.abandoned
+            assert live.store.read(kinds=["conversation.converse"]) == []
+        else:
+            assert result.completion.status == "recorded"
+            assert not prepared.abandoned
+            assert len(live.store.read(kinds=["conversation.converse"])) == 1
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+async def test_older_native_wait_does_not_fence_a_later_response(live):
+    selected(live, "WAIT_FOR_NEXT_WINDOW")
+    current = revised(live, revision=2, user_speaking=False)
+    item = selected(current, "RESPOND_WITHOUT_INTERRUPTING_USER")
+    controller, provider = consumer(live, "Public later reply.")
+    try:
+        result = await completed(controller, item, "converse_reply")
+        assert result.completion.status == "recorded"
+        assert len(provider.inputs) == 1
+        assert len(live.store.read(kinds=["conversation.converse"])) == 1
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+async def test_native_backchannel_preserves_the_same_utterance_for_a_later_full_reply(live):
+    controller, provider = consumer(live, ["Public acknowledgment.", "Public full reply."])
+    before = live.store.db.execute("SELECT request,receipt,fence FROM live_captures").fetchall()
+    first = selected(live, "WAIT_WITH_BACKCHANNEL")
+    try:
+        backchannel = await completed(controller, first, "converse_backchannel")
+        current = revised(live, revision=2, user_speaking=False)
+        second = selected(current, "RESPOND_WITHOUT_INTERRUPTING_USER")
+        response = await completed(controller, second, "converse_reply")
+        assert backchannel.completion.status == response.completion.status == "recorded"
+        assert len(provider.inputs) == 2
+        replies = live.store.read(kinds=["conversation.converse"])
+        assert [e.payload["text"] for e in replies] == ["Public acknowledgment.", "Public full reply."]
+        assert [e.payload["live_effect"] for e in replies] == ["converse_backchannel", "converse_reply"]
+        assert {e.payload["window_utterance_id"] for e in replies} == {live.source.publication.utterance_id}
+        assert live.store.db.execute("SELECT request,receipt,fence FROM live_captures").fetchall() == before
+        assert live.store.window_response(live.session.session_id, live.session.epoch, live.source.publication.utterance_id) is None
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
+async def test_original_stream_cleanup_still_runs_when_live_consumer_close_raises(live, monkeypatch):
+    controller, _ = consumer(live, "Public unused reply.")
+    app = create_app(controller.runtime, Auth(TOKENS), window_controller=controller, live_consumer=controller)
+    close_consumer, close_streams = controller.close, app.state.live_streams.close
+    calls = []
+
+    async def failed_close():
+        await close_consumer()
+        raise RuntimeError("Public synthetic close failure")
+
+    async def streams_close():
+        calls.append("streams")
+        await close_streams()
+
+    monkeypatch.setattr(controller, "close", failed_close)
+    monkeypatch.setattr(app.state.live_streams, "close", streams_close)
+    try:
+        with pytest.raises(RuntimeError, match="Public synthetic close failure"):
+            async with app.router.lifespan_context(app):
+                await asyncio.sleep(0)
+        assert calls == ["streams"]
+    finally:
+        await close_consumer()
+        await close_streams()
+        await controller.runtime.close()

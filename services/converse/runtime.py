@@ -286,6 +286,7 @@ class ConverseRuntime:
         self._stt_transports = set()
         self._stt_transport_closures = set()
         self._window_text_ready = None
+        self._live_speech_authority = None
         self._speech = {}
         self._dedupe_locks = {}
         self._epoch_locks = {}
@@ -1708,7 +1709,11 @@ class ConverseRuntime:
             or event.payload.get("availability_generation", admission[1]) != admission[1]
         ):
             raise ValueError("Obsolete or unauthorized speech")
-        if event.payload.get("window_source_id"):
+        if event.payload.get("live_effect") is not None:
+            if self._live_speech_authority is None:
+                raise ValueError("Original live Converse speech owner is unavailable")
+            await self._live_speech_authority(event)
+        elif event.payload.get("window_source_id"):
             source = await self.journal.resolve(event.payload["window_source_id"])
             if source.event_id != event.payload["window_source_id"] or source.epoch != event.epoch:
                 raise ValueError("Speech window was corrected or became obsolete")

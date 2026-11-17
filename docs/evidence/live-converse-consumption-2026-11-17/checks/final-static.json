@@ -1,0 +1,52 @@
+[
+  {
+    "args": [
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/ruff",
+      "format",
+      "services/session/live_effects.py",
+      "tests/integration/test_live_converse_consumer.py"
+    ],
+    "exit_code": 0,
+    "output": "2 files left unchanged\n"
+  },
+  {
+    "args": [
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+      "scripts/export_contracts.py"
+    ],
+    "exit_code": 0,
+    "output": ""
+  },
+  {
+    "args": [
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/ruff",
+      "check",
+      "."
+    ],
+    "exit_code": 0,
+    "output": "All checks passed!\n"
+  },
+  {
+    "args": [
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/ruff",
+      "format",
+      "--check",
+      "."
+    ],
+    "exit_code": 0,
+    "output": "1198 files already formatted\n"
+  },
+  {
+    "args": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "output": ""
+  },
+  {
+    "analysis": "594 schema files byte-identical to HEAD",
+    "result": "passed"
+  }
+]
