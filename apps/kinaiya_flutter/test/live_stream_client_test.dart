@@ -45,6 +45,81 @@ http.Response response(Object? body) => http.Response(
 
 void main() {
   test(
+    'actual native utterance original has a distinct route and exact begin-phase recovery',
+    () {
+      final native = object(
+        jsonDecode(
+          File('test/fixtures/live_utterance_native.json').readAsStringSync(),
+        ),
+      );
+      final request = LiveStreamOperation.nextUtterance(native['request']);
+      expect(request.route, 'next-utterance');
+      expect(request.phase, LiveStreamPhase.begin);
+      expect(request.lookup['phase'], 'begin');
+      expect(request.isUtteranceBoundary, isTrue);
+      expect(
+        () => LiveStreamOperation.fromJson(LiveStreamPhase.begin, request.body),
+        throwsFormatException,
+      );
+      final finish = LiveStreamOperation.fromJson(
+        LiveStreamPhase.finish,
+        native['previous_finish_request'],
+      );
+      final previous = LiveStreamProof.fromJson(
+        native['previous_finish_proof'],
+        finish,
+      );
+      expect(LiveStreamOperation.advanceUtterance(previous).body, request.body);
+      final proof = LiveStreamProof.fromJson(native['proof'], request);
+      expect(proof.confirmed, isTrue);
+      expect(proof.capture!.captureOpen, isTrue);
+      expect(proof.body['capture'], previous.body['capture']);
+      for (final patch in [
+        {'segment_index': 0},
+        {'segment_index': 1.0},
+        {'boundary_protocol': 'native_live_utterance_v2'},
+        {'previous_finish_sha256': 'X' * 64},
+        {'utterance_id': 'reused'},
+        {'previous_utterance_id': request.body['utterance_id']},
+        {'extra': true},
+      ]) {
+        expect(
+          () => LiveStreamOperation.nextUtterance({...request.body, ...patch}),
+          throwsFormatException,
+        );
+      }
+    },
+  );
+
+  test(
+    'new utterance dispatch and unknown-result lookup never become ordinary begin replay',
+    () async {
+      final native = object(
+        jsonDecode(
+          File('test/fixtures/live_utterance_native.json').readAsStringSync(),
+        ),
+      );
+      final request = LiveStreamOperation.nextUtterance(native['request']);
+      final paths = <String>[];
+      final owner = api(
+        () => MockClient((call) async {
+          paths.add(call.url.path.split('/').last);
+          expect(
+            jsonDecode(call.body),
+            paths.last == 'next-utterance' ? request.body : request.lookup,
+          );
+          return response(native['proof']);
+        }),
+      );
+      expect((await owner.dispatch(request).result).confirmed, isTrue);
+      expect((await owner.lookup(request).result).confirmed, isTrue);
+      expect((await owner.reconcile(request).result).confirmed, isTrue);
+      expect(paths, ['next-utterance', 'lookup', 'reconcile']);
+      await owner.close();
+    },
+  );
+
+  test(
     'normal and labeled mock clients use their independent live transport',
     () async {
       for (final mock in [false, true]) {

@@ -62,6 +62,17 @@ allocation. Exact readback is idempotent; old-segment acknowledgments cannot
 consume new samples. Pending packets, faults, stale/corrupt originals and mic
 cleanup refuse. This does not grant native permission or mark speech ended.
 
+The [explicit native utterance boundary](live-stream-capture.md#explicit-logical-utterance-boundary)
+preserves the same mic/STT lifetime for successive logical utterances. The
+frontend checks its separately versioned capability and uses an original built
+from the exact confirmed, actually retired final. Existing v2 begin retains its
+current-utterance guard. Backchannels do not request this boundary, and model
+completion does not establish an acoustic end. The actual Call owner still
+needs to join this operation to its capture/playback lifecycle.
+Its [qualification record](evidence/native-utterance-boundary-2026-11-17/README.md)
+also retains the #681 availability defect, original failing controls and local
+repair evidence.
+
 The [qualification record](evidence/adaptive-call-integration-2026-11-17/README.md)
 retains commands, unchanged input pins, first failures and repairs. Actual
 Dart transport runs against fresh native HTTP, SQLite and synthetic Whistle IPC
@@ -78,7 +89,8 @@ or complete Call qualification.
 ## Remaining integration
 
 Connect the actual CharacterView Call owner to this transport and the optional
-incremental PCM adapter. Preserve bounded contiguous input through decoder and
+incremental PCM adapter, including its explicit native logical utterance
+boundary. Preserve bounded contiguous input through decoder and
 utterance boundaries, retain pending native and browser operations through
 stop/reconnect/replacement, and qualify actual playback/backchannel capture,
 echo prevention, mute, accessibility, no-audio and dependency loss. Add timing

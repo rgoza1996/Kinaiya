@@ -1,0 +1,150 @@
+"""#623: explicit logical utterances keep their original mic and STT lifetime."""
+
+import asyncio
+
+import pytest
+
+from packages.contracts.stt_settlement import digest
+from services.converse.live_stream_api import BASE
+from tests.integration.test_incremental_whistle_converse import (
+    converse_incremental_env as converse_incremental_env,
+)
+from tests.integration.test_live_stream_api import begin_body, live_client, pcm_for
+
+
+async def finish_segment(env, live, body, started):
+    pcm = {**body, **pcm_for(env, started["native"]["result"])}
+    observed = await live.client.post(BASE + "/pcm", json=pcm)
+    assert observed.status_code == 200
+    finish = {key: value for key, value in pcm.items() if key != "pcm16_base64"}
+    finish.update(sequence=2, sample_offset=160, user_speaking=False, capture_ended=False)
+    result = await live.client.post(BASE + "/finish", json=finish)
+    assert result.status_code == 200
+    capture = live.app.state.live_streams.captures[body["capture_id"]]
+    await asyncio.wait_for(asyncio.shield(capture.states[-1].lifetime), 3)
+    return finish, result.json()
+
+
+def boundary(body, finish, *, segment=None):
+    index = body["segment_index"] + 1 if segment is None else segment
+    return {
+        **body,
+        "boundary_protocol": "native_live_utterance_v1",
+        "previous_utterance_id": body["utterance_id"],
+        "previous_finish_sha256": digest(finish),
+        "segment_index": index,
+        "utterance_id": body["capture_id"] + "_" + str(index),
+    }
+
+
+async def started(env, live):
+    owner = (await live.client.get(BASE + "/ownership")).json()["owner_instance"]
+    body = begin_body(env, owner)
+    result = await live.client.post(BASE + "/begin", json=body)
+    assert result.status_code == 200
+    return body, result.json()
+
+
+async def test_explicit_utterances_preserve_one_mic_lease_and_old_source_permission(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        body, first = await started(env, live)
+        capture = live.app.state.live_streams.captures[body["capture_id"]]
+        lease = capture.native.lease
+        finish, final = await finish_segment(env, live, body, first)
+        request = boundary(body, finish)
+        # Ordinary v2 begin cannot silently change an utterance.
+        implicit = {key: value for key, value in request.items() if key in body}
+        assert (await live.client.post(BASE + "/begin", json=implicit)).status_code == 409
+        result = await live.client.post(BASE + "/next-utterance", json=request)
+        assert result.status_code == 200
+        proof = result.json()
+        assert proof["request_sha256"] == digest(request)
+        assert proof["segment_sample_offset"] == 160
+        assert proof["capture"] == first["capture"]
+        assert proof["native"]["result"]["utterance_id"] == request["utterance_id"]
+        assert proof["native"]["result"]["stream_id"] != first["native"]["result"]["stream_id"]
+        assert capture.native.lease is lease and len(env.runtime.stt_model_settings.leases) == 1
+        assert not capture.capture_task.done() and not capture.capture_fenced
+        readback = await live.client.post(BASE + "/lookup", json={
+            **{key: body[key] for key in ("schema_version", "protocol", "owner_instance", "capture_id")},
+            "phase": "begin", "request_sha256": digest(request),
+        })
+        assert readback.status_code == 200 and readback.json()["native"]["outcome"] == "confirmed"
+        assert env.engine.begin_calls == 2
+        old = await live.client.post(BASE + "/lookup", json={
+            **{key: body[key] for key in ("schema_version", "protocol", "owner_instance", "capture_id")},
+            "phase": "finish", "request_sha256": digest(finish),
+        })
+        assert old.status_code == 200 and old.json()["publication"] == final["publication"]
+        assert old.json()["capture"]["capture_open"]
+        next_body = {key: request[key] for key in body}
+        second_finish, second = await finish_segment(env, live, next_body, proof)
+        source = second["publication"]["source"]["payload"]
+        assert source["utterance_id"] == request["utterance_id"]
+        assert source["window_index"] == 1 and source["start_ms"] == 10
+        history = env.store.read(kinds=["conversation.window"])
+        assert history[2].payload["utterance_id"] == request["utterance_id"]
+        assert history[2].payload["window_index"] == 0
+        assert history[2].payload["start_ms"] == 10
+        # A further explicit boundary has its own unique native source domain.
+        third = boundary(next_body, second_finish)
+        assert (await live.client.post(BASE + "/next-utterance", json=third)).status_code == 200
+        assert capture.native.lease is lease and env.engine.begin_calls == 3
+
+
+@pytest.mark.parametrize("change", [
+    {"owner_instance": "a" * 32}, {"session_id": "another-session"},
+    {"thread_id": "another-thread"}, {"epoch": 2},
+    {"content_scope": "public_synthetic"}, {"previous_utterance_id": "another-utterance"},
+    {"previous_finish_sha256": "a" * 64},
+])
+async def test_boundary_cannot_replace_its_native_scope_or_original_finish(
+    converse_incremental_env, change,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        body, first = await started(env, live)
+        finish, _ = await finish_segment(env, live, body, first)
+        capture = live.app.state.live_streams.captures[body["capture_id"]]
+        result = await live.client.post(BASE + "/next-utterance", json={**boundary(body, finish), **change})
+        assert result.status_code == 409
+        assert capture.scope.utterance_id == body["utterance_id"] and capture.segment_index == 0
+        assert env.engine.begin_calls == 1
+        assert len(env.runtime.stt_model_settings.leases) == 1
+
+
+async def test_boundary_refuses_original_decoder_cleanup_until_it_actually_finishes(
+    converse_incremental_env, monkeypatch,
+):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        body, first = await started(env, live)
+        capture = live.app.state.live_streams.captures[body["capture_id"]]
+        state = capture.states[-1]
+        entered, release = asyncio.Event(), asyncio.Event()
+        original_drain = state.client.drain
+
+        async def held():
+            entered.set()
+            await release.wait()
+            await original_drain()
+
+        monkeypatch.setattr(state.client, "drain", held)
+        pcm = {**body, **pcm_for(env, first["native"]["result"])}
+        assert (await live.client.post(BASE + "/pcm", json=pcm)).status_code == 200
+        finish = {key: value for key, value in pcm.items() if key != "pcm16_base64"}
+        finish.update(sequence=2, sample_offset=160, user_speaking=False, capture_ended=False)
+        assert (await live.client.post(BASE + "/finish", json=finish)).status_code == 200
+        try:
+            await asyncio.wait_for(entered.wait(), 3)
+            request = boundary(body, finish)
+            result = await live.client.post(BASE + "/next-utterance", json=request)
+            assert result.status_code == 409
+            assert env.engine.begin_calls == 1 and capture.scope.utterance_id == body["utterance_id"]
+        finally:
+            release.set()
+            await asyncio.wait_for(asyncio.shield(state.lifetime), 3)
+        assert (await live.client.post(BASE + "/next-utterance", json=request)).status_code == 200

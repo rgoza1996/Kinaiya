@@ -24,6 +24,9 @@ void main() {
       addTearDown(api.close);
       final capability = await api.inspect().result;
       expect(capability.available, isTrue);
+      final boundaryCapability = await api.inspectUtteranceBoundary().result;
+      expect(boundaryCapability.available, isTrue);
+      expect(boundaryCapability.ownerInstance, capability.ownerInstance);
       final binding = <String, Object?>{
         ...jsonDecode(scope!) as Map<String, Object?>,
         'schema_version': '2.0',
@@ -94,6 +97,46 @@ void main() {
       expect(next.nativeOwner, started.nativeOwner);
       expect(next.segmentSampleOffset, 160);
       expect(next.capture!.body, started.capture!.body);
+      final secondPcm = LiveStreamOperation.fromJson(LiveStreamPhase.pcm, {
+        ...binding,
+        'segment_index': 1,
+        'stream_id': next.streamId,
+        'worker_incarnation': next.workerIncarnation,
+        'sequence': 1,
+        'sample_offset': 0,
+        'user_speaking': true,
+        'pcm16_base64': base64Encode(List.filled(320, 0)),
+      });
+      expect((await api.dispatch(secondPcm).result).confirmed, isTrue);
+      final secondFinish =
+          LiveStreamOperation.fromJson(LiveStreamPhase.finish, {
+            for (final key in secondPcm.body.keys)
+              if (key != 'pcm16_base64') key: secondPcm.body[key],
+            'sequence': 2,
+            'sample_offset': 160,
+            'user_speaking': false,
+            'capture_ended': false,
+          });
+      var secondFinal = await api.dispatch(secondFinish).result;
+      final secondDeadline = Stopwatch()..start();
+      while (!secondFinal.segmentRetired &&
+          secondDeadline.elapsed < const Duration(seconds: 3)) {
+        secondFinal = await api.reconcile(secondFinish).result;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(secondFinal.segmentRetired, isTrue);
+      final boundary = LiveStreamOperation.advanceUtterance(secondFinal);
+      final changed = await api.dispatch(boundary).result;
+      expect(changed.confirmed, isTrue);
+      expect(changed.capture!.body, started.capture!.body);
+      expect(changed.segmentSampleOffset, 320);
+      expect(changed.nativeOwner, started.nativeOwner);
+      expect(
+        ((changed.body['native'] as Map<String, Object?>)['result']
+            as Map<String, Object?>)['utterance_id'],
+        boundary.body['utterance_id'],
+      );
+      expect((await api.lookup(boundary).result).confirmed, isTrue);
       final stopped = await api.cancel(begin, 'cancelled').result;
       expect(stopped.capture!.captureOpen, isFalse);
       expect(stopped.cleanupConfirmed, isTrue);

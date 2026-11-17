@@ -20,6 +20,13 @@ explicit dependency the new input API is unavailable. It additionally requires
 the configured native STT selection owner; v1's trusted host-only embedding path
 cannot bypass native selection ownership in this new path.
 
+Live input availability also requires the original selected owned-stream
+protocol. The STT owner passively checks its unchanged private Whistle binding;
+generic buffered transcribers, closed/replaced clients and buffered catalog STT
+remain explicitly unavailable for live input. Inspection acquires no provider,
+credential, lease or capture and probes no model. A selectable legacy/buffered
+STT choice is not silently replaced to satisfy live input (#681).
+
 ## One logical microphone
 
 `LiveMicCapture` is passive at construction. Its detached original registration
@@ -58,8 +65,9 @@ previous segment's positive final source, broker acknowledgment, actual HTTP
 drain and lifetime completion. A decoder finish does not end the microphone or
 the user's utterance. An explicit `capture_ended` hint remains independent.
 
-Owner/capture/utterance, native registration and STT pin stay fixed across
-segments. Each segment starts at the previous confirmed sample boundary; source
+Owner/capture, native registration and STT pin stay fixed across segments.
+Ordinary v2 begin also retains the exact current utterance. Each segment starts
+at the previous confirmed sample boundary; source
 audio times use that absolute offset, with each unchanged SpeechWindow interval
 bounded to 60 seconds. Window indices increase across segments, with same-slot
 recognizer corrections retaining their existing revision behavior. The new
@@ -77,12 +85,43 @@ unknown work never donates its physical slot. Metadata reconciliation never
 repeats audio or inference. Historical segment retention stores a cursor, not
 links to an unbounded chain of prior stream objects.
 
+## Explicit logical utterance boundary
+
+The additive `native_live_utterance_v1` boundary starts a new logical utterance
+within the same microphone/STT lifetime. Owner GET `next-utterance` declares
+its separate schema-1.0 capability and current owner instance without starting
+capture, inference or a provider probe. A client must check this and v2 input
+availability under the same original owner before starting a supported Call.
+
+Owner POST `next-utterance` uses the closed `LiveStreamNextUtterance` request:
+the existing v2 begin fields, `boundary_protocol: native_live_utterance_v1`,
+`previous_utterance_id` and `previous_finish_sha256`. The next segment must be
+contiguous and reference the exact original positive final source. Its native
+broker acknowledgment, pending publication and actual decoder/HTTP lifetime
+must all settle first. An explicitly ended capture cannot restart here.
+
+The original owner/capture, session/thread/epoch and disclosure scope cannot
+change. The new utterance ID is `<capture_id>_<segment_index>`; a monotonic
+segment plus the initial-ID guard prevents reuse without retaining an
+unbounded name set or imposing a new utterance-count limit. Window indices
+start at zero for this explicit domain; absolute audio offsets continue.
+The mic registration and STT lease remain unchanged, and earlier source
+permission/readback remains valid. This boundary grants no permission and
+claims neither acoustic silence nor model/speaker completion.
+
+Ordinary begin/PCM/finish formats and current-utterance scope guards remain
+unchanged. The new operation returns the existing v2 begin-phase proof, whose
+digest binds every boundary field. Uncertain outcomes use existing exact
+begin-phase lookup/reconcile; a duplicate mutation cannot replay the decoder.
+Pending work, stale identity or missing original final/cleanup refuses.
+
 ## Owner HTTP contract
 
 The explicit `converse_live_stream_v2`, schema 2.0, lives under
 `/v2/converse/audio/live-stream`. Owner GET `ownership` returns the current owner
 instance and input-path availability. Owner POST `begin`, `pcm`, `finish`,
-`lookup`, `reconcile` and `cancel` use separate closed, required-field models.
+`lookup`, `reconcile`, `cancel` and the additive `next-utterance` boundary use
+separate closed, required-field models.
 Construction and inspection start no capture. An unavailable mode has no silent
 Rolling Windows, Legacy Silence, provider or model fallback.
 

@@ -5,7 +5,7 @@ import asyncio
 from fastapi import HTTPException
 
 from packages.contracts.live_captures import LiveCaptureRegistration
-from packages.contracts.live_streams import LiveStreamScope
+from packages.contracts.live_streams import LiveStreamNextUtterance, LiveStreamScope
 from packages.contracts.live_windows import LiveWindowPublicationProof
 from packages.providers.whistle_stream_owner import CapturedWhistleStream
 from services.converse.incremental_streams import IncrementalStreams
@@ -16,6 +16,7 @@ from services.converse.stt_operations import stt_operation
 class LiveIncrementalStreams(IncrementalStreams):
     def __init__(self, runtime, speech, scope, *, dependency):
         self.scope = LiveStreamScope.model_validate(scope.model_dump(mode="json"), strict=True)
+        self.initial_utterance_id = self.scope.utterance_id
         super().__init__(runtime, speech, self)
         self.dependency = dependency
         self.admission = runtime.admission()
@@ -131,10 +132,34 @@ class LiveIncrementalStreams(IncrementalStreams):
         if not self.current():
             raise HTTPException(409, "Original live capture owner changed during permission lookup")
 
-    async def begin_segment(self, segment_index, body, request, *, original_body=None):
+    async def next_utterance(self, boundary, request):
+        boundary = LiveStreamNextUtterance.model_validate(boundary, strict=True)
+        return await self.begin_segment(
+            boundary.segment_index,
+            boundary.native_scope(),
+            request,
+            original_body=boundary.model_dump(mode="json"),
+            _boundary=boundary,
+        )
+
+    async def begin_segment(
+        self, segment_index, body, request, *, original_body=None, _boundary=None
+    ):
         if type(segment_index) is not int or not 0 <= segment_index <= 1000000:
             raise HTTPException(400, "Invalid original decoder segment index")
-        if body != self.scope.native_scope():
+        next_scope = None
+        if _boundary is not None:
+            next_scope = LiveStreamScope.model_validate(
+                _boundary.model_dump(include=set(LiveStreamScope.model_fields)), strict=True
+            )
+            if (
+                next_scope.model_dump(exclude={"utterance_id"})
+                != self.scope.model_dump(exclude={"utterance_id"})
+                or _boundary.previous_utterance_id != self.scope.utterance_id
+                or next_scope.utterance_id == self.initial_utterance_id
+            ):
+                raise HTTPException(409, "Original live utterance boundary scope changed")
+        if body != (self.scope if next_scope is None else next_scope).native_scope():
             raise HTTPException(409, "Original live capture scope changed")
         if not self.current():
             self.fence()
@@ -142,6 +167,19 @@ class LiveIncrementalStreams(IncrementalStreams):
         previous = self.states[-1] if self.states else None
         if segment_index != self.segment_index + 1:
             raise HTTPException(409, "Original decoder segment is not the next contiguous segment")
+        if _boundary is not None:
+            known = self.originals.get(("finish", _boundary.previous_finish_sha256))
+            if (
+                previous is None
+                or known is None
+                or known[0] is not previous
+                or known[1] is not previous.last
+                or previous.last.phase != "finish"
+                or previous.last.ack is None
+            ):
+                raise HTTPException(
+                    409, "Utterance boundary requires its original positive final source"
+                )
         if previous is not None:
             if (
                 not previous.decoder_finished
@@ -155,11 +193,15 @@ class LiveIncrementalStreams(IncrementalStreams):
             ):
                 raise HTTPException(409, "The previous decoder or publication remains unsettled")
             self.segment_sample_offset += previous.sample_offset
+        if next_scope is not None:
+            self.scope = next_scope
         self.segment_index = segment_index
         self._next_segment = (
             segment_index,
             self.segment_sample_offset,
-            None if previous is None else previous.last.window.window_index,
+            None
+            if previous is None or next_scope is not None
+            else previous.last.window.window_index,
         )
         if self.capture_task is None:
             self.runtime._incremental_stream_owners.add(self)

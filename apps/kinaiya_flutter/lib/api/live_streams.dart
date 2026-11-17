@@ -139,14 +139,61 @@ class LiveStreamCapability {
   late final bool available;
 }
 
+class LiveUtteranceCapability {
+  LiveUtteranceCapability.fromJson(Object? value) {
+    final raw = _object(value, {
+      'schema_version',
+      'protocol',
+      'owner_instance',
+      'available',
+    });
+    _version(raw, 'native_live_utterance_v1', '1.0');
+    ownerInstance = _hex(raw['owner_instance'], 32);
+    available = _flag(raw['available']);
+  }
+  late final String ownerInstance;
+  late final bool available;
+}
+
 /// Detach and hash once. Recovery never recreates or resends a mutation.
 class LiveStreamOperation {
-  LiveStreamOperation.fromJson(this.phase, Object? value) {
-    final raw = _object(value, switch (phase) {
-      LiveStreamPhase.begin => _segment,
-      LiveStreamPhase.pcm => {..._advance, 'pcm16_base64'},
-      LiveStreamPhase.finish => {..._advance, 'capture_ended'},
+  LiveStreamOperation.fromJson(LiveStreamPhase phase, Object? value)
+    : this._(phase, value, false);
+  LiveStreamOperation.nextUtterance(Object? value)
+    : this._(LiveStreamPhase.begin, value, true);
+
+  factory LiveStreamOperation.advanceUtterance(LiveStreamProof previous) {
+    if (!previous.segmentRetired ||
+        previous.capture?.captureOpen != true ||
+        previous.original.body['capture_ended'] == true) {
+      throw _invalid;
+    }
+    final body = previous.original.body;
+    final index = (body['segment_index'] as int) + 1;
+    return LiveStreamOperation.nextUtterance({
+      for (final key in _segment) key: body[key],
+      'segment_index': index,
+      'utterance_id': '${body['capture_id']}_$index',
+      'boundary_protocol': 'native_live_utterance_v1',
+      'previous_utterance_id': body['utterance_id'],
+      'previous_finish_sha256': previous.original.digest,
     });
+  }
+
+  LiveStreamOperation._(this.phase, Object? value, this.isUtteranceBoundary) {
+    final fields = isUtteranceBoundary
+        ? {
+            ..._segment,
+            'boundary_protocol',
+            'previous_utterance_id',
+            'previous_finish_sha256',
+          }
+        : switch (phase) {
+            LiveStreamPhase.begin => _segment,
+            LiveStreamPhase.pcm => {..._advance, 'pcm16_base64'},
+            LiveStreamPhase.finish => {..._advance, 'capture_ended'},
+          };
+    final raw = _object(value, fields);
     _validateIdentity(raw);
     for (final key in ['session_id', 'thread_id']) {
       _text(raw[key], 128);
@@ -162,6 +209,17 @@ class LiveStreamOperation {
       throw _invalid;
     }
     _integer(raw['segment_index'], 1000000);
+    if (isUtteranceBoundary) {
+      final index = _integer(raw['segment_index'], 1000000, 1);
+      final previous = _text(raw['previous_utterance_id'], 128);
+      _hex(raw['previous_finish_sha256'], 64);
+      if (raw['boundary_protocol'] != 'native_live_utterance_v1' ||
+          !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(previous) ||
+          utterance != '${raw['capture_id']}_$index' ||
+          utterance == previous) {
+        throw _invalid;
+      }
+    }
     if (phase != LiveStreamPhase.begin) {
       _hex(raw['stream_id'], 64);
       _hex(raw['worker_incarnation'], 64);
@@ -190,6 +248,8 @@ class LiveStreamOperation {
     digest = _digest(body);
   }
   final LiveStreamPhase phase;
+  final bool isUtteranceBoundary;
+  String get route => isUtteranceBoundary ? 'next-utterance' : phase.name;
   late final Map<String, Object?> body;
   late final String digest;
   Map<String, Object?> get identity =>

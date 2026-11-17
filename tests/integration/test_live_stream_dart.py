@@ -87,13 +87,32 @@ async def test_actual_dart_native_live_stream_rollover(converse_incremental_env,
             assert b"All tests passed!" in output
             assert (project / "pubspec.lock").read_bytes() == original_lock
             assert all(status == 200 for _, _, status in requests)
-            for phase, count in (("begin", 2), ("pcm", 1), ("finish", 1), ("cancel", 1)):
-                assert sum(path.endswith("/" + phase) for _, path, _ in requests) == count
+            for phase, count in (
+                ("begin", 2),
+                ("next-utterance", 1),
+                ("pcm", 2),
+                ("finish", 2),
+                ("cancel", 1),
+            ):
+                assert (
+                    sum(
+                        method == "POST" and path.endswith("/" + phase)
+                        for method, path, _ in requests
+                    )
+                    == count
+                )
+            assert (
+                sum(
+                    method == "GET" and path.endswith("/next-utterance")
+                    for method, path, _ in requests
+                )
+                == 1
+            )
             capture = native.app.state.live_streams.captures["d" * 32]
             assert capture.capture_fenced and capture.capture_task.done()
             assert capture.native.lease.settled
             assert not env.runtime.stt_model_settings.leases
-            assert env.engine.begin_calls == 2 and env.engine.finish_calls == 1
+            assert env.engine.begin_calls == 3 and env.engine.finish_calls == 2
         finally:
             if process is not None and process.returncode is None:
                 process.kill()

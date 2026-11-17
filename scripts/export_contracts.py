@@ -193,9 +193,11 @@ for module, names in (
 )
 for name in (
     "LiveStreamCapability",
+    "LiveUtteranceCapability",
     "LiveStreamIdentity",
     "LiveStreamScope",
     "LiveStreamBegin",
+    "LiveStreamNextUtterance",
     "LiveStreamPcm",
     "LiveStreamFinish",
     "LiveStreamCancel",

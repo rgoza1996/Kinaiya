@@ -29,11 +29,18 @@ class LiveStreamApi {
     null,
     LiveStreamCapability.fromJson,
   );
+  OwnedSettingsAttempt<LiveUtteranceCapability> inspectUtteranceBoundary() =>
+      _transport.start(
+        'GET',
+        '$_base/next-utterance',
+        null,
+        LiveUtteranceCapability.fromJson,
+      );
   OwnedSettingsAttempt<LiveStreamProof> dispatch(
     LiveStreamOperation original,
   ) => _transport.start(
     'POST',
-    '$_base/${original.phase.name}',
+    '$_base/${original.route}',
     original.body,
     (value) => LiveStreamProof.fromJson(value, original),
   );

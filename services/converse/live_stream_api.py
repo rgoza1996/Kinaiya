@@ -12,10 +12,13 @@ from packages.contracts.live_streams import (
     LiveStreamCancellation,
     LiveStreamCapability,
     LiveStreamFinish,
+    LiveStreamIdentity,
     LiveStreamLookup,
+    LiveStreamNextUtterance,
     LiveStreamPcm,
     LiveStreamProof,
     LiveStreamScope,
+    LiveUtteranceCapability,
 )
 from packages.contracts.stt_settlement import digest
 from packages.contracts.whistle_stream_owner import ConverseStreamLookup
@@ -44,6 +47,8 @@ class LiveStreamRegistry:
             capture.fence()
 
     def available(self):
+        models = getattr(self.runtime, "stt_model_settings", None)
+        owned_stream_available = getattr(models, "owned_stream_available", None)
         return bool(
             self.dependency is not None
             and self.dependency.ready
@@ -52,8 +57,10 @@ class LiveStreamRegistry:
             and not getattr(self.runtime, "_stt_stopping", False)
             and getattr(self.runtime, "_stt_options_configured", False)
             and not self.runtime._stt_options_unavailable
-            and self.runtime.stt_model_settings is not None
-            and not self.runtime.stt_model_settings.closed
+            and models is not None
+            and not models.closed
+            and callable(owned_stream_available)
+            and owned_stream_available()
         )
 
     def _trim(self):
@@ -137,6 +144,17 @@ class LiveStreamRegistry:
         }
         await capture.append_or_finish(phase, native, request, original_body=original)
         return await self.proof(capture, phase, digest(original))
+
+    async def next_utterance(self, body, request):
+        # Ordinary v2 begin keeps its exact current utterance scope. Only this
+        # explicit, versioned boundary can advance that logical source domain.
+        capture = self.owned(
+            LiveStreamIdentity.model_validate(
+                body.model_dump(include=set(LiveStreamIdentity.model_fields)), strict=True
+            )
+        )
+        await capture.next_utterance(body, request)
+        return await self.proof(capture, "begin", digest(body.model_dump(mode="json")))
 
     async def proof(self, capture, phase, sha, *, reconcile=False):
         native = await capture.lookup(
@@ -255,6 +273,25 @@ def install_live_streams(app, runtime, auth, speech, dependency, reserve_api_mod
         body = await parse(request, LiveStreamBegin)
         reserve_api_model(runtime, request)
         return response(await registry.begin(body, request))
+
+    @routes.get("/next-utterance")
+    async def utterance_ownership(request: Request):
+        if request.query_params:
+            raise HTTPException(400, "Live utterance ownership has no query envelope")
+        return response(
+            LiveUtteranceCapability(
+                schema_version="1.0",
+                protocol="native_live_utterance_v1",
+                owner_instance=registry.instance,
+                available=registry.available(),
+            )
+        )
+
+    @routes.post("/next-utterance", openapi_extra=documented(LiveStreamNextUtterance))
+    async def next_utterance(request: Request):
+        body = await parse(request, LiveStreamNextUtterance)
+        reserve_api_model(runtime, request)
+        return response(await registry.next_utterance(body, request))
 
     @routes.post("/pcm", openapi_extra=documented(LiveStreamPcm))
     async def pcm(request: Request):

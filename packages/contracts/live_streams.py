@@ -29,6 +29,13 @@ class LiveStreamCapability(_Closed):
     available: bool
 
 
+class LiveUtteranceCapability(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_utterance_v1"]
+    owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$")
+    available: bool
+
+
 class LiveStreamIdentity(_Closed):
     schema_version: Literal["2.0"]
     protocol: Literal["converse_live_stream_v2"]
@@ -51,6 +58,24 @@ class LiveStreamScope(LiveStreamIdentity):
 
 class LiveStreamBegin(LiveStreamScope):
     segment_index: int = Field(ge=0, le=1000000)
+
+
+class LiveStreamNextUtterance(LiveStreamBegin):
+    boundary_protocol: Literal["native_live_utterance_v1"]
+    segment_index: int = Field(ge=1, le=1000000)
+    previous_utterance_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
+    previous_finish_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def distinct_domain(self):
+        # Monotonic native segments make these names unique without keeping an
+        # unbounded set of every utterance encountered during a long Call.
+        if (
+            self.utterance_id != f"{self.capture_id}_{self.segment_index}"
+            or self.utterance_id == self.previous_utterance_id
+        ):
+            raise ValueError("An explicit utterance boundary requires its new native domain")
+        return self
 
 
 class LiveStreamPcm(LiveStreamBegin):
