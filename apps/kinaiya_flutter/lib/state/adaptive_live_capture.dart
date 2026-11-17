@@ -250,6 +250,9 @@ class AdaptiveLiveCapture {
           if (entries.length < 16) break;
         }
         _check();
+        // A native permission fence need not append a transcript entry. Quiet
+        // input and an unchanged wake cursor must still discover that fence.
+        await _inspectCapture();
         final original = JournalWakeWait(noticeCursor);
         final attempt = notices.wait(original);
         _track(attempt.settled);
@@ -263,6 +266,18 @@ class AdaptiveLiveCapture {
         status = 'Live updates are unavailable. Stop status is being checked.';
         _requestStop('disconnected');
       }
+    }
+  }
+
+  Future<void> _inspectCapture() async {
+    _check();
+    final attempt = recovery.lookup(_begin);
+    _track(attempt.settled);
+    final proof = await attempt.result;
+    await attempt.settled;
+    _check();
+    if (proof.capture?.captureOpen != true) {
+      throw StateError('Original native capture permission is unavailable');
     }
   }
 

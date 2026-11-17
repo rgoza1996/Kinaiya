@@ -136,6 +136,15 @@ entry and playback counters. Limits are 2 MiB, 32 nesting levels and 65,536 JSON
 values. Existing settings codecs and legacy polling retain their prior behavior.
 Closing a wake body before dispatch refuses without enrolling a waiter (#682).
 
+After each bounded scoped journal drain, the original Call also looks up its
+current decoder's exact native capture permission through the enrolled metadata
+channel. A native permission fence can leave the transcript cursor unchanged;
+the existing bounded wake return therefore still leads to this read when input
+is quiet. Closed, missing or unavailable permission stops local capture/playback
+and starts original cancellation/readback. The lookup grants no PCM
+acknowledgment, inference or replacement capture. Its actual HTTP lifetime joins
+the other retained obligations, including when its facade fails.
+
 Stop fences new admission synchronously. Native cancellation/readback, original
 HTTP sends, decoder cleanup, browser acquisition/stop, local FIFO release and
 passive reader cleanup remain separate obligations. A public deadline or parent
@@ -195,6 +204,14 @@ inside the same mounted widget. Both retain the original speaker/FIFO through
 native input cleanup and public deadlines. The replacement Legacy Silence Call
 can acquire only after that same original retires. These controls do not qualify
 native owner/process replacement, every reconnect failure or hardware cleanup.
+
+The [dependency-loss qualification record](evidence/adaptive-call-dependency-loss-2026-11-17/README.md)
+stops the real native live Decisions worker and lets its original required-service
+monitor observe the actual readiness endpoint. It covers a backchannel followed
+by quiet input and an armed capture that receives no PCM at all. Local cleanup
+must complete without another packet or bridge event. A subsequent explicit Call
+observes unavailable capability without rearming or selecting another mode.
+Legacy Converse availability remains separate from this v2 dependency fence.
 
 ## Remaining integration
 

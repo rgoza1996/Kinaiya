@@ -10,6 +10,7 @@ from urllib.parse import urljoin
 
 import pytest
 import uvicorn
+from fastapi import Depends
 from flutter_project_helpers import isolated_flutter_project
 
 from services.session.api import create_app as session_app
@@ -92,6 +93,18 @@ from tests.integration.test_live_stream_api import live_client, scope_for
             "",
             id="adaptive_live_playback_client_replacement",
         ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-dependency-loss",
+            "",
+            id="adaptive_live_dependency_loss",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-idle-dependency-loss",
+            "",
+            id="adaptive_live_idle_dependency_loss",
+        ),
     ],
     indirect=["converse_incremental_env"],
 )
@@ -137,6 +150,30 @@ async def test_actual_dart_native_live_stream_rollover(
     async with live_client(env, conversation_actions=actions) as native:
         if entrypoint == "adaptive_live_call_native_test.dart":
             native.app.mount("/session", session_app(env.store, AUTH))
+
+        if env.playback_mode in {"dependency_loss", "dependency_idle"}:
+
+            @native.app.post(
+                "/fixture/required-live-decisions/stop",
+                dependencies=[Depends(AUTH.require("owner"))],
+            )
+            async def stop_required_live_decisions():
+                # Test-only control: stop the real worker, then observe its actual
+                # readiness API through the original required-service monitor.
+                await native.worker.close()
+                await native.dependency.refresh()
+                assert not native.dependency.ready and env.runtime.enabled
+                capture = next(iter(native.app.state.live_streams.captures.values()))
+                async with asyncio.timeout(3):
+                    while not capture.cleanup_complete():
+                        await asyncio.sleep(0.01)
+                state = await capture.mic.inspect()
+                return {
+                    "decisions_ready": native.dependency.ready,
+                    "capture_open": state.capture_open,
+                    "native_cleanup": capture.cleanup_complete(),
+                    "legacy_enabled": env.runtime.enabled,
+                }
 
         @native.app.middleware("http")
         async def observe(request, call_next):
@@ -200,9 +237,17 @@ async def test_actual_dart_native_live_stream_rollover(
                     ("begin", 1),
                     (
                         "pcm",
-                        1
+                        0
+                        if env.playback_mode == "dependency_idle"
+                        else 1
                         if env.playback_mode
-                        in {"mute", "held_stop", "widget_replacement", "client_replacement"}
+                        in {
+                            "mute",
+                            "held_stop",
+                            "widget_replacement",
+                            "client_replacement",
+                            "dependency_loss",
+                        }
                         else 3
                         if advanced
                         else 2,
@@ -229,6 +274,18 @@ async def test_actual_dart_native_live_stream_rollover(
                     1 if consumer and not held_reply and not playback else 0
                 )
                 if playback:
+                    if env.playback_mode in {"dependency_loss", "dependency_idle"}:
+                        assert not native.worker.ready and not native.dependency.ready
+                        assert env.runtime.enabled
+                    if env.playback_mode == "dependency_idle":
+                        assert env.tts_calls == [] and native.calls == []
+                        assert env.store.read(kinds=["conversation.converse"]) == []
+                        assert not any(path == "/v1/converse/speech" for _, path, _ in requests)
+                        assert not any(
+                            entry.payload.get("status") == "played"
+                            for entry in env.store.read(kinds=["delivery.updated"])
+                        )
+                        return
                     assert env.tts_calls == [
                         {"input": "Public synthetic acknowledgment.", "profile": "Kokoro 82M"}
                     ]

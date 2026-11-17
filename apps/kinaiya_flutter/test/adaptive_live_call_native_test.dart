@@ -578,7 +578,9 @@ void main() {
   );
 
   testWidgets(
-    playbackMode == 'client_replacement'
+    playbackMode.startsWith('dependency_')
+        ? 'required Decisions loss stops quiet capture without fresh PCM $playbackMode'
+        : playbackMode == 'client_replacement'
         ? 'client replacement retains original native recovery and unresolved local speaker'
         : playbackMode == 'widget_replacement'
         ? 'replacement Converse cannot acquire another mode before original speaker retirement'
@@ -665,6 +667,69 @@ void main() {
         await tester.ensureVisible(start);
         await tester.tap(start);
         await nativeSpin(tester, () => activities.any((a) => a.listening));
+        Future<void> verifyDependencyLoss() async {
+          try {
+            final control = IOClient(
+              _NativeLoopbackHttp().createHttpClient(null),
+            );
+            final response = await tester.runAsync(
+              () => control.post(
+                Uri.parse('$url/fixture/required-live-decisions/stop'),
+                headers: {'authorization': 'Bearer $token'},
+              ),
+            );
+            control.close();
+            expect(response!.statusCode, 200);
+            expect(jsonDecode(response.body), {
+              'decisions_ready': false,
+              'capture_open': false,
+              'native_cleanup': true,
+              'legacy_enabled': true,
+            });
+            // No fresh PCM or local bridge event is supplied after native loss.
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            expect(audio.armed, isFalse);
+            expect(await audio.isPlaying, isFalse);
+            expect(audio.arms, 1);
+            expect(audio.releases, 1);
+            expect(audio.clips, 0);
+            expect(
+              audio.acknowledgments,
+              playbackMode == 'dependency_idle' ? 0 : 1,
+            );
+            await tester.pump(const Duration(seconds: 4));
+            expect(audio.arms, 1);
+            await tester.tap(find.byTooltip('Start Live listen (armed mic)'));
+            await nativeSpin(
+              tester,
+              () => state.converseHistory.any(
+                (message) =>
+                    message.text.contains('Adaptive Live is unavailable'),
+              ),
+            );
+            expect(audio.arms, 1);
+            expect(audio.clips, 0);
+            expect(
+              state.converseHistory.last.text,
+              contains('Adaptive Live is unavailable'),
+            );
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await nativeSpin(
+              tester,
+              () => !AdaptiveLiveCapture.hasRetainedCapture,
+            );
+            state.dispose();
+          }
+        }
+
+        if (playbackMode == 'dependency_idle') {
+          await verifyDependencyLoss();
+          return;
+        }
         audio.feed();
         await nativeSpin(tester, () => audio.queuedAudio.isNotEmpty);
         expect(audio.queuedAudio, [
@@ -685,6 +750,10 @@ void main() {
               (entry['payload'] as Map)['status'] == 'played',
         );
         expect(hasPlayed(), isFalse);
+        if (playbackMode == 'dependency_loss') {
+          await verifyDependencyLoss();
+          return;
+        }
         if (playbackMode == 'client_replacement') {
           heldPlayback = audio.heldPlaybackStop = Completer<void>();
           final nextApi = ControlledApi(
