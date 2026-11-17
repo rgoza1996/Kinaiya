@@ -1,0 +1,14 @@
+{
+  "utc": "2026-11-17T14:35:08.419541+00:00",
+  "job": 134067933659,
+  "run": 44091623901,
+  "head": "17a2350bc41c4bc8def052b2e1a8de5cc33e9222",
+  "args": [
+    "gh",
+    "api",
+    "repos/rgoza1996/Kinaiya/actions/jobs/134067933659/logs"
+  ],
+  "exit_code": 0,
+  "log_sha256": "281b02c807fe4e162a085c5914c77e82c2c98ed94bccd014e691d2ca17989045",
+  "stderr": ""
+}

@@ -7,6 +7,7 @@ import pytest
 
 from packages.contracts.stt_settlement import digest
 from services.converse.live_stream_api import BASE
+from services.converse.live_streams import LiveIncrementalStreams
 from services.session.live_captures import LiveCaptureStore
 from tests.integration.test_incremental_whistle_converse import AUTH
 from tests.integration.test_incremental_whistle_converse import (
@@ -542,13 +543,19 @@ async def test_cancel_before_original_backend_bind_preserves_negative_reason_and
         assert env.engine.begin_calls == 0
 
 
+@pytest.mark.parametrize(
+    "route,protocol",
+    [("cancel-original", "native_live_abort_v1"), ("retire-original", "native_live_retire_v1")],
+)
 async def test_cancelled_http_facade_does_not_cancel_the_retained_native_fence(
     converse_incremental_env,
     monkeypatch,
+    route,
+    protocol,
 ):
     env = converse_incremental_env
     async with live_client(env) as live:
-        original = abort_body(await initial_body(env, live))
+        original = {**abort_body(await initial_body(env, live)), "protocol": protocol}
         entered, release = asyncio.Event(), asyncio.Event()
         fence = env.journal.fence_live_capture
         calls = []
@@ -560,19 +567,29 @@ async def test_cancelled_http_facade_does_not_cancel_the_retained_native_fence(
             return await fence(request)
 
         monkeypatch.setattr(env.journal, "fence_live_capture", held)
-        operation = asyncio.create_task(live.client.post(BASE + "/cancel-original", json=original))
+        enroll = LiveIncrementalStreams.abort_initial
+        operation = None
+
+        def cancel_after_enrollment(owner, request):
+            enroll(owner, request)
+            # Cancel in this same call stack before its first facade wait. A
+            # native fence-entry notification can arrive after the bounded
+            # facade has already completed under CI scheduling pressure (#687).
+            assert operation is not None and operation.cancel()
+
+        monkeypatch.setattr(LiveIncrementalStreams, "abort_initial", cancel_after_enrollment)
+        operation = asyncio.create_task(live.client.post(BASE + "/" + route, json=original))
         try:
-            await asyncio.wait_for(entered.wait(), 3)
-            operation.cancel()
             with pytest.raises(asyncio.CancelledError):
                 await operation
+            await asyncio.wait_for(entered.wait(), 3)
             owner = live.app.state.live_streams.captures[original["initial"]["capture_id"]]
             assert not owner.mic.fence_task.done() and len(calls) == 1
         finally:
             release.set()
         await asyncio.wait_for(asyncio.shield(owner.mic.fence_task), 3)
         confirmed(
-            (await live.client.post(BASE + "/cancel-original/lookup", json=original)).json(),
+            (await live.client.post(BASE + "/" + route + "/lookup", json=original)).json(),
             original,
         )
         assert len(calls) == 1 and env.engine.begin_calls == 0
