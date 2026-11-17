@@ -116,6 +116,11 @@ def add(store, session, kind, text, *, scope="public_synthetic", causes=(), role
 
 def queued_claim(store, session, source, binding, instruction=None):
     revision = source.payload.get("revision", 1)
+    primary = (
+        source.payload["target_event_id"]
+        if source.kind == "conversation.revision"
+        else source.event_id
+    )
     instruction = source.payload["text"] if instruction is None else instruction
     if source.kind == "conversation.window":
         decision = WindowDecision(
@@ -129,7 +134,7 @@ def queued_claim(store, session, source, binding, instruction=None):
         key = window_agent_key(decision.decision_id, decision.agent_route)
     else:
         decision = Decision(
-            source_event_ids=[source.event_id],
+            source_event_ids=[primary],
             source_revision=revision,
             route="queue",
             instruction=instruction,
@@ -158,7 +163,7 @@ def queued_claim(store, session, source, binding, instruction=None):
             request_id=uuid4().hex,
             operation="submit",
             target=binding.target,
-            source=ExternalAgentSource(event_ids=(source.event_id,), revision=revision),
+            source=ExternalAgentSource(event_ids=(primary,), revision=revision),
             idempotency_key=key,
             instruction=instruction,
             content_scope="public_synthetic",
@@ -166,6 +171,86 @@ def queued_claim(store, session, source, binding, instruction=None):
             queue_if_busy=True,
         ),
     )
+
+
+async def test_exact_finalized_correction_claim_uses_root_and_revision_cause(tmp_path):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        source = add(peers.store, session, "conversation.user", "Original synthetic task")
+        correction = add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "Corrected synthetic task",
+            revision=2,
+            target_event_id=source.event_id,
+        )
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        claim = queued_claim(peers.store, session, correction, binding)
+        assert claim.command.source.event_ids == (source.event_id,)
+        assert peers.store.entry(claim.decision_event_id).causes == [correction.event_id]
+
+        receipt = await peers.decisions.claim(claim)
+        assert receipt.disposition == "original"
+        assert (await peers.decisions.claim(claim)).admission_id == receipt.admission_id
+        replacement = add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "Another correction",
+            revision=3,
+            target_event_id=source.event_id,
+        )
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(queued_claim(peers.store, session, replacement, binding))
+
+
+@pytest.mark.parametrize("invalid", ["stale", "private_root", "unrelated_root"])
+async def test_correction_cannot_change_the_claims_native_authority(tmp_path, invalid):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        source = add(
+            peers.store,
+            session,
+            "conversation.user",
+            "Original synthetic task",
+            scope="local_only" if invalid == "private_root" else "public_synthetic",
+        )
+        correction = add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "Corrected synthetic task",
+            revision=2,
+            target_event_id=source.event_id,
+        )
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        claim = queued_claim(peers.store, session, correction, binding)
+        if invalid == "stale":
+            add(
+                peers.store,
+                session,
+                "conversation.revision",
+                "Newer correction",
+                revision=3,
+                target_event_id=source.event_id,
+            )
+        elif invalid == "unrelated_root":
+            other = add(peers.store, session, "conversation.user", "Other synthetic task")
+            command = claim.command.model_copy(
+                update={"source": ExternalAgentSource(event_ids=(other.event_id,), revision=2)}
+            )
+            claim = claim.model_copy(update={"command": command})
+
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(claim)
+        assert (
+            peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0] == 0
+        )
 
 
 async def test_one_exact_claim_survives_duplicate_delivery_and_restart(tmp_path):
@@ -187,6 +272,9 @@ async def test_one_exact_claim_survives_duplicate_delivery_and_restart(tmp_path)
         )
         with pytest.raises(PermissionError):
             await peers.owner.claim(request)
+        with pytest.raises(PermissionError):
+            await peers.owner.claim(request, retain_only=True)
+        assert await peers.decisions.claim(request, retain_only=True) is None
         competing = await asyncio.gather(
             peers.decisions.claim(request),
             peers.decisions.claim(duplicate),
@@ -195,7 +283,7 @@ async def test_one_exact_claim_survives_duplicate_delivery_and_restart(tmp_path)
         (admission_id,) = {reply.admission_id for reply in competing}
 
     async with native(path) as peers:
-        retained = await peers.decisions.claim(request)
+        retained = await peers.decisions.claim(request, retain_only=True)
         assert retained.disposition == "retained" and retained.admission_id == admission_id
         changed = request.model_copy(
             update={"command": request.command.model_copy(update={"instruction": "Changed text"})}
@@ -285,6 +373,61 @@ async def test_claim_checks_native_route_text_revision_and_disclosure(tmp_path):
         )
         claimed = await peers.decisions.claim(queued_claim(peers.store, session, rolling, binding))
         assert claimed.disposition == "original"
+
+
+@pytest.mark.parametrize("superseded", [False, True])
+async def test_rolling_claim_checks_utterance_progress_atomically(tmp_path, superseded):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+
+        def window(index, text, *, utterance="continuous-utterance"):
+            model = SpeechWindow(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                utterance_id=utterance,
+                window_index=index,
+                text=text,
+                start_ms=0,
+                end_ms=100 * (index + 1),
+                user_speaking=True,
+                content_scope="public_synthetic",
+            )
+            return peers.store.append(
+                AppendRequest(
+                    session_id=session.session_id,
+                    thread_id=session.thread_id,
+                    epoch=session.epoch,
+                    kind="conversation.window",
+                    payload=model.model_dump(mode="json"),
+                    idempotency_key=uuid4().hex,
+                ),
+                "owner",
+            )
+
+        initial = window(0, "Original spoken instruction")
+        first = queued_claim(peers.store, session, initial, binding)
+        if superseded:
+            window(1, "Updated spoken instruction")
+            proposal = first
+        else:
+            assert (await peers.decisions.claim(first)).disposition == "original"
+            repeated = window(1, "Original spoken instruction")
+            proposal = queued_claim(peers.store, session, repeated, binding)
+
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(proposal)
+        fresh = window(2, "A fresh update")
+        assert (
+            await peers.decisions.claim(queued_claim(peers.store, session, fresh, binding))
+        ).disposition == "original"
+        independent = window(0, fresh.payload["text"], utterance="new-utterance")
+        assert (
+            await peers.decisions.claim(queued_claim(peers.store, session, independent, binding))
+        ).disposition == "original"
 
 
 async def test_session_retains_exact_grant_and_binding_across_restart(tmp_path):

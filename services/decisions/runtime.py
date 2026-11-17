@@ -372,12 +372,16 @@ class DecisionsWorker:
         model_settings=None,
         max_attempts=None,
         native_media_owner=None,
+        external_agent=None,
     ):
         self.journal, self.agent, self.classifier = journal, agent, classifier
         self.window_turns, self.enabled = window_turns, enabled
         self.consumer = "decisions-v1"
         self.model_settings = model_settings
         self.native_media_owner = native_media_owner
+        if enabled and external_agent is not None:
+            raise ValueError("Decisions requires one work executor")
+        self.external_agent = external_agent
         if max_attempts is not None and (
             type(max_attempts) is not int or not 1 <= max_attempts <= MAX_NATIVE_ATTEMPTS
         ):
@@ -693,7 +697,10 @@ class DecisionsWorker:
         if published.kind == "routing.decided":
             # The original may have committed its decision before this refusal.
             # Reconcile that exact winner before allowing cursor advancement.
-            return await self._dispatch_decision(source, Decision.model_validate(published.payload))
+            target = self.external_agent.routing_target(source) if self.external_agent else None
+            return await self._dispatch_decision(
+                source, Decision.model_validate(published.payload), published, target
+            )
         return None
 
     async def _run_classifier(
@@ -770,6 +777,9 @@ class DecisionsWorker:
             # Window replies carry no new owner authority; their paired native
             # window decision already owns routing, independently of this path.
             return None
+        external_target = (
+            self.external_agent.routing_target(source) if self.external_agent else None
+        )
         after, recorded = source.sequence, None
         while True:
             previous = await self.journal.read(
@@ -824,7 +834,7 @@ class DecisionsWorker:
                     and t.state not in {"succeeded", "failed", "cancelled"}
                 ]
                 tasks = await self._scoped_tasks(tasks)
-                if not self.enabled:
+                if not self.enabled and external_target is None:
                     result = {"route": "ignore", "reason_code": "agent_disabled_no_replay"}
                 elif source.kind == "conversation.converse":
                     result = {"route": "ignore", "reason_code": "assistant_has_no_user_authority"}
@@ -931,10 +941,11 @@ class DecisionsWorker:
             if published.kind == "routing.classification_refused":
                 return None
             decision = Decision.model_validate(published.payload)
-        return await self._dispatch_decision(source, decision)
+            recorded = published
+        return await self._dispatch_decision(source, decision, recorded, external_target)
 
-    async def _dispatch_decision(self, source, decision):
-        if not self.enabled or decision.route == "ignore":
+    async def _dispatch_decision(self, source, decision, recorded, external_target):
+        if decision.route == "ignore" or (not self.enabled and external_target is None):
             return decision
         if await self._dispatch_recorded(source, decision):
             return decision
@@ -943,6 +954,29 @@ class DecisionsWorker:
             if source.event_id == decision.source_event_ids[0]
             else await self.journal.entry(decision.source_event_ids[0])
         )
+        if not self.enabled:
+            if decision.route == "queue":
+                try:
+                    receipt = await asyncio.wait_for(
+                        self.external_agent.dispatch(
+                            external_target,
+                            source,
+                            recorded,
+                            key=decision.idempotency_key,
+                            event_ids=decision.source_event_ids,
+                            instruction=decision.instruction,
+                            accepted_state="accepted",
+                        ),
+                        timeout=DISPATCH_TIMEOUT,
+                    )
+                except TimeoutError:
+                    receipt = {
+                        "state": "unknown",
+                        "reason": "external_agent_dispatch_unconfirmed",
+                        "executor": "pi",
+                    }
+                await self._record_dispatch(source, decision, original, **receipt)
+            return decision
         try:
             task = await asyncio.wait_for(self.dispatch(source, decision), timeout=DISPATCH_TIMEOUT)
             acknowledgement = acknowledged_task(

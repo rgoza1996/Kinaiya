@@ -14,7 +14,7 @@ class PiSubmission:
         self.authority = authority
         self.peer = peer
 
-    async def submit(self, request):
+    async def submit(self, request, *, retain_only=False):
         request = ExternalAgentClaim.model_validate(request, strict=True)
         command = request.command
         if command.target.backend_session_id != self.peer.session_id:
@@ -24,7 +24,15 @@ class PiSubmission:
                 kind="refusal",
                 reason="scope_changed",
             )
-        claim = await self.authority.claim(request)
+        claim = (
+            await self.authority.claim(request, retain_only=True)
+            if retain_only
+            else await self.authority.claim(request)
+        )
+        if claim is None:
+            return ExternalAgentRefusal(
+                contract_version=1, request_id=request.request_id, kind="refusal", reason="busy"
+            )
         if claim.disposition == "original":
             try:
                 reply = await self.peer.submit(claim.admission_id, command.instruction)

@@ -1,6 +1,7 @@
 """Real, opt-in Pi SDK integration in a private network and filesystem namespace."""
 
 import asyncio
+import base64
 import json
 import os
 import shutil
@@ -14,11 +15,17 @@ import uvicorn
 
 from packages.agent_adapters.external_submission import PiSubmission
 from packages.agent_adapters.pi_sdk import PiPeerUnavailable, PiSdkPeer
+from packages.contracts.client import JournalClient
 from packages.contracts.external_agent import ExternalAgentRevoke, ExternalAgentTarget
 from packages.contracts.external_agent_client import ExternalAgentNativeUnavailable
-from packages.contracts.models import SessionRequest
+from packages.contracts.models import SessionRequest, SpeechWindow
 from packages.providers.text import ScriptedProvider
 from services import launcher
+from services.common.auth import Auth
+from services.converse.api import create_app as converse_app
+from services.converse.dependencies import RequiredDecisions
+from services.converse.runtime import ConverseRuntime
+from services.converse.windows import WindowConverseController
 from tests.integration.test_external_agent_session import (
     add,
     bind_to,
@@ -375,47 +382,67 @@ async def test_session_claim_cannot_replay_a_real_pi_run_after_peer_restart(priv
             assert await asyncio.wait_for(process.wait(), 5) == 0
 
 
-async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_session(
-    private, monkeypatch
-):
+def managed_app(private, peers, monkeypatch, fixture):
     data = private.parent / "decisions-data"
     data.mkdir(mode=0o700)
     node = Path(shutil.which("node")).resolve()
-    fixture = ScriptedProvider([])
     apps = []
     monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _: TOKENS)
     monkeypatch.setattr(launcher, "provider", lambda *_args, **_kwargs: fixture)
     monkeypatch.setattr(uvicorn, "run", lambda app, **_: apps.append(app))
+    config = private.parent / "config.json"
+    config.write_text(
+        json.dumps(
+            {
+                "session_url": str(peers.http.base_url).rstrip("/"),
+                "external_agent": {
+                    "profile_id": "pi-fixture",
+                    "node": str(node),
+                    "sdk_root": SDK_ROOT,
+                    "agent_dir": str(private / "agent"),
+                    "workspace": str(private / "workspace"),
+                },
+            }
+        )
+    )
+    launcher.serve(
+        SimpleNamespace(
+            data_dir=data,
+            workspace=private / "workspace",
+            config=config,
+            service="decisions",
+            port=None,
+            start_paused=False,
+            startup_subsystem_mode="converse-decisions",
+        )
+    )
+    (app,) = apps
+    return app, data
+
+
+async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_session(
+    private, monkeypatch
+):
+    fixture = ScriptedProvider([])
     async with native(private.parent / "journal.sqlite") as peers:
         session = peers.store.create_session(SessionRequest(channel="converse"))
         grant = await peers.owner.authorize(connection(session, backend=None))
-        config = private.parent / "config.json"
-        config.write_text(
-            json.dumps(
-                {
-                    "session_url": str(peers.http.base_url).rstrip("/"),
-                    "external_agent": {
-                        "profile_id": "pi-fixture",
-                        "node": str(node),
-                        "sdk_root": SDK_ROOT,
-                        "agent_dir": str(private / "agent"),
-                        "workspace": str(private / "workspace"),
-                    },
-                }
+        start = "/fixture-command from the recorded managed path"
+        provisional = SimpleNamespace(
+            target=ExternalAgentTarget(
+                attachment_id=grant.attachment_id, backend_session_id="not-observed-yet"
             )
         )
-        launcher.serve(
-            SimpleNamespace(
-                data_dir=data,
-                workspace=private / "workspace",
-                config=config,
-                service="decisions",
-                port=None,
-                start_paused=False,
-                startup_subsystem_mode="converse-decisions",
-            )
-        )
-        (app,) = apps
+        proposals = [
+            queued_claim(
+                peers.store,
+                session,
+                add(peers.store, session, "conversation.user", text),
+                provisional,
+            ).model_dump(mode="json")
+            for text in (start, "hold for interrupt", "A different synthetic task")
+        ]
+        app, data = managed_app(private, peers, monkeypatch, fixture)
         manager = app.state.external_agent
         attach = {
             "contract_version": 1,
@@ -481,15 +508,9 @@ async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_sessio
             records = [json.loads(line) for line in history.read_text().splitlines()]
             assert records[0]["id"] == target["backend_session_id"]
             assert all(record["type"] != "message" for record in records)
-            start = "/fixture-command from the recorded managed path"
-            source = add(peers.store, session, "conversation.user", start)
-            request = queued_claim(
-                peers.store,
-                session,
-                source,
-                SimpleNamespace(target=ExternalAgentTarget.model_validate(target)),
-            )
-            proposal = request.model_dump(mode="json")
+            for item in proposals:
+                item["command"]["target"] = target
+            proposal, held, different = proposals
             assert (await owner.post(path + "/submit", json=proposal)).status_code == 403
             accepted = await owner.post(
                 path + "/submit",
@@ -530,6 +551,174 @@ async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_sessio
                 },
             )
             assert status.status_code == 200 and status.json()["tasks"][0]["state"] == "settled"
+            decisions_role = {"Authorization": "Bearer " + TOKENS["decisions"]}
+            original = await owner.post(path + "/submit", json=held, headers=decisions_role)
+            assert original.status_code == 200 and original.json()["disposition"] == "accepted"
+            replay = await owner.post(path + "/submit", json=held, headers=decisions_role)
+            assert replay.status_code == 200, replay.text
+            assert replay.json()["task"]["task_id"] == original.json()["task"]["task_id"]
+            refused = await owner.post(path + "/submit", json=different, headers=decisions_role)
+            assert refused.status_code == 409 and refused.json()["reason"] == "busy"
+            assert (
+                peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0]
+                == 2
+            )
             final = manager._owned.process
         assert final.returncode is not None
         assert fixture.calls == []
+
+
+async def test_converse_text_and_rolling_audio_route_through_actual_decisions_to_pi(
+    private, monkeypatch
+):
+    typed = "/fixture-command exact typed instruction \u2602"
+    spoken = "Public synthetic transcription for Pi"
+    audio = b"PUBLIC_SYNTHETIC_AUDIO"
+    classifier = ScriptedProvider(
+        [
+            '{"route":"queue"}',
+            '{"conversation":"WAIT_FOR_NEXT_WINDOW","agent_route":"QUEUE_UNTIL_TASK_DONE",'
+            '"reason_code":"synthetic_route"}',
+        ]
+    )
+
+    class Speech:
+        calls = 0
+
+        async def transcribe(self, data, filename):
+            assert data == audio and filename == "window.wav"
+            self.calls += 1
+            return {"text": spoken}
+
+    async with native(private.parent / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        elsewhere = peers.store.create_session(SessionRequest(channel="converse"))
+        prior = add(peers.store, session, "conversation.user", "Before attachment")
+        grant = await peers.owner.authorize(connection(session, backend=None))
+        decisions_app, _ = managed_app(private, peers, monkeypatch, classifier)
+        scope = {key: getattr(session, key) for key in ("session_id", "thread_id", "epoch")}
+        headers = {"Authorization": "Bearer " + TOKENS["owner"]}
+        path = "/v1/decisions/external-agent"
+        async with (
+            loopback(decisions_app) as decisions,
+            httpx.AsyncClient(base_url=decisions, headers=headers, trust_env=False) as owner,
+        ):
+            attached = await owner.post(
+                path + "/attach",
+                json={
+                    "contract_version": 1,
+                    "request_id": "attach-routing",
+                    "operation": "attach",
+                    "attachment_id": grant.attachment_id,
+                },
+            )
+            assert attached.status_code == 200, attached.text
+            target = attached.json()["target"]
+            gate = RequiredDecisions(decisions, TOKENS["converse"])
+            journal = JournalClient(str(peers.http.base_url).rstrip("/"), TOKENS["converse"])
+            converser = ConverseRuntime(
+                journal, ScriptedProvider(["I heard your request."]), decisions_dependency=gate
+            )
+            speech = Speech()
+            windows = WindowConverseController(converser)
+            cursor = 0
+
+            async def settled(instruction, kind, expected):
+                nonlocal cursor
+                events, receipt = [], None
+                async with asyncio.timeout(10):
+                    while receipt is None or not any(
+                        item.get("state") == "settled" for item in events
+                    ):
+                        page = await owner.post(
+                            path + "/events",
+                            json={
+                                "contract_version": 1,
+                                "request_id": "observe-routing",
+                                "operation": "events",
+                                "target": target,
+                                "after": cursor,
+                                "limit": 8,
+                            },
+                        )
+                        assert page.status_code == 200, page.text
+                        data = page.json()
+                        cursor = data["next_after"]
+                        events.extend(data["events"])
+                        matches = peers.store.read(session_id=session.session_id, kinds=[kind])
+                        if matches:
+                            receipt = matches[-1]
+                            assert receipt.payload["state"] == expected, receipt.payload
+                        await asyncio.sleep(0.02)
+                assert [item["text"] for item in events if item["kind"] == "assistant_message"] == [
+                    instruction
+                ]
+                assert receipt.payload["state"] == expected and receipt.payload["executor"] == "pi"
+                assert receipt.payload["external_task_id"] == events[-1]["task_id"]
+                assert "native_task_id" not in receipt.payload
+                return receipt
+
+            async def wait_for_ready():
+                async with asyncio.timeout(5):
+                    while not (await owner.get("/v1/decisions/readiness")).json()["ready"]:
+                        await asyncio.sleep(0.02)
+
+            try:
+                await wait_for_ready()
+                await gate.start()
+                await gate.refresh()
+                assert converser.enabled
+                async with (
+                    loopback(converse_app(converser, Auth(TOKENS), speech, windows)) as converse,
+                    httpx.AsyncClient(
+                        base_url=converse, headers=headers, trust_env=False
+                    ) as client,
+                ):
+                    add(
+                        peers.store, elsewhere, "conversation.user", "No owner grant for this scope"
+                    )
+                    turn = await client.post(
+                        "/v1/converse/turns",
+                        json={
+                            **scope,
+                            "text": typed,
+                            "content_scope": "public_synthetic",
+                            "idempotency_key": "fresh-native-text",
+                        },
+                    )
+                    assert turn.status_code == 200, turn.text
+                    text_receipt = await settled(typed, "routing.dispatch", "accepted")
+                    user = peers.store.entry(text_receipt.payload["source_event_id"])
+                    assert user.payload["text"] == typed and user.event_id != prior.event_id
+
+                    body = SpeechWindow(
+                        **scope,
+                        utterance_id="native-rolling",
+                        window_index=0,
+                        text="UNTRUSTED_REQUEST_TEXT",
+                        start_ms=0,
+                        end_ms=1000,
+                        user_speaking=True,
+                        content_scope="public_synthetic",
+                    ).model_dump(mode="json")
+                    body["audio_base64"] = base64.b64encode(audio).decode("ascii")
+                    voice = await client.post("/v1/converse/audio/windows", json=body)
+                    assert voice.status_code == 200, voice.text
+                    window = voice.json()["entry"]
+                    assert (
+                        window["payload"]["text"] == spoken and not voice.json()["retained_audio"]
+                    )
+                    speech_receipt = await settled(spoken, "routing.window_dispatch", "applied")
+                    assert speech_receipt.payload["source_event_id"] == window["event_id"]
+                    replay = await client.post("/v1/converse/audio/windows", json=body)
+                    assert replay.status_code == 200 and replay.json()["replay"]
+                    assert speech.calls == 1
+            finally:
+                await windows.close()
+                await converser.close()
+                await gate.close()
+                await journal.close()
+        assert len(classifier.calls) == 2
+        assert (
+            peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0] == 2
+        )

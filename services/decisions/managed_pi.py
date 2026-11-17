@@ -3,6 +3,8 @@
 import asyncio
 import secrets
 
+import httpx
+
 from packages.agent_adapters.external_submission import PiSubmission
 from packages.agent_adapters.pi_sdk import (
     MAX_FRAME_BYTES,
@@ -14,6 +16,7 @@ from packages.agent_adapters.pi_sdk import (
 from packages.contracts.external_agent import (
     ExternalAgentBind,
     ExternalAgentCapabilities,
+    ExternalAgentClaim,
     ExternalAgentCommandReceipt,
     ExternalAgentDisconnectReceipt,
     ExternalAgentEventPage,
@@ -21,8 +24,10 @@ from packages.contracts.external_agent import (
     ExternalAgentMessageEvent,
     ExternalAgentOutputUnavailable,
     ExternalAgentRefusal,
+    ExternalAgentSource,
     ExternalAgentStateEvent,
     ExternalAgentStatus,
+    ExternalAgentSubmit,
     ExternalAgentTarget,
     ExternalAgentToolEvent,
 )
@@ -31,6 +36,7 @@ from packages.contracts.external_agent_client import (
     ExternalAgentNativeUnavailable,
     ExternalAgentSessionClient,
 )
+from packages.providers.disclosure import combine_scopes, source_scope
 from services.decisions.pi_process import PiLaunchUnavailable, launch
 
 
@@ -44,6 +50,7 @@ class ManagedPi:
         self._operations = set()
         self._closed = False
         self._connected = False
+        self._route_after = None
         self._owned = self._peer = self._grant = None
         self._tasks = {}
 
@@ -137,10 +144,10 @@ class ManagedPi:
                 return self._refuse(request.request_id, "scope_changed")
             return self._observed(request.request_id)
 
-    async def _perform(self, action, request):
+    async def _perform(self, action, request, **options):
         if self._closed or len(self._operations) >= 8:
             return self._refuse(request.request_id, "unavailable")
-        task = asyncio.create_task(action(request))
+        task = asyncio.create_task(action(request, **options))
         self._operations.add(task)
 
         def finished(done):
@@ -153,6 +160,32 @@ class ManagedPi:
 
     async def attach(self, request):
         return await self._perform(self._attach, request)
+
+    async def _activate(self, scope):
+        # A new connection starts with new user input. Unprocessed history
+        # cannot become work merely because a destination is attached later.
+        latest = await self.authority.journal.recent(session_id=scope.session_id, limit=1)
+        self._route_after = latest[-1].sequence if latest else 0
+        self._connected = True
+
+    def routing_target(self, source):
+        if (
+            self._closed
+            or not self._connected
+            or self._route_after is None
+            or source.sequence <= self._route_after
+            or self._peer is None
+            or not self._peer.available
+        ):
+            return None
+        scope = self._grant.original.scope
+        if (source.session_id, source.thread_id, source.epoch) != (
+            scope.session_id,
+            scope.thread_id,
+            scope.epoch,
+        ):
+            return None
+        return self._target
 
     async def _attach(self, request):
         async with self._lock:
@@ -176,7 +209,11 @@ class ManagedPi:
                     return self._refuse(request.request_id, "scope_changed")
                 if self._peer is None or not self._peer.available:
                     return self._refuse(request.request_id, "unavailable")
-                self._connected = True
+                if not self._connected:
+                    try:
+                        await self._activate(grant.original.scope)
+                    except (httpx.HTTPError, OSError, ValueError):
+                        return self._refuse(request.request_id, "unavailable")
                 return self._observed(request.request_id)
             if self._owned is not None:
                 await self._owned.close()
@@ -212,17 +249,19 @@ class ManagedPi:
                 )
                 if process.returncode is not None:
                     raise PiLaunchUnavailable
+                await self._activate(self._grant.original.scope)
             except (
                 ExternalAgentNativeConflict,
                 ExternalAgentNativeUnavailable,
+                httpx.HTTPError,
                 OSError,
                 PiPeerUnavailable,
                 PiLaunchUnavailable,
+                ValueError,
             ):
                 if self._owned is not None:
                     await self._reap()
                 return self._refuse(request.request_id, "unavailable")
-            self._connected = True
             return self._observed(request.request_id)
 
     async def _read_transcript(self, **position):
@@ -231,21 +270,76 @@ class ManagedPi:
             raise ExternalAgentNativeUnavailable
         return await self.authority.read_bound_transcript(grant, **position)
 
-    async def submit(self, request):
-        return await self._perform(self._submit, request)
+    async def submit(self, request, *, routing_source=None):
+        return await self._perform(self._submit, request, routing_source=routing_source)
 
-    async def _submit(self, request):
+    async def dispatch(
+        self, target, source, recorded, *, key, event_ids, instruction, accepted_state
+    ):
+        """Deliver a recorded native route through the same Session claim as submit."""
+        no_effect = {"state": "not_applied", "executor": "pi"}
+        if target is None or target != self.routing_target(source):
+            return {**no_effect, "reason": "external_agent_attachment_changed"}
+        try:
+            content_scope = combine_scopes(
+                source.payload.get("content_scope", "local_only"),
+                await source_scope(self.authority.journal, event_ids[0]),
+            )
+            command = ExternalAgentSubmit(
+                contract_version=1,
+                request_id=secrets.token_hex(16),
+                operation="submit",
+                target=target,
+                source=ExternalAgentSource(
+                    event_ids=tuple(event_ids), revision=source.payload.get("revision", 1)
+                ),
+                idempotency_key=key,
+                instruction=instruction,
+                content_scope=content_scope,
+                execution_policy="backend_owned",
+                queue_if_busy=False,
+            )
+        except (httpx.HTTPError, OSError, ValueError):
+            return {**no_effect, "reason": "external_agent_source_unavailable"}
+        reply = await self.submit(
+            ExternalAgentClaim(
+                contract_version=1,
+                request_id=secrets.token_hex(16),
+                operation="claim",
+                decision_event_id=recorded.event_id,
+                command=command,
+            ),
+            routing_source=source,
+        )
+        if isinstance(reply, ExternalAgentCommandReceipt):
+            accepted = reply.disposition == "accepted"
+            return {
+                "state": accepted_state if accepted else "unknown",
+                "reason": "external_agent_accepted" if accepted else "external_agent_unconfirmed",
+                "executor": "pi",
+                "external_task_id": reply.task.task_id,
+                "external_task_state": reply.task.state,
+            }
+        return {
+            "state": "unknown" if reply.reason == "unavailable" else "not_applied",
+            "reason": f"external_agent_{reply.reason}",
+            "executor": "pi",
+        }
+
+    async def _submit(self, request, *, routing_source=None):
         async with self._lock:
             peer = self._peer
             if self._target != request.command.target:
+                return self._refuse(request.request_id, "scope_changed")
+            if routing_source is not None and self.routing_target(routing_source) != self._target:
                 return self._refuse(request.request_id, "scope_changed")
             if self._closed or not self._connected or peer is None or not peer.available:
                 return self._refuse(request.request_id, "unavailable")
             try:
                 observed = await peer.status(secrets.token_hex(16))
-                if observed.busy:
-                    return self._refuse(request.request_id, "busy")
-                result = await PiSubmission(self.authority, peer).submit(request)
+                result = await PiSubmission(self.authority, peer).submit(
+                    request, retain_only=observed.busy
+                )
             except ExternalAgentNativeConflict:
                 return self._refuse(request.request_id, "scope_changed")
             except (

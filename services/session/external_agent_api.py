@@ -29,6 +29,8 @@ async def _invoke(incoming, model, method, limit=MAX_EXTERNAL_NATIVE_REQUEST_BYT
     request = await external_agent_body(incoming, model, limit)
     try:
         result = await run_in_threadpool(method, request)
+        if result is None:
+            return Response(status_code=204, headers={"Cache-Control": "no-store"})
         body = result.model_dump_json().encode("utf-8")
         if len(body) > MAX_EXTERNAL_TRANSCRIPT_PAGE_BYTES:
             raise ExternalAgentUnavailable
@@ -79,5 +81,11 @@ def router(store, auth):
     @native.post("/claim", dependencies=[decisions])
     async def claim(request: Request):
         return await _invoke(request, ExternalAgentClaim, access.claim, MAX_EXTERNAL_COMMAND_BYTES)
+
+    @native.post("/claim/retained", dependencies=[decisions])
+    async def retained_claim(request: Request):
+        return await _invoke(
+            request, ExternalAgentClaim, access.retained_claim, MAX_EXTERNAL_COMMAND_BYTES
+        )
 
     return native

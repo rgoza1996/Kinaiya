@@ -1,10 +1,10 @@
 # External Agent bridge v1
 
-The bridge contract, Session attachment grants, and the Pi SDK peer implement
-managed attachment, transcript, and original submission boundaries for
-[issue #547](https://github.com/rgoza1996/Kinaiya/issues/547). The application
-integration still requires automatic Decisions task delivery, durable result
-recovery, and an end-to-end Converse rehearsal.
+The bridge contract, Session attachment grants, and the Pi SDK peer support
+managed attachment, scoped transcript reads, and Decisions delivery from
+Converse typed turns and Rolling Windows. Durable result recovery and queued
+and targeted controls remain in scope. [External Agent
+bridge](https://github.com/rgoza1996/Kinaiya/issues/547)
 
 ## Commands and observations
 
@@ -54,8 +54,8 @@ peer's private pipe during the current run. The Python reader checks the
 original run and backend session before returning the page. Session
 credentials stay with the Decisions client. A regular instruction contains
 the routed text and the peer sends transcript text only in response to the
-tool's read. The application still needs to match its actual backend runtime
-and network scope to the owner grant before attaching.
+tool's read. A managed attachment applies the selected runtime and network
+scope when it starts the peer.
 
 ## Pi SDK peer
 
@@ -120,20 +120,37 @@ peer once its process exit is observed. The SDK persists a session header
 at attach time, so reopening an empty session retains its original identity.
 Event replay covers the original live peer's bounded buffer.
 
-Authenticated Decisions code can send a recorded claim through
-`POST /v1/decisions/external-agent/submit`. The managed peer checks its
-observed occupancy before reserving a send. The app reports busy when
-the backend is already working. Automatic routing and queueing remain
-tracked by #547.
+The finalized and Rolling Windows Decisions workers route eligible fresh
+sources to the active attachment in the same session, thread and epoch. An
+attachment takes a native journal cutoff at activation. Entries that predate
+the activation stay outside automatic delivery. The worker sends the original
+recorded decision ID, the native source and revision, and the exact routed
+text. Windows retain their original conversation timing labels.
+
+Authenticated Decisions code can also deliver a recorded claim through
+`POST /v1/decisions/external-agent/submit`. The managed peer checks observed
+occupancy before reserving a send. When busy, Decisions asks Session
+`POST /v1/external-agent/claim/retained` to recover an exact original claim.
+Session returns an empty response when the claim is absent. A different
+command remains unapplied while the peer is busy. Queued delivery and task
+controls remain open.
+
+The journal receipts identify Pi as the executor and carry observed external
+task identity separately from native Agent tasks. The owner reads current
+status and settled output from the managed routes. The result replay buffer
+belongs to the current peer process.
 
 ## Original submission
 
 Decisions uses the native `POST /v1/external-agent/claim` route to reserve one
 send for a finalized Decisions queue action or a rolling-window queue action.
 Session verifies the recorded decision, source identity, current revision,
-instruction and disclosure scope. A recorded prior dispatch or another grant
-for the same source blocks a new send. Source checks and the claim write
-share one native transaction.
+instruction and disclosure scope. A corrected finalized turn keeps the
+original source ID and names the exact correction as the decision's cause.
+A recorded prior dispatch or another grant for the same source blocks a new
+send. For Rolling Windows, Session also checks the current utterance for
+changed text and an earlier claim for the same spoken instruction. These
+checks and the claim write share one native transaction.
 
 The first committed claim assigns an admission ID. The adapter uses it as the
 Pi run identity and sends the instruction only when the reply says
@@ -166,6 +183,9 @@ tests cover concurrent binding, restart, reset, revisions and byte-accurate
 paging. A real Pi replay rehearsal sends a recorded Decisions instruction
 once, refuses another send after a lost native acknowledgment, and reopens
 the same Pi session without starting the original again. The Converse-only
-launcher rehearsal attaches and reopens a real managed peer and reports the
-accepted instruction, assistant output and settled state through the managed
-routes. Automatic Converse routing remains open in #547.
+launcher rehearsal attaches and reopens a real managed peer and recovers an
+accepted submission while the same Pi task is running. A separate loopback
+rehearsal sends a typed turn and a synthetic audio window through the Converse
+HTTP endpoints, Decisions workers and Session to the real Pi SDK. Both
+paths verify the original instruction, assistant output and observed settled
+state. The audio replay preserves the original transcription and receipt.

@@ -44,6 +44,7 @@ class ExternalAgentSessionClient:
         bound=MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
         *,
         input_bound=MAX_EXTERNAL_NATIVE_REQUEST_BYTES,
+        allow_empty=False,
     ):
         wire = original.model_dump_json().encode("utf-8")
         if len(wire) > input_bound:
@@ -57,6 +58,8 @@ class ExternalAgentSessionClient:
                     maximum=bound,
                     raw=True,
                 )
+            if allow_empty and raw == b"":
+                return None
             transcript_json(raw, bound)
             result = model.model_validate_json(raw, strict=True)
             if result.request_id != original.request_id:
@@ -103,16 +106,23 @@ class ExternalAgentSessionClient:
             raise ExternalAgentNativeUnavailable
         return grant
 
-    async def claim(self, request):
+    async def claim(self, request, *, retain_only=False):
         original = ExternalAgentClaim.model_validate(request, strict=True)
         result = await self._request(
-            "claim", original, ExternalAgentClaimReceipt, input_bound=MAX_EXTERNAL_COMMAND_BYTES
+            "claim/retained" if retain_only else "claim",
+            original,
+            ExternalAgentClaimReceipt,
+            input_bound=MAX_EXTERNAL_COMMAND_BYTES,
+            allow_empty=retain_only,
         )
+        if result is None and retain_only:
+            return None
         if (
             result.target != original.command.target
             or result.decision_event_id != original.decision_event_id
             or result.idempotency_key != original.command.idempotency_key
             or result.command_digest != original.command_digest()
+            or (retain_only and result.disposition != "retained")
         ):
             raise ExternalAgentNativeUnavailable
         return result

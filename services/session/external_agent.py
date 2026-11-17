@@ -186,7 +186,10 @@ class ExternalAgentAccess:
                 raise ExternalAgentScopeChanged
             return grant
 
-    def claim(self, request):
+    def retained_claim(self, request):
+        return self.claim(request, allow_new=False)
+
+    def claim(self, request, *, allow_new=True):
         """Grant one fresh send opportunity for one exact authenticated route."""
         command = request.command
         target = command.target
@@ -206,7 +209,7 @@ class ExternalAgentAccess:
                 disposition=disposition,
             )
 
-        with self._transaction(write=True) as database:
+        with self._transaction(write=allow_new) as database:
             original = database.execute(
                 "SELECT command_digest,admission_id,decision_event_id,source_event_id "
                 "FROM external_agent_claims WHERE attachment_id=? AND idempotency_key=?",
@@ -220,6 +223,8 @@ class ExternalAgentAccess:
                 ) != (digest, request.decision_event_id, primary):
                     raise ExternalAgentConflict
                 return receipt(original["admission_id"], "retained")
+            if not allow_new:
+                return None
             grant = self._lookup(database, target.attachment_id, request.request_id)
             scope = grant.original.scope
             self._current(scope)
@@ -254,16 +259,25 @@ class ExternalAgentAccess:
         command = request.command
         source_id = command.source.event_ids[0]
         try:
-            source = self.store.entry(source_id)
             recorded = self.store.entry(request.decision_event_id)
+            if len(recorded.causes) != 1:
+                raise ExternalAgentConflict
+            source = self.store.entry(recorded.causes[0])
+            original = self.store.entry(source_id)
         except KeyError:
             raise ExternalAgentConflict from None
         identity = (scope.session_id, scope.thread_id, scope.epoch)
+        source_root = (
+            source.payload.get("target_event_id")
+            if source.kind == "conversation.revision"
+            else source.event_id
+        )
         if (
             (source.session_id, source.thread_id, source.epoch) != identity
+            or (original.session_id, original.thread_id, original.epoch) != identity
             or (recorded.session_id, recorded.thread_id, recorded.epoch) != identity
             or recorded.origin != "decisions"
-            or recorded.causes != [source_id]
+            or source_root != source_id
             or recorded.sequence <= source.sequence
             or source.kind
             not in {"conversation.user", "conversation.revision", "conversation.window"}
@@ -274,11 +288,13 @@ class ExternalAgentAccess:
             or source.payload.get("revision", 1) != command.source.revision
         ):
             raise ExternalAgentConflict
-        resolved = self.store.resolve(
-            source.payload["target_event_id"]
-            if source.kind == "conversation.revision"
-            else source_id
-        )
+        if source.kind == "conversation.revision" and (
+            original.kind != "conversation.user"
+            or original.origin != "authenticated-user"
+            or original.sequence >= source.sequence
+        ):
+            raise ExternalAgentConflict
+        resolved = self.store.resolve(source_id)
         if (
             (resolved.session_id, resolved.thread_id, resolved.epoch) != identity
             or resolved.payload.get("revision", 1) != command.source.revision
@@ -299,6 +315,7 @@ class ExternalAgentAccess:
             decision = WindowDecision.model_validate(recorded.payload)
             if (
                 decision.agent_route != "QUEUE_UNTIL_TASK_DONE"
+                or decision.target_task_id is not None
                 or command.source.event_ids != (decision.source_event_id,)
                 or (decision.source_sequence, decision.source_revision)
                 != (source.sequence, command.source.revision)
@@ -307,6 +324,7 @@ class ExternalAgentAccess:
                 or source.payload.get("text") != command.instruction
             ):
                 raise ExternalAgentConflict
+            self._rolling_submission_current(source, scope)
         else:
             raise ExternalAgentConflict
         for event_id in command.source.event_ids:
@@ -314,6 +332,30 @@ class ExternalAgentAccess:
             if combine_scopes(floor, command.content_scope) != command.content_scope:
                 raise ExternalAgentConflict
         return decision.decision_id
+
+    def _rolling_submission_current(self, source, scope):
+        # Dispatch observations can lag committed speech and claims. Check the
+        # utterance and its earlier send opportunities inside the claim write.
+        utterance, text = source.payload["utterance_id"], source.payload["text"]
+        latest = self.store.latest_window(scope.session_id, scope.epoch, utterance)
+        interrupt = self.store.window_control(scope.session_id, scope.epoch, agent_interrupt=True)
+        if (
+            latest is None
+            or latest.payload["text"] != text
+            or (interrupt is not None and interrupt.payload["source_sequence"] > source.sequence)
+        ):
+            raise ExternalAgentScopeChanged
+        prior = self.store.db.execute(
+            "SELECT 1 FROM entries AS e JOIN external_agent_claims AS c "
+            "ON c.source_event_id=e.event_id "
+            "WHERE e.session_id=? AND e.thread_id=? AND e.epoch=? "
+            "AND e.kind='conversation.window' "
+            "AND json_extract(e.value,'$.payload.utterance_id')=? "
+            "AND json_extract(e.value,'$.payload.text')=? LIMIT 1",
+            (scope.session_id, scope.thread_id, scope.epoch, utterance, text),
+        ).fetchone()
+        if prior is not None:
+            raise ExternalAgentConflict
 
     @staticmethod
     def _already_dispatched(database, scope, decision_id, source_id):
