@@ -633,6 +633,15 @@ def schema_pin():
         "LiveStreamProof",
         "LiveStreamCancellation",
     }
+    # #684: later negative-recovery and utterance-boundary families have their
+    # own contract pins; they must not enter the frozen original184 inventory.
+    additive |= {
+        "LiveStreamAbort",
+        "LiveStreamAbortCapability",
+        "LiveStreamAbortProof",
+        "LiveStreamNextUtterance",
+        "LiveUtteranceCapability",
+    }
     # Native consumer ownership has its own independently pinned family.
     additive |= {
         "LiveEffectQuery",

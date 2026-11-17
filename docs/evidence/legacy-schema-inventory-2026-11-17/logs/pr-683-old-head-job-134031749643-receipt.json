@@ -1,0 +1,10 @@
+{
+  "utc": "2026-11-17T13:03:31.740371+00:00",
+  "run": 44081144139,
+  "head": "05f73fae87664e2f9ccbcb0888b3a1bd68bd2672",
+  "job": 134031749643,
+  "name": "python (3.12, hosted)",
+  "sha256": "7240c8cb9a2cfac40c310fe9a425d0a073c1c702088b90737668749743a66c41",
+  "bytes": 70086,
+  "path": "/home/roggoz/Disks/SN750/Kinaiya/output/pr-683-old-head-job-134031749643.log"
+}
