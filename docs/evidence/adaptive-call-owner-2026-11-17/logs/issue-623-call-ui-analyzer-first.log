@@ -1,0 +1,13 @@
+Analyzing 4 items...                                            
+
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/state/adaptive_live_capture.dart:129:9 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/state/adaptive_live_capture.dart:187:11 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/state/adaptive_live_capture.dart:258:7 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/state/adaptive_live_capture.dart:337:7 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/state/adaptive_live_capture.dart:435:11 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/state/adaptive_live_capture.dart:441:13 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/ui/character_view.dart:1343:9 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/ui/character_view.dart:2143:15 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/ui/character_view.dart:2449:11 • curly_braces_in_flow_control_structures
+
+9 issues found. (ran in 1.0s)

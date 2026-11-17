@@ -1,6 +1,7 @@
 """Native mic/STT/publication/Decisions lifecycle composition through owner HTTP."""
 
 import asyncio
+import json
 from contextlib import AsyncExitStack, asynccontextmanager
 from types import SimpleNamespace
 
@@ -28,7 +29,7 @@ from tests.integration.test_required_decisions_readiness import ControlledWorker
 
 
 @asynccontextmanager
-async def live_client(env, *, native_stt=True):
+async def live_client(env, *, native_stt=True, conversation_actions=None):
     env.store.live_captures.activate()
     owned_stt = (
         install_settings(env) if native_stt and env.runtime.stt_model_settings is None else None
@@ -37,7 +38,19 @@ async def live_client(env, *, native_stt=True):
 
     def model(request):
         calls.append(request.content)
-        return httpx.Response(200, stream=httpx.ByteStream(response()))
+        raw = response()
+        if conversation_actions is not None:
+            value = json.loads(raw)
+            message = value["choices"][0]["message"]
+            labels = json.loads(message["content"])
+            labels["conversation"] = (
+                conversation_actions[len(calls) - 1]
+                if len(calls) <= len(conversation_actions)
+                else "IGNORE"
+            )
+            message["content"] = json.dumps(labels)
+            raw = json.dumps(value).encode()
+        return httpx.Response(200, stream=httpx.ByteStream(raw))
 
     provider = CompatibleTextProvider(
         "http://127.0.0.1:8897/v1", "public-model", transport=httpx.MockTransport(model)
@@ -64,6 +77,7 @@ async def live_client(env, *, native_stt=True):
         speech=env.speech,
         window_controller=env.window_controller,
         live_dependency=dependency,
+        live_consumer=env.window_controller if getattr(env, "live_consumer", False) else None,
     )
     async with AsyncExitStack() as cleanup:
         if owned_stt is not None:

@@ -156,6 +156,36 @@ async def test_native_backchannel_can_return_no_acknowledgment_without_a_rewrite
         await controller.runtime.close()
 
 
+@pytest.mark.parametrize(
+    "behavior", ["RESPOND_INTERRUPT_USER", "RESPOND_WITHOUT_INTERRUPTING_USER"]
+)
+async def test_empty_native_full_reply_has_separate_current_no_audio_readiness(live, behavior):
+    controller, provider = consumer(live, "")
+    item = selected(live, behavior)
+    try:
+        result = await completed(controller, item, "converse_reply")
+        assert result.completion.status == "declined"
+        assert len(provider.inputs) == 1
+        assert live.store.read(kinds=["conversation.converse"]) == []
+        states = live.store.read(kinds=["converse.window_state"])
+        output = [e for e in states if e.payload.get("phase") == "live_output_observed"]
+        ready = [e for e in states if e.payload.get("phase") == "live_no_audio_ready"]
+        assert len(output) == len(ready) == 1
+        assert output[0].payload["provider_output"] == ""
+        assert ready[0].sequence > output[0].sequence
+        assert ready[0].origin == "converse"
+        assert ready[0].causes == [live.pair.source.event_id]
+        assert ready[0].payload["source_event_id"] == live.pair.source.event_id
+        assert ready[0].payload["live_effect"] == "converse_reply"
+        assert ready[0].payload["live_effect_key"] == output[0].payload["live_effect_key"]
+        assert ready[0].payload["behavior"] == behavior
+        assert await controller.process_live(item, "converse_reply") == result
+        assert len(live.store.read(kinds=["converse.window_state"])) == len(states)
+    finally:
+        await controller.close()
+        await controller.runtime.close()
+
+
 async def test_noninterrupting_native_reply_waits_for_actual_speaking_hint(live):
     assert live.pair.source.payload["user_speaking"] is True
     controller, provider = consumer(live, "Public buffered reply.")
@@ -169,6 +199,10 @@ async def test_noninterrupting_native_reply_waits_for_actual_speaking_hint(live)
         held = await controller.process_live(item, "converse_reply")
         assert held.completion is None
         assert not prepared.abandoned
+        assert not any(
+            e.payload.get("phase") == "live_no_audio_ready"
+            for e in live.store.read(kinds=["converse.window_state"])
+        )
         changed = original(live, revision=2, user_speaking=False)
         publish(live.store, changed)
         await controller.flush(prepared)

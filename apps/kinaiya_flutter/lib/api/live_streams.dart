@@ -331,6 +331,10 @@ class LiveStreamOperation {
   late final String digest;
   Map<String, Object?> get identity =>
       Map.unmodifiable({for (final key in _identity) key: body[key]});
+  // The boundary original keeps its extra final-source proof. Subsequent PCM,
+  // finish and ordinary decoder starts carry only the declared segment scope.
+  Map<String, Object?> get segment =>
+      Map.unmodifiable({for (final key in _segment) key: body[key]});
   Map<String, Object?> get lookup => Map.unmodifiable({
     ...identity,
     'phase': phase.name,

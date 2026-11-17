@@ -1,0 +1,157 @@
+import 'package:http/http.dart' as http;
+
+import 'models.dart';
+import 'owned_settings_client.dart';
+
+const _invalid = FormatException('Invalid original journal wake metadata');
+const _maximum = 9007199254740991;
+
+Map<String, Object?> _object(Object? value, Set<String> keys) {
+  if (value is! Map<String, Object?> ||
+      value.length != keys.length ||
+      !value.keys.every(keys.contains) ||
+      value['schema_version'] != '1.0' ||
+      value['protocol'] != 'journal_wake_v1')
+    throw _invalid;
+  return value;
+}
+
+int _integer(Object? value, [int minimum = 0]) {
+  if (value is! int || value < minimum || value > _maximum) throw _invalid;
+  return value;
+}
+
+class JournalWakeCursor {
+  JournalWakeCursor.fromJson(Object? value) {
+    final raw = _object(value, {
+      'schema_version',
+      'protocol',
+      'owner_instance',
+      'revision',
+    });
+    final owner = raw['owner_instance'];
+    if (owner is! String || !RegExp(r'^[a-f0-9]{32}$').hasMatch(owner))
+      throw _invalid;
+    ownerInstance = owner;
+    revision = _integer(raw['revision']);
+  }
+  late final String ownerInstance;
+  late final int revision;
+  Map<String, Object?> get body => Map.unmodifiable({
+    'schema_version': '1.0',
+    'protocol': 'journal_wake_v1',
+    'owner_instance': ownerInstance,
+    'revision': revision,
+  });
+  bool matches(JournalWakeCursor other) =>
+      ownerInstance == other.ownerInstance && revision == other.revision;
+}
+
+class JournalWakeWait {
+  JournalWakeWait(this.cursor);
+  final JournalWakeCursor cursor;
+  Map<String, Object?> get body => Map.unmodifiable({
+    'schema_version': '1.0',
+    'protocol': 'journal_wake_v1',
+    'cursor': cursor.body,
+    'wait_ms': 1000,
+  });
+}
+
+class JournalWakeObservation {
+  JournalWakeObservation.fromJson(Object? value, JournalWakeWait original) {
+    final raw = _object(value, {
+      'schema_version',
+      'protocol',
+      'original',
+      'cursor',
+      'changed',
+    });
+    final echoed = _object(raw['original'], {
+      'schema_version',
+      'protocol',
+      'cursor',
+      'wait_ms',
+    });
+    final before = JournalWakeCursor.fromJson(echoed['cursor']);
+    cursor = JournalWakeCursor.fromJson(raw['cursor']);
+    if (!before.matches(original.cursor) ||
+        echoed['wait_ms'] is! int ||
+        echoed['wait_ms'] != 1000 ||
+        cursor.ownerInstance != before.ownerInstance ||
+        cursor.revision < before.revision ||
+        raw['changed'] is! bool ||
+        raw['changed'] != (cursor.revision > before.revision))
+      throw _invalid;
+    changed = raw['changed'] as bool;
+  }
+  late final JournalWakeCursor cursor;
+  late final bool changed;
+}
+
+/// Original passive hints and bounded scoped reads only. A hint never grants
+/// source freshness, capture, inference or playback authority.
+class JournalWakeApi {
+  JournalWakeApi({
+    required String baseUrl,
+    required String ownerToken,
+    required http.Client Function() clientFactory,
+  }) : _transport = OwnedSettingsTransport(
+         domain: SettingsDomain.converseLiveUpdates,
+         baseUrl: baseUrl,
+         ownerToken: ownerToken,
+         clientFactory: clientFactory,
+       );
+  final OwnedSettingsTransport _transport;
+  OwnedSettingsAttempt<JournalWakeCursor> inspect() => _transport.start(
+    'GET',
+    '/v1/transcript/wake',
+    null,
+    JournalWakeCursor.fromJson,
+  );
+  OwnedSettingsAttempt<JournalWakeObservation> wait(JournalWakeWait original) =>
+      _transport.start(
+        'POST',
+        '/v1/transcript/wake/wait',
+        original.body,
+        (value) => JournalWakeObservation.fromJson(value, original),
+      );
+  OwnedSettingsAttempt<List<JournalEntry>> page({
+    required String sessionId,
+    required String threadId,
+    required int epoch,
+    required int after,
+  }) {
+    _integer(after);
+    _integer(epoch, 1);
+    final path = Uri(
+      path: '/v1/transcript',
+      queryParameters: {
+        'session_id': sessionId,
+        'thread_id': threadId,
+        'epoch': '$epoch',
+        'after': '$after',
+        'limit': '16',
+      },
+    );
+    return _transport.start('GET', path.toString(), null, (value) {
+      if (value is! List || value.length > 16) throw _invalid;
+      var cursor = after;
+      return List<JournalEntry>.unmodifiable(
+        value.map((raw) {
+          if (raw is! Map<String, Object?> ||
+              raw['session_id'] != sessionId ||
+              raw['thread_id'] != threadId ||
+              raw['epoch'] is! int ||
+              raw['epoch'] != epoch ||
+              _integer(raw['sequence'], 1) <= cursor)
+            throw _invalid;
+          cursor = raw['sequence'] as int;
+          return JournalEntry.fromJson(raw);
+        }),
+      );
+    });
+  }
+
+  Future<void> close() => _transport.close();
+}

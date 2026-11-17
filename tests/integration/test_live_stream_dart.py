@@ -12,13 +12,56 @@ import pytest
 import uvicorn
 from flutter_project_helpers import isolated_flutter_project
 
+from services.session.api import create_app as session_app
+from tests.integration.test_incremental_whistle_converse import AUTH
 from tests.integration.test_incremental_whistle_converse import (
     converse_incremental_env as converse_incremental_env,
 )
 from tests.integration.test_live_stream_api import live_client, scope_for
 
 
-async def test_actual_dart_native_live_stream_rollover(converse_incremental_env, tmp_path):
+@pytest.mark.parametrize(
+    "entrypoint,converse_incremental_env,rotation_fault",
+    [
+        pytest.param(
+            "live_stream_native_live_test.dart", None, "", id="live_stream_native_live_test.dart"
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            None,
+            "",
+            id="adaptive_live_call_native_test.dart",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call",
+            "",
+            id="adaptive_live_call_consumer",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call",
+            "refused",
+            id="adaptive_live_rotation_refused",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call",
+            "lost",
+            id="adaptive_live_rotation_lost",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-held",
+            "",
+            id="adaptive_live_held_reply",
+        ),
+    ],
+    indirect=["converse_incremental_env"],
+)
+async def test_actual_dart_native_live_stream_rollover(
+    converse_incremental_env, tmp_path, entrypoint, rotation_fault
+):
     flutter = shutil.which("flutter")
     root = Path(__file__).resolve().parents[2]
     cached = root / "apps/kinaiya_flutter/.dart_tool"
@@ -41,7 +84,20 @@ async def test_actual_dart_native_live_stream_rollover(converse_incremental_env,
     original_lock = (project / "pubspec.lock").read_bytes()
     requests = []
     env = converse_incremental_env
-    async with live_client(env) as native:
+    consumer = getattr(env, "live_consumer", False)
+    held_reply = getattr(env, "held_reply", False)
+    advanced = consumer and not rotation_fault and not held_reply
+    actions = (
+        [
+            "WAIT_WITH_BACKCHANNEL",
+            "RESPOND_WITHOUT_INTERRUPTING_USER" if held_reply else "RESPOND_INTERRUPT_USER",
+        ]
+        if consumer
+        else None
+    )
+    async with live_client(env, conversation_actions=actions) as native:
+        if entrypoint == "adaptive_live_call_native_test.dart":
+            native.app.mount("/session", session_app(env.store, AUTH))
 
         @native.app.middleware("http")
         async def observe(request, call_next):
@@ -69,13 +125,16 @@ async def test_actual_dart_native_live_stream_rollover(converse_incremental_env,
                 "--no-pub",
                 "--reporter",
                 "expanded",
-                "test/live_stream_native_live_test.dart",
+                "test/" + entrypoint,
                 cwd=project,
                 env={
                     **os.environ,
                     "KINAIYA_LIVE_STREAM_URL": f"http://127.0.0.1:{port}",
                     "KINAIYA_LIVE_STREAM_TOKEN": "o" * 40,
                     "KINAIYA_LIVE_STREAM_SCOPE": json.dumps(scope_for(env)),
+                    "KINAIYA_CALL_LIVE_CONSUMER": "true" if consumer else "false",
+                    "KINAIYA_CALL_ROTATION_FAULT": rotation_fault,
+                    "KINAIYA_CALL_HELD_REPLY": "true" if held_reply else "false",
                 },
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
@@ -83,9 +142,60 @@ async def test_actual_dart_native_live_stream_rollover(converse_incremental_env,
             async with asyncio.timeout(90):
                 output, _ = await process.communicate()
             (tmp_path / "native-live-stream-dart.log").write_bytes(output)
-            assert process.returncode == 0, output.decode(errors="replace")
+            assert process.returncode == 0, (
+                output.decode(errors="replace") + "\nNative requests: " + repr(requests)
+            )
             assert b"All tests passed!" in output
             assert (project / "pubspec.lock").read_bytes() == original_lock
+            if entrypoint == "adaptive_live_call_native_test.dart":
+                live_requests = [
+                    (method, path, status)
+                    for method, path, status in requests
+                    if path.startswith("/v2/converse/audio/live-stream/")
+                ]
+                assert live_requests and all(status == 200 for _, _, status in live_requests)
+                assert all(status < 500 for _, _, status in requests)
+                for phase, count in (
+                    ("begin", 1),
+                    ("pcm", 3 if advanced else 2),
+                    ("finish", 1 if consumer and not held_reply else 0),
+                    ("cancel", 0),
+                    ("cancel-original", 1),
+                    ("next-utterance", 1 if advanced else 0),
+                ):
+                    assert (
+                        sum(
+                            method == "POST" and path.endswith("/" + phase)
+                            for method, path, _ in live_requests
+                        )
+                        == count
+                    )
+                captures = list(native.app.state.live_streams.captures.values())
+                assert len(captures) == 1
+                capture = captures[0]
+                assert capture.capture_fenced and capture.cleanup_complete()
+                assert capture.native.lease.settled and not env.runtime.stt_model_settings.leases
+                assert env.engine.begin_calls == (2 if advanced else 1)
+                assert env.engine.finish_calls == (1 if consumer and not held_reply else 0)
+                if consumer:
+                    observed = [
+                        e
+                        for e in env.store.read(kinds=["converse.window_state"])
+                        if e.payload.get("phase") == "live_output_observed"
+                    ]
+                    assert {e.payload["live_effect"] for e in observed} == {
+                        "converse_backchannel",
+                        "converse_reply",
+                    }
+                    if held_reply:
+                        assert [e.payload["provider_output"] for e in observed] == [
+                            "",
+                            "Public synthetic buffered reply.",
+                        ]
+                        assert env.store.read(kinds=["conversation.converse"]) == []
+                    else:
+                        assert all(e.payload["provider_output"] == "" for e in observed)
+                return
             assert all(status == 200 for _, _, status in requests)
             for phase, count in (
                 ("begin", 2),

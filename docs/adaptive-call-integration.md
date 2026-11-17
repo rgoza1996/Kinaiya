@@ -1,8 +1,9 @@
 # Adaptive Live host and Call integration (#623)
 
-Status: implementation in progress. The normal release gate remains false and
-the Call screen still refuses Adaptive Live. This work is the host/transport
-foundation for completing Call, migration and rollout together.
+Status: implementation in progress. The normal release gate remains false, so
+ordinary Call still reports Adaptive Live unavailable. Trusted qualification
+embeddings can exercise the gated Call owner described below. Complete playback,
+lifecycle, timing, migration and rollout qualification remains open.
 
 ## Native host ownership
 
@@ -50,8 +51,8 @@ also supports a delayed initial begin after cancellation. A separately enrolled
 original recovery channel remains usable after normal-client closure and has
 no positive capture/audio methods. Its native persistent fence, exact readback
 and actual native cleanup are separate from browser and client HTTP settlement.
-The actual Call owner still needs to retain and join these obligations through
-stop, disconnect and replacement.
+The gated Call owner retains and joins these obligations through stop and
+disconnect; complete replacement qualification remains open.
 The [negative-original qualification](evidence/live-stream-negative-original-2026-11-17/README.md)
 retains native/actual-wire checks, original failures and source-bound frontend
 and release-build evidence.
@@ -78,8 +79,9 @@ preserves the same mic/STT lifetime for successive logical utterances. The
 frontend checks its separately versioned capability and uses an original built
 from the exact confirmed, actually retired final. Existing v2 begin retains its
 current-utterance guard. Backchannels do not request this boundary, and model
-completion does not establish an acoustic end. The actual Call owner still
-needs to join this operation to its capture/playback lifecycle.
+completion does not establish an acoustic end. The gated Call owner joins this
+operation to its original capture lifetime; complete playback qualification
+remains open.
 Its [qualification record](evidence/native-utterance-boundary-2026-11-17/README.md)
 also retains the #681 availability defect, original failing controls and local
 repair evidence.
@@ -97,14 +99,66 @@ replacement microphone, actual bridge-to-Dart receipt/PCM parity, and the
 release web compiler. These are local protocol controls, not a physical-device
 or complete Call qualification.
 
+## Gated Call ownership
+
+`AdaptiveLiveCapture` owns one explicitly armed incremental microphone and its
+original native capture. Call requires segmented PCM and fresh speaking-hint
+capabilities, separately inspects the native stream and utterance protocols, and
+enrolls its independent cancellation channel before dispatching the first begin.
+Unsupported input remains unavailable. Nothing silently selects another mode.
+
+Fresh browser notifications drive contiguous PCM sends. Frozen packet hints and
+bytes remain unchanged until an exact native positive proof and actual HTTP
+settlement permit acknowledgment. Fresh speaking state is inspected separately.
+At half of the declared sixty-second FIFO, a segment finishes without claiming
+the microphone or user speech ended. Exact final-source and decoder retirement
+precede local rotation, preserving buffered tail input and the same mic/STT lease.
+Boundary-only proof fields stay with their original next-utterance request and
+are not copied into subsequent PCM, finish or ordinary decoder starts.
+
+A backchannel preserves the current logical utterance. Provider completion
+(`live_output_observed`) also preserves it: a noninterrupting reply can still be
+buffered while the user speaks. A separate authenticated `live_no_audio_ready`
+state is emitted only for a full reply with no published chunks, a reclaimable
+original producer, and current native source authority. That fact can request
+the next logical utterance even when playback is unavailable. A reply with audio
+uses its first actual queued PCM boundary and existing native source/effect/
+generation authorization checks. Neither boundary infers an acoustic end or
+judges model quality.
+
+An independent Session reader uses `journal_wake_v1` to promptly recheck bounded
+sixteen-entry pages scoped to the original session, thread and epoch. It starts
+after the native capture registration sequence. Wake revision is a passive hint,
+never a transcript sequence or speech permission. The journal codec preserves
+finite decimal payload metadata and Unicode, rejects duplicate keys, malformed
+UTF-8 and unsafe identity numbers, and requires integer wire spelling for cursor,
+entry and playback counters. Limits are 2 MiB, 32 nesting levels and 65,536 JSON
+values. Existing settings codecs and legacy polling retain their prior behavior.
+Closing a wake body before dispatch refuses without enrolling a waiter (#682).
+
+Stop fences new admission synchronously. Native cancellation/readback, original
+HTTP sends, decoder cleanup, browser acquisition/stop, local FIFO release and
+passive reader cleanup remain separate obligations. A public deadline or parent
+client disconnect cannot release the actual capture slot. Late local packets
+are not sent after that fence. A refused rotation can retire only after actual
+native cleanup and stopped FIFO readback matching its original epoch, sequence
+and acknowledged offset. A changed local epoch still requires the exact retained
+rotation receipt. Uncertain cleanup remains retained.
+
+Actual native controls in `test_live_stream_dart.py` run the Call widget against
+fresh HTTP, SQLite and synthetic Whistle IPC. They cover contiguous input, held
+physical-stop futures through disconnect, late PCM exclusion, empty backchannels,
+no-audio full-reply boundaries, refused rotation and lost rotation receipts.
+They also verify that provider completion of a buffered noninterrupting reply
+does not dispatch finish or start a new utterance.
+These are synthetic architecture/lifecycle controls, not physical audio or
+provider latency measurements. See the [Call ownership qualification record](evidence/adaptive-call-owner-2026-11-17/README.md).
+
 ## Remaining integration
 
-Connect the actual CharacterView Call owner to this transport and the optional
-incremental PCM adapter, including its explicit native logical utterance
-boundary. Preserve bounded contiguous input through decoder and
-utterance boundaries, retain pending native and browser operations through
-stop/reconnect/replacement, and qualify actual playback/backchannel capture,
-echo prevention, mute, accessibility, no-audio and dependency loss. Add timing
+Complete normal host/Call qualification across playback/backchannel capture,
+echo prevention, mute, accessibility, no-audio, reconnect, process replacement
+and dependency loss. Add timing
 instrumentation and faithful same-conversation mode comparisons before enabling
 the default. Capture/STT/model/playback observations remain distinct. Model
 answer, classification, persona and speech quality are diagnostic evidence;

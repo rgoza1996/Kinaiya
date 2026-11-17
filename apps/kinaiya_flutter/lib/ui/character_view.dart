@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 import '../api/client.dart';
 import '../api/capture_modes.dart';
 import '../api/capture_modes_client.dart';
+import '../api/live_streams.dart';
+import '../api/journal_wake.dart';
 import '../api/models.dart';
 import '../audio/speech_audio.dart';
 import '../audio/turn_audio.dart';
@@ -15,6 +17,7 @@ import '../character/pack.dart';
 import '../character/playback.dart';
 import '../presentation/controller.dart';
 import '../state/app_state.dart';
+import '../state/adaptive_live_capture.dart';
 import '../state/capture_mode_writes.dart';
 import '../state/converse_handoff.dart';
 import '../state/native_audio_clip.dart';
@@ -602,6 +605,7 @@ class _CharacterViewState extends State<CharacterView> {
   NativeAudioClipOwner? _nativeClipOwner;
   int? _nativeClipArmOwner;
   bool _nativeCallActive = false;
+  AdaptiveLiveCapture? _adaptiveCall;
   SessionInfo? _nativeCallSession;
   KinaiyaClient? _nativeCallClient;
   int _nativeCallConnection = 0, _nativeCallSource = 0;
@@ -617,6 +621,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   bool get _conversationIdle =>
       !_armed &&
+      _adaptiveCall == null &&
       !_recording &&
       !_nativeCallActive &&
       !_micStopPending &&
@@ -1149,6 +1154,12 @@ class _CharacterViewState extends State<CharacterView> {
       _nativeClipOwner = null;
       unawaited(_stopLocalPlayback());
     }
+    final adaptive = _adaptiveCall;
+    if (adaptive != null && !_adaptiveCurrent(adaptive) && !adaptive.retired) {
+      _armed = false;
+      _micStopUnconfirmed = true;
+      unawaited(adaptive.stop('replaced'));
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _syncMouthSampling();
@@ -1173,6 +1184,8 @@ class _CharacterViewState extends State<CharacterView> {
 
   @override
   void dispose() {
+    final adaptive = _adaptiveCall;
+    if (adaptive != null) unawaited(adaptive.stop('shutdown'));
     _dismissTextConversation();
     _detachSettingsControls();
     _pollTimer?.cancel();
@@ -1224,6 +1237,182 @@ class _CharacterViewState extends State<CharacterView> {
       _audio is WindowSpeechAudio ? _audio as WindowSpeechAudio : null;
   bool get _windowMode =>
       !_nativeCallActive && _activeCaptureMode == CaptureMode.rollingWindows;
+
+  bool _adaptiveCurrent(AdaptiveLiveCapture capture) {
+    try {
+      return mounted && identical(_adaptiveCall, capture) && capture.current();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _adaptiveChanged(AdaptiveLiveCapture capture) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(_adaptiveCall, capture)) return;
+      setState(() {
+        _armed = capture.active;
+        _liveStatus = capture.status;
+        if (capture.stopping) {
+          _micStopUnconfirmed = true;
+          _pollTimer?.cancel();
+        }
+        if (capture.retired) {
+          _adaptiveCall = null;
+          _micStopPending = _micStopUnconfirmed = false;
+          _pollTimer?.cancel();
+        }
+      });
+      if (capture.stopping) unawaited(_stopLocalPlayback());
+      _publishVoiceActivity();
+    });
+  }
+
+  Future<void> _startAdaptiveCall(
+    int owner,
+    KinaiyaClient api,
+    int connection,
+    int audioSource,
+  ) async {
+    final audio = _audio;
+    if (AdaptiveLiveCapture.hasRetainedCapture ||
+        audio is! SegmentedPcmCaptureAudio ||
+        audio is! IncrementalSpeakingAudio ||
+        !(audio as SegmentedPcmCaptureAudio).supportsIncrementalPcmRollover ||
+        !(audio as IncrementalSpeakingAudio).supportsIncrementalSpeaking) {
+      _nativeCallMessage(
+        'Adaptive Live input is unsupported or an earlier capture is still retained. Check stop status in Voice options.',
+      );
+      return;
+    }
+    bool original() =>
+        mounted &&
+        owner == _armOwner &&
+        _s.ownsConnection(connection, api) &&
+        identical(audio, _audio) &&
+        audioSource == _s.nativeAudioSourceGeneration &&
+        _converseAvailable;
+    if (!original()) return;
+    final session =
+        _s.converseSession ??
+        await _s.ensureSession('converse', name: 'Converse');
+    if (!original()) return;
+    _s.converseSession ??= session;
+    final scope = _s.selectedContentScope;
+    bool sourceCurrent() =>
+        original() &&
+        _s.converseCanDisclose(scope) &&
+        _s.converseSession?.sessionId == session.sessionId &&
+        _s.converseSession?.threadId == session.threadId &&
+        _s.converseSession?.epoch == session.epoch;
+    if (!sourceCurrent()) return;
+    final capability = await api.liveStreams.inspect().result;
+    if (!sourceCurrent()) return;
+    final boundary = await api.liveStreams.inspectUtteranceBoundary().result;
+    if (!sourceCurrent()) return;
+    if (!capability.available ||
+        !boundary.available ||
+        capability.ownerInstance != boundary.ownerInstance) {
+      _nativeCallMessage(
+        'Adaptive Live is unavailable for the current native input and Decisions dependency. Review Voice options.',
+      );
+      return;
+    }
+    final id = const Uuid().v4().replaceAll('-', '');
+    final initial = LiveStreamOperation.fromJson(LiveStreamPhase.begin, {
+      'schema_version': '2.0',
+      'protocol': liveStreamProtocol,
+      'owner_instance': capability.ownerInstance,
+      'capture_id': id,
+      'session_id': session.sessionId,
+      'thread_id': session.threadId,
+      'epoch': session.epoch,
+      'utterance_id': '${id}_0',
+      'content_scope': scope.wireValue,
+      'segment_index': 0,
+    });
+    final recovery = api.liveStreams.recoveryFor(initial);
+    try {
+      final negative = await recovery.inspectCancellation().result;
+      if (!sourceCurrent() ||
+          negative.ownerInstance != capability.ownerInstance) {
+        await recovery.close();
+        return;
+      }
+    } catch (_) {
+      await recovery.close();
+      if (sourceCurrent()) {
+        _nativeCallMessage(
+          'Adaptive Live cancellation ownership is unavailable. Review the connection before calling.',
+        );
+      }
+      return;
+    }
+    final notices = api.openJournalWake();
+    JournalWakeCursor noticeCursor;
+    try {
+      noticeCursor = await notices.inspect().result;
+      if (!sourceCurrent()) {
+        await notices.close();
+        await recovery.close();
+        return;
+      }
+    } catch (_) {
+      await notices.close();
+      await recovery.close();
+      if (sourceCurrent()) {
+        _nativeCallMessage(
+          'Live updates are unavailable. Review the connection before calling.',
+        );
+      }
+      return;
+    }
+    late final AdaptiveLiveCapture capture;
+    capture = AdaptiveLiveCapture(
+      api: api.liveStreams,
+      recovery: recovery,
+      audio: audio,
+      initial: initial,
+      current: () => sourceCurrent() && identical(_adaptiveCall, capture),
+      onChanged: () => _adaptiveChanged(capture),
+      notices: notices,
+      noticeCursor: noticeCursor,
+      onEntries: (entries) async {
+        _windowEvents = _windowEvents
+            .then((_) async {
+              for (final entry in entries) {
+                if (!_adaptiveCurrent(capture) || !capture.active) return;
+                await _onWindowEvent(entry);
+              }
+            })
+            .catchError((Object _) {});
+        await _windowEvents;
+      },
+    );
+    _activeCaptureMode = CaptureMode.adaptiveLive;
+    _captureScope = scope;
+    _adaptiveCall = capture;
+    setState(() => _liveStatus = capture.status);
+    final started = await capture.start();
+    if (!mounted || !identical(_adaptiveCall, capture)) return;
+    if (!started || !sourceCurrent()) {
+      await capture.stop('replaced');
+      _adaptiveChanged(capture);
+      return;
+    }
+    _s.beginVoiceTurn(_s.voiceEpoch + 1);
+    setState(() {
+      _armed = true;
+      _mood = 'listening';
+    });
+    _publishVoiceActivity();
+    // Bridge events monitor device faults only. PCM admission itself waits on
+    // its original readiness notification and native completion, never this timer.
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _pollBridge(),
+    );
+  }
 
   bool _nativeCallCurrent(int owner) {
     final api = _nativeCallClient, session = _nativeCallSession;
@@ -1307,6 +1496,19 @@ class _CharacterViewState extends State<CharacterView> {
   }
 
   Future<void> _onWindowEvent(JournalEntry entry) async {
+    final adaptive = _adaptiveCall;
+    final adaptiveOutput =
+        adaptive != null &&
+        _adaptiveCurrent(adaptive) &&
+        adaptive.accepts(entry);
+    if (adaptiveOutput &&
+        entry.kind == 'converse.window_state' &&
+        entry.payload['phase'] == 'live_no_audio_ready' &&
+        entry.payload['live_effect'] == 'converse_reply') {
+      // A logical routing boundary is independent of audio availability and
+      // provider output quality. It never claims that the user stopped speaking.
+      adaptive.requestBoundary(entry.payload['utterance_id'] as String);
+    }
     final nativeOwner = _nativeClipOwner;
     if (nativeOwner != null &&
         _nativeClipCurrent(nativeOwner) &&
@@ -1334,7 +1536,7 @@ class _CharacterViewState extends State<CharacterView> {
     }
     nativeOutput = nativeOutput && nativeOwner.bindReply(entry);
     if (nativeOutput && _windowPlayed.contains(entry.eventId)) return;
-    final liveWindow = _armed && _windowMode;
+    final liveWindow = (_armed && _windowMode) || adaptiveOutput;
     if (!mounted ||
         (!nativeOutput && !liveWindow) ||
         entry.sessionId != _s.converseSession?.sessionId ||
@@ -1378,7 +1580,9 @@ class _CharacterViewState extends State<CharacterView> {
     }
     final utterance = entry.payload['window_utterance_id'];
     if (entry.kind == 'conversation.converse' &&
-        (nativeOutput || _ownedUtterances.contains(utterance)) &&
+        (nativeOutput ||
+            adaptiveOutput ||
+            _ownedUtterances.contains(utterance)) &&
         epoch == _s.speechEpoch &&
         _windowPlayed.add(entry.eventId)) {
       while (_windowPlayed.length > 128) {
@@ -1664,8 +1868,15 @@ class _CharacterViewState extends State<CharacterView> {
     final speechLevelOwner = _speechLevelIdentity;
     final nativeOutput = entry.payload['native_audio'] == true;
     final nativeOwner = _nativeClipOwner;
+    final adaptive = _adaptiveCall;
+    final adaptiveOutput = adaptive != null && adaptive.accepts(entry);
+    final liveTagged = entry.payload['live_effect'] != null;
     bool nativeCurrent() =>
-        !nativeOutput || _nativeOutputCurrent(entry, nativeOwner);
+        (!nativeOutput || _nativeOutputCurrent(entry, nativeOwner)) &&
+        (!liveTagged ||
+            (adaptiveOutput &&
+                _adaptiveCurrent(adaptive) &&
+                adaptive.accepts(entry)));
     if (!nativeCurrent()) return;
     if (!_s.converseCanInfer || !_converseAvailable) return;
     if (!turnOwnsCleanup(nonce, _s.turnNonce)) return;
@@ -1679,7 +1890,10 @@ class _CharacterViewState extends State<CharacterView> {
     final windowUtterance = entry.payload['window_utterance_id'] as String?;
     if (windowUtterance != null &&
         !nativeOutput &&
-        (!_armed || !_ownedUtterances.contains(windowUtterance))) {
+        (!_armed ||
+            !(adaptiveOutput
+                ? adaptive.ownsUtterance(windowUtterance)
+                : _ownedUtterances.contains(windowUtterance)))) {
       return;
     }
     final chunkId = entry.payload['chunk_id'] as String? ?? entry.eventId;
@@ -1706,7 +1920,9 @@ class _CharacterViewState extends State<CharacterView> {
           while (mounted &&
               _armed &&
               _s.audioIsLive(nonce, epoch) &&
-              await _windowAudio!.userSpeaking) {
+              await (adaptiveOutput
+                  ? adaptive.userSpeaking()
+                  : _windowAudio!.userSpeaking)) {
             await Future<void>.delayed(const Duration(milliseconds: 40));
           }
           if (!mounted || !_armed || !_s.audioIsLive(nonce, epoch)) return;
@@ -1730,8 +1946,17 @@ class _CharacterViewState extends State<CharacterView> {
         if (!started) {
           started = true;
           if (windowUtterance != null && !nativeOutput) {
-            _startedUtterances.add(windowUtterance);
-            if (_windowUtterance == windowUtterance) {
+            if (!adaptiveOutput ||
+                entry.payload['live_effect'] == 'converse_reply') {
+              _startedUtterances.add(windowUtterance);
+              while (_startedUtterances.length > 16) {
+                _startedUtterances.remove(_startedUtterances.first);
+              }
+            }
+            if (adaptiveOutput &&
+                entry.payload['live_effect'] == 'converse_reply') {
+              adaptive.requestBoundary(windowUtterance);
+            } else if (!adaptiveOutput && _windowUtterance == windowUtterance) {
               await _nextWindowUtterance();
             }
           }
@@ -1904,16 +2129,20 @@ class _CharacterViewState extends State<CharacterView> {
   /// Cancel capture locally without submitting the unfinished message or
   /// cancelling Agent work. Invalidate ownership before issuing adapter stops.
   Future<void> _stopMicrophone({bool stopSpeech = false}) async {
+    final adaptive = _adaptiveCall;
     // Clearing _armed does not acknowledge a failed playback stop. Retain
     // that obligation so a retry must stop the same window speech as well.
     final stopWindowSpeech =
         stopSpeech ||
+        adaptive != null ||
         _nativeCallActive ||
         _nativeClipOwner != null ||
         _windowSpeechStopUnconfirmed ||
         (_armed && _windowMode);
     final nativeInterrupt = _nativeCallCurrent(_armOwner)
         ? _onBarge(nativeCapture: true)
+        : adaptive != null && _adaptiveCurrent(adaptive)
+        ? _onBarge()
         : null;
     _windowSpeechStopUnconfirmed = stopWindowSpeech;
     final owner = ++_armOwner;
@@ -1942,6 +2171,14 @@ class _CharacterViewState extends State<CharacterView> {
     _publishVoiceActivity();
     try {
       await Future.wait([
+        if (adaptive != null)
+          adaptive.stop().then<void>((confirmed) {
+            if (!confirmed) {
+              throw StateError(
+                'Original live capture stop remains unconfirmed',
+              );
+            }
+          }),
         _audio.stopArmed(),
         _audio.cancelRecording(),
         if (_nativeCaptureStop != null) _nativeCaptureStop!,
@@ -2000,6 +2237,7 @@ class _CharacterViewState extends State<CharacterView> {
 
   Future<void> _setArmed(bool on) async {
     if (!on) return _stopMicrophone();
+    if (_adaptiveCall != null) return;
     if (_s.converseSessionCreating) return;
     if (_nativeCallActive) {
       if (_nativeCallBlocked) {
@@ -2082,6 +2320,10 @@ class _CharacterViewState extends State<CharacterView> {
       return;
     }
     if (mode == CaptureMode.adaptiveLive) {
+      if (preference.adaptiveLiveEnabled) {
+        await _startAdaptiveCall(owner, api, connection, audioSource);
+        return;
+      }
       _nativeCallMessage(
         preference.adaptiveLiveEnabled
             ? 'Adaptive Live capture is unsupported by this client version.'
@@ -2224,6 +2466,25 @@ class _CharacterViewState extends State<CharacterView> {
     }
     _pollingBridge = true;
     try {
+      final adaptive = _adaptiveCall;
+      if (adaptive != null) {
+        if (!_adaptiveCurrent(adaptive)) {
+          unawaited(adaptive.stop('replaced'));
+          return;
+        }
+        final events = await _audio.pollBridgeEvents();
+        if (!_adaptiveCurrent(adaptive)) return;
+        if (events.any(
+          (event) => const {
+            'stream-pcm-fault',
+            'native-capture-unavailable',
+            'native-input-unavailable',
+          }.contains(event['type']),
+        )) {
+          adaptive.inputFault();
+        }
+        return;
+      }
       if (_windowMode) {
         if (++_windowPolls >= 10) {
           _windowPolls = 0;
@@ -3690,7 +3951,7 @@ class _CharacterViewState extends State<CharacterView> {
       ? null
       : _micStopUnconfirmed
       ? _stopMicrophone
-      : _armed || _nativeCallActive
+      : _armed || _nativeCallActive || _adaptiveCall != null
       ? () => _setArmed(false)
       : _callStart != null || _s.converseSessionCreating
       ? null
@@ -3705,16 +3966,21 @@ class _CharacterViewState extends State<CharacterView> {
             _converseAvailable &&
             !_armed &&
             !_nativeCallActive &&
+            _adaptiveCall == null &&
             !_micStopUnconfirmed
       ? _toggleMic
       : null;
 
   bool get _callHasStopState =>
-      _armed || _nativeCallActive || _micStopPending || _micStopUnconfirmed;
+      _armed ||
+      _nativeCallActive ||
+      _adaptiveCall != null ||
+      _micStopPending ||
+      _micStopUnconfirmed;
 
   String get _callLabel => _micStopPending
       ? 'Stopping microphone…'
-      : _armed || _nativeCallActive
+      : _armed || _nativeCallActive || _adaptiveCall != null
       ? 'End conversation'
       : _micStopUnconfirmed
       ? 'Stop microphone'

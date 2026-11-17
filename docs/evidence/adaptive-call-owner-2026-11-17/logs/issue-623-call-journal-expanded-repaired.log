@@ -1,0 +1,8 @@
+00:00 +0: loading /home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/journal_wake_client_test.dart
+00:00 +0: native journal decimal metadata does not stop the scoped reader
+00:00 +1: wake binds the exact original and monotonic owner cursor
+00:00 +2: scoped pages refuse swapped, repeated and noninteger identities
+00:00 +3: journal codec rejects ambiguous or unbounded data before web conversion
+00:00 +4: seeded journal payloads preserve standard JSON values and Unicode
+00:00 +5: normal and mock parent enroll independent readers before closure
+00:00 +6: All tests passed!

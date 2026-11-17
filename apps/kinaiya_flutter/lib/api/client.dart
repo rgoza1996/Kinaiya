@@ -27,6 +27,7 @@ import 'agent_runtime_settings.dart';
 import 'core_subsystems_client.dart';
 import 'capture_modes_client.dart';
 import 'live_stream_client.dart';
+import 'journal_wake.dart';
 import 'agent_control_client.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
@@ -115,6 +116,7 @@ class KinaiyaClient {
     http.Client Function()? coreSubsystemClientFactory,
     http.Client Function()? captureModeClientFactory,
     http.Client Function()? liveStreamClientFactory,
+    http.Client Function()? journalWakeClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -174,7 +176,12 @@ class KinaiyaClient {
            liveStreamClientFactory ??
            (httpClient == null
                ? http.Client.new
-               : _liveStreamInjectionRequired);
+               : _liveStreamInjectionRequired),
+       _journalWakeClientFactory =
+           journalWakeClientFactory ??
+           (httpClient == null
+               ? http.Client.new
+               : _journalWakeInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -392,6 +399,20 @@ class KinaiyaClient {
   );
 
   final http.Client Function() _liveStreamClientFactory;
+  final http.Client Function() _journalWakeClientFactory;
+  bool _closed = false;
+  static http.Client _journalWakeInjectionRequired() => throw StateError(
+    'Live updates require an independently injected transport',
+  );
+  JournalWakeApi openJournalWake() {
+    if (_closed) throw StateError('Original client is closed');
+    return JournalWakeApi(
+      baseUrl: sessionBase,
+      ownerToken: _token,
+      clientFactory: _journalWakeClientFactory,
+    );
+  }
+
   static http.Client _liveStreamInjectionRequired() => throw StateError(
     'Adaptive Live requires an independently injected transport',
   );
@@ -443,6 +464,7 @@ class KinaiyaClient {
     http.Client Function()? coreSubsystemClientFactory,
     http.Client Function()? captureModeClientFactory,
     http.Client Function()? liveStreamClientFactory,
+    http.Client Function()? journalWakeClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -480,7 +502,9 @@ class KinaiyaClient {
        _captureModeClientFactory =
            captureModeClientFactory ?? _captureModeInjectionRequired,
        _liveStreamClientFactory =
-           liveStreamClientFactory ?? _liveStreamInjectionRequired {
+           liveStreamClientFactory ?? _liveStreamInjectionRequired,
+       _journalWakeClientFactory =
+           journalWakeClientFactory ?? _journalWakeInjectionRequired {
     _mockLabel = label;
   }
 
@@ -1228,6 +1252,7 @@ class KinaiyaClient {
   }
 
   void close() {
+    _closed = true;
     try {
       _http.close();
     } finally {

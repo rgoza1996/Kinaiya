@@ -1,0 +1,26 @@
+00:00 +0: loading /home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/journal_wake_client_test.dart
+00:00 +0: native journal decimal metadata does not stop the scoped reader
+00:00 +1: wake binds the exact original and monotonic owner cursor
+00:00 +2: scoped pages refuse swapped, repeated and noninteger identities
+00:00 +3: journal codec rejects ambiguous or unbounded data before web conversion
+00:00 +4: seeded journal payloads preserve standard JSON values and Unicode
+00:00 +4 -1: seeded journal payloads preserve standard JSON values and Unicode [E]
+  RangeError (length): Invalid value: Not in inclusive range 0..5: 6
+  dart:core                                  List.[]
+  test/journal_wake_client_test.dart 195:10  main.<fn>.payload
+  test/journal_wake_client_test.dart 198:54  main.<fn>.payload.<fn>
+  dart:core                                  new _GrowableList.generate
+  test/journal_wake_client_test.dart 198:18  main.<fn>.payload
+  test/journal_wake_client_test.dart 198:54  main.<fn>.payload.<fn>
+  dart:core                                  new _GrowableList.generate
+  test/journal_wake_client_test.dart 198:18  main.<fn>.payload
+  test/journal_wake_client_test.dart 198:54  main.<fn>.payload.<fn>
+  dart:core                                  new _GrowableList.generate
+  test/journal_wake_client_test.dart 198:18  main.<fn>.payload
+  test/journal_wake_client_test.dart 207:50  main.<fn>
+  
+00:00 +4 -1: normal and mock parent enroll independent readers before closure
+00:00 +5 -1: Some tests failed.
+
+Failing tests:
+  /home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/journal_wake_client_test.dart: seeded journal payloads preserve standard JSON values and Unicode

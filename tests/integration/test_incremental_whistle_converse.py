@@ -23,6 +23,7 @@ from packages.providers.whistle_ipc import socket_path
 from packages.providers.whistle_worker import serve
 from services.common.auth import Auth
 from services.converse.api import create_app as create_converse_app
+from services.converse.live import LiveConverseController
 from services.converse.runtime import ConverseRuntime
 from services.converse.windows import WindowConverseController
 from services.decisions.window_routing import WindowClassifier
@@ -144,7 +145,9 @@ class _FakeCoordinator:
 
 
 @pytest.fixture
-async def converse_incremental_env(tmp_path: Path):
+async def converse_incremental_env(tmp_path: Path, request):
+    held_reply = getattr(request, "param", None) == "adaptive-call-held"
+    live_consumer = getattr(request, "param", None) in {"adaptive-call", "adaptive-call-held"}
     directory = Path(tempfile.mkdtemp(prefix="whistle-int-", dir="/tmp"))
     endpoint = WhistleEndpoint(directory)
     engine = _IncrementalEngine()
@@ -214,9 +217,14 @@ async def converse_incremental_env(tmp_path: Path):
         cleanup.callback(store.close)
         journal = LocalJournal(store, "converse")
         session = store.create_session(SessionRequest(channel="converse"))
-        runtime = ConverseRuntime(journal, ScriptedProvider(["Hello!"]))
+        replies = ["", "Public synthetic buffered reply."] if held_reply else ["", ""]
+        runtime = ConverseRuntime(
+            journal, ScriptedProvider(replies if live_consumer else ["Hello!"])
+        )
         cleanup.push_async_callback(runtime.close)
-        window_controller = WindowConverseController(runtime)
+        window_controller = (LiveConverseController if live_consumer else WindowConverseController)(
+            runtime
+        )
         cleanup.push_async_callback(window_controller.close)
         converse_app = create_converse_app(
             runtime, AUTH, speech=speech, window_controller=window_controller
@@ -229,6 +237,8 @@ async def converse_incremental_env(tmp_path: Path):
             )
         )
         yield SimpleNamespace(
+            live_consumer=live_consumer,
+            held_reply=held_reply,
             client=client,
             session=session,
             journal=journal,

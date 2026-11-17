@@ -24,6 +24,44 @@ async function armed(options={}) {
   return f;
 }
 
+test('fresh speaking is independent of a retained packet and legacy windows',async()=>{
+  const f=await armed(),epoch=Number(f.api.captureEpoch());
+  assert.equal(typeof f.api.streamPcmSpeaking,'function');
+  f.feed(new Float32Array([0.5]));
+  const frozen=packet(f);
+  assert.equal(frozen.user_speaking,false);
+  f.api.vadSample(0.9,1000,epoch);
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'yes');
+  assert.equal(f.api.windowSpeaking(),'no');
+  assert.deepEqual(packet(f),frozen);
+  f.api.vadSample(0,1001,epoch);
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'no');
+  assert.deepEqual(packet(f),frozen);
+  await f.api.stopArmed();
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'unavailable');
+});
+
+test('fresh speaking refuses stale malformed and retired capture identities',async()=>{
+  const f=await armed(),epoch=Number(f.api.captureEpoch());
+  assert.equal(typeof f.api.streamPcmSpeaking,'function');
+  for(const raw of ['',0,null,String(epoch+1),'01','1e0','1.0','9007199254740992']) {
+    assert.equal(f.api.streamPcmSpeaking(raw),'unavailable');
+  }
+  const boundary={capture_epoch:epoch,next_sequence:1,sample_offset:0};
+  const rotation=JSON.parse(f.api.streamPcmRotate(JSON.stringify(boundary)));
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'unavailable');
+  assert.equal(f.api.streamPcmSpeaking(String(rotation.capture_epoch)),'no');
+  await f.api.stopArmed();
+});
+
+test('fresh speaking cannot treat a faulted input as observed silence',async()=>{
+  const f=await armed(),epoch=Number(f.api.captureEpoch());
+  assert.equal(typeof f.api.streamPcmSpeaking,'function');
+  f.feed(new Float32Array([NaN]));
+  assert.equal(f.api.streamPcmSpeaking(String(epoch)),'unavailable');
+  await f.api.stopArmed();
+});
+
 test('incremental FIFO retains every ordered PCM sample until exact acknowledgment', async()=>{
   const f=await armed();
   assert.equal(f.seen.gets.length,1);

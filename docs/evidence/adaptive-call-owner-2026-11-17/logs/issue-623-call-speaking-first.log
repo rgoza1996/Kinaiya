@@ -1,0 +1,274 @@
+TAP version 13
+# Subtest: native configuration never requests microphone and unsupported graph stays explicit
+ok 1 - native configuration never requests microphone and unsupported graph stays explicit
+  ---
+  duration_ms: 3.53275
+  type: 'test'
+  ...
+# Subtest: native finish preserves the original PCM as canonical 16k WAV
+ok 2 - native finish preserves the original PCM as canonical 16k WAV
+  ---
+  duration_ms: 1.982483
+  type: 'test'
+  ...
+# Subtest: silence alone cannot complete a native utterance
+ok 3 - silence alone cannot complete a native utterance
+  ---
+  duration_ms: 2.524999
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=false
+ok 4 - native thirty-second whole-utterance boundary overflow=false
+  ---
+  duration_ms: 135.334633
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=true
+ok 5 - native thirty-second whole-utterance boundary overflow=true
+  ---
+  duration_ms: 44.839557
+  type: 'test'
+  ...
+# Subtest: native VAD barge stops original local PCM immediately and fences stale epochs
+ok 6 - native VAD barge stops original local PCM immediately and fences stale epochs
+  ---
+  duration_ms: 1.652249
+  type: 'test'
+  ...
+# Subtest: input discovery is local bounded enumeration and never opens microphone
+ok 7 - input discovery is local bounded enumeration and never opens microphone
+  ---
+  duration_ms: 3.352818
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 129 5 5
+ok 8 - oversized input discovery refuses whole candidate list 129 5 5
+  ---
+  duration_ms: 0.663628
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 4097 4097
+ok 9 - oversized input discovery refuses whole candidate list 1 4097 4097
+  ---
+  duration_ms: 0.725659
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 3 4097
+ok 10 - oversized input discovery refuses whole candidate list 1 3 4097
+  ---
+  duration_ms: 0.757529
+  type: 'test'
+  ...
+# Subtest: input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+ok 11 - input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+  ---
+  duration_ms: 0.910511
+  type: 'test'
+  ...
+# Subtest: unknown selection leaves prior original input intact before any acquisition
+ok 12 - unknown selection leaves prior original input intact before any acquisition
+  ---
+  duration_ms: 0.766209
+  type: 'test'
+  ...
+# Subtest: actual selected-track mismatch never silently falls back to default
+ok 13 - actual selected-track mismatch never silently falls back to default
+  ---
+  duration_ms: 0.90973
+  type: 'test'
+  ...
+# Subtest: removed explicit input stays failed until explicit default recovery
+ok 14 - removed explicit input stays failed until explicit default recovery
+  ---
+  duration_ms: 0.95053
+  type: 'test'
+  ...
+# Subtest: held acquisition and stop retain original stream and forbid input changes
+ok 15 - held acquisition and stop retain original stream and forbid input changes
+  ---
+  duration_ms: 0.970071
+  type: 'test'
+  ...
+# Subtest: pending fresh enumeration has one original and disposal fences its late result
+ok 16 - pending fresh enumeration has one original and disposal fences its late result
+  ---
+  duration_ms: 0.825449
+  type: 'test'
+  ...
+# Subtest: fresh speaking is independent of a retained packet and legacy windows
+not ok 17 - fresh speaking is independent of a retained packet and legacy windows
+  ---
+  duration_ms: 1.962892
+  type: 'test'
+  location: '/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/web/incremental_pcm_capture.test.js:27:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'undefined'
+    - 'function'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'function'
+  actual: 'undefined'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/web/incremental_pcm_capture.test.js:29:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: fresh speaking refuses stale malformed and retired capture identities
+not ok 18 - fresh speaking refuses stale malformed and retired capture identities
+  ---
+  duration_ms: 0.898791
+  type: 'test'
+  location: '/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/web/incremental_pcm_capture.test.js:44:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'undefined'
+    - 'function'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'function'
+  actual: 'undefined'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/web/incremental_pcm_capture.test.js:46:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: fresh speaking cannot treat a faulted input as observed silence
+not ok 19 - fresh speaking cannot treat a faulted input as observed silence
+  ---
+  duration_ms: 1.039731
+  type: 'test'
+  location: '/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/web/incremental_pcm_capture.test.js:57:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'undefined'
+    - 'function'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'function'
+  actual: 'undefined'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/web/incremental_pcm_capture.test.js:59:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: incremental FIFO retains every ordered PCM sample until exact acknowledgment
+ok 20 - incremental FIFO retains every ordered PCM sample until exact acknowledgment
+  ---
+  duration_ms: 1.990672
+  type: 'test'
+  ...
+# Subtest: incremental packetization crosses callback boundaries without gaps or snapshot replacement
+ok 21 - incremental packetization crosses callback boundaries without gaps or snapshot replacement
+  ---
+  duration_ms: 19.306369
+  type: 'test'
+  ...
+# Subtest: incremental capture faults preserve the original packet and stop further acquisition
+ok 22 - incremental capture faults preserve the original packet and stop further acquisition
+  ---
+  duration_ms: 2.384377
+  type: 'test'
+  ...
+# Subtest: declared stream capacity stops visibly while retaining its bounded original prefix
+ok 23 - declared stream capacity stops visibly while retaining its bounded original prefix
+  ---
+  duration_ms: 240.058299
+  type: 'test'
+  ...
+# Subtest: capture retirement retains FIFO identity until the actual original context closes
+ok 24 - capture retirement retains FIFO identity until the actual original context closes
+  ---
+  duration_ms: 1.083483
+  type: 'test'
+  ...
+# Subtest: incremental capture refuses incompatible modes and a non16k source without fallback
+ok 25 - incremental capture refuses incompatible modes and a non16k source without fallback
+  ---
+  duration_ms: 1.456666
+  type: 'test'
+  ...
+# Subtest: playback and local acknowledgment preserve the armed capture and utterance
+ok 26 - playback and local acknowledgment preserve the armed capture and utterance
+  ---
+  duration_ms: 1.139893
+  type: 'test'
+  ...
+# Subtest: malformed acknowledgments cannot consume a retained original
+ok 27 - malformed acknowledgments cannot consume a retained original
+  ---
+  duration_ms: 1.274055
+  type: 'test'
+  ...
+# Subtest: an original FIFO survives disposal and cannot alias a subsequent capture identity
+ok 28 - an original FIFO survives disposal and cannot alias a subsequent capture identity
+  ---
+  duration_ms: 2.273436
+  type: 'test'
+  ...
+# Subtest: one retained readiness notification wakes on original PCM or capture retirement without polling
+ok 29 - one retained readiness notification wakes on original PCM or capture retirement without polling
+  ---
+  duration_ms: 1.062382
+  type: 'test'
+  ...
+# Subtest: segment rollover preserves every unacknowledged sample and the original live microphone
+ok 30 - segment rollover preserves every unacknowledged sample and the original live microphone
+  ---
+  duration_ms: 1.770279
+  type: 'test'
+  ...
+# Subtest: segment rollover refuses a pending packet stale boundaries and malformed originals
+ok 31 - segment rollover refuses a pending packet stale boundaries and malformed originals
+  ---
+  duration_ms: 1.522107
+  type: 'test'
+  ...
+# Subtest: sequential decoder boundaries can exceed sixty seconds without releasing the armed mic
+ok 32 - sequential decoder boundaries can exceed sixty seconds without releasing the armed mic
+  ---
+  duration_ms: 526.001568
+  type: 'test'
+  ...
+# Subtest: rollover wakes the old local notification and keeps the new notification owned
+ok 33 - rollover wakes the old local notification and keeps the new notification owned
+  ---
+  duration_ms: 1.047042
+  type: 'test'
+  ...
+# Subtest: fault or held actual cleanup cannot roll a local decoder segment into fresh capacity
+ok 34 - fault or held actual cleanup cannot roll a local decoder segment into fresh capacity
+  ---
+  duration_ms: 1.514048
+  type: 'test'
+  ...
+# Subtest: a clean stopped microphone cannot roll while its original context cleanup is held
+ok 35 - a clean stopped microphone cannot roll while its original context cleanup is held
+  ---
+  duration_ms: 0.914431
+  type: 'test'
+  ...
+1..35
+# tests 35
+# suites 0
+# pass 32
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1066.389639

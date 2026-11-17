@@ -1,0 +1,10 @@
+Analyzing client.dart, journal_wake.dart, journal_json.dart, live_streams.dart, owned_settings_client.dart, speech_audio.dart, speech_audio_web.dart, adaptive_live_capture.dart, character_view.dart, journal_wake_client_test.dart, adaptive_live_call_native_test.dart...
+
+   info - lib/api/journal_wake.dart:15:5 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib/api/journal_wake.dart:34:7 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib/api/journal_wake.dart:85:7 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - lib/api/journal_wake.dart:148:13 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - test/adaptive_live_call_native_test.dart:44:13 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - test/adaptive_live_call_native_test.dart:50:13 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+
+6 issues found.

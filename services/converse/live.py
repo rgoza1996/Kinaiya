@@ -394,6 +394,13 @@ class LiveConverseController(WindowConverseController):
                 for _, t in route.append_tasks.values()
             )
             if successful_metadata:
+                if (
+                    route.effect == "converse_reply"
+                    and not prepared.abandoned
+                    and prepared.published == 0
+                    and await self.current(prepared) is not None
+                ):
+                    await self._no_audio_ready(prepared)
                 return await self._finish(
                     route, record, "declined", "original_converse_returned_no_chunks"
                 )
@@ -401,6 +408,23 @@ class LiveConverseController(WindowConverseController):
                 route, record, "uncertain", "original_converse_publication_unconfirmed"
             )
         return record
+
+    async def _no_audio_ready(self, prepared):
+        # Provider EOF can precede publication of a held noninterrupting reply.
+        # Only the reclaimable/current no-chunk path above permits this separate
+        # logical boundary; it makes no model-success or physical-playback claim.
+        token = _live_reply.set(prepared)
+        try:
+            request = self._state_request(
+                prepared.source,
+                "no_audio_ready",
+                behavior=prepared.behavior,
+                generation_epoch=prepared.generation,
+                content_scope=prepared.content_scope,
+            )
+            return await self._native("append", request)
+        finally:
+            _live_reply.reset(token)
 
     async def _observe(self, prepared):
         token = _live_reply.set(prepared)

@@ -66,6 +66,15 @@ Provider completion wakes the loop even while its one original native wait is
 still pending. It does not cancel/replace that read or spin on its own status
 observations. A noninterrupting buffered reply remains pending while the user
 speaks; provider EOF alone is not a declined response or a released consumer.
+A gated Call client therefore cannot use `live_output_observed` as a logical
+utterance boundary. The additive v2 state phase `live_no_audio_ready` is separate:
+the original full-reply producer must be reclaimable, unabandoned, have no
+published chunks and still pass native source/selection/authority checks. Its
+effect-keyed observation repeats the original source, utterance, behavior,
+generation (possibly null) and disclosure scope. The original retained append
+owner prevents replay. This supports an empty/no-audio reply without treating
+provider completion, model answer quality, or a held reply as acoustic completion
+or physical playback. Backchannels do not emit this full-reply readiness phase.
 A terminal failed wake observation leaves the loop slot before its error is
 reported, so a later native publication can be observed. Any unsettled original
 read/close still belongs to the original run owner; this is not a model or

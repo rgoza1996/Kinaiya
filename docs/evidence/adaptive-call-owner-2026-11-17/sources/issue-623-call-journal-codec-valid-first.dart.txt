@@ -1,0 +1,120 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:kinaiya_flutter/api/journal_wake.dart';
+import 'package:kinaiya_flutter/api/owned_settings_client.dart';
+
+Map<String, Object?> cursor([int revision = 1]) => {
+  'schema_version': '1.0',
+  'protocol': 'journal_wake_v1',
+  'owner_instance': 'a' * 32,
+  'revision': revision,
+};
+
+Map<String, Object?> entry(int sequence) => {
+  'schema_version': '1.0',
+  'event_id': 'event-$sequence',
+  'sequence': sequence,
+  'session_id': 'session',
+  'thread_id': 'thread',
+  'epoch': 1,
+  'kind': 'routing.live_window_decided',
+  'origin': 'decisions',
+  'causes': ['source'],
+  'task_refs': <String>[],
+  'payload': {
+    'confidence': 0.875,
+    'raw': 'Unchanged synthetic provider output: 🦉',
+  },
+};
+
+JournalWakeApi reader(Future<http.Response> Function(http.Request) handler) =>
+    JournalWakeApi(
+      baseUrl: 'http://127.0.0.1:8760',
+      ownerToken: 'synthetic-owner',
+      clientFactory: () => MockClient(handler),
+    );
+
+void main() {
+  test('native journal decimal metadata does not stop the scoped reader', () async {
+    final api = reader((request) async {
+      expect(request.url.path, '/v1/transcript');
+      expect(request.url.queryParameters, {
+        'session_id': 'session',
+        'thread_id': 'thread',
+        'epoch': '1',
+        'after': '1',
+        'limit': '16',
+      });
+      expect(request.headers['Authorization'], 'Bearer synthetic-owner');
+      return http.Response.bytes(utf8.encode(jsonEncode([entry(2)])), 200,
+        headers: {'content-type': 'application/json'});
+    });
+    final attempt = api.page(
+      sessionId: 'session', threadId: 'thread', epoch: 1, after: 1,
+    );
+    final entries = await attempt.result;
+    await attempt.settled;
+    expect(entries.single.payload['confidence'], 0.875);
+    expect(entries.single.payload['raw'], 'Unchanged synthetic provider output: 🦉');
+    await api.close();
+  });
+
+  test('wake binds the exact original and monotonic owner cursor', () async {
+    final original = JournalWakeWait(JournalWakeCursor.fromJson(cursor()));
+    final api = reader((request) async {
+      expect(jsonDecode(request.body), original.body);
+      return http.Response(jsonEncode({
+        'schema_version': '1.0',
+        'protocol': 'journal_wake_v1',
+        'original': original.body,
+        'cursor': cursor(2),
+        'changed': true,
+      }), 200, headers: {'content-type': 'application/json'});
+    });
+    final attempt = api.wait(original);
+    expect((await attempt.result).cursor.revision, 2);
+    await attempt.settled;
+    await api.close();
+    for (final patch in <void Function(Map<String, Object?>)>[
+      (r) => (r['cursor'] as Map)['owner_instance'] = 'b' * 32,
+      (r) => (r['cursor'] as Map)['revision'] = 0,
+      (r) => (r['original'] as Map)['wait_ms'] = 999,
+      (r) => r['changed'] = false,
+    ]) {
+      final raw = <String, Object?>{
+        'schema_version': '1.0',
+        'protocol': 'journal_wake_v1',
+        'original': jsonDecode(jsonEncode(original.body)),
+        'cursor': cursor(2),
+        'changed': true,
+      };
+      patch(raw);
+      expect(() => JournalWakeObservation.fromJson(raw, original), throwsFormatException);
+    }
+  });
+
+  test('scoped pages refuse swapped, repeated and noninteger identities', () async {
+    final first = entry(2);
+    final valid = jsonEncode([first]);
+    for (final raw in [
+      valid.replaceFirst('"epoch":1', '"epoch":1.0'),
+      valid.replaceFirst('"sequence":2', '"sequence":2e0'),
+      valid.replaceFirst('"sequence":2', '"sequence":9007199254740992'),
+      valid.replaceFirst('"session_id":"session"', '"session_id":"other"'),
+      valid.replaceFirst('"thread_id":"thread"', '"thread_id":"other"'),
+      jsonEncode([first, first]),
+      jsonEncode(List.generate(17, (i) => entry(i + 2))),
+      valid.replaceFirst('"sequence":2', '"sequence":2,"sequence":3'),
+    ]) {
+      final api = reader((_) async => http.Response(raw, 200,
+        headers: {'content-type': 'application/json'}));
+      final attempt = api.page(sessionId: 'session', threadId: 'thread', epoch: 1, after: 1);
+      await expectLater(attempt.result, throwsA(isA<OwnedSettingsFailure>()));
+      await attempt.settled;
+      await api.close();
+    }
+  });
+}

@@ -1,0 +1,54 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_actual_dart_native_live_stream_rollover[adaptive_live_call_native_test.dart] _
+tests/integration/test_live_stream_dart.py:91: in test_actual_dart_native_live_stream_rollover
+    assert process.returncode == 0, output.decode(errors="replace")
+E   AssertionError: 00:00 +0: loading /tmp/pytest-of-roggoz/pytest-36/test_actual_dart_native_live_s0/native-stream-flutter/test/adaptive_live_call_native_test.dart
+E     00:00 +0: actual Call button streams contiguous PCM and retains native stop without playback
+E     ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+E     The following TestFailure was thrown running a test:
+E     Expected: true
+E       Actual: <false>
+E     
+E     When the exception was thrown, this was the stack:
+E     #4      nativeSpin (file:///tmp/pytest-of-roggoz/pytest-36/test_actual_dart_native_live_s0/native-stream-flutter/test/adaptive_live_call_native_test.dart:168:3)
+E     <asynchronous suspension>
+E     #5      main.<anonymous closure> (file:///tmp/pytest-of-roggoz/pytest-36/test_actual_dart_native_live_s0/native-stream-flutter/test/adaptive_live_call_native_test.dart:221:7)
+E     <asynchronous suspension>
+E     #6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+E     <asynchronous suspension>
+E     #7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+E     <asynchronous suspension>
+E     <asynchronous suspension>
+E     (elided one frame from package:stack_trace)
+E     
+E     This was caught by the test expectation on the following line:
+E       file:///tmp/pytest-of-roggoz/pytest-36/test_actual_dart_native_live_s0/native-stream-flutter/test/adaptive_live_call_native_test.dart line 168
+E     The test description was:
+E       actual Call button streams contiguous PCM and retains native stop without playback
+E     ════════════════════════════════════════════════════════════════════════════════════════════════════
+E     00:20 +0 -1: actual Call button streams contiguous PCM and retains native stop without playback [E]
+E       Test failed. See exception logs above.
+E       The test description was: actual Call button streams contiguous PCM and retains native stop without playback
+E       
+E     Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+E     TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+E     will actually be made. Any test expecting a real network connection and status code will fail.
+E     To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+E     test, so that your test can consistently provide a testable response to the code under test.
+E     00:20 +0 -1: Some tests failed.
+E     
+E     Failing tests:
+E       /tmp/pytest-of-roggoz/pytest-36/test_actual_dart_native_live_s0/native-stream-flutter/test/adaptive_live_call_native_test.dart: actual Call button streams contiguous PCM and retains native stop without playback
+E     
+E   assert 1 == 0
+E    +  where 1 = <Process 530121>.returncode
+=============================== warnings summary ===============================
+../../output/issue-643-python313-venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_live_stream_dart.py::test_actual_dart_native_live_stream_rollover[adaptive_live_call_native_test.dart]
+1 failed, 1 warning in 28.87s

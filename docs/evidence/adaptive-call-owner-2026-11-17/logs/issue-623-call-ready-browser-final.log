@@ -1,0 +1,1408 @@
+TAP version 13
+# Subtest: semantic capture keeps rolling PCM and leaves timing to native decisions
+ok 1 - semantic capture keeps rolling PCM and leaves timing to native decisions
+  ---
+  duration_ms: 8.532334
+  type: 'test'
+  ...
+# Subtest: window capture bounds PCM, isolates utterances, and releases its graph
+ok 2 - window capture bounds PCM, isolates utterances, and releases its graph
+  ---
+  duration_ms: 22.002619
+  type: 'test'
+  ...
+# Subtest: sync/async calling semantics normalize through one helper
+ok 3 - sync/async calling semantics normalize through one helper
+  ---
+  duration_ms: 1.982058
+  type: 'test'
+  ...
+# Subtest: startMic passes the selected mimeType through
+ok 4 - startMic passes the selected mimeType through
+  ---
+  duration_ms: 2.241969
+  type: 'test'
+  ...
+# Subtest: stopMic with inactive recorder resolves without hanging
+ok 5 - stopMic with inactive recorder resolves without hanging
+  ---
+  duration_ms: 1.808226
+  type: 'test'
+  ...
+# Subtest: dispose cancels tracks and reports disposed
+ok 6 - dispose cancels tracks and reports disposed
+  ---
+  duration_ms: 1.481903
+  type: 'test'
+  ...
+# Subtest: stop during suspended resume invalidates stale queued audio
+ok 7 - stop during suspended resume invalidates stale queued audio
+  ---
+  duration_ms: 1.276241
+  type: 'test'
+  ...
+# Subtest: played requires true onended; synthesis-complete is not played
+ok 8 - played requires true onended; synthesis-complete is not played
+  ---
+  duration_ms: 1.468733
+  type: 'test'
+  ...
+# Subtest: VAD: silence stays quiet, noise adapts, speech ends after end-silence
+ok 9 - VAD: silence stays quiet, noise adapts, speech ends after end-silence
+  ---
+  duration_ms: 2.066958
+  type: 'test'
+  ...
+# Subtest: VAD: 220ms sustained voice during playback barges; nested epochs isolate
+ok 10 - VAD: 220ms sustained voice during playback barges; nested epochs isolate
+  ---
+  duration_ms: 2.484522
+  type: 'test'
+  ...
+# Subtest: VAD: 60s clip cap fires once
+ok 11 - VAD: 60s clip cap fires once
+  ---
+  duration_ms: 1.357902
+  type: 'test'
+  ...
+# Subtest: permission resolving after disposal releases every track and starts no recorder
+ok 12 - permission resolving after disposal releases every track and starts no recorder
+  ---
+  duration_ms: 1.20806
+  type: 'test'
+  ...
+# Subtest: each complete clip has a fresh epoch and its own 60-second cap
+ok 13 - each complete clip has a fresh epoch and its own 60-second cap
+  ---
+  duration_ms: 1.626964
+  type: 'test'
+  ...
+# Subtest: a silence dip resets barge sustain and 220ms stops local audio immediately
+ok 14 - a silence dip resets barge sustain and 220ms stops local audio immediately
+  ---
+  duration_ms: 5.80419
+  type: 'test'
+  ...
+# Subtest: old source ended callback cannot complete a new generation playback
+ok 15 - old source ended callback cannot complete a new generation playback
+  ---
+  duration_ms: 1.515062
+  type: 'test'
+  ...
+# Subtest: mouth follows played PCM volume, closes in silence, and never opens the mic
+ok 16 - mouth follows played PCM volume, closes in silence, and never opens the mic
+  ---
+  duration_ms: 1.789435
+  type: 'test'
+  ...
+# Subtest: speech visualizer measures played PCM independently of visemes and future audio
+ok 17 - speech visualizer measures played PCM independently of visemes and future audio
+  ---
+  duration_ms: 1.867707
+  type: 'test'
+  ...
+# Subtest: speech levels quiet on pause, invalid clock, stop and stale source completion
+ok 18 - speech levels quiet on pause, invalid clock, stop and stale source completion
+  ---
+  duration_ms: 1.673614
+  type: 'test'
+  ...
+# Subtest: reading ended PCM does not acknowledge playback or retain extra envelopes
+ok 19 - reading ended PCM does not acknowledge playback or retain extra envelopes
+  ---
+  duration_ms: 13.018062
+  type: 'test'
+  ...
+# Subtest: queued future chunks and suspended context cannot animate ahead of played audio
+ok 20 - queued future chunks and suspended context cannot animate ahead of played audio
+  ---
+  duration_ms: 1.336161
+  type: 'test'
+  ...
+# Subtest: mouth smoothing uses playback time and hysteresis rather than poll frequency
+ok 21 - mouth smoothing uses playback time and hysteresis rather than poll frequency
+  ---
+  duration_ms: 1.19613
+  type: 'test'
+  ...
+# Subtest: valid visemes override volume, uncovered times use volume, silence stays closed
+ok 22 - valid visemes override volume, uncovered times use volume, silence stays closed
+  ---
+  duration_ms: 1.16122
+  type: 'test'
+  ...
+# Subtest: malformed, overlapping, oversized and unsupported viseme lists fall back to PCM
+ok 23 - malformed, overlapping, oversized and unsupported viseme lists fall back to PCM
+  ---
+  duration_ms: 13.837828
+  type: 'test'
+  ...
+# Subtest: natural end closes the mouth before onended but never acknowledges playback early
+ok 24 - natural end closes the mouth before onended but never acknowledges playback early
+  ---
+  duration_ms: 1.461923
+  type: 'test'
+  ...
+# Subtest: stop, disposal and stale pending PCM clear mouth state across generations
+ok 25 - stop, disposal and stale pending PCM clear mouth state across generations
+  ---
+  duration_ms: 2.573272
+  type: 'test'
+  ...
+# Subtest: mouth metadata has bounded chunks/windows and expires after playback
+ok 26 - mouth metadata has bounded chunks/windows and expires after playback
+  ---
+  duration_ms: 93.949538
+  type: 'test'
+  ...
+# Subtest: adaptive VAD settings are atomic, bounded and never start capture
+ok 27 - adaptive VAD settings are atomic, bounded and never start capture
+  ---
+  duration_ms: 1.0868
+  type: 'test'
+  ...
+# Subtest: room calibration handles sustained initial background without speech events
+ok 28 - room calibration handles sustained initial background without speech events
+  ---
+  duration_ms: 1.711285
+  type: 'test'
+  ...
+# Subtest: fixed thresholds and sensitivity affect speech detection without calibration
+ok 29 - fixed thresholds and sensitivity affect speech detection without calibration
+  ---
+  duration_ms: 1.573934
+  type: 'test'
+  ...
+# Subtest: explicit VAD profile and calibration survive clip boundaries
+ok 30 - explicit VAD profile and calibration survive clip boundaries
+  ---
+  duration_ms: 1.18154
+  type: 'test'
+  ...
+# Subtest: custom interrupt timing stops local playback only after sustained voice
+ok 31 - custom interrupt timing stops local playback only after sustained voice
+  ---
+  duration_ms: 4.542959
+  type: 'test'
+  ...
+# Subtest: uses one Kinaiya namespaced database and waits for transaction commit
+ok 32 - uses one Kinaiya namespaced database and waits for transaction commit
+  ---
+  duration_ms: 18.846582
+  type: 'test'
+  ...
+# Subtest: serializes writes so the latest snapshot is the durable result
+ok 33 - serializes writes so the latest snapshot is the durable result
+  ---
+  duration_ms: 1.14365
+  type: 'test'
+  ...
+# Subtest: transaction failure leaves prior data intact and does not poison later writes
+ok 34 - transaction failure leaves prior data intact and does not poison later writes
+  ---
+  duration_ms: 0.916788
+  type: 'test'
+  ...
+# Subtest: denied, blocked and stalled IndexedDB fail with bounded generic errors
+ok 35 - denied, blocked and stalled IndexedDB fail with bounded generic errors
+  ---
+  duration_ms: 2.133418
+  type: 'test'
+  ...
+# Subtest: snapshot read/write bounds use bytes and reject nonstrings
+ok 36 - snapshot read/write bounds use bytes and reject nonstrings
+  ---
+  duration_ms: 15.928537
+  type: 'test'
+  ...
+# Subtest: picker rejects oversized files before reading and cleans its DOM seam
+ok 37 - picker rejects oversized files before reading and cleans its DOM seam
+  ---
+  duration_ms: 0.864747
+  type: 'test'
+  ...
+# Subtest: picker cancellation, empty selection and focus-return cancellation resolve
+ok 38 - picker cancellation, empty selection and focus-return cancellation resolve
+  ---
+  duration_ms: 4.879332
+  type: 'test'
+  ...
+# Subtest: picker reads the selected local file and rejects encoded byte overrun
+ok 39 - picker reads the selected local file and rejects encoded byte overrun
+  ---
+  duration_ms: 15.766295
+  type: 'test'
+  ...
+# Subtest: a stalled selected file read fails within its bounded read window
+ok 40 - a stalled selected file read fails within its bounded read window
+  ---
+  duration_ms: 0.621086
+  type: 'test'
+  ...
+# Subtest: export uses fixed safe filename and always revokes its temporary Blob URL
+ok 41 - export uses fixed safe filename and always revokes its temporary Blob URL
+  ---
+  duration_ms: 2.23462
+  type: 'test'
+  ...
+# Subtest: import requests resume synchronously before the picker without awaiting it
+ok 42 - import requests resume synchronously before the picker without awaiting it
+  ---
+  duration_ms: 1.976627
+  type: 'test'
+  ...
+# Subtest: later PCM uses the same gesture-prepared context and waits for real onended
+ok 43 - later PCM uses the same gesture-prepared context and waits for real onended
+  ---
+  duration_ms: 1.237371
+  type: 'test'
+  ...
+# Subtest: import cancel acquires no microphone and queues no PCM
+ok 44 - import cancel acquires no microphone and queues no PCM
+  ---
+  duration_ms: 0.922448
+  type: 'test'
+  ...
+# Subtest: import missing-file acquires no microphone and queues no PCM
+ok 45 - import missing-file acquires no microphone and queues no PCM
+  ---
+  duration_ms: 0.716236
+  type: 'test'
+  ...
+# Subtest: import oversized acquires no microphone and queues no PCM
+ok 46 - import oversized acquires no microphone and queues no PCM
+  ---
+  duration_ms: 0.657085
+  type: 'test'
+  ...
+# Subtest: unsupported playback does not block cancelling a picker or acquire a mic
+ok 47 - unsupported playback does not block cancelling a picker or acquire a mic
+  ---
+  duration_ms: 0.669286
+  type: 'test'
+  ...
+# Subtest: malformed PCM after import preparation is never queued
+ok 48 - malformed PCM after import preparation is never queued
+  ---
+  duration_ms: 0.709296
+  type: 'test'
+  ...
+# Subtest: a fulfilled resume that leaves context suspended is not queued playback
+ok 49 - a fulfilled resume that leaves context suspended is not queued playback
+  ---
+  duration_ms: 0.886278
+  type: 'test'
+  ...
+# Subtest: stop during held resume prevents late old PCM from creating a source
+ok 50 - stop during held resume prevents late old PCM from creating a source
+  ---
+  duration_ms: 1.14106
+  type: 'test'
+  ...
+# Subtest: an old ended callback cannot settle a newer import-prepared playback
+ok 51 - an old ended callback cannot settle a newer import-prepared playback
+  ---
+  duration_ms: 1.017018
+  type: 'test'
+  ...
+# Subtest: device discovery returns bounded output-only metadata and never opens a microphone
+ok 52 - device discovery returns bounded output-only metadata and never opens a microphone
+  ---
+  duration_ms: 1.14958
+  type: 'test'
+  ...
+# Subtest: the exact 128-device and 4096-character ID/label bounds remain usable
+ok 53 - the exact 128-device and 4096-character ID/label bounds remain usable
+  ---
+  duration_ms: 1.327872
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 54 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 1.010699
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 55 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 1.008319
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 56 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 0.980438
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 57 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 0.897368
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 58 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 0.732957
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 59 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 0.741126
+  type: 'test'
+  ...
+# Subtest: missing output capabilities remain explicit and never request microphone permission
+ok 60 - missing output capabilities remain explicit and never request microphone permission
+  ---
+  duration_ms: 0.679445
+  type: 'test'
+  ...
+# Subtest: missing output capabilities remain explicit and never request microphone permission
+ok 61 - missing output capabilities remain explicit and never request microphone permission
+  ---
+  duration_ms: 1.781835
+  type: 'test'
+  ...
+# Subtest: missing output capabilities remain explicit and never request microphone permission
+ok 62 - missing output capabilities remain explicit and never request microphone permission
+  ---
+  duration_ms: 0.745796
+  type: 'test'
+  ...
+# Subtest: selected routing settles on the exact context before PCM and onended owns delivery
+ok 63 - selected routing settles on the exact context before PCM and onended owns delivery
+  ---
+  duration_ms: 0.963809
+  type: 'test'
+  ...
+# Subtest: one original held setSinkId blocks PCM and all competing selections
+ok 64 - one original held setSinkId blocks PCM and all competing selections
+  ---
+  duration_ms: 1.18139
+  type: 'test'
+  ...
+# Subtest: selection owns its slot before the first held device-discovery await
+ok 65 - selection owns its slot before the first held device-discovery await
+  ---
+  duration_ms: 0.803217
+  type: 'test'
+  ...
+# Subtest: the real browser output picker is invoked synchronously and its original result is owned
+ok 66 - the real browser output picker is invoked synchronously and its original result is owned
+  ---
+  duration_ms: 0.891248
+  type: 'test'
+  ...
+# Subtest: cancelled picker before routing leaves the previous explicit output intact
+ok 67 - cancelled picker before routing leaves the previous explicit output intact
+  ---
+  duration_ms: 0.898948
+  type: 'test'
+  ...
+# Subtest: active scheduled sources refuse output changes without stopping original playback
+ok 68 - active scheduled sources refuse output changes without stopping original playback
+  ---
+  duration_ms: 0.789307
+  type: 'test'
+  ...
+# Subtest: disposal cannot let an old held routing completion bind a replacement context
+ok 69 - disposal cannot let an old held routing completion bind a replacement context
+  ---
+  duration_ms: 1.207781
+  type: 'test'
+  ...
+# Subtest: explicit routing failure forbids silent default until an owner default succeeds
+ok 70 - explicit routing failure forbids silent default until an owner default succeeds
+  ---
+  duration_ms: 1.149149
+  type: 'test'
+  ...
+# Subtest: explicit routing mismatch forbids silent default until an owner default succeeds
+ok 71 - explicit routing mismatch forbids silent default until an owner default succeeds
+  ---
+  duration_ms: 1.042318
+  type: 'test'
+  ...
+# Subtest: a removed explicitly selected device never silently routes to system default
+ok 72 - a removed explicitly selected device never silently routes to system default
+  ---
+  duration_ms: 0.797857
+  type: 'test'
+  ...
+# Subtest: devicechange stops explicit playback and requires an owner routing decision
+ok 73 - devicechange stops explicit playback and requires an owner routing decision
+  ---
+  duration_ms: 1.028279
+  type: 'test'
+  ...
+# Subtest: external sink mismatch is checked again after a held context resume
+ok 74 - external sink mismatch is checked again after a held context resume
+  ---
+  duration_ms: 0.997249
+  type: 'test'
+  ...
+# Subtest: foreign or nonenumerated device identifiers cannot route or invoke conversion hooks
+ok 75 - foreign or nonenumerated device identifiers cannot route or invoke conversion hooks
+  ---
+  duration_ms: 3.699841
+  type: 'test'
+  ...
+# Subtest: legacy default playback requires no output-selection APIs and keeps real onended semantics
+ok 76 - legacy default playback requires no output-selection APIs and keeps real onended semantics
+  ---
+  duration_ms: 1.052589
+  type: 'test'
+  ...
+# Subtest: native configuration never requests microphone and unsupported graph stays explicit
+ok 77 - native configuration never requests microphone and unsupported graph stays explicit
+  ---
+  duration_ms: 1.438922
+  type: 'test'
+  ...
+# Subtest: native finish preserves the original PCM as canonical 16k WAV
+ok 78 - native finish preserves the original PCM as canonical 16k WAV
+  ---
+  duration_ms: 1.601374
+  type: 'test'
+  ...
+# Subtest: silence alone cannot complete a native utterance
+ok 79 - silence alone cannot complete a native utterance
+  ---
+  duration_ms: 2.783004
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=false
+ok 80 - native thirty-second whole-utterance boundary overflow=false
+  ---
+  duration_ms: 143.475834
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=true
+ok 81 - native thirty-second whole-utterance boundary overflow=true
+  ---
+  duration_ms: 45.013777
+  type: 'test'
+  ...
+# Subtest: native VAD barge stops original local PCM immediately and fences stale epochs
+ok 82 - native VAD barge stops original local PCM immediately and fences stale epochs
+  ---
+  duration_ms: 1.494183
+  type: 'test'
+  ...
+# Subtest: input discovery is local bounded enumeration and never opens microphone
+ok 83 - input discovery is local bounded enumeration and never opens microphone
+  ---
+  duration_ms: 4.485779
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 129 5 5
+ok 84 - oversized input discovery refuses whole candidate list 129 5 5
+  ---
+  duration_ms: 0.673276
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 4097 4097
+ok 85 - oversized input discovery refuses whole candidate list 1 4097 4097
+  ---
+  duration_ms: 0.596975
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 3 4097
+ok 86 - oversized input discovery refuses whole candidate list 1 3 4097
+  ---
+  duration_ms: 0.561625
+  type: 'test'
+  ...
+# Subtest: input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+ok 87 - input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+  ---
+  duration_ms: 0.859137
+  type: 'test'
+  ...
+# Subtest: unknown selection leaves prior original input intact before any acquisition
+ok 88 - unknown selection leaves prior original input intact before any acquisition
+  ---
+  duration_ms: 0.723256
+  type: 'test'
+  ...
+# Subtest: actual selected-track mismatch never silently falls back to default
+ok 89 - actual selected-track mismatch never silently falls back to default
+  ---
+  duration_ms: 0.633766
+  type: 'test'
+  ...
+# Subtest: removed explicit input stays failed until explicit default recovery
+ok 90 - removed explicit input stays failed until explicit default recovery
+  ---
+  duration_ms: 0.834867
+  type: 'test'
+  ...
+# Subtest: held acquisition and stop retain original stream and forbid input changes
+ok 91 - held acquisition and stop retain original stream and forbid input changes
+  ---
+  duration_ms: 0.808497
+  type: 'test'
+  ...
+# Subtest: pending fresh enumeration has one original and disposal fences its late result
+ok 92 - pending fresh enumeration has one original and disposal fences its late result
+  ---
+  duration_ms: 0.744697
+  type: 'test'
+  ...
+# Subtest: fresh speaking is independent of a retained packet and legacy windows
+ok 93 - fresh speaking is independent of a retained packet and legacy windows
+  ---
+  duration_ms: 1.216951
+  type: 'test'
+  ...
+# Subtest: fresh speaking refuses stale malformed and retired capture identities
+ok 94 - fresh speaking refuses stale malformed and retired capture identities
+  ---
+  duration_ms: 1.148869
+  type: 'test'
+  ...
+# Subtest: fresh speaking cannot treat a faulted input as observed silence
+ok 95 - fresh speaking cannot treat a faulted input as observed silence
+  ---
+  duration_ms: 0.790456
+  type: 'test'
+  ...
+# Subtest: incremental FIFO retains every ordered PCM sample until exact acknowledgment
+ok 96 - incremental FIFO retains every ordered PCM sample until exact acknowledgment
+  ---
+  duration_ms: 1.234351
+  type: 'test'
+  ...
+# Subtest: incremental packetization crosses callback boundaries without gaps or snapshot replacement
+ok 97 - incremental packetization crosses callback boundaries without gaps or snapshot replacement
+  ---
+  duration_ms: 19.782011
+  type: 'test'
+  ...
+# Subtest: incremental capture faults preserve the original packet and stop further acquisition
+ok 98 - incremental capture faults preserve the original packet and stop further acquisition
+  ---
+  duration_ms: 1.942027
+  type: 'test'
+  ...
+# Subtest: declared stream capacity stops visibly while retaining its bounded original prefix
+ok 99 - declared stream capacity stops visibly while retaining its bounded original prefix
+  ---
+  duration_ms: 267.069957
+  type: 'test'
+  ...
+# Subtest: capture retirement retains FIFO identity until the actual original context closes
+ok 100 - capture retirement retains FIFO identity until the actual original context closes
+  ---
+  duration_ms: 1.469353
+  type: 'test'
+  ...
+# Subtest: incremental capture refuses incompatible modes and a non16k source without fallback
+ok 101 - incremental capture refuses incompatible modes and a non16k source without fallback
+  ---
+  duration_ms: 1.585264
+  type: 'test'
+  ...
+# Subtest: playback and local acknowledgment preserve the armed capture and utterance
+ok 102 - playback and local acknowledgment preserve the armed capture and utterance
+  ---
+  duration_ms: 1.527333
+  type: 'test'
+  ...
+# Subtest: malformed acknowledgments cannot consume a retained original
+ok 103 - malformed acknowledgments cannot consume a retained original
+  ---
+  duration_ms: 3.148157
+  type: 'test'
+  ...
+# Subtest: an original FIFO survives disposal and cannot alias a subsequent capture identity
+ok 104 - an original FIFO survives disposal and cannot alias a subsequent capture identity
+  ---
+  duration_ms: 1.340892
+  type: 'test'
+  ...
+# Subtest: one retained readiness notification wakes on original PCM or capture retirement without polling
+ok 105 - one retained readiness notification wakes on original PCM or capture retirement without polling
+  ---
+  duration_ms: 1.060289
+  type: 'test'
+  ...
+# Subtest: segment rollover preserves every unacknowledged sample and the original live microphone
+ok 106 - segment rollover preserves every unacknowledged sample and the original live microphone
+  ---
+  duration_ms: 1.310882
+  type: 'test'
+  ...
+# Subtest: segment rollover refuses a pending packet stale boundaries and malformed originals
+ok 107 - segment rollover refuses a pending packet stale boundaries and malformed originals
+  ---
+  duration_ms: 1.21472
+  type: 'test'
+  ...
+# Subtest: sequential decoder boundaries can exceed sixty seconds without releasing the armed mic
+ok 108 - sequential decoder boundaries can exceed sixty seconds without releasing the armed mic
+  ---
+  duration_ms: 615.566006
+  type: 'test'
+  ...
+# Subtest: rollover wakes the old local notification and keeps the new notification owned
+ok 109 - rollover wakes the old local notification and keeps the new notification owned
+  ---
+  duration_ms: 1.290811
+  type: 'test'
+  ...
+# Subtest: fault or held actual cleanup cannot roll a local decoder segment into fresh capacity
+ok 110 - fault or held actual cleanup cannot roll a local decoder segment into fresh capacity
+  ---
+  duration_ms: 1.210951
+  type: 'test'
+  ...
+# Subtest: a clean stopped microphone cannot roll while its original context cleanup is held
+ok 111 - a clean stopped microphone cannot roll while its original context cleanup is held
+  ---
+  duration_ms: 0.985978
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: selectable then hidden
+ok 112 - input discovery keeps explicit availability without opening a microphone: selectable then hidden
+  ---
+  duration_ms: 0.870587
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: hidden then selectable
+ok 113 - input discovery keeps explicit availability without opening a microphone: hidden then selectable
+  ---
+  duration_ms: 0.609485
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: only hidden
+ok 114 - input discovery keeps explicit availability without opening a microphone: only hidden
+  ---
+  duration_ms: 0.571395
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: multiple hidden
+ok 115 - input discovery keeps explicit availability without opening a microphone: multiple hidden
+  ---
+  duration_ms: 0.569245
+  type: 'test'
+  ...
+# Subtest: mixed boundary-sized inventory retains only exposed identifiers without capture
+ok 116 - mixed boundary-sized inventory retains only exposed identifiers without capture
+  ---
+  duration_ms: 5.474077
+  type: 'test'
+  ...
+# Subtest: entirely hidden boundary-sized inventory stays explicitly unavailable without capture
+ok 117 - entirely hidden boundary-sized inventory stays explicitly unavailable without capture
+  ---
+  duration_ms: 0.923747
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: nonstring ID
+ok 118 - redacted ID does not hide later malformed inventory: nonstring ID
+  ---
+  duration_ms: 0.640005
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: nonstring label
+ok 119 - redacted ID does not hide later malformed inventory: nonstring label
+  ---
+  duration_ms: 0.523655
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: duplicate original ID
+ok 120 - redacted ID does not hide later malformed inventory: duplicate original ID
+  ---
+  duration_ms: 0.481684
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: ID4097
+ok 121 - redacted ID does not hide later malformed inventory: ID4097
+  ---
+  duration_ms: 0.519785
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: label4097
+ok 122 - redacted ID does not hide later malformed inventory: label4097
+  ---
+  duration_ms: 0.470134
+  type: 'test'
+  ...
+# Subtest: raw129 bound is generic even if the first audio input has redacted IDs
+ok 123 - raw129 bound is generic even if the first audio input has redacted IDs
+  ---
+  duration_ms: 0.607306
+  type: 'test'
+  ...
+# Subtest: browser rejection cannot claim the private missing-ID reason: Error property
+ok 124 - browser rejection cannot claim the private missing-ID reason: Error property
+  ---
+  duration_ms: 0.582085
+  type: 'test'
+  ...
+# Subtest: browser rejection cannot claim the private missing-ID reason: plain rejection object
+ok 125 - browser rejection cannot claim the private missing-ID reason: plain rejection object
+  ---
+  duration_ms: 0.592995
+  type: 'test'
+  ...
+# Subtest: lost explicit selection refuses default and automatic healing: mixed inventory without selected ID
+ok 126 - lost explicit selection refuses default and automatic healing: mixed inventory without selected ID
+  ---
+  duration_ms: 1.12358
+  type: 'test'
+  ...
+# Subtest: lost explicit selection refuses default and automatic healing: entirely hidden inventory
+ok 127 - lost explicit selection refuses default and automatic healing: entirely hidden inventory
+  ---
+  duration_ms: 0.721096
+  type: 'test'
+  ...
+# Subtest: fresh mixed inventory selection and refresh retain the exact exposed input without warming permission
+ok 128 - fresh mixed inventory selection and refresh retain the exact exposed input without warming permission
+  ---
+  duration_ms: 0.575565
+  type: 'test'
+  ...
+# Subtest: held discovery joins the actual original and blocks selection/acquisition without warming permission
+ok 129 - held discovery joins the actual original and blocks selection/acquisition without warming permission
+  ---
+  duration_ms: 0.607625
+  type: 'test'
+  ...
+# Subtest: import requests resume synchronously before the picker without awaiting it
+ok 130 - import requests resume synchronously before the picker without awaiting it
+  ---
+  duration_ms: 6.059552
+  type: 'test'
+  ...
+# Subtest: later PCM uses the same gesture-prepared context and waits for real onended
+ok 131 - later PCM uses the same gesture-prepared context and waits for real onended
+  ---
+  duration_ms: 2.419421
+  type: 'test'
+  ...
+# Subtest: import cancel acquires no microphone and queues no PCM
+ok 132 - import cancel acquires no microphone and queues no PCM
+  ---
+  duration_ms: 2.975546
+  type: 'test'
+  ...
+# Subtest: import missing-file acquires no microphone and queues no PCM
+ok 133 - import missing-file acquires no microphone and queues no PCM
+  ---
+  duration_ms: 1.14519
+  type: 'test'
+  ...
+# Subtest: import oversized acquires no microphone and queues no PCM
+ok 134 - import oversized acquires no microphone and queues no PCM
+  ---
+  duration_ms: 1.243251
+  type: 'test'
+  ...
+# Subtest: unsupported playback does not block cancelling a picker or acquire a mic
+ok 135 - unsupported playback does not block cancelling a picker or acquire a mic
+  ---
+  duration_ms: 1.275271
+  type: 'test'
+  ...
+# Subtest: malformed PCM after import preparation is never queued
+ok 136 - malformed PCM after import preparation is never queued
+  ---
+  duration_ms: 1.17782
+  type: 'test'
+  ...
+# Subtest: a fulfilled resume that leaves context suspended is not queued playback
+ok 137 - a fulfilled resume that leaves context suspended is not queued playback
+  ---
+  duration_ms: 1.725084
+  type: 'test'
+  ...
+# Subtest: stop during held resume prevents late old PCM from creating a source
+ok 138 - stop during held resume prevents late old PCM from creating a source
+  ---
+  duration_ms: 1.24629
+  type: 'test'
+  ...
+# Subtest: an old ended callback cannot settle a newer import-prepared playback
+ok 139 - an old ended callback cannot settle a newer import-prepared playback
+  ---
+  duration_ms: 1.573004
+  type: 'test'
+  ...
+# Subtest: mixed boundary-sized inventory retains only exposed identifiers without capture
+ok 140 - mixed boundary-sized inventory retains only exposed identifiers without capture
+  ---
+  duration_ms: 13.712188
+  type: 'test'
+  ...
+# Subtest: entirely hidden boundary-sized inventory stays explicitly unavailable without capture
+ok 141 - entirely hidden boundary-sized inventory stays explicitly unavailable without capture
+  ---
+  duration_ms: 1.383331
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: nonstring ID
+ok 142 - redacted ID does not hide later malformed inventory: nonstring ID
+  ---
+  duration_ms: 0.953308
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: nonstring label
+ok 143 - redacted ID does not hide later malformed inventory: nonstring label
+  ---
+  duration_ms: 0.957489
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: duplicate original ID
+ok 144 - redacted ID does not hide later malformed inventory: duplicate original ID
+  ---
+  duration_ms: 1.699355
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: ID4097
+ok 145 - redacted ID does not hide later malformed inventory: ID4097
+  ---
+  duration_ms: 0.837397
+  type: 'test'
+  ...
+# Subtest: redacted ID does not hide later malformed inventory: label4097
+ok 146 - redacted ID does not hide later malformed inventory: label4097
+  ---
+  duration_ms: 0.856987
+  type: 'test'
+  ...
+# Subtest: raw129 bound is generic even if the first audio input has redacted IDs
+ok 147 - raw129 bound is generic even if the first audio input has redacted IDs
+  ---
+  duration_ms: 0.953268
+  type: 'test'
+  ...
+# Subtest: browser rejection cannot claim the private missing-ID reason: Error property
+ok 148 - browser rejection cannot claim the private missing-ID reason: Error property
+  ---
+  duration_ms: 1.251021
+  type: 'test'
+  ...
+# Subtest: browser rejection cannot claim the private missing-ID reason: plain rejection object
+ok 149 - browser rejection cannot claim the private missing-ID reason: plain rejection object
+  ---
+  duration_ms: 1.056109
+  type: 'test'
+  ...
+# Subtest: lost explicit selection refuses default and automatic healing: mixed inventory without selected ID
+ok 150 - lost explicit selection refuses default and automatic healing: mixed inventory without selected ID
+  ---
+  duration_ms: 1.350451
+  type: 'test'
+  ...
+# Subtest: lost explicit selection refuses default and automatic healing: entirely hidden inventory
+ok 151 - lost explicit selection refuses default and automatic healing: entirely hidden inventory
+  ---
+  duration_ms: 0.960748
+  type: 'test'
+  ...
+# Subtest: fresh mixed inventory selection and refresh retain the exact exposed input without warming permission
+ok 152 - fresh mixed inventory selection and refresh retain the exact exposed input without warming permission
+  ---
+  duration_ms: 0.922408
+  type: 'test'
+  ...
+# Subtest: held discovery joins the actual original and blocks selection/acquisition without warming permission
+ok 153 - held discovery joins the actual original and blocks selection/acquisition without warming permission
+  ---
+  duration_ms: 0.815687
+  type: 'test'
+  ...
+# Subtest: device discovery returns bounded output-only metadata and never opens a microphone
+ok 154 - device discovery returns bounded output-only metadata and never opens a microphone
+  ---
+  duration_ms: 7.878118
+  type: 'test'
+  ...
+# Subtest: the exact 128-device and 4096-character ID/label bounds remain usable
+ok 155 - the exact 128-device and 4096-character ID/label bounds remain usable
+  ---
+  duration_ms: 4.437498
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 156 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 2.243218
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 157 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 1.525023
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 158 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 2.928555
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 159 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 2.427312
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 160 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 1.366752
+  type: 'test'
+  ...
+# Subtest: malformed or oversized discovery is all-or-refuse without poisoning implicit default
+ok 161 - malformed or oversized discovery is all-or-refuse without poisoning implicit default
+  ---
+  duration_ms: 1.454082
+  type: 'test'
+  ...
+# Subtest: missing output capabilities remain explicit and never request microphone permission
+ok 162 - missing output capabilities remain explicit and never request microphone permission
+  ---
+  duration_ms: 1.515103
+  type: 'test'
+  ...
+# Subtest: missing output capabilities remain explicit and never request microphone permission
+ok 163 - missing output capabilities remain explicit and never request microphone permission
+  ---
+  duration_ms: 1.309681
+  type: 'test'
+  ...
+# Subtest: missing output capabilities remain explicit and never request microphone permission
+ok 164 - missing output capabilities remain explicit and never request microphone permission
+  ---
+  duration_ms: 1.379542
+  type: 'test'
+  ...
+# Subtest: selected routing settles on the exact context before PCM and onended owns delivery
+ok 165 - selected routing settles on the exact context before PCM and onended owns delivery
+  ---
+  duration_ms: 1.684835
+  type: 'test'
+  ...
+# Subtest: one original held setSinkId blocks PCM and all competing selections
+ok 166 - one original held setSinkId blocks PCM and all competing selections
+  ---
+  duration_ms: 1.952207
+  type: 'test'
+  ...
+# Subtest: selection owns its slot before the first held device-discovery await
+ok 167 - selection owns its slot before the first held device-discovery await
+  ---
+  duration_ms: 1.552514
+  type: 'test'
+  ...
+# Subtest: the real browser output picker is invoked synchronously and its original result is owned
+ok 168 - the real browser output picker is invoked synchronously and its original result is owned
+  ---
+  duration_ms: 3.254268
+  type: 'test'
+  ...
+# Subtest: cancelled picker before routing leaves the previous explicit output intact
+ok 169 - cancelled picker before routing leaves the previous explicit output intact
+  ---
+  duration_ms: 2.605433
+  type: 'test'
+  ...
+# Subtest: active scheduled sources refuse output changes without stopping original playback
+ok 170 - active scheduled sources refuse output changes without stopping original playback
+  ---
+  duration_ms: 1.481753
+  type: 'test'
+  ...
+# Subtest: disposal cannot let an old held routing completion bind a replacement context
+ok 171 - disposal cannot let an old held routing completion bind a replacement context
+  ---
+  duration_ms: 3.774692
+  type: 'test'
+  ...
+# Subtest: explicit routing failure forbids silent default until an owner default succeeds
+ok 172 - explicit routing failure forbids silent default until an owner default succeeds
+  ---
+  duration_ms: 1.959277
+  type: 'test'
+  ...
+# Subtest: explicit routing mismatch forbids silent default until an owner default succeeds
+ok 173 - explicit routing mismatch forbids silent default until an owner default succeeds
+  ---
+  duration_ms: 1.577144
+  type: 'test'
+  ...
+# Subtest: a removed explicitly selected device never silently routes to system default
+ok 174 - a removed explicitly selected device never silently routes to system default
+  ---
+  duration_ms: 1.529904
+  type: 'test'
+  ...
+# Subtest: devicechange stops explicit playback and requires an owner routing decision
+ok 175 - devicechange stops explicit playback and requires an owner routing decision
+  ---
+  duration_ms: 5.070594
+  type: 'test'
+  ...
+# Subtest: external sink mismatch is checked again after a held context resume
+ok 176 - external sink mismatch is checked again after a held context resume
+  ---
+  duration_ms: 1.478962
+  type: 'test'
+  ...
+# Subtest: foreign or nonenumerated device identifiers cannot route or invoke conversion hooks
+ok 177 - foreign or nonenumerated device identifiers cannot route or invoke conversion hooks
+  ---
+  duration_ms: 1.600063
+  type: 'test'
+  ...
+# Subtest: legacy default playback requires no output-selection APIs and keeps real onended semantics
+ok 178 - legacy default playback requires no output-selection APIs and keeps real onended semantics
+  ---
+  duration_ms: 1.347792
+  type: 'test'
+  ...
+# Subtest: native configuration never requests microphone and unsupported graph stays explicit
+ok 179 - native configuration never requests microphone and unsupported graph stays explicit
+  ---
+  duration_ms: 5.492468
+  type: 'test'
+  ...
+# Subtest: native finish preserves the original PCM as canonical 16k WAV
+ok 180 - native finish preserves the original PCM as canonical 16k WAV
+  ---
+  duration_ms: 4.397098
+  type: 'test'
+  ...
+# Subtest: silence alone cannot complete a native utterance
+ok 181 - silence alone cannot complete a native utterance
+  ---
+  duration_ms: 4.677
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=false
+ok 182 - native thirty-second whole-utterance boundary overflow=false
+  ---
+  duration_ms: 187.841196
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=true
+ok 183 - native thirty-second whole-utterance boundary overflow=true
+  ---
+  duration_ms: 52.857125
+  type: 'test'
+  ...
+# Subtest: native VAD barge stops original local PCM immediately and fences stale epochs
+ok 184 - native VAD barge stops original local PCM immediately and fences stale epochs
+  ---
+  duration_ms: 2.214149
+  type: 'test'
+  ...
+# Subtest: input discovery is local bounded enumeration and never opens microphone
+ok 185 - input discovery is local bounded enumeration and never opens microphone
+  ---
+  duration_ms: 4.184845
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 129 5 5
+ok 186 - oversized input discovery refuses whole candidate list 129 5 5
+  ---
+  duration_ms: 0.814947
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 4097 4097
+ok 187 - oversized input discovery refuses whole candidate list 1 4097 4097
+  ---
+  duration_ms: 0.878528
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 3 4097
+ok 188 - oversized input discovery refuses whole candidate list 1 3 4097
+  ---
+  duration_ms: 0.911148
+  type: 'test'
+  ...
+# Subtest: input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+ok 189 - input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+  ---
+  duration_ms: 1.21925
+  type: 'test'
+  ...
+# Subtest: unknown selection leaves prior original input intact before any acquisition
+ok 190 - unknown selection leaves prior original input intact before any acquisition
+  ---
+  duration_ms: 1.19752
+  type: 'test'
+  ...
+# Subtest: actual selected-track mismatch never silently falls back to default
+ok 191 - actual selected-track mismatch never silently falls back to default
+  ---
+  duration_ms: 1.287911
+  type: 'test'
+  ...
+# Subtest: removed explicit input stays failed until explicit default recovery
+ok 192 - removed explicit input stays failed until explicit default recovery
+  ---
+  duration_ms: 1.408472
+  type: 'test'
+  ...
+# Subtest: held acquisition and stop retain original stream and forbid input changes
+ok 193 - held acquisition and stop retain original stream and forbid input changes
+  ---
+  duration_ms: 1.499743
+  type: 'test'
+  ...
+# Subtest: pending fresh enumeration has one original and disposal fences its late result
+ok 194 - pending fresh enumeration has one original and disposal fences its late result
+  ---
+  duration_ms: 1.248661
+  type: 'test'
+  ...
+# Subtest: fresh speaking is independent of a retained packet and legacy windows
+ok 195 - fresh speaking is independent of a retained packet and legacy windows
+  ---
+  duration_ms: 3.336139
+  type: 'test'
+  ...
+# Subtest: fresh speaking refuses stale malformed and retired capture identities
+ok 196 - fresh speaking refuses stale malformed and retired capture identities
+  ---
+  duration_ms: 2.463012
+  type: 'test'
+  ...
+# Subtest: fresh speaking cannot treat a faulted input as observed silence
+ok 197 - fresh speaking cannot treat a faulted input as observed silence
+  ---
+  duration_ms: 1.402512
+  type: 'test'
+  ...
+# Subtest: incremental FIFO retains every ordered PCM sample until exact acknowledgment
+ok 198 - incremental FIFO retains every ordered PCM sample until exact acknowledgment
+  ---
+  duration_ms: 1.882926
+  type: 'test'
+  ...
+# Subtest: incremental packetization crosses callback boundaries without gaps or snapshot replacement
+ok 199 - incremental packetization crosses callback boundaries without gaps or snapshot replacement
+  ---
+  duration_ms: 24.693903
+  type: 'test'
+  ...
+# Subtest: incremental capture faults preserve the original packet and stop further acquisition
+ok 200 - incremental capture faults preserve the original packet and stop further acquisition
+  ---
+  duration_ms: 3.332389
+  type: 'test'
+  ...
+# Subtest: declared stream capacity stops visibly while retaining its bounded original prefix
+ok 201 - declared stream capacity stops visibly while retaining its bounded original prefix
+  ---
+  duration_ms: 256.484137
+  type: 'test'
+  ...
+# Subtest: capture retirement retains FIFO identity until the actual original context closes
+ok 202 - capture retirement retains FIFO identity until the actual original context closes
+  ---
+  duration_ms: 1.065699
+  type: 'test'
+  ...
+# Subtest: incremental capture refuses incompatible modes and a non16k source without fallback
+ok 203 - incremental capture refuses incompatible modes and a non16k source without fallback
+  ---
+  duration_ms: 1.646864
+  type: 'test'
+  ...
+# Subtest: playback and local acknowledgment preserve the armed capture and utterance
+ok 204 - playback and local acknowledgment preserve the armed capture and utterance
+  ---
+  duration_ms: 1.506723
+  type: 'test'
+  ...
+# Subtest: malformed acknowledgments cannot consume a retained original
+ok 205 - malformed acknowledgments cannot consume a retained original
+  ---
+  duration_ms: 1.629854
+  type: 'test'
+  ...
+# Subtest: an original FIFO survives disposal and cannot alias a subsequent capture identity
+ok 206 - an original FIFO survives disposal and cannot alias a subsequent capture identity
+  ---
+  duration_ms: 2.854395
+  type: 'test'
+  ...
+# Subtest: one retained readiness notification wakes on original PCM or capture retirement without polling
+ok 207 - one retained readiness notification wakes on original PCM or capture retirement without polling
+  ---
+  duration_ms: 1.050619
+  type: 'test'
+  ...
+# Subtest: segment rollover preserves every unacknowledged sample and the original live microphone
+ok 208 - segment rollover preserves every unacknowledged sample and the original live microphone
+  ---
+  duration_ms: 1.286812
+  type: 'test'
+  ...
+# Subtest: segment rollover refuses a pending packet stale boundaries and malformed originals
+ok 209 - segment rollover refuses a pending packet stale boundaries and malformed originals
+  ---
+  duration_ms: 1.754635
+  type: 'test'
+  ...
+# Subtest: sequential decoder boundaries can exceed sixty seconds without releasing the armed mic
+ok 210 - sequential decoder boundaries can exceed sixty seconds without releasing the armed mic
+  ---
+  duration_ms: 608.457505
+  type: 'test'
+  ...
+# Subtest: rollover wakes the old local notification and keeps the new notification owned
+ok 211 - rollover wakes the old local notification and keeps the new notification owned
+  ---
+  duration_ms: 1.358321
+  type: 'test'
+  ...
+# Subtest: fault or held actual cleanup cannot roll a local decoder segment into fresh capacity
+ok 212 - fault or held actual cleanup cannot roll a local decoder segment into fresh capacity
+  ---
+  duration_ms: 1.13927
+  type: 'test'
+  ...
+# Subtest: a clean stopped microphone cannot roll while its original context cleanup is held
+ok 213 - a clean stopped microphone cannot roll while its original context cleanup is held
+  ---
+  duration_ms: 1.0636
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: selectable then hidden
+ok 214 - input discovery keeps explicit availability without opening a microphone: selectable then hidden
+  ---
+  duration_ms: 4.919972
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: hidden then selectable
+ok 215 - input discovery keeps explicit availability without opening a microphone: hidden then selectable
+  ---
+  duration_ms: 1.967727
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: only hidden
+ok 216 - input discovery keeps explicit availability without opening a microphone: only hidden
+  ---
+  duration_ms: 1.050949
+  type: 'test'
+  ...
+# Subtest: input discovery keeps explicit availability without opening a microphone: multiple hidden
+ok 217 - input discovery keeps explicit availability without opening a microphone: multiple hidden
+  ---
+  duration_ms: 1.791376
+  type: 'test'
+  ...
+# Subtest: native configuration never requests microphone and unsupported graph stays explicit
+ok 218 - native configuration never requests microphone and unsupported graph stays explicit
+  ---
+  duration_ms: 5.997092
+  type: 'test'
+  ...
+# Subtest: native finish preserves the original PCM as canonical 16k WAV
+ok 219 - native finish preserves the original PCM as canonical 16k WAV
+  ---
+  duration_ms: 3.051786
+  type: 'test'
+  ...
+# Subtest: silence alone cannot complete a native utterance
+ok 220 - silence alone cannot complete a native utterance
+  ---
+  duration_ms: 5.348146
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=false
+ok 221 - native thirty-second whole-utterance boundary overflow=false
+  ---
+  duration_ms: 171.317694
+  type: 'test'
+  ...
+# Subtest: native thirty-second whole-utterance boundary overflow=true
+ok 222 - native thirty-second whole-utterance boundary overflow=true
+  ---
+  duration_ms: 56.581257
+  type: 'test'
+  ...
+# Subtest: native VAD barge stops original local PCM immediately and fences stale epochs
+ok 223 - native VAD barge stops original local PCM immediately and fences stale epochs
+  ---
+  duration_ms: 1.926146
+  type: 'test'
+  ...
+# Subtest: input discovery is local bounded enumeration and never opens microphone
+ok 224 - input discovery is local bounded enumeration and never opens microphone
+  ---
+  duration_ms: 3.975265
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 129 5 5
+ok 225 - oversized input discovery refuses whole candidate list 129 5 5
+  ---
+  duration_ms: 0.785167
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 4097 4097
+ok 226 - oversized input discovery refuses whole candidate list 1 4097 4097
+  ---
+  duration_ms: 0.868157
+  type: 'test'
+  ...
+# Subtest: oversized input discovery refuses whole candidate list 1 3 4097
+ok 227 - oversized input discovery refuses whole candidate list 1 3 4097
+  ---
+  duration_ms: 0.873888
+  type: 'test'
+  ...
+# Subtest: input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+ok 228 - input selection owns fresh enumeration without hidden prior discovery then exact getUserMedia
+  ---
+  duration_ms: 1.033329
+  type: 'test'
+  ...
+# Subtest: unknown selection leaves prior original input intact before any acquisition
+ok 229 - unknown selection leaves prior original input intact before any acquisition
+  ---
+  duration_ms: 1.140259
+  type: 'test'
+  ...
+# Subtest: actual selected-track mismatch never silently falls back to default
+ok 230 - actual selected-track mismatch never silently falls back to default
+  ---
+  duration_ms: 1.134909
+  type: 'test'
+  ...
+# Subtest: removed explicit input stays failed until explicit default recovery
+ok 231 - removed explicit input stays failed until explicit default recovery
+  ---
+  duration_ms: 1.448623
+  type: 'test'
+  ...
+# Subtest: held acquisition and stop retain original stream and forbid input changes
+ok 232 - held acquisition and stop retain original stream and forbid input changes
+  ---
+  duration_ms: 1.250001
+  type: 'test'
+  ...
+# Subtest: pending fresh enumeration has one original and disposal fences its late result
+ok 233 - pending fresh enumeration has one original and disposal fences its late result
+  ---
+  duration_ms: 1.305192
+  type: 'test'
+  ...
+1..233
+# tests 233
+# suites 0
+# pass 233
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3127.670158

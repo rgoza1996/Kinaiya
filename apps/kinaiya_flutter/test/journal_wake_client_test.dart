@@ -1,0 +1,270 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:kinaiya_flutter/api/journal_wake.dart';
+import 'package:kinaiya_flutter/api/journal_json.dart';
+import 'package:kinaiya_flutter/api/client.dart';
+import 'package:kinaiya_flutter/api/owned_settings_client.dart';
+
+Map<String, Object?> cursor([int revision = 1]) => {
+  'schema_version': '1.0',
+  'protocol': 'journal_wake_v1',
+  'owner_instance': 'a' * 32,
+  'revision': revision,
+};
+
+Map<String, Object?> entry(int sequence) => {
+  'schema_version': '1.0',
+  'event_id': 'event-$sequence',
+  'sequence': sequence,
+  'session_id': 'session',
+  'thread_id': 'thread',
+  'epoch': 1,
+  'kind': 'routing.live_window_decided',
+  'origin': 'decisions',
+  'causes': ['source'],
+  'task_refs': <String>[],
+  'payload': {
+    'confidence': 0.875,
+    'raw': 'Unchanged synthetic provider output: 🦉',
+  },
+};
+
+JournalWakeApi reader(Future<http.Response> Function(http.Request) handler) =>
+    JournalWakeApi(
+      baseUrl: 'http://127.0.0.1:8760',
+      ownerToken: 'synthetic-owner',
+      clientFactory: () => MockClient(handler),
+    );
+
+void main() {
+  test(
+    'native journal decimal metadata does not stop the scoped reader',
+    () async {
+      final api = reader((request) async {
+        expect(request.url.path, '/v1/transcript');
+        expect(request.url.queryParameters, {
+          'session_id': 'session',
+          'thread_id': 'thread',
+          'epoch': '1',
+          'after': '1',
+          'limit': '16',
+        });
+        expect(request.headers['Authorization'], 'Bearer synthetic-owner');
+        return http.Response.bytes(
+          utf8.encode(jsonEncode([entry(2)])),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final attempt = api.page(
+        sessionId: 'session',
+        threadId: 'thread',
+        epoch: 1,
+        after: 1,
+      );
+      final entries = await attempt.result;
+      await attempt.settled;
+      expect(entries.single.payload['confidence'], 0.875);
+      expect(
+        entries.single.payload['raw'],
+        'Unchanged synthetic provider output: 🦉',
+      );
+      await api.close();
+    },
+  );
+
+  test('wake binds the exact original and monotonic owner cursor', () async {
+    final original = JournalWakeWait(JournalWakeCursor.fromJson(cursor()));
+    final api = reader((request) async {
+      expect(jsonDecode(request.body), original.body);
+      return http.Response(
+        jsonEncode({
+          'schema_version': '1.0',
+          'protocol': 'journal_wake_v1',
+          'original': original.body,
+          'cursor': cursor(2),
+          'changed': true,
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final attempt = api.wait(original);
+    expect((await attempt.result).cursor.revision, 2);
+    await attempt.settled;
+    await api.close();
+    for (final patch in <void Function(Map<String, Object?>)>[
+      (r) => (r['cursor'] as Map)['owner_instance'] = 'b' * 32,
+      (r) => (r['cursor'] as Map)['revision'] = 0,
+      (r) => (r['original'] as Map)['wait_ms'] = 999,
+      (r) => r['changed'] = false,
+    ]) {
+      final raw = <String, Object?>{
+        'schema_version': '1.0',
+        'protocol': 'journal_wake_v1',
+        'original': jsonDecode(jsonEncode(original.body)),
+        'cursor': cursor(2),
+        'changed': true,
+      };
+      patch(raw);
+      expect(
+        () => JournalWakeObservation.fromJson(raw, original),
+        throwsFormatException,
+      );
+    }
+  });
+
+  test(
+    'scoped pages refuse swapped, repeated and noninteger identities',
+    () async {
+      final first = entry(2);
+      final valid = jsonEncode([first]);
+      for (final raw in [
+        valid.replaceFirst('"epoch":1', '"epoch":1.0'),
+        valid.replaceFirst('"sequence":2', '"sequence":2e0'),
+        valid.replaceFirst('"sequence":2', '"sequence":9007199254740992'),
+        valid.replaceFirst('"session_id":"session"', '"session_id":"other"'),
+        valid.replaceFirst('"thread_id":"thread"', '"thread_id":"other"'),
+        jsonEncode([first, first]),
+        jsonEncode(List.generate(17, (i) => entry(i + 2))),
+        valid.replaceFirst('"sequence":2', '"sequence":2,"sequence":3'),
+      ]) {
+        final api = reader(
+          (_) async => http.Response(
+            raw,
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        );
+        final attempt = api.page(
+          sessionId: 'session',
+          threadId: 'thread',
+          epoch: 1,
+          after: 1,
+        );
+        await expectLater(attempt.result, throwsA(isA<OwnedSettingsFailure>()));
+        await attempt.settled;
+        await api.close();
+      }
+    },
+  );
+
+  test(
+    'journal codec rejects ambiguous or unbounded data before web conversion',
+    () {
+      final valid = jsonEncode([entry(2)]);
+      for (final raw in [
+        valid.replaceFirst('0.875', 'NaN'),
+        valid.replaceFirst('0.875', '1e9999'),
+        valid.replaceFirst('"confidence":0.875', '"generation_epoch":1.0'),
+        valid.replaceFirst('"confidence":0.875', '"generation_epoch":2e0'),
+        valid.replaceFirst(
+          '"confidence":0.875',
+          '"confidence":0.5,"confidence":0.9',
+        ),
+        valid.replaceFirst('🦉', r'\ud800'),
+        jsonEncode(cursor()).replaceFirst('"revision":1', '"revision":1.0'),
+        '${'[' * 34}0${']' * 34}',
+        jsonEncode(List.filled(8193, 0)),
+        jsonEncode({'long': 'x' * (2 * 1024 * 1024)}),
+      ]) {
+        expect(
+          () => journalJsonDecode(utf8.encode(raw)),
+          throwsFormatException,
+        );
+      }
+      expect(() => journalJsonDecode([0xc0, 0x80]), throwsFormatException);
+    },
+  );
+
+  test('seeded journal payloads preserve standard JSON values and Unicode', () {
+    final random = Random(623);
+    Object? payload(int depth) {
+      if (depth == 0) {
+        final choices = [
+          null,
+          true,
+          false,
+          random.nextInt(100000),
+          random.nextDouble(),
+          'Synthetic 🦉 \\ " \n ${random.nextInt(1000)}',
+        ];
+        return choices[random.nextInt(choices.length)];
+      }
+      return random.nextBool()
+          ? List.generate(random.nextInt(12), (_) => payload(depth - 1))
+          : {
+              for (var i = 0; i < random.nextInt(12); i++)
+                'field-$i': payload(depth - 1),
+            };
+    }
+
+    for (var i = 0; i < 200; i++) {
+      final value = [
+        entry(i + 1)..['payload'] = {'metadata': payload(3)},
+      ];
+      final wire = jsonEncode(value);
+      expect(journalJsonDecode(utf8.encode(wire)), jsonDecode(wire));
+    }
+    final many = [
+      entry(1)..['payload'] = {'metadata': List.generate(100, (i) => i / 3)},
+    ];
+    expect(journalJsonDecode(utf8.encode(jsonEncode(many))), many);
+  });
+
+  test(
+    'normal and mock parent enroll independent readers before closure',
+    () async {
+      for (final mock in [false, true]) {
+        var reads = 0;
+        http.Client factory() => MockClient((request) async {
+          reads++;
+          expect(
+            request.url.toString(),
+            'http://127.0.0.1:8760/session/v1/transcript/wake',
+          );
+          expect(
+            request.headers['Authorization'],
+            mock
+                ? 'Bearer mock-token-not-a-credential'
+                : 'Bearer synthetic-owner',
+          );
+          return http.Response(
+            jsonEncode(cursor()),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+        final root = mock
+            ? KinaiyaClient.mock(
+                sessionBase: 'http://127.0.0.1:8760/session/',
+                agentBase: 'http://127.0.0.1:8761',
+                converseBase: 'http://127.0.0.1:8762',
+                mockTransport: MockClient((_) async => http.Response('', 503)),
+                journalWakeClientFactory: factory,
+              )
+            : KinaiyaClient(
+                sessionBase: 'http://127.0.0.1:8760/session/',
+                agentBase: 'http://127.0.0.1:8761',
+                converseBase: 'http://127.0.0.1:8762',
+                ownerToken: 'synthetic-owner',
+                journalWakeClientFactory: factory,
+                httpClient: MockClient((_) async => http.Response('', 503)),
+              );
+        final owned = root.openJournalWake();
+        expect(reads, 0);
+        root.close();
+        expect(root.openJournalWake, throwsStateError);
+        final attempt = owned.inspect();
+        expect((await attempt.result).revision, 1);
+        await attempt.settled;
+        expect(reads, 1);
+        await owned.close();
+      }
+    },
+  );
+}

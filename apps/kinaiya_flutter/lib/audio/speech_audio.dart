@@ -136,6 +136,14 @@ abstract interface class SegmentedPcmCaptureAudio
   );
 }
 
+/// Fresh local observation for the exact active PCM epoch. An unavailable or
+/// stale input throws; it must not masquerade as observed silence. Packet hints
+/// remain frozen independently until their exact native acknowledgment.
+abstract interface class IncrementalSpeakingAudio {
+  bool get supportsIncrementalSpeaking;
+  Future<bool> incrementalUserSpeaking(int captureEpoch);
+}
+
 /// Session-local preference, not proof that a microphone has been acquired.
 class AudioInputDevice {
   const AudioInputDevice({

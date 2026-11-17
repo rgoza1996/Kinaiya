@@ -16,11 +16,18 @@ class ControlledApi extends KinaiyaClient {
   ControlledApi({
     String captureMode = 'legacy_silence',
     http.Client Function()? captureFactory,
+    http.Client Function()? liveFactory,
+    http.Client Function()? journalFactory,
+    String serviceBase = 'http://fixture',
+    String converseBase = 'http://127.0.0.1:8762',
+    String ownerToken = 'synthetic',
   }) : super(
-         sessionBase: 'http://fixture',
-         agentBase: 'http://fixture',
-         converseBase: 'http://127.0.0.1:8762',
-         ownerToken: 'synthetic',
+         sessionBase: serviceBase,
+         agentBase: serviceBase,
+         converseBase: converseBase,
+         ownerToken: ownerToken,
+         liveStreamClientFactory: liveFactory,
+         journalWakeClientFactory: journalFactory,
          captureModeClientFactory:
              captureFactory ?? captureModeFixtureFactory(captureMode),
          artifactClientFactory: () => throw StateError(

@@ -1152,6 +1152,14 @@
         max_stream_samples: 960000, max_chunk_samples: 16000 });
     },
     streamPcmPeek: streamPcmPacket,
+    streamPcmSpeaking: function (raw) {
+      var s = state.incrementalPcm, f = s.fifo;
+      if (typeof raw !== 'string' || !/^[1-9][0-9]{0,15}$/.test(raw) ||
+          !Number.isSafeInteger(Number(raw)) || !f || f.epoch !== Number(raw) ||
+          !s.enabled || !state.armed || f.fault || !state.nativePcm.node ||
+          state.nativePcm.closing || state.micStop || state.micAcquire) return 'unavailable';
+      return s.speaking ? 'yes' : 'no';
+    },
     streamPcmAck: acknowledgeStreamPcm,
     streamPcmRotate: rotateStreamPcm,
     streamPcmWait: function (raw) {
