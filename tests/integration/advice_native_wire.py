@@ -38,8 +38,15 @@ class NativeWire:
         self.calls = Counter()
         self.sockets = []
         self.packets = []
+        self.cancelled, self.cancel_entered = asyncio.Event(), asyncio.Event()
+        self.cancel_release = asyncio.Event()
+        self.hold_cancel_ack = False
+        self.cancel_ack = True
 
     async def gate(self, boundary):
+        if boundary == "cancel-ack" and self.hold_cancel_ack:
+            self.cancel_entered.set()
+            await self.cancel_release.wait()
         if self.hold is not None and boundary == self.hold:
             self.entered.set()
             await self.release.wait()
@@ -65,6 +72,7 @@ class NativeSocket:
     def __init__(self, wire):
         self.wire, self.queue = wire, asyncio.Queue()
         self.close_calls = self.wait_calls = 0
+        self.terminal = None
 
     def put(self, packet, boundary=None):
         self.queue.put_nowait((packet, boundary))
@@ -122,7 +130,22 @@ class NativeSocket:
                     },
                 },
             ):
+                if message["type"] == "success":
+                    self.terminal = copy.deepcopy(message)
                 self.put({"type": "channelSend", "channelId": 1, "message": message}, "model-reply")
+            self.put({"type": "channelClose", "channelId": 1})
+        elif packet["type"] == "channelSend":
+            assert packet == {"type": "channelSend", "channelId": 1, "message": {"type": "cancel"}}
+            assert self.terminal is not None
+            self.wire.cancelled.set()
+            # Replace queued prediction output with a native cancellation
+            # terminal from the same captured model and configuration.
+            while not self.queue.empty():
+                self.queue.get_nowait()
+            if self.wire.cancel_ack:
+                terminal = copy.deepcopy(self.terminal)
+                terminal["stats"]["stopReason"] = "userStopped"
+                self.put({"type": "channelSend", "channelId": 1, "message": terminal}, "cancel-ack")
             self.put({"type": "channelClose", "channelId": 1})
         else:
             raise AssertionError("Unexpected fake native send")

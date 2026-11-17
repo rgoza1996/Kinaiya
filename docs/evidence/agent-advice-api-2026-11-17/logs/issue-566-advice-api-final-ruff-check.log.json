@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "a5deff72170f44952069202619026c153ea1e9f96d0366f1ceef86cc86536950",
+  "text": "F821 Undefined name `asyncio`\n   --> tests/integration/test_agent_advice_api.py:292:15\n    |\n291 | async def test_body_deadline_refuses_without_claiming_an_original(env):\n292 |     release = asyncio.Event()\n    |               ^^^^^^^\n293 |     request = call(env).canonical_bytes()\n294 |     async with service(env) as (client, _, _):\n    |\n\nFound 1 error.\n"
+}

@@ -1,6 +1,7 @@
 """Original measured advice operations; model text never establishes task success."""
 
 import hashlib
+import json
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -12,7 +13,51 @@ from packages.contracts.models import CatalogModelBinding, ContentScope
 
 MAX_ADVICE_CALL_BYTES = 4 * 1024 * 1024
 MAX_ADVICE_OUTPUT_BYTES = 4 * 1024 * 1024
+# Control characters can occupy six JSON bytes for each retained UTF-8 byte.
+MAX_ADVICE_OBSERVATION_BYTES = 6 * MAX_ADVICE_OUTPUT_BYTES + 65536
+MAX_ADVICE_LOOKUP_BYTES = 4096
 Instance = Annotated[str, Field(pattern=r"^[0-9a-f]{32}$")]
+
+
+def advice_json(raw, *, maximum):
+    if type(raw) is not bytes or len(raw) > maximum:
+        raise ValueError("Invalid bounded Agent advice JSON")
+
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("Duplicate Agent advice JSON key")
+            result[key] = value
+        return result
+
+    def invalid(value):
+        raise ValueError("Agent advice JSON requires integer counters")
+
+    try:
+        value = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=pairs,
+            parse_float=invalid,
+            parse_constant=invalid,
+        )
+        if type(value) is not dict:
+            raise ValueError("Agent advice JSON requires an object")
+        pending, count = [(value, 1)], 0
+        while pending:
+            node, depth = pending.pop()
+            count += 1
+            if count > 16384 or depth > 12:
+                raise ValueError("Agent advice JSON exceeds its structural bound")
+            if type(node) is dict:
+                pending.extend((item, depth + 1) for pair in node.items() for item in pair)
+            elif type(node) is list:
+                pending.extend((item, depth + 1) for item in node)
+            elif type(node) is str:
+                node.encode("utf-8")
+        return value
+    except (ValueError, TypeError, UnicodeError, RecursionError, OverflowError):
+        raise ValueError("Invalid bounded Agent advice JSON") from None
 
 
 class _Closed(BaseModel):
@@ -70,11 +115,19 @@ class AgentAdviceCall(_Versioned):
     def request_digest(self):
         return hashlib.sha256(self.canonical_bytes()).hexdigest()
 
+    @classmethod
+    def from_json(cls, raw):
+        return cls.model_validate(advice_json(raw, maximum=MAX_ADVICE_CALL_BYTES))
+
 
 class AgentAdviceLookup(_Versioned):
     expected_instance: Instance
     logical_request_id: Identifier
     request_sha256: Digest
+
+    @classmethod
+    def from_json(cls, raw):
+        return cls.model_validate(advice_json(raw, maximum=MAX_ADVICE_LOOKUP_BYTES))
 
     @classmethod
     def of(cls, request):
@@ -172,4 +225,48 @@ class AgentAdviceObservation(_Versioned):
             lookup.request_sha256,
         ):
             raise ValueError("Agent advice observation belongs to another original request")
+        return self
+
+
+class AgentAdviceLookupResponse(_Versioned):
+    request: AgentAdviceLookup
+    observation: AgentAdviceObservation | None
+
+    @model_validator(mode="after")
+    def exact_original(self):
+        if self.observation is not None:
+            self.observation.validate_lookup(self.request)
+        return self
+
+
+class AgentAdviceRuntimeState(_Versioned):
+    protocol: Literal["measured_agent_advice_v1"] = "measured_agent_advice_v1"
+    consumer: Literal["agent"] = "agent"
+    instance_id: Instance
+    phase: Literal["starting", "running", "closing", "stopped", "cleanup_unconfirmed"]
+    observation: Literal["runtime_and_catalog_metadata_only"] = "runtime_and_catalog_metadata_only"
+    policy_sha256: Digest | None
+    catalog_status: Literal["not_selected", "eligible", "unavailable"]
+    active: int = Field(ge=0, le=128)
+    retained: int = Field(ge=0, le=128)
+    capacity: int = Field(ge=1, le=128)
+    retention: int = Field(ge=1, le=128)
+    new_request_available: bool
+
+    @model_validator(mode="after")
+    def coherent_availability(self):
+        if not (
+            self.active <= self.retained <= self.retention
+            and self.active <= self.capacity <= self.retention
+        ):
+            raise ValueError("Agent advice runtime exceeds its custody bounds")
+        available = (
+            self.phase == "running"
+            and self.policy_sha256 is not None
+            and self.catalog_status == "eligible"
+            and self.active < self.capacity
+            and self.retained < self.retention
+        )
+        if available != self.new_request_available:
+            raise ValueError("Agent advice runtime availability is inconsistent")
         return self

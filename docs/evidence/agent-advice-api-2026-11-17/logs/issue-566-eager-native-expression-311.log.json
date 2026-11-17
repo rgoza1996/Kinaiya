@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "09eaf4112ee90ef48fb2214300469720437712f3a5c2be33dbefd80866b8993b",
+  "text": "{\"version\": \"3.11.15 (main, Jul 18 2026, 17:02:49) [Clang 22.1.3 ]\", \"executable\": \"/home/roggoz/.local/bin/python3.11\", \"statement\": \"asyncio.eager_task_factory\", \"source_line\": 577}\nTraceback (most recent call last):\n  File \"<string>\", line 7, in <module>\n  File \"/home/roggoz/Disks/SN750/Kinaiya/.worktrees/decisions-consumers-566/tests/integration/test_agent_advice_operations.py\", line 577, in <module>\n    loop.set_task_factory(asyncio.eager_task_factory)\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: module 'asyncio' has no attribute 'eager_task_factory'\n"
+}

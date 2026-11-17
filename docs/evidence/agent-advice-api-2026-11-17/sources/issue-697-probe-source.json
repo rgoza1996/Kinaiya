@@ -1,0 +1,6 @@
+{
+  "path": "output/test_issue_697_native_cancel_probe.py",
+  "sha256": "9f8ba5ccb5e365cba52b5414fb9ec9e20647c668656950f1aa017392249158ec",
+  "encoding": "utf-8",
+  "text": "import json\nimport sys\nimport traceback\nfrom pathlib import Path\n\nsys.path.insert(0, str(Path('/home/roggoz/Disks/SN750/Kinaiya/.worktrees/decisions-consumers-566/tests/integration')))\nfrom test_agent_advice_api import env, test_lost_http_ack_retains_actual_native_model_and_exact_recovery as control\nfrom advice_native_wire import NativeSocket\n\nasync def test_original_control_records_actual_cancel_protocol(env, monkeypatch):\n    actual = NativeSocket.send\n    async def traced(socket, raw):\n        try:\n            return await actual(socket, raw)\n        except BaseException:\n            print('ACTUAL_SYNTHETIC_PACKET', json.loads(raw))\n            traceback.print_exc()\n            raise\n    monkeypatch.setattr(NativeSocket, 'send', traced)\n    await control(env, monkeypatch)\n"
+}

@@ -659,6 +659,8 @@ def schema_pin():
         "AgentAdviceLookup",
         "AgentAdviceModelPin",
         "AgentAdviceObservation",
+        "AgentAdviceLookupResponse",
+        "AgentAdviceRuntimeState",
     }
     additive |= {
         "LiveEffectQuery",

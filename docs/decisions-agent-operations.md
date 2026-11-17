@@ -74,11 +74,17 @@ Every observation identifies output as `untrusted_model_data` and task status as
 
 ## Remaining integration
 
-Authenticated Agent request/lookup/cancel endpoints and client recovery, current
+Authenticated Agent client recovery and launcher integration, current
 Agent runtime and mode guards, complete qualified-history construction, standing
 task authority, service startup/shutdown wiring, protected policy persistence and
 Options, and full consumer/provider/resource/external-agent qualification remain
 unfinished. The internal owner cannot substitute for those boundaries.
+
+The [internal HTTP boundary](decisions-agent-advice-api.md) now supplies Agent-only
+request/lookup/cancel and runtime inspection when explicitly injected into the
+app factory, with service-lifecycle cleanup. The launcher still does not install
+it. Agent client/current-runtime integration and the other boundaries above remain
+unfinished.
 
 Supporting failures #692–#695 and their unchanged first-run evidence are described
 in the [operation verification record](evidence/agent-advice-operations-2026-11-17/README.md).

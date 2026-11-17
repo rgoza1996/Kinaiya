@@ -1,0 +1,258 @@
+{
+  "utc": "2026-11-17T18:30:36.297392+00:00",
+  "baseline": "5e7559b5e750881ad77103ba286d6a3564c0e975",
+  "branch": "codex/566-decisions-consumers",
+  "pr": 689,
+  "issues": [
+    566,
+    567,
+    697,
+    698,
+    699
+  ],
+  "scope": "Internal authenticated HTTP/lifecycle boundary; no launcher or Agent client enablement",
+  "runs": [
+    {
+      "name": "issue-566-advice-api-broader-313",
+      "exit_code": 1,
+      "log_sha256": "4e250571eb94f9ee1c513729d0a0bb58712d16f6d2e70d878e9c889356cfb054",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-api-broader-314",
+      "exit_code": 1,
+      "log_sha256": "db218fe6a9bb0c858260b081ce18cc251363ed8424551e76dbfdc73573ec9d66",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-api-final-313",
+      "exit_code": 0,
+      "log_sha256": "c834b036c1e9704c54d2749bebd8e71baa838c3aebd03ebe73aab62b25d6e406",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-api-final-314",
+      "exit_code": 0,
+      "log_sha256": "34e4313cd9d2f60070dbdf713507bdb29f7bafe925ba28a079de6727678b6dfa",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-api-final-ruff-check",
+      "exit_code": 1,
+      "log_sha256": "a5deff72170f44952069202619026c153ea1e9f96d0366f1ceef86cc86536950",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-api-first-313",
+      "exit_code": 1,
+      "log_sha256": "856f62999cf8de082cf60cea7799c8be5bb6f21c42a487cb8914526b8bada527",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-api-qualified-313",
+      "exit_code": 0,
+      "log_sha256": "98c1c1bd316230023a14678fa5f5252eebb24278b9e56681ddca4ecadbb43946",
+      "scope": "project check",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-api-qualified-314",
+      "exit_code": 0,
+      "log_sha256": "f9572153e9ab067ad40a3bce779b9898e7b1a461c05f1ae0e5a271efa4267d84",
+      "scope": "project check",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-api-qualified-ruff-check",
+      "exit_code": 0,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "scope": "project check",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-api-qualified-ruff-format",
+      "exit_code": 0,
+      "log_sha256": "bba102955ec5bd03ff410cbd7204eb2dcc91db997d3e89854f9aa43f85db3d4f",
+      "scope": "project check",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-api-schema-export",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-566-eager-native-expression-311",
+      "exit_code": 1,
+      "log_sha256": "09eaf4112ee90ef48fb2214300469720437712f3a5c2be33dbefd80866b8993b",
+      "scope": "stdlib expression probe only; not a project test or pinned-environment qualification",
+      "final": false
+    },
+    {
+      "name": "issue-566-eager-native-expression-312",
+      "exit_code": 0,
+      "log_sha256": "fd2756597aff3ec0b075ccf3ebd2bd3cf3dec29a9d0d4bd2950af2cb19e5aa40",
+      "scope": "stdlib expression probe only; not a project test or pinned-environment qualification",
+      "final": false
+    },
+    {
+      "name": "issue-697-native-cancel-probe-313",
+      "exit_code": 1,
+      "log_sha256": "c51eecd65c92e79afcaa4338ce58f38fe6d0e3b11dd8b7420617476f8d328cab",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-697-native-cancel-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "00b95dea27872c9c11526912050914b0fb1e2fe017789641bf3df2d16789ea3c",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-698-deadline-import-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "28eecf6b5e510073e92bf6e0a97e923eae6a6cd0a3b3150c425bfa6f3eda3a24",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-698-deadline-import-repaired-314",
+      "exit_code": 0,
+      "log_sha256": "7bfd176d6b4e4032c85bcf4384cf61e2403874596880a517d7b260fc86262f50",
+      "scope": "project check",
+      "final": false
+    },
+    {
+      "name": "issue-699-eager-feature-marker-311",
+      "exit_code": 0,
+      "log_sha256": "933dcfb8f1529be757c538ce80f6a602de2cb63e28b9eacfc206c5cba5f296e2",
+      "scope": "stdlib-only exact marker predicate; not project/dependency qualification",
+      "final": false
+    },
+    {
+      "name": "issue-699-eager-feature-marker-312",
+      "exit_code": 0,
+      "log_sha256": "06e4bcbf9a8d0e093228df996ae20acedbac3aadb711f6ebedd77ac4e18f1534",
+      "scope": "stdlib-only exact marker predicate; not project/dependency qualification",
+      "final": false
+    }
+  ],
+  "sources": [
+    {
+      "path": "sources/issue-566-advice-api-final-cases-first-sources.json",
+      "sha256": "6c01d6a1d7839a73d345a3319cabdce72697521745b6906b65d05c75031e5d9b"
+    },
+    {
+      "path": "sources/issue-566-advice-api-first-sources.json",
+      "sha256": "916ddb2eb782125f652bb6aa1832322c3944e94cef26981f69d34fd9c3e17f51"
+    },
+    {
+      "path": "sources/issue-566-eager-feature-first-source.json",
+      "sha256": "e0d7bf4dbd02ebc74469348ae44f1aae5daf4e9057fc23a8dba3cf99fc58f897"
+    },
+    {
+      "path": "sources/issue-697-probe-source.json",
+      "sha256": "dad2f7d0c211001984f96c29f10ba20874b67f365eaad3933f53d4b73c4e5330"
+    }
+  ],
+  "final_code_pins": {
+    "packages/contracts/agent_advice_operations.py": "99edd514ce4ad6762a4d54aec228e3fca4ccf8d6acceedc55bd4f9672f7feafb",
+    "scripts/export_contracts.py": "78ce3e13969e4d40ea43828006e61383d28f884de43d6b23d49227c1aa04490e",
+    "services/decisions/agent_advice_api.py": "4b4b710f4d0a2dc48508e45c06af22edc240f4f6a2073f6f64b6cf74cd118956",
+    "services/decisions/agent_operations.py": "25cc1d5fc9313c783cac4adb78f004999f583056c92200f674a287e29ff89e35",
+    "services/decisions/api.py": "d9813d40d40b796efc7220dcd7ff25abf1f9e2ed7a191aebddc4d8968ac6474d",
+    "tests/integration/advice_native_wire.py": "a1c3a5c65aae90a141c3c544f3de314d5085bd4ccd7b8cbe36c7b89dd54dfca3",
+    "tests/integration/test_agent_advice_api.py": "b449f3ba04f775180a4ac79f4cd86cab73e86296fad2e87596d8738db255d3c5",
+    "tests/integration/test_agent_advice_operations.py": "7aea00f485c6a5737895b509cfcf1a55643f04b317704291b3a099d8fe812194",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "eed149c7eb54b8779b1abca24d06cac27239b371e86016ed5fc768bf2edc9d4e"
+  },
+  "final_pytest_targets": [
+    "tests/unit/test_decisions_consumer_policies.py",
+    "tests/integration/test_decisions_consumer_options.py",
+    "tests/unit/test_decisions_prompt_config.py",
+    "tests/unit/test_independent_decisions_modes.py",
+    "tests/unit/test_subsystem_topology.py",
+    "tests/unit/test_setup_subsystem_modes.py",
+    "tests/unit/test_core_subsystem_settings.py",
+    "tests/unit/test_core_subsystem_schema_exports.py",
+    "tests/integration/test_required_decisions_readiness.py",
+    "tests/unit/test_required_decisions.py",
+    "tests/integration/test_native_d1_selection.py",
+    "tests/integration/test_openrouter_decisions_selection.py",
+    "tests/unit/test_measured_chat_binding.py",
+    "tests/unit/test_standing_resource_finalization_contracts.py",
+    "tests/integration/test_agent_advice_export.py",
+    "tests/unit/test_agent_export_contract.py",
+    "tests/integration/test_agent_export_admission.py",
+    "tests/integration/test_agent_submit_admission.py",
+    "tests/integration/test_agent_submit_admission_faults.py",
+    "tests/integration/test_agent_operating_mode.py",
+    "tests/unit/test_agent_operating_mode_native.py",
+    "tests/unit/test_agent_control_contract.py",
+    "tests/unit/test_agent_control_bootstrap.py",
+    "tests/integration/test_agent_advice_operations.py",
+    "tests/unit/test_agent_tools.py",
+    "tests/unit/test_complete_provider_budget.py",
+    "tests/unit/test_resource_provider_cleanup.py",
+    "tests/unit/test_lmstudio_provider.py",
+    "tests/integration/test_auxiliary_models.py",
+    "tests/integration/test_journal_wake_http.py",
+    "tests/unit/test_standing_agent_client.py",
+    "tests/unit/test_standing_resources_finalization_client_deadline.py",
+    "tests/unit/test_standing_resources_barrier_client_deadline.py",
+    "tests/unit/test_standing_export_api_client.py",
+    "tests/integration/test_live_decisions_http.py",
+    "tests/integration/test_agent_advice_api.py"
+  ],
+  "checks": {
+    "python313": {
+      "passed": 1613,
+      "skipped": 0,
+      "warnings": 1,
+      "input_count": 939
+    },
+    "python314": {
+      "passed": 1613,
+      "skipped": 0,
+      "warnings": 1,
+      "input_count": 939
+    },
+    "ruff_check": "passed",
+    "ruff_format": "1249 files already formatted",
+    "schema_export": "passed with worktree PYTHONPATH",
+    "inherited_schemas_unchanged": 612,
+    "additive_schemas": 2
+  },
+  "stdlib_probes_not_project_qualification": [
+    "issue-566-eager-native-expression-311",
+    "issue-566-eager-native-expression-312",
+    "issue-699-eager-feature-marker-311",
+    "issue-699-eager-feature-marker-312"
+  ],
+  "predecessor_ci": {
+    "head": "5e7559b5e750881ad77103ba286d6a3564c0e975",
+    "standard_run": 44141733548,
+    "state": "in progress; iOS cancelled before runner acquisition",
+    "installer_run": 44141733569,
+    "installer_jobs_passed": 6,
+    "qualifies_new_api_code": false,
+    "ios_capacity_issue": 700,
+    "ios_job": 134246029345
+  },
+  "remaining": [
+    "Agent client, trusted current-task guards and qualified complete inputs",
+    "Remote actual-operation/cleanup recovery and Resources enrollment",
+    "Standing authority and launcher enablement",
+    "Protected policy persistence/Options and full service/provider/external-Agent matrix",
+    "Unresolved lost-finish-ack regression #696 and hosted iOS acquisition #700"
+  ]
+}

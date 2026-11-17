@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "856f62999cf8de082cf60cea7799c8be5bb6f21c42a487cb8914526b8bada527",
+  "text": "..........................F............................................. [ 34%]\n........................................................................ [ 68%]\n..................................................................       [100%]\n=================================== FAILURES ===================================\n______ test_lost_http_ack_retains_actual_native_model_and_exact_recovery _______\ntests/integration/test_agent_advice_api.py:184: in test_lost_http_ack_retains_actual_native_model_and_exact_recovery\n    assert result.phase == \"cancelled\" and result.cleanup == \"confirmed\"\nE   AssertionError: assert ('cleanup_unconfirmed' == 'cancelled'\nE     \nE     - cancelled\nE     + cleanup_unconfirmed)\n=========================== short test summary info ============================\nFAILED tests/integration/test_agent_advice_api.py::test_lost_http_ack_retains_actual_native_model_and_exact_recovery\n1 failed, 209 passed in 61.55s (0:01:01)\n"
+}

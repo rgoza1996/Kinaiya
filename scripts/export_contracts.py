@@ -227,6 +227,8 @@ for cls in (
     agent_advice_operations.AgentAdviceLookup,
     agent_advice_operations.AgentAdviceModelPin,
     agent_advice_operations.AgentAdviceObservation,
+    agent_advice_operations.AgentAdviceLookupResponse,
+    agent_advice_operations.AgentAdviceRuntimeState,
     decisions_consumers.DecisionsAgentPolicy,
     decisions_consumers.DecisionsAgentPolicyState,
     capture_modes.CaptureModeSelection,

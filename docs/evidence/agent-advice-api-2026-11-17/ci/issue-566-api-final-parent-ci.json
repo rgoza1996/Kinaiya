@@ -1,0 +1,738 @@
+{
+  "utc": "2026-11-17T18:23:26.630754+00:00",
+  "run": {
+    "conclusion": "",
+    "headSha": "5e7559b5e750881ad77103ba286d6a3564c0e975",
+    "jobs": [
+      {
+        "completedAt": "2026-11-17T18:04:15Z",
+        "conclusion": "success",
+        "databaseId": 134246028540,
+        "name": "native-publication",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "completed",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --require-hashes -r requirements-dev.lock",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pytest -x --tb=short -q tests/unit/test_media_exchange_v2_contracts.py tests/unit/test_media_pcm_rounding.py tests/integration/test_media_decoder_multitrack.py tests/integration/test_native_media_publication.py tests/integration/test_session_media_owner.py tests/integration/test_session_media_lifecycle_guards.py tests/integration/test_session_media_missing_runtime.py",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246028540"
+      },
+      {
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "databaseId": 134246028977,
+        "name": "python (3.13, hosted)",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "in_progress",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Create isolated native Python environment",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --require-hashes -r requirements-dev.lock",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --no-deps -e .",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install hosted Linux sandbox prerequisites",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Verify Linux sandbox prerequisites",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff check .",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff format --check .",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "",
+            "name": "Run the complete non-live Python suite",
+            "number": 11,
+            "status": "in_progress"
+          },
+          {
+            "conclusion": "",
+            "name": "Run python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas",
+            "number": 12,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Dependency audit",
+            "number": 13,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 25,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 26,
+            "status": "pending"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246028977"
+      },
+      {
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "databaseId": 134246029091,
+        "name": "python (3.14, hosted)",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "in_progress",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Create isolated native Python environment",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --require-hashes -r requirements-dev.lock",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --no-deps -e .",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install hosted Linux sandbox prerequisites",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Verify Linux sandbox prerequisites",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff check .",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff format --check .",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "",
+            "name": "Run the complete non-live Python suite",
+            "number": 11,
+            "status": "in_progress"
+          },
+          {
+            "conclusion": "",
+            "name": "Run python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas",
+            "number": 12,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Dependency audit",
+            "number": 13,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 25,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 26,
+            "status": "pending"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029091"
+      },
+      {
+        "completedAt": "2026-11-17T18:01:15Z",
+        "conclusion": "success",
+        "databaseId": 134246029113,
+        "name": "flutter",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "completed",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install pinned official Flutter SDK",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Create isolated native Python environment",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --require-hashes -r requirements-dev.lock",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run flutter pub get --enforce-lockfile",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run dart format --output=none --set-exit-if-changed lib test",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run flutter analyze",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run flutter test",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Qualify actual Dart transports against the live Session fixture",
+            "number": 11,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Qualify Core selection with actual Dart and Session owners",
+            "number": 12,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Qualify Capture Mode with actual Dart and Converse owners",
+            "number": 13,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run node --test web/audio_bridge.test.js",
+            "number": 14,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run flutter build web --release --no-web-resources-cdn",
+            "number": 15,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Build foreground companion",
+            "number": 16,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 17,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 18,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 35,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 36,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 37,
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029113"
+      },
+      {
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "databaseId": 134246029146,
+        "name": "python (3.12, hosted)",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "in_progress",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Create isolated native Python environment",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --require-hashes -r requirements-dev.lock",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --no-deps -e .",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install hosted Linux sandbox prerequisites",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Verify Linux sandbox prerequisites",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff check .",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff format --check .",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "",
+            "name": "Run the complete non-live Python suite",
+            "number": 11,
+            "status": "in_progress"
+          },
+          {
+            "conclusion": "",
+            "name": "Run python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas",
+            "number": 12,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Dependency audit",
+            "number": 13,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 25,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 26,
+            "status": "pending"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029146"
+      },
+      {
+        "completedAt": "0001-01-01T00:00:00Z",
+        "conclusion": "",
+        "databaseId": 134246029339,
+        "name": "python (3.11, hosted)",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "in_progress",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "skipped",
+            "name": "Create isolated native Python environment",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --require-hashes -r requirements-dev.lock",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run python -m pip install --no-deps -e .",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install hosted Linux sandbox prerequisites",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Verify Linux sandbox prerequisites",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff check .",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run ruff format --check .",
+            "number": 10,
+            "status": "completed"
+          },
+          {
+            "conclusion": "",
+            "name": "Run the complete non-live Python suite",
+            "number": 11,
+            "status": "in_progress"
+          },
+          {
+            "conclusion": "",
+            "name": "Run python scripts/export_contracts.py && git diff --exit-code packages/contracts/schemas",
+            "number": 12,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Dependency audit",
+            "number": 13,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+            "number": 25,
+            "status": "pending"
+          },
+          {
+            "conclusion": "",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 26,
+            "status": "pending"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029339"
+      },
+      {
+        "completedAt": "2026-11-17T18:07:31Z",
+        "conclusion": "cancelled",
+        "databaseId": 134246029345,
+        "name": "ios",
+        "startedAt": "2026-11-17T17:52:30Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029345"
+      },
+      {
+        "completedAt": "2026-11-17T17:56:03Z",
+        "conclusion": "success",
+        "databaseId": 134246029385,
+        "name": "android",
+        "startedAt": "2026-11-17T17:52:32Z",
+        "status": "completed",
+        "steps": [
+          {
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Select JDK 17 and verify x64 Android prerequisites",
+            "number": 3,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Install pinned official Flutter SDK",
+            "number": 4,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run flutter pub get --enforce-lockfile",
+            "number": 5,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Build owner development APK",
+            "number": 6,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Build companion development APK",
+            "number": 7,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 8,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+            "number": 9,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 18,
+            "status": "completed"
+          },
+          {
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 19,
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029385"
+      },
+      {
+        "completedAt": "2026-11-17T17:52:30Z",
+        "conclusion": "skipped",
+        "databaseId": 134246031666,
+        "name": "workspace-regression",
+        "startedAt": "2026-11-17T17:52:30Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246031666"
+      },
+      {
+        "completedAt": "2026-11-17T17:52:30Z",
+        "conclusion": "skipped",
+        "databaseId": 134246031727,
+        "name": "runner-smoke",
+        "startedAt": "2026-11-17T17:52:30Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246031727"
+      },
+      {
+        "completedAt": "2026-11-17T17:52:30Z",
+        "conclusion": "skipped",
+        "databaseId": 134246031887,
+        "name": "media-regression",
+        "startedAt": "2026-11-17T17:52:30Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246031887"
+      },
+      {
+        "completedAt": "2026-11-17T17:52:30Z",
+        "conclusion": "skipped",
+        "databaseId": 134246096025,
+        "name": "native-compatibility",
+        "startedAt": "2026-11-17T17:52:36Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246096025"
+      }
+    ],
+    "status": "in_progress",
+    "url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548"
+  }
+}

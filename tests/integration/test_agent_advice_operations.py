@@ -571,6 +571,10 @@ async def test_uncertain_task_factory_keeps_original_key_and_capacity(env, kind)
     assert await env.owner.close(timeout=0.001) is False
 
 
+@pytest.mark.skipif(
+    not hasattr(asyncio, "eager_task_factory"),
+    reason="Native eager task factories require Python 3.12 or later",
+)
 async def test_eager_native_factory_still_enrolls_before_any_model_effect(env):
     loop = asyncio.get_running_loop()
     previous = loop.get_task_factory()

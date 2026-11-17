@@ -17,6 +17,7 @@ from packages.contracts.agent_advice_operations import (
     AgentAdviceLookup,
     AgentAdviceModelPin,
     AgentAdviceObservation,
+    AgentAdviceRuntimeState,
 )
 from packages.contracts.agent_tools import advisory_text_scope
 from packages.contracts.operation_ownership import ActualOperation, actual_owner, current_owner
@@ -174,6 +175,38 @@ class AgentAdviceOperations:
     def lookup(self, lookup):
         original = self._identity(lookup)
         return None if original is None else self._observe(original)
+
+    def runtime_snapshot(self):
+        selected = self.policy.snapshot()
+        active = sum(original.active for original in self._originals.values())
+        phase = "running" if self._started else "starting"
+        if self._closed:
+            phase = "stopped"
+            if active:
+                phase = (
+                    "cleanup_unconfirmed"
+                    if any(
+                        original.cleanup == "unconfirmed" for original in self._originals.values()
+                    )
+                    else "closing"
+                )
+        return AgentAdviceRuntimeState(
+            instance_id=self.instance_id,
+            phase=phase,
+            policy_sha256=selected.policy_sha256,
+            catalog_status=selected.catalog_status,
+            active=active,
+            retained=len(self._originals),
+            capacity=self.capacity,
+            retention=self.retention,
+            new_request_available=(
+                phase == "running"
+                and selected.source == "host"
+                and selected.catalog_status == "eligible"
+                and active < self.capacity
+                and len(self._originals) < self.retention
+            ),
+        )
 
     async def wait(self, lookup, *, timeout=1.0):
         if type(timeout) not in {int, float} or isinstance(timeout, bool) or not 0 < timeout <= 30:
