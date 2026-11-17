@@ -144,7 +144,11 @@ Start/finish are immutable and idempotent for identical requests; conflicting
 replay is409. Capture occurs in the concrete provider at its actual request
 body assembly and response decoding boundary, before native mapping/overrides.
 Credentials and transport headers are excluded. Capture I/O has a half-second
-budget per write. After that await, the provider rechecks exported native
+budget per write. A finish facade timeout or caller cancellation leaves the
+original HTTP write, bounded read and sole response close enrolled in the
+journal client's actual exchange owner. It sends no replacement finish; the
+record remains pending until its native completion can be observed. Client
+shutdown still owns cancellation and drainage. After that await, the provider rechecks exported native
 sources, revision heads, disclosure floors, and the session with a half-second
 validation budget; unavailable validation preserves the native backlog rather
 than recording a terminal refusal. Actual native mismatch or restricted scope

@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 2,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "protocol": {
+      "const": "native_live_decisions_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "service": {
+      "const": "decisions",
+      "title": "Service",
+      "type": "string"
+    },
+    "consumer": {
+      "const": "converse",
+      "title": "Consumer",
+      "type": "string"
+    },
+    "instance_id": {
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "disabled",
+        "starting",
+        "ready",
+        "unavailable",
+        "stopped"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "ready": {
+      "title": "Ready",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "contract_version",
+    "protocol",
+    "service",
+    "consumer",
+    "instance_id",
+    "phase",
+    "ready"
+  ],
+  "title": "LiveDecisionsReadiness",
+  "type": "object"
+}

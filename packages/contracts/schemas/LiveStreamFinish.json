@@ -1,0 +1,113 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_live_stream_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "capture_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Session Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    },
+    "epoch": {
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "title": "Epoch",
+      "type": "integer"
+    },
+    "utterance_id": {
+      "pattern": "^[A-Za-z0-9_-]{1,128}$",
+      "title": "Utterance Id",
+      "type": "string"
+    },
+    "content_scope": {
+      "enum": [
+        "local_only",
+        "public_synthetic",
+        "private_cloud_authorized"
+      ],
+      "title": "Content Scope",
+      "type": "string"
+    },
+    "segment_index": {
+      "maximum": 1000000,
+      "minimum": 0,
+      "title": "Segment Index",
+      "type": "integer"
+    },
+    "stream_id": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Stream Id",
+      "type": "string"
+    },
+    "worker_incarnation": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Worker Incarnation",
+      "type": "string"
+    },
+    "sequence": {
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "sample_offset": {
+      "maximum": 960000,
+      "minimum": 0,
+      "title": "Sample Offset",
+      "type": "integer"
+    },
+    "user_speaking": {
+      "title": "User Speaking",
+      "type": "boolean"
+    },
+    "capture_ended": {
+      "title": "Capture Ended",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "capture_id",
+    "session_id",
+    "thread_id",
+    "epoch",
+    "utterance_id",
+    "content_scope",
+    "segment_index",
+    "stream_id",
+    "worker_incarnation",
+    "sequence",
+    "sample_offset",
+    "user_speaking",
+    "capture_ended"
+  ],
+  "title": "LiveStreamFinish",
+  "type": "object"
+}

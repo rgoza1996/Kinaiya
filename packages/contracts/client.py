@@ -783,11 +783,17 @@ class JournalClient:
         return response.json()
 
     async def decisions_call_finish(self, call_id, request):
-        response = await self.http.post(
-            f"/v1/decisions/calls/{call_id}/finish", json=request.model_dump(mode="json")
+        from packages.contracts.decisions import MAX_CAPTURE_BYTES
+
+        # The observational half-second facade may expire after inference has
+        # already completed. Keep its original write/read/sole close owned so
+        # a slow native acknowledgment cannot discard that observed response.
+        return await self._owned_metadata(
+            "POST",
+            f"/v1/decisions/calls/{call_id}/finish",
+            maximum=MAX_CAPTURE_BYTES,
+            json=request.model_dump(mode="json"),
         )
-        response.raise_for_status()
-        return response.json()
 
     async def decisions_calls(
         self,

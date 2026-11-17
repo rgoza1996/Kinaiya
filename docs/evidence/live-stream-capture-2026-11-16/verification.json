@@ -1,0 +1,400 @@
+{
+  "issue": 623,
+  "branch": "codex/623-adaptive-host-integration",
+  "base": "aaf2cfa49853232949493ea77e0a551e4fbd34ae",
+  "state": "Original local96focused/1932broader runs passed on04659. First fullCI43962368497 failed the omitted184aggregate selector(#669);3.11 also observed a missing inspection response(#670). Fresh361focused checks pass on3.13and3.14 after explicitselector/finishownership fixes. Fresh2035broader pass on3.13. AdaptiveLiveoff.",
+  "focused": [
+    {
+      "utc": "2026-11-16T21:25:31.876975+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_api.py",
+        "tests/integration/test_live_stream_capture.py",
+        "tests/integration/test_live_mic_capture.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "tests/integration/test_required_decisions_readiness.py",
+        "tests/integration/test_incremental_stream_ownership.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+      "exit_code": 0,
+      "elapsed": 29.358944257000985,
+      "input_count": 896,
+      "inputs_unchanged": true,
+      "log_sha256": "d782bfcd8fe091070813d7467a0e17629999522b0b36870cb5f887c466968a0b",
+      "python": "313",
+      "result": "96 passed; one existing Starlette warning",
+      "log": "focused-313.log"
+    },
+    {
+      "utc": "2026-11-16T21:25:31.899434+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_api.py",
+        "tests/integration/test_live_stream_capture.py",
+        "tests/integration/test_live_mic_capture.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "tests/integration/test_required_decisions_readiness.py",
+        "tests/integration/test_incremental_stream_ownership.py",
+        "tests/integration/test_incremental_stream_publications.py",
+        "tests/integration/test_incremental_whistle_converse.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "tests/unit/test_decisions_attempt_schema_exports.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+      "exit_code": 0,
+      "elapsed": 29.381451312001445,
+      "input_count": 896,
+      "inputs_unchanged": true,
+      "log_sha256": "84f2bf1d19d9adb81e80b4e6566b3c5755efe8883bd8074ad3564de11e28be88",
+      "python": "314",
+      "result": "96 passed; one existing Starlette warning",
+      "log": "focused-314.log"
+    }
+  ],
+  "prior_schemas": {
+    "count": 568,
+    "changed": [],
+    "new_count": 11,
+    "new_sha256": "e7453211778e17609023c0488655584ed8d2bf9581873cd7c125c0303e813f34"
+  },
+  "first_failures": [
+    {
+      "name": "issue-623-live-mic-first",
+      "result": "3 failed,2 passed; two wrong fixture URLs and actual owner-invalidation fault",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6928412505",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_mic_capture.py",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 890,
+      "inputs_unchanged": true,
+      "log_sha256": "c00b8fb4c1209647d724bb5d921e82dcffd6afac32e2d53dfffd9ed1cfa6a30c",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-mic-first-owner.py.txt",
+          "sha256": "b2c708462d407ceb67b0b511c812fddb43a077238d33bc8dd590236df2dd3dc6"
+        },
+        {
+          "file": "issue-623-live-mic-first-controls.py.txt",
+          "sha256": "a496dcb5b313fd85d4a3421cd2c4fd13fd436dbb904ba48bd6afa7494b7fb251"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-mic-fixture-route-repaired",
+      "result": "2 failed,3 passed; unusable positive publication lookup and owner-invalidation fault",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6928489576",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_mic_capture.py",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 890,
+      "inputs_unchanged": true,
+      "log_sha256": "cac33a61db554d5091d8a7bd95208ac138321e8f86a1a0eee35dfb052e145b4c",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-mic-controlled-first-owner.py.txt",
+          "sha256": "b2c708462d407ceb67b0b511c812fddb43a077238d33bc8dd590236df2dd3dc6"
+        },
+        {
+          "file": "issue-623-live-mic-controlled-first-controls.py.txt",
+          "sha256": "cceea220f81c7e7aab64225d0cff591517ce03fe0b74c4a9e62c0ae554a7089d"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-mic-fence-proof-first",
+      "result": "1 failed,7 passed; positive fence lookup still rethrew the failed transport Task",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6928796455",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_mic_capture.py",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 890,
+      "inputs_unchanged": true,
+      "log_sha256": "813841d10733cc8c815b7c3a3abbaaf71e057e29e0d9f595b99a36f2cec599c8",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-mic-fence-proof-first-owner.py.txt",
+          "sha256": "de5edf648e92cdea096cc6521b53b3de6bf386bd79326bad1e5fa10e7b4677bb"
+        },
+        {
+          "file": "issue-623-live-mic-fence-proof-first-controls.py.txt",
+          "sha256": "543478db3cde30c8acfe8edc6fa5288e02c4898a4bd4f66efa6fd61a1b359ff9"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-stream-retention-first",
+      "result": "1 failed,6 passed; previous-segment links retained trimmed stream objects",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6929036849",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_capture.py",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 893,
+      "inputs_unchanged": true,
+      "log_sha256": "afac4f4b63757f12447f1927f55338d3e248563746ab1242eb399b2e16be55e2",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-stream-retention-first-owner.py.txt",
+          "sha256": "86412d165007baadbeae446cfaff60d9e786f1942bdd8627cc315ab512cbf5de"
+        },
+        {
+          "file": "issue-623-live-stream-retention-first-controls.py.txt",
+          "sha256": "038b0ccebb9edd810aeafb929c733e1c85d5e011a27e0a1cbf1686c187897319"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-stream-api-first",
+      "result": "6 failed,7 passed; disabled-path fixture queried an uninitialized table",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6929176962",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_api.py",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 895,
+      "inputs_unchanged": true,
+      "log_sha256": "987a359813c8d3ef4fcd88532b4bab7f803944f08b1d919c1d1d1d73b493093d",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-stream-api-first-controls.py.txt",
+          "sha256": "6b50848b0f213cdbc14019e7c65a68d3c25886501c1a54dd364f0f5796377420"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-stream-proof-first",
+      "result": "2 failed,13 passed; confirmed wire proof accepted missing/substituted registration",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6929238290",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_api.py",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 895,
+      "inputs_unchanged": true,
+      "log_sha256": "cfb9139a99c06c61797999f47947a62c8f6c5cf8b7bbd01b89ea1e6dceb92f1f",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-stream-proof-first-contract.py.txt",
+          "sha256": "cca129541edd2607c9ddde3dd56c97087709022bbc460acbb12ab570fcf59f6d"
+        },
+        {
+          "file": "issue-623-live-stream-proof-first-controls.py.txt",
+          "sha256": "501106c7369e6ad17a868b3c62218dbae8af15ae5a82d3484b48432293bcae84"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-stt-owner-first",
+      "result": "1 failed; v2 inherited the old trusted STT embedding bypass",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6929325287",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_api.py::test_live_entrypoint_requires_the_native_stt_selection_owner",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 896,
+      "inputs_unchanged": true,
+      "log_sha256": "5acd4aeca8e2aff41403ed4ffb02419eeb2252092a77c37b61d0926fe754a9fc",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-stt-owner-first-core.py.txt",
+          "sha256": "0530807bc2ba9989d665502d92bdbf92392be07a4e2f54e74609f7495d9b6688"
+        },
+        {
+          "file": "issue-623-live-stt-owner-first-api.py.txt",
+          "sha256": "a6102635286825454ffec1231d543584b23bce132fd4e20883973a7b0b1babf7"
+        },
+        {
+          "file": "issue-623-live-stt-owner-first-controls.py.txt",
+          "sha256": "56d8e374fcc9ac271f66ef25ee70a5b72d572d8c91bb068086bf3b9373769187"
+        }
+      ]
+    },
+    {
+      "name": "issue-623-live-native-revocation-first",
+      "result": "2 failed; native capture revocation did not refuse fresh PCM before STT",
+      "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6929774523",
+      "command": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_stream_capture.py::test_native_capture_revocation_refuses_fresh_pcm_before_stt_and_settles_no_dispatch",
+        "-q",
+        "--tb=short"
+      ],
+      "input_count": 896,
+      "inputs_unchanged": true,
+      "log_sha256": "cdb8f6e9a350c67f5cf6f50b051a5cf2e4542177fb25875189a40756d93c6d1f",
+      "source_snapshots": [
+        {
+          "file": "issue-623-live-native-revocation-first-mic.py.txt",
+          "sha256": "d926b17c7b08c0ac3f9fb68ced0d6b181f92850ccd7b00b4624aad9e670b39db"
+        },
+        {
+          "file": "issue-623-live-native-revocation-first-stream.py.txt",
+          "sha256": "2b39970d0169a8157d7eed8ee4d980b26664c7f559738677b17a4ecbb2fd5b53"
+        },
+        {
+          "file": "issue-623-live-native-revocation-first-controls.py.txt",
+          "sha256": "c4861b1ae4b899903f5c1f8b193c540e5246ae468777cb5b71c0d1b6543349e0"
+        }
+      ]
+    }
+  ],
+  "static_checks": {
+    "ruff": "passed: python -m ruff check packages services tests scripts",
+    "format": "passed: python -m ruff format --check packages services tests scripts;888files",
+    "diff": "passed: git diff --check"
+  },
+  "limitations": [
+    "Synthetic SQLite/ASGI/IPC and request-bound synthetic model transport only.",
+    "No physical microphone, acoustic echo, audible playback or live/paid model qualification.",
+    "Normal launcher/Call, v2 Converse/Agent consumers, full process replacement/recovery, backchannel/mute/accessibility/noaudio, timings/comparisons and default rollout remain required for full623."
+  ],
+  "broader": {
+    "utc": "2026-11-16T21:36:08.421901+00:00",
+    "args": [
+      "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+      "-m",
+      "pytest",
+      "tests/integration/test_capture_mode_api.py",
+      "tests/integration/test_compatible_decisions_refusal.py",
+      "tests/integration/test_converse_cloud_tts.py",
+      "tests/integration/test_converse_compatible_completion.py",
+      "tests/integration/test_converse_context_budget.py",
+      "tests/integration/test_converse_delivery_context.py",
+      "tests/integration/test_converse_input_scope.py",
+      "tests/integration/test_converse_memory_controls.py",
+      "tests/integration/test_converse_memory_runtime.py",
+      "tests/integration/test_converse_output_fidelity.py",
+      "tests/integration/test_converse_owner_controls.py",
+      "tests/integration/test_converse_owner_processes.py",
+      "tests/integration/test_converse_scope_floors.py",
+      "tests/integration/test_converse_speech_cancel.py",
+      "tests/integration/test_converse_start_paused.py",
+      "tests/integration/test_converse_state_publication.py",
+      "tests/integration/test_converse_task_context.py",
+      "tests/integration/test_converse_text_cleanup.py",
+      "tests/integration/test_converse_tts_text.py",
+      "tests/integration/test_converse_typed_disclosure.py",
+      "tests/integration/test_converse_typed_history.py",
+      "tests/integration/test_converse_window_recovery.py",
+      "tests/integration/test_decisions_finalized_refusal.py",
+      "tests/integration/test_decisions_finalized_refusal_recovery.py",
+      "tests/integration/test_decisions_inspection.py",
+      "tests/integration/test_decisions_low_confidence.py",
+      "tests/integration/test_decisions_native_attempts.py",
+      "tests/integration/test_decisions_selection_capture_unknown.py",
+      "tests/integration/test_decisions_task_descriptions.py",
+      "tests/integration/test_decisions_task_status_context.py",
+      "tests/integration/test_decisions_typed_disclosure.py",
+      "tests/integration/test_incremental_stream_no_dispatch.py",
+      "tests/integration/test_incremental_stream_ownership.py",
+      "tests/integration/test_incremental_stream_publications.py",
+      "tests/integration/test_incremental_stream_transport_cleanup.py",
+      "tests/integration/test_incremental_whistle_converse.py",
+      "tests/integration/test_journal_wake.py",
+      "tests/integration/test_journal_wake_http.py",
+      "tests/integration/test_laya_decisions.py",
+      "tests/integration/test_live_capture_permission.py",
+      "tests/integration/test_live_capture_permission_http.py",
+      "tests/integration/test_live_window_contract.py",
+      "tests/integration/test_live_window_publication.py",
+      "tests/integration/test_live_window_publication_http.py",
+      "tests/integration/test_openrouter_decisions_selection.py",
+      "tests/integration/test_required_decisions_readiness.py",
+      "tests/integration/test_speech_action_approval.py",
+      "tests/integration/test_speech_boundary.py",
+      "tests/integration/test_speech_windows.py",
+      "tests/integration/test_standing_owner.py",
+      "tests/integration/test_whistle_stream_cleanup_retry.py",
+      "tests/integration/test_whistle_stream_originals.py",
+      "tests/integration/test_window_agent_routing.py",
+      "tests/integration/test_window_backlog.py",
+      "tests/integration/test_window_bound_refusal.py",
+      "tests/integration/test_window_cache_identity.py",
+      "tests/integration/test_window_http.py",
+      "tests/unit/test_capture_mode_schema_exports.py",
+      "tests/unit/test_capture_mode_settings.py",
+      "tests/unit/test_cloud_speech_composition.py",
+      "tests/unit/test_converse_history.py",
+      "tests/unit/test_converse_intent.py",
+      "tests/unit/test_converse_prompt_config.py",
+      "tests/unit/test_converse_runtime_state_guard.py",
+      "tests/unit/test_converse_task_acknowledgments.py",
+      "tests/unit/test_decisions_attempt_schema_exports.py",
+      "tests/unit/test_decisions_d1_overflow_evidence.py",
+      "tests/unit/test_decisions_local_d1_evidence.py",
+      "tests/unit/test_decisions_media_classifier.py",
+      "tests/unit/test_decisions_prompt_config.py",
+      "tests/unit/test_disclosure_scopes.py",
+      "tests/unit/test_journal_wake_contracts.py",
+      "tests/unit/test_live_capture_contracts.py",
+      "tests/unit/test_live_decisions_attempt_contracts.py",
+      "tests/unit/test_live_window_publication_contracts.py",
+      "tests/unit/test_native_audio_operation_contract.py",
+      "tests/unit/test_openrouter_decisions_provider.py",
+      "tests/unit/test_provider_disclosure_policy.py",
+      "tests/unit/test_whistle_speech_selection.py",
+      "tests/unit/test_whistle_stream_backend.py",
+      "tests/unit/test_whistle_stream_owner_contracts.py",
+      "tests/unit/test_whistle_streaming_broker.py",
+      "tests/unit/test_whistle_transport.py",
+      "-q",
+      "--tb=short"
+    ],
+    "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+    "exit_code": 0,
+    "elapsed": 490.6670315099982,
+    "input_count": 896,
+    "inputs_unchanged": true,
+    "log_sha256": "d5c97c986917c157cb36d9b20199cdcea1ae55554c56dd1305aca5c772000097",
+    "result": "1932 passed; one existing Starlette warning",
+    "log": "broader-313.log"
+  },
+  "qualification_baseline": "04659d966d75afe4afd51c65abafdd4743adf824",
+  "legacy_aggregate_correction": "The original local commands did not execute the184aggregate test. Original568-schema byte preservation remains verified; do not interpret the separate7-schema attempt-family test as that aggregate.",
+  "original_qualified_baseline_input_count": 896
+}

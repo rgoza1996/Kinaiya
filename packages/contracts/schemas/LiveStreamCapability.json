@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_live_stream_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "available": {
+      "title": "Available",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "available"
+  ],
+  "title": "LiveStreamCapability",
+  "type": "object"
+}

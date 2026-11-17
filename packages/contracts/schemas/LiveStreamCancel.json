@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_live_stream_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "capture_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "reason": {
+      "enum": [
+        "owner_off",
+        "cancelled",
+        "disconnected",
+        "replaced",
+        "shutdown"
+      ],
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "capture_id",
+    "reason"
+  ],
+  "title": "LiveStreamCancel",
+  "type": "object"
+}

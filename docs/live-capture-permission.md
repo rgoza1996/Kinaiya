@@ -78,6 +78,9 @@ permission schemas have an independent byte pin.
 
 The [native v2 inference increment](live-decisions-attempts.md) implements charged
 admission and exact result publication against these original capture receipts.
-Still required for full #623: completion/wake scheduling, same-capture decoder rollover, Converse/
-Agent consumers, backchannel/echo/mute ownership, timings and qualified rollout.
+The [completion-driven worker](live-decisions-worker.md) supplies scheduling and
+exact-result recovery. The gated [input/lifecycle increment](live-stream-capture.md)
+binds native mic permission to STT and same-capture decoder rollover. Still
+required for full #623: normal host/Call and Converse/Agent consumer integration,
+backchannel/echo/mute ownership, timings and qualified rollout.
 Synthetic permission checks do not qualify physical audio or model quality.

@@ -440,6 +440,18 @@ async def test_selected_native_adapter_records_original_capture_and_routes_real_
         assert result["agent_route" if mode == "window" else "route"] == (
             "STEER_CURRENT_TASK" if mode == "window" else "steer"
         )
+        # Inspection has a bounded facade. Observe its actual original finish
+        # before requiring settled storage; do not replay it or assume that
+        # the native journal always acknowledges within half a second.
+        await asyncio.wait_for(
+            asyncio.gather(
+                *(
+                    asyncio.shield(exchange.task)
+                    for exchange in tuple(env.journal._submit_exchanges)
+                )
+            ),
+            5,
+        )
         records = rows(env)
         assert len(records) == 1
         record = records[0]
@@ -449,6 +461,106 @@ async def test_selected_native_adapter_records_original_capture_and_routes_real_
         assert record["raw_response"].encode() == wire.raw and record["artifact_sha256"] is None
         assert record["validated_output"] == result and record["status"] == "completed"
         assert b"SECRET-OBJECTIVE" not in wire.requests[0].content
+
+
+@pytest.mark.parametrize("committed_before_wait", [False, True])
+@pytest.mark.parametrize("cancel_facade", [False, True])
+async def test_native_capture_finish_keeps_original_http_through_slow_ack(
+    tmp_path, monkeypatch, committed_before_wait, cancel_facade
+):
+    """A bounded inspection facade cannot discard an already-observed response."""
+    async with environment(tmp_path) as env:
+        saved = upsert(env.catalog)
+        env.settings.change(change(env.settings, selection(saved)))
+        wire = Wire("new_task")
+        inject_transport(monkeypatch, wire)
+        entry = source(env)
+        entered, release, settled, closed = (
+            asyncio.Event(),
+            asyncio.Event(),
+            asyncio.Event(),
+            asyncio.Event(),
+        )
+        cancelled, finishes, closes = [], [], []
+        native_transport = httpx.ASGITransport(app=create_app(env.store, AUTH))
+
+        class ObservedResponse(httpx.AsyncByteStream):
+            def __init__(self, inner):
+                self.inner = inner
+
+            async def __aiter__(self):
+                async for chunk in self.inner:
+                    yield chunk
+
+            async def aclose(self):
+                closes.append(True)
+                await self.inner.aclose()
+                closed.set()
+
+        class SlowInspection(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                if not request.url.path.endswith("/finish"):
+                    return await native_transport.handle_async_request(request)
+                finishes.append((request.url.path, request.content))
+                response = None
+                if committed_before_wait:
+                    response = await native_transport.handle_async_request(request)
+                entered.set()
+                try:
+                    await release.wait()
+                    if response is None:
+                        response = await native_transport.handle_async_request(request)
+                    response.stream = ObservedResponse(response.stream)
+                    return response
+                except asyncio.CancelledError:
+                    cancelled.append(True)
+                    raise
+                finally:
+                    settled.set()
+
+        journal = JournalClient(
+            "http://session", AUTH.tokens["decisions"], transport=SlowInspection()
+        )
+
+        async def classify():
+            async with env.settings.operation() as lease:
+                async with decision_attempt(
+                    journal, entry, lease.provider, model_pin=lease.pin, current=lease.current
+                ) as capture:
+                    result = await WindowClassifier(lease.provider).classify(entry, [], [])
+                    capture.validated_output = result
+                return result
+
+        original = asyncio.create_task(classify())
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            if cancel_facade:
+                original.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await original
+            else:
+                result = await asyncio.wait_for(original, 2)
+                assert result["agent_route"] == "QUEUE_UNTIL_TASK_DONE"
+            pending = rows(env)[0]
+            assert pending["status"] == ("completed" if committed_before_wait else "started")
+            assert len(wire.requests) == len(finishes) == 1
+            # The original send still owns its wait, even after the caller's
+            # bounded/cancelled facade has stopped waiting for acknowledgment.
+            assert not cancelled and not settled.is_set()
+            release.set()
+            await asyncio.wait_for(settled.wait(), 2)
+            await asyncio.wait_for(closed.wait(), 2)
+            record = rows(env)[0]
+            assert record["raw_response"].encode() == wire.raw
+            assert record["status"] == "completed" and record["validated_output"] is not None
+            assert compact(record["request"]) == wire.requests[0].content
+            assert len(finishes) == len(closes) == 1 and not cancelled
+        finally:
+            release.set()
+            if not original.done():
+                original.cancel()
+            await asyncio.gather(original, return_exceptions=True)
+            await journal.close()
 
 
 def _fail_next_window_decision_append(worker):

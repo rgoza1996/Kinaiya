@@ -1,0 +1,217 @@
+"""Real synthetic IPC and native STT lease across one logical microphone."""
+
+import asyncio
+import gc
+import weakref
+from types import SimpleNamespace
+
+import httpx
+import pytest
+
+from packages.contracts.live_streams import LiveStreamScope
+from packages.contracts.stt_settlement import digest
+from packages.contracts.whistle_stream_owner import ConverseStreamLookup
+from services.converse.live_streams import LiveIncrementalStreams
+from tests.integration.test_incremental_stream_ownership import install_settings, pcm_for, scope_for
+from tests.integration.test_incremental_whistle_converse import (
+    converse_incremental_env as converse_incremental_env,
+)
+
+
+class Connected:
+    async def receive(self):
+        await asyncio.Event().wait()
+
+
+def live_owner(env):
+    env.store.live_captures.activate()
+    scope = LiveStreamScope(
+        schema_version="2.0", protocol="converse_live_stream_v2",
+        owner_instance="a" * 32, capture_id="b" * 32, **scope_for(env),
+    )
+    dependency = SimpleNamespace(ready=True)
+    owner = LiveIncrementalStreams(env.runtime, env.speech, scope, dependency=dependency)
+    return owner, dependency
+
+
+async def begin(owner, env, index=0):
+    return await owner.begin_segment(index, scope_for(env), Connected())
+
+
+async def finish(owner, env, start, sequence=2, sample_offset=160, *, ended=False):
+    return await owner.append_or_finish("finish", {
+        **scope_for(env), "stream_id": start["stream_id"],
+        "worker_incarnation": start["worker_incarnation"],
+        "sequence": sequence, "sample_offset": sample_offset,
+        "user_speaking": not ended, "capture_ended": ended,
+    }, Connected())
+
+
+async def test_native_capture_precedes_stt_and_same_mic_rollover_keeps_one_lease_and_history(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    settings = install_settings(env)
+    owner, _ = live_owner(env)
+    try:
+        assert owner.capture_task is None and not settings.leases
+        first = await begin(owner, env)
+        state = owner.states[-1]
+        lease, admission_id = state.native.lease, state.native.lease.admission_id
+        assert owner.mic.registration is not None and len(settings.leases) == 1
+        pcm = await owner.append_or_finish("pcm", pcm_for(env, first), Connected())
+        pair = state.last.live_publication
+        assert pair.source.model_dump(mode="json") == pcm["entry"]
+        assert owner.mic.registration.registered_sequence < pair.source.sequence
+        assert env.store.live_captures.source_state(pair.original).capture_permits_source
+        final = await finish(owner, env, first)
+        await asyncio.wait_for(asyncio.shield(state.lifetime), 3)
+        assert final["final"] and not final["capture_ended"]
+        assert final["entry"]["payload"]["user_speaking"]
+        assert not owner.capture_task.done() and not lease.settled
+        assert len(settings.leases) == 1 and len(settings._admissions()) == 1
+        second = await begin(owner, env, 1)
+        newer = owner.states[-1]
+        assert second["stream_id"] != first["stream_id"]
+        assert newer.native.lease is lease and lease.admission_id == admission_id
+        assert len(settings.leases) == 1 and len(settings._admissions()) == 1
+        accepted = await owner.append_or_finish("pcm", pcm_for(env, second), Connected())
+        previous, current = final["entry"]["payload"], accepted["entry"]["payload"]
+        assert current["utterance_id"] == previous["utterance_id"]
+        assert current["window_index"] > previous["window_index"]
+        assert current["revision"] == 1 and current["start_ms"] == previous["end_ms"]
+        assert current["end_ms"] == current["start_ms"] + 10
+        assert current["stt_model"] == previous["stt_model"] == lease.pin.model_dump(mode="json")
+        assert [entry.payload["text"] for entry in env.store.read(kinds=["conversation.window"])] == [
+            "please check", "please check the build status", "please check"
+        ]
+        await finish(owner, env, second, ended=True)
+        await asyncio.wait_for(asyncio.shield(newer.lifetime), 3)
+        assert await owner.close()
+        assert lease.settled and not settings.leases and not settings._admissions()
+        assert env.engine.begin_calls == env.engine.finish_calls == 2
+    finally:
+        await owner.close()
+        await settings.close()
+
+
+async def test_rollover_cannot_reuse_an_unfinished_original_or_change_logical_scope(
+    converse_incremental_env,
+):
+    env = converse_incremental_env
+    owner, _ = live_owner(env)
+    try:
+        await begin(owner, env)
+        for index, body in [(1, scope_for(env)), (0, scope_for(env)), (1, {**scope_for(env), "utterance_id": "changed"})]:
+            with pytest.raises(Exception) as error:
+                await owner.begin_segment(index, body, Connected())
+            assert error.value.status_code == 409
+        assert env.engine.begin_calls == 1 and len(owner.states) == 1
+    finally:
+        assert await owner.close()
+
+
+async def test_lost_atomic_publication_ack_recovery_requires_native_pair_without_audio_replay(
+    converse_incremental_env, monkeypatch,
+):
+    env = converse_incremental_env
+    owner, _ = live_owner(env)
+    start = await begin(owner, env)
+    calls, original_publish = [], env.journal.publish_live_window
+
+    async def lost(original):
+        calls.append(original.model_dump(mode="json"))
+        await original_publish(original)
+        raise httpx.ReadError("Public synthetic lost atomic pair acknowledgment")
+
+    monkeypatch.setattr(env.journal, "publish_live_window", lost)
+    body = pcm_for(env, start)
+    try:
+        with pytest.raises(RuntimeError, match="original stream result remains unconfirmed"):
+            await owner.append_or_finish("pcm", body, Connected())
+        lookup = ConverseStreamLookup(
+            schema_version="1.0", protocol="converse_stream_owner_v1",
+            owner_instance=owner.instance, request_sha256=digest(body),
+        )
+        proof = await owner.lookup("pcm", lookup)
+        assert proof["outcome"] == "confirmed"
+        assert owner.states[-1].last.live_publication.source.model_dump(mode="json") == proof["result"]["entry"]
+        assert len(calls) == 1 and env.engine.begin_calls == env.engine.step == 1
+        assert len(env.store.read(kinds=["conversation.window"])) == 1
+        assert len(env.store.read(kinds=["conversation.window_capture"])) == 1
+    finally:
+        monkeypatch.setattr(env.journal, "publish_live_window", original_publish)
+        assert await owner.close()
+
+
+async def test_owner_off_fences_native_permission_and_holds_original_cleanup(converse_incremental_env):
+    env = converse_incremental_env
+    settings = install_settings(env)
+    owner, _ = live_owner(env)
+    try:
+        await begin(owner, env)
+        lease = owner.native.lease
+        env.runtime.enabled = False
+        async with asyncio.timeout(3):
+            while owner.mic.fence_receipt is None:
+                await asyncio.sleep(0)
+        assert not (await owner.mic.inspect()).capture_open
+        assert owner.capture_fenced and not owner.current()
+        assert await owner.close()
+        assert lease.settled and not settings.leases and not settings._admissions()
+        assert env.engine.begin_calls == 1 and env.engine.step == 0
+    finally:
+        await owner.close()
+        await settings.close()
+
+
+async def test_live_dependency_refusal_starts_no_stt_or_native_registration(converse_incremental_env):
+    env = converse_incremental_env
+    owner, dependency = live_owner(env)
+    dependency.ready = False
+    with pytest.raises(Exception) as error:
+        await begin(owner, env)
+    assert error.value.status_code == 409
+    assert env.engine.begin_calls == 0 and owner.capture_task is None
+    assert env.store.db.execute("SELECT count(*) FROM live_captures").fetchone()[0] == 0
+
+
+async def test_decoder_history_limit_does_not_retain_old_segments_through_rollover_links(converse_incremental_env):
+    env = converse_incremental_env
+    owner, _ = live_owner(env)
+    owner.history_limit = 1
+    try:
+        for index in range(3):
+            start = await begin(owner, env, index)
+            if index == 0:
+                old = weakref.ref(owner.states[-1])
+            await finish(owner, env, start, sequence=1, sample_offset=0)
+            await asyncio.wait_for(asyncio.shield(owner.states[-1].lifetime), 3)
+        assert len(owner.states) == 2
+        gc.collect()
+        assert old() is None
+    finally:
+        assert await owner.close()
+
+
+async def test_late_recognized_result_is_retained_after_owner_off_without_new_permission(converse_incremental_env, monkeypatch):
+    env = converse_incremental_env
+    owner, _ = live_owner(env)
+    start = await begin(owner, env)
+    accept = owner._accept_result
+
+    def owner_off_after_result(state, original, result):
+        accept(state, original, result)
+        if original.phase == "pcm":
+            env.runtime.enabled = False
+
+    monkeypatch.setattr(owner, "_accept_result", owner_off_after_result)
+    try:
+        result = await owner.append_or_finish("pcm", pcm_for(env, start), Connected())
+        pair = owner.states[-1].last.live_publication
+        assert pair.source.model_dump(mode="json") == result["entry"]
+        assert not env.store.live_captures.source_state(pair.original).capture_permits_source
+        assert pair.source.payload["text"] == "please check"
+        assert env.engine.step == 1 and owner.mic.fence_receipt is not None
+    finally:
+        assert await owner.close()

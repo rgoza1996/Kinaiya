@@ -1,0 +1,740 @@
+{
+  "$defs": {
+    "ConverseStreamProof": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "converse_stream_owner_v1",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "begin",
+            "pcm",
+            "finish"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "confirmed",
+            "publication_pending",
+            "in_progress",
+            "unknown",
+            "not_dispatched"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Result"
+        },
+        "native_original": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WhistleStreamOriginal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decoder_finished": {
+          "title": "Decoder Finished",
+          "type": "boolean"
+        },
+        "process_released": {
+          "title": "Process Released",
+          "type": "boolean"
+        },
+        "never_dispatched": {
+          "title": "Never Dispatched",
+          "type": "boolean"
+        },
+        "ownership_retired": {
+          "title": "Ownership Retired",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "owner_instance",
+        "phase",
+        "request_sha256",
+        "outcome",
+        "result",
+        "native_original",
+        "decoder_finished",
+        "process_released",
+        "never_dispatched",
+        "ownership_retired"
+      ],
+      "title": "ConverseStreamProof",
+      "type": "object"
+    },
+    "JournalEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "kind": {
+          "maxLength": 80,
+          "title": "Kind",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "causes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Causes",
+          "type": "array"
+        },
+        "task_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Task Refs",
+          "type": "array"
+        },
+        "idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "origin": {
+          "title": "Origin",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "thread_id",
+        "epoch",
+        "kind",
+        "payload",
+        "idempotency_key",
+        "sequence",
+        "origin"
+      ],
+      "title": "JournalEntry",
+      "type": "object"
+    },
+    "LiveCaptureBackend": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Backend Id",
+          "type": "string"
+        },
+        "controller_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Controller Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend_id",
+        "controller_id"
+      ],
+      "title": "LiveCaptureBackend",
+      "type": "object"
+    },
+    "LiveCaptureFence": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "request_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "owner_off",
+            "cancelled",
+            "disconnected",
+            "replaced",
+            "shutdown"
+          ],
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "request_id",
+        "reason"
+      ],
+      "title": "LiveCaptureFence",
+      "type": "object"
+    },
+    "LiveCaptureFenceReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/LiveCaptureFence"
+        },
+        "fence_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Fence Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "request",
+        "fence_id"
+      ],
+      "title": "LiveCaptureFenceReceipt",
+      "type": "object"
+    },
+    "LiveCaptureReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "registration_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Registration Id",
+          "type": "string"
+        },
+        "registered_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Registered Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "registration_id",
+        "registered_sequence"
+      ],
+      "title": "LiveCaptureReceipt",
+      "type": "object"
+    },
+    "LiveCaptureRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "backend": {
+          "$ref": "#/$defs/LiveCaptureBackend"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "capture_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "backend",
+        "owner_instance",
+        "capture_id",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "LiveCaptureRegistration",
+      "type": "object"
+    },
+    "LiveCaptureState": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_capture_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveCaptureRegistration"
+        },
+        "backend": {
+          "$ref": "#/$defs/LiveCaptureBackend"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveCaptureReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveCaptureFenceReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scope_current": {
+          "title": "Scope Current",
+          "type": "boolean"
+        },
+        "capture_open": {
+          "title": "Capture Open",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "backend",
+        "receipt",
+        "fence",
+        "scope_current",
+        "capture_open"
+      ],
+      "title": "LiveCaptureState",
+      "type": "object"
+    },
+    "LiveWindowPublicationProof": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "live_window_publication_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "original": {
+          "$ref": "#/$defs/LiveWindowPublicationRef"
+        },
+        "source": {
+          "$ref": "#/$defs/JournalEntry"
+        },
+        "capture": {
+          "$ref": "#/$defs/JournalEntry"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "original",
+        "source",
+        "capture"
+      ],
+      "title": "LiveWindowPublicationProof",
+      "type": "object"
+    },
+    "LiveWindowPublicationRef": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "live_window_publication_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "owner_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Owner Instance",
+          "type": "string"
+        },
+        "capture_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        },
+        "utterance_id": {
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
+          "title": "Utterance Id",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "owner_instance",
+        "capture_id",
+        "session_id",
+        "thread_id",
+        "epoch",
+        "utterance_id",
+        "idempotency_key",
+        "request_sha256"
+      ],
+      "title": "LiveWindowPublicationRef",
+      "type": "object"
+    },
+    "WhistleStreamOriginal": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "whistle_stream_owner_v1",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "broker_instance": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Broker Instance",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "begin",
+            "pcm",
+            "finish",
+            "cancel"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "request_sha256": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Request Sha256",
+          "type": "string"
+        },
+        "operation_id": {
+          "maxLength": 32,
+          "minLength": 32,
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "broker_instance",
+        "phase",
+        "request_sha256",
+        "operation_id"
+      ],
+      "title": "WhistleStreamOriginal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "converse_live_stream_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "owner_instance": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Owner Instance",
+      "type": "string"
+    },
+    "capture_id": {
+      "pattern": "^[a-f0-9]{32}$",
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "begin",
+        "pcm",
+        "finish"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "request_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "segment_index": {
+      "anyOf": [
+        {
+          "maximum": 1000000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Segment Index"
+    },
+    "segment_sample_offset": {
+      "anyOf": [
+        {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Segment Sample Offset"
+    },
+    "capture": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveCaptureState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "native": {
+      "$ref": "#/$defs/ConverseStreamProof"
+    },
+    "publication": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveWindowPublicationProof"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "owner_instance",
+    "capture_id",
+    "phase",
+    "request_sha256",
+    "segment_index",
+    "segment_sample_offset",
+    "capture",
+    "native",
+    "publication"
+  ],
+  "title": "LiveStreamProof",
+  "type": "object"
+}

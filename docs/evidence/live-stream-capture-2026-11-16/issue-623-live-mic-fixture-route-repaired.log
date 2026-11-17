@@ -1,0 +1,42 @@
+...FF                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable[True] _
+tests/integration/test_live_mic_capture.py:139: in test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable
+    assert await owner.publish(request) == observed.receipt
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/live_capture.py:153: in publish
+    return await self._wait(self.publication_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/live_capture.py:51: in _wait
+    return await asyncio.shield(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/converse/live_capture.py:150: in original_publication
+    return self._accept_publication(await self.journal.publish_live_window(original))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/client.py:300: in publish_live_window
+    return await publish(self, original)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/live_window_client.py:33: in publish
+    result = await _exchange(client, "", original, LiveWindowPublicationProof, MAX_RESULT_BYTES)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/live_window_client.py:19: in _exchange
+    raw = await client._owned_metadata(
+packages/contracts/client.py:290: in _owned_metadata
+    return await asyncio.shield(exchange.task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+packages/contracts/client.py:252: in _run
+    async for chunk in self.response.stream:
+../../output/issue-643-python313-venv/lib/python3.13/site-packages/httpx/_client.py:176: in __aiter__
+    async for chunk in self._stream:
+tests/integration/test_live_mic_capture.py:104: in __aiter__
+    raise httpx.ReadError("Public synthetic lost recognized publication ACK")
+E   httpx.ReadError: Public synthetic lost recognized publication ACK
+_ test_invalidated_local_owner_fences_native_permission_before_retaining_late_input _
+tests/integration/test_live_mic_capture.py:158: in test_invalidated_local_owner_fences_native_permission_before_retaining_late_input
+    assert owner.fenced and owner.fence_receipt is not None
+E   assert (False)
+E    +  where False = <services.converse.live_capture.LiveMicCapture object at 0x7cfb7aee2d70>.fenced
+=========================== short test summary info ============================
+FAILED tests/integration/test_live_mic_capture.py::test_original_publication_lookup_never_replays_and_positive_reconciliation_is_usable[True]
+FAILED tests/integration/test_live_mic_capture.py::test_invalidated_local_owner_fences_native_permission_before_retaining_late_input
+2 failed, 3 passed in 1.93s

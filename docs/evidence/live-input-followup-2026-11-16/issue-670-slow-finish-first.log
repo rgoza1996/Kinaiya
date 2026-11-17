@@ -1,0 +1,49 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_native_capture_finish_keeps_original_http_through_slow_ack[False-False] _
+tests/integration/test_native_d1_selection.py:509: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    result = await asyncio.wait_for(original, 2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../output/issue-624-python313/cpython-3.13.18/lib/python3.13/asyncio/tasks.py:514: in wait_for
+    return await fut
+           ^^^^^^^^^
+tests/integration/test_native_d1_selection.py:497: in classify
+    result = await WindowClassifier(lease.provider).classify(entry, [], [])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/decisions/window_routing.py:655: in classify
+    decision = WindowDecision(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for WindowDecision
+E     Value error, Targeted routing needs a task and revision [type=value_error, input_value={'decision_id': 'c7493be0..._ms': 38.25761899497593}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/value_error
+_ test_native_capture_finish_keeps_original_http_through_slow_ack[False-True] __
+tests/integration/test_native_d1_selection.py:509: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    result = await asyncio.wait_for(original, 2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../output/issue-624-python313/cpython-3.13.18/lib/python3.13/asyncio/tasks.py:514: in wait_for
+    return await fut
+           ^^^^^^^^^
+tests/integration/test_native_d1_selection.py:497: in classify
+    result = await WindowClassifier(lease.provider).classify(entry, [], [])
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+services/decisions/window_routing.py:655: in classify
+    decision = WindowDecision(
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for WindowDecision
+E     Value error, Targeted routing needs a task and revision [type=value_error, input_value={'decision_id': '7d27c063..._ms': 33.67403900483623}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/value_error
+_ test_native_capture_finish_keeps_original_http_through_slow_ack[True-False] __
+tests/integration/test_native_d1_selection.py:516: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    assert not cancelled and not settled.is_set()
+E   assert (not [True])
+__ test_native_capture_finish_keeps_original_http_through_slow_ack[True-True] __
+tests/integration/test_native_d1_selection.py:512: in test_native_capture_finish_keeps_original_http_through_slow_ack
+    assert pending["status"] == ("completed" if committed_before_wait else "started")
+E   AssertionError: assert 'error' == 'completed'
+E     
+E     - completed
+E     + error
+=========================== short test summary info ============================
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[False-False]
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[False-True]
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[True-False]
+FAILED tests/integration/test_native_d1_selection.py::test_native_capture_finish_keeps_original_http_through_slow_ack[True-True]
+4 failed in 3.90s

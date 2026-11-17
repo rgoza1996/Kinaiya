@@ -1,0 +1,30 @@
+{
+  "utc": "2026-11-16T22:45:18.569662+00:00",
+  "args": [
+    "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+    "-m",
+    "pytest",
+    "tests/integration/test_live_stream_api.py",
+    "tests/integration/test_live_stream_capture.py",
+    "tests/integration/test_live_mic_capture.py",
+    "tests/integration/test_live_decisions_readiness.py",
+    "tests/integration/test_required_decisions_readiness.py",
+    "tests/integration/test_incremental_stream_ownership.py",
+    "tests/integration/test_incremental_stream_publications.py",
+    "tests/integration/test_incremental_whistle_converse.py",
+    "tests/unit/test_live_stream_contracts.py",
+    "tests/unit/test_decisions_attempt_schema_exports.py",
+    "tests/integration/test_native_d1_selection.py",
+    "tests/integration/test_decisions_inspection.py",
+    "tests/unit/test_standing_resource_finalization_contracts.py",
+    "tests/unit/test_native_d1_provider.py",
+    "-q",
+    "--tb=short"
+  ],
+  "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-host-623",
+  "exit_code": 0,
+  "elapsed": 77.73035763400549,
+  "input_count": 896,
+  "inputs_unchanged": true,
+  "log_sha256": "4bbeafe21f94d3e4fca23bc78d5490588e2fab385ffe82de01f0aaf35939bc3f"
+}
