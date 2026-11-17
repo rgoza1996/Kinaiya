@@ -12,12 +12,11 @@ selector cover every valid mode. Independent consumer policies and the full
 qualification matrix remain unfinished. The work
 below is part of the same issue, not deferred acceptance or a completion claim.
 
-The next increment adds an independent host snapshot and owner-only inspection
-for an optional Agent advisory policy, referencing the shared Core catalog.
-[Consumer policy ownership and explicit configuration-only limits](decisions-consumer-policies.md)
-describe it. Agent request admission and protected per-consumer writes remain
-unavailable; existing Converse prompts, selections, receipts and required-runtime
-readiness retain their original ownership.
+The independent Agent advisory policy references the shared Core catalog.
+The Decisions settings owner saves its next-launch selection, and the worker
+uses the policy captured on launch through the native admission boundary.
+Existing Converse prompts, selections, receipts and required-runtime
+readiness retain their owner. [Consumer policy contract](decisions-consumer-policies.md)
 
 ## Configured selection
 

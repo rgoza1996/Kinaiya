@@ -62,6 +62,15 @@ def _system_prompt(snapshot: NativeToolSnapshot) -> str:
         if name == "publish_ui" and snapshot.supports("run_task_harness"):
             hint = hint.replace('"select"|"ask"', '"select"|"ask"|"media"')
             hint += ' Native media: at most one media component, data exactly {"asset_id":"<actual media_32hex native receipt ID>"}. Use only an observed same-task/revision/scope asset receipt; never supply paths, URLs, bytes or register assets. The native UI shows the source and highlighted video. Keep the transcript in a text component.'
+        if name == "consult_model" and snapshot.decisions_advice:
+            hint = hint.replace(
+                '"harness_design", "prompt"', '"harness_design"|"decisions_advice", "prompt"'
+            ).replace(
+                "ask the task-pinned auxiliary text model for a result. "
+                "Available only when native model settings captured an auxiliary route for this task.",
+                "ask the model selected for this purpose. Auxiliary purposes use a captured task route. "
+                "The decisions_advice purpose sends qualified task history to the independent Decisions policy.",
+            )
         hints.append(hint)
         if name == "run_task_program":
             hints.append(

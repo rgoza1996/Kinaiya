@@ -1385,6 +1385,10 @@ class MetaResponsesProvider:
                 wire += " For run_task_harness use source_path, source_sha256 and input encoded in harness_input_json."
             if "run_task_program" in tools:
                 wire += " For run_task_program use interpreter, source_path/source_sha256, entrypoint_path/entrypoint_sha256, input_path/input_sha256, fresh output_path, literal argv array and timeout_s; set unrelated fields null."
+            if snapshot is not None and snapshot.decisions_advice:
+                wire += (
+                    " For consult_model, set purpose and prompt and leave unrelated fields null."
+                )
             if "publish_ui" in tools:
                 wire += (
                     "\nFor publish_ui, JSON-encode the complete logical publication argument object "
@@ -1473,6 +1477,9 @@ class MetaResponsesProvider:
                 }
             )
             fields["timeout_s"] = {"type": ["number", "null"]}
+            if snapshot is not None and snapshot.decisions_advice:
+                fields["purpose"] = {"type": ["string", "null"]}
+                fields["prompt"] = {"type": ["string", "null"], "maxLength": 8000}
             fields["event_ids"] = {"type": ["array", "null"], "items": {"type": "string"}}
             fields["server_id"] = {"type": ["string", "null"]}
             fields["mcp_tool"] = {
