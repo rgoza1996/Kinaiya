@@ -70,8 +70,9 @@ controller cannot restart or use a replacement model to satisfy an old lookup.
 
 ## Remaining integration
 
-The authenticated Agent client, local runtime/current-task guards, complete
-qualified input construction, remote cleanup recovery and Resources enrollment,
+The [Agent-side client](decisions-agent-advice-client.md) now retains the original
+submission, its local exchanges and its remote cleanup result. Local Agent
+runtime integration and task guards, complete qualified input construction,
 standing authority and launcher enablement remain unfinished. Protected policy
 persistence/Options and the complete consumer/provider/external-agent fault matrix
 remain part of #566/#567. This boundary is an internal integration increment.
