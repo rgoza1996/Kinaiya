@@ -549,6 +549,23 @@ def serve(args):
             startup_mode=startup_mode,
         )
     topology = SubsystemTopology.from_config(config, developer_all=service == "all")
+    advice_policy = None
+    if service == "agent" and topology.agent and topology.decisions:
+        from services.decisions.agent_policy import configured_agent_policy
+        from services.decisions.agent_policy_settings import (
+            POLICY_STORE_NAME,
+            AgentPolicySettingsUnavailable,
+            read_agent_policy_selection,
+        )
+
+        try:
+            selection = read_agent_policy_selection(
+                args.data_dir.resolve() / POLICY_STORE_NAME, args.workspace
+            )
+            advice_policy = configured_agent_policy(config, selection=selection)
+        except (ValueError, AgentPolicySettingsUnavailable):
+            # Optional advice remains unavailable if its saved authority cannot be read.
+            pass
     subsystem_settings = None
     resources = config.get("resources")
     resources_enabled = isinstance(resources, dict) and resources.get("enabled") is True
@@ -858,6 +875,17 @@ def serve(args):
         media_owner = task_media_owner(
             config, data_dir=args.data_dir.resolve(), workspace=workspace
         )
+        advice_client = None
+        if advice_policy is not None:
+            from packages.agent_adapters.decisions_advice import DecisionsAdviceClient
+
+            try:
+                advice_client = DecisionsAdviceClient(
+                    config.get("decisions_url", "http://127.0.0.1:8763"), tokens["agent"]
+                )
+            except ValueError:
+                # Decisions is an optional consumer for Agent.
+                pass
         runtime = AgentRuntime(
             journal,
             host_provider,
@@ -868,6 +896,7 @@ def serve(args):
             mcp_controller=mcp_controller,
             skill_service=skill_service,
             plugin_service=plugin_service,
+            decisions_advice=advice_client,
             artifact_store=ArtifactStore(
                 artifact_path,
                 **({"media_assets": media_owner.media_assets} if media_owner is not None else {}),
@@ -1267,7 +1296,13 @@ def serve(args):
 
         from packages.agent_adapters.http import AgentClient
         from packages.providers.text import ProviderError
+        from services.decisions.agent_operations import AgentAdviceOperations
         from services.decisions.agent_policy import AgentPolicyOwner
+        from services.decisions.agent_policy_settings import (
+            POLICY_STORE_NAME,
+            AgentPolicySettings,
+            AgentPolicySettingsUnavailable,
+        )
         from services.decisions.api import create_app
         from services.decisions.model_settings import (
             DecisionsModelSettings,
@@ -1358,16 +1393,33 @@ def serve(args):
                 agent_enabled=worker.enabled,
             )
             live_dispatcher = LiveAgentDispatcher(worker.journal, worker.agent)
-        app = create_app(
-            worker,
-            auth,
-            windows,
-            dispatcher,
-            model_settings=decision_models,
-            live_worker=live_worker,
-            live_dispatcher=live_dispatcher,
-            agent_policy=AgentPolicyOwner(config, catalog),
+        try:
+            advice_settings = AgentPolicySettings(
+                args.data_dir.resolve() / POLICY_STORE_NAME, args.workspace
+            )
+        except AgentPolicySettingsUnavailable:
+            advice_settings = None
+        agent_policy = AgentPolicyOwner(config, catalog, settings=advice_settings, launch=None)
+        agent_operations = (
+            AgentAdviceOperations(agent_policy, worker.journal, resource_state=resource_state)
+            if topology.agent and topology.decisions and agent_policy.configured
+            else None
         )
+        try:
+            app = create_app(
+                worker,
+                auth,
+                windows,
+                dispatcher,
+                model_settings=decision_models,
+                live_worker=live_worker,
+                live_dispatcher=live_dispatcher,
+                agent_policy=agent_policy,
+                agent_operations=agent_operations,
+            )
+        except BaseException:
+            agent_policy.close()
+            raise
     if service in {"session", "agent", "converse", "decisions"}:
         import sqlite3
 
@@ -1406,6 +1458,8 @@ def serve(args):
     finally:
         if subsystem_settings is not None:
             subsystem_settings.close()
+        if service == "decisions":
+            agent_policy.close()
 
 
 def owner_login(args):

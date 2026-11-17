@@ -72,7 +72,9 @@ async def inventory(runtime, section, disabled):
                     "name": name,
                     "qualified_id": "native:" + name,
                     "group": next(group for group, names in GROUPS.items() if name in names),
-                    "description": native_tool_definition(name)["description"],
+                    "description": native_tool_definition(
+                        name, decisions_advice=host.decisions_advice
+                    )["description"],
                     "protocol_version": "1.0",
                     "protected": name == "finish",
                     "requested_enabled": name not in disabled,

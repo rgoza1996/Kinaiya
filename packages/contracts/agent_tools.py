@@ -69,6 +69,7 @@ class NativeToolSnapshot:
     owner_disabled: tuple[str, ...] | None = None
     owner_revision: int | None = None
     task_subset: Literal["native-files-v1"] | None = None
+    decisions_advice: bool = False
     descriptors: tuple[NativeToolDescriptor, ...] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -117,6 +118,10 @@ class NativeToolSnapshot:
             raise ValueError("Native tool snapshot requires a bounded tuple of protocol actions")
         if any(type(name) is not str or name not in SUPPORTED_NATIVE_TOOL_ORDER for name in names):
             raise ValueError("Native tool snapshot contains an unknown protocol action")
+        if type(self.decisions_advice) is not bool or (
+            self.decisions_advice and "consult_model" not in names
+        ):
+            raise ValueError("Decisions advice requires its native consultation action")
         if len(set(names)) != len(names):
             raise ValueError("Native tool snapshot cannot contain duplicate actions")
         if names != tuple(name for name in SUPPORTED_NATIVE_TOOL_ORDER if name in names):
@@ -144,6 +149,7 @@ def native_tool_snapshot(
     plugins_available: bool = False,
     artifacts_available: bool = False,
     auxiliary_available: bool = False,
+    decisions_advice: bool = False,
     catalog_available: bool = False,
     task_harness_available: bool = False,
     task_program_available: bool = False,
@@ -161,13 +167,18 @@ def native_tool_snapshot(
         ("task_program_available", task_program_available),
     )
     enabled = set(_BASE_TOOLS)
+    if type(decisions_advice) is not bool:
+        raise ValueError("Decisions advice requires a strict boolean")
+    if decisions_advice:
+        enabled.add("consult_model")
     for (flag, value), group in zip(flags, _OPTIONAL_GROUPS, strict=True):
         if type(value) is not bool:
             raise ValueError(f"{flag} requires a strict boolean")
         if value:
             enabled.update(group)
     return NativeToolSnapshot(
-        tuple(name for name in SUPPORTED_NATIVE_TOOL_ORDER if name in enabled)
+        tuple(name for name in SUPPORTED_NATIVE_TOOL_ORDER if name in enabled),
+        decisions_advice=decisions_advice,
     )
 
 

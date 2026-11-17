@@ -13,6 +13,11 @@ enum OptionsPage {
     keywords:
         'core subsystems services mode startup launch converse decisions agent dependency',
   ),
+  agentAdvice(
+    'Agent advice',
+    description: 'Set the optional policy Decisions can use to advise Agent.',
+    keywords: 'decisions agent advice policy instructions model reasoning',
+  ),
   models(
     'Models',
     description: 'Select Converse, Agent, Decisions, STT, and TTS model roles.',
@@ -183,6 +188,9 @@ class OptionsCategory {
 
 const optionsCategories = [
   OptionsCategory('Core', Icons.hub_outlined, [OptionsPage.subsystems]),
+  OptionsCategory('Decisions', Icons.alt_route_outlined, [
+    OptionsPage.agentAdvice,
+  ]),
   OptionsCategory('Models & providers', Icons.diamond_outlined, [
     OptionsPage.models,
     OptionsPage.providers,

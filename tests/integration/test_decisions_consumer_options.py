@@ -6,11 +6,17 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
+from packages.contracts.decisions_consumers import DecisionsAgentPolicyChange
 from packages.contracts.decisions_models import DecisionsModelChange
 from packages.providers.text import ScriptedProvider
 from services import launcher
 from services.common.auth import Auth
 from services.decisions.agent_policy import AgentPolicyOwner
+from services.decisions.agent_policy_settings import (
+    POLICY_STORE_NAME,
+    AgentPolicySettings,
+    AgentPolicySettingsUnavailable,
+)
 from services.decisions.api import create_app
 from services.decisions.model_settings import DecisionsModelSettings
 from services.decisions.prompts import configured_prompt
@@ -70,8 +76,12 @@ async def test_independent_policy_inspection_preserves_native_converse_receipts(
         enabled=False,
         model_settings=models,
     )
+    settings = AgentPolicySettings(tmp_path / POLICY_STORE_NAME, workspace)
     app = create_app(
-        worker, Auth(TOKENS), model_settings=models, agent_policy=AgentPolicyOwner(config, None)
+        worker,
+        Auth(TOKENS),
+        model_settings=models,
+        agent_policy=AgentPolicyOwner(config, None, settings=settings),
     )
     try:
         async with app.router.lifespan_context(app):
@@ -86,6 +96,19 @@ async def test_independent_policy_inspection_preserves_native_converse_receipts(
                 )
                 assert response.json()["source"] == expected
                 assert response.json()["request_admission"] == "unavailable"
+                advice = "/v1/decisions/options/agent-advice-settings"
+                observed_advice = (await client.get(advice)).json()
+                saved_advice = await client.post(
+                    advice,
+                    json=DecisionsAgentPolicyChange(
+                        expected_backend=observed_advice["backend_id"],
+                        expected_instance=observed_advice["instance_id"],
+                        expected_revision=observed_advice["revision"],
+                        idempotency_key="disable-optional-advice",
+                        selection={"source": "disabled"},
+                    ).model_dump(),
+                )
+                assert saved_advice.status_code == 200
                 assert worker.classifier.prompt is prompt
                 assert configured_prompt(config) == prompt
                 assert (await client.get("/v1/decisions/options/model")).json() == original_snapshot
@@ -99,7 +122,7 @@ async def test_independent_policy_inspection_preserves_native_converse_receipts(
                     == original_rows
                 )
                 assert provider.calls == []
-        assert not worker.running and not worker.ready
+        assert not worker.running and not worker.ready and settings.closed
     finally:
         await models.close()
         if models._host_cleanup is not None:
@@ -109,21 +132,27 @@ async def test_independent_policy_inspection_preserves_native_converse_receipts(
 
 
 @pytest.mark.parametrize(
-    "raw,source",
+    "raw,source,with_agent,persisted,active_source",
     [
-        (None, "unconfigured"),
-        (POLICY, "host"),
-        ({"instructions": "Invalid synthetic"}, "invalid_host"),
+        (None, "unconfigured", True, None, "unconfigured"),
+        (POLICY, "host", True, None, "host"),
+        (POLICY, "host", False, None, "host"),
+        ({"instructions": "Invalid synthetic"}, "invalid_host", True, None, "invalid_host"),
+        (None, "unconfigured", True, "saved", "saved"),
+        (None, "unconfigured", False, "saved", "saved"),
+        (POLICY, "host", True, "disabled", "disabled"),
+        (POLICY, "host", True, "corrupt", "unavailable"),
     ],
 )
 def test_official_launcher_wires_separate_agent_policy_without_modifying_converse(
-    monkeypatch, tmp_path, raw, source
+    monkeypatch, tmp_path, raw, source, with_agent, persisted, active_source
 ):
     config = {
         "session_url": "http://127.0.0.1:8760",
         "agent_url": "http://127.0.0.1:8761",
         "decisions_prompt": {"finalized": "Original Converse", "window": "Original window"},
         "decisions_agent_policy": raw,
+        "distribution": {"agent": with_agent, "decisions": True, "converse": True},
         "streaming_windows": {"enabled": False},
     }
     expected_prompt = configured_prompt(config)
@@ -142,11 +171,22 @@ def test_official_launcher_wires_separate_agent_policy_without_modifying_convers
     class StopBeforeServing(Exception):
         pass
 
-    def observe(*args, **kwargs):
-        state = kwargs["agent_policy"].snapshot()
+    def observe(worker, *_args, **kwargs):
+        policy_owner = kwargs["agent_policy"]
+        state = policy_owner.snapshot()
         assert state.source == source and state.request_admission == "unavailable"
         assert state.catalog_status == ("unavailable" if source == "host" else "not_selected")
         assert configured_prompt(config) == expected_prompt
+        assert policy_owner.active().source == active_source
+        if persisted == "corrupt":
+            with pytest.raises(AgentPolicySettingsUnavailable):
+                policy_owner.settings_snapshot()
+        operations = kwargs["agent_operations"]
+        assert (operations is not None) is (with_agent and active_source in {"host", "saved"})
+        if operations is not None:
+            assert operations.journal is worker.journal
+            assert operations.policy is policy_owner
+            assert not operations.runtime_snapshot().new_request_available
         raise StopBeforeServing
 
     monkeypatch.setattr("services.decisions.runtime.DecisionsWorker", worker)
@@ -158,5 +198,28 @@ def test_official_launcher_wires_separate_agent_policy_without_modifying_convers
         service="decisions",
         port=None,
     )
+    store = args.data_dir / POLICY_STORE_NAME
+    if persisted == "corrupt":
+        args.data_dir.mkdir(mode=0o700)
+        store.write_text("Synthetic corrupt policy")
+        store.chmod(0o600)
+    elif persisted is not None:
+        settings = AgentPolicySettings(store, args.workspace)
+        try:
+            settings.change(
+                DecisionsAgentPolicyChange(
+                    expected_backend=settings.backend,
+                    expected_instance=settings.instance,
+                    expected_revision=0,
+                    idempotency_key="persisted-selection",
+                    selection={
+                        "source": persisted,
+                        "policy": POLICY if persisted == "saved" else None,
+                    },
+                ),
+                check_policy=lambda _: None,
+            )
+        finally:
+            settings.close()
     with pytest.raises(StopBeforeServing):
         launcher.serve(args)

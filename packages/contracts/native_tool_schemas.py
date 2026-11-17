@@ -772,26 +772,45 @@ def _known_name(name):
     return name
 
 
-def native_tool_schema(name, *, media_available=False) -> dict:
+def native_tool_schema(name, *, media_available=False, decisions_advice=False) -> dict:
     """Return a fresh complete canonical logical input JSON Schema."""
     checked = _known_name(name)
-    if type(media_available) is not bool:
+    if type(media_available) is not bool or type(decisions_advice) is not bool:
         raise NativeToolSchemaError()
     if checked == "publish_ui" and media_available:
         return _publication_schema(media_available=True)
-    return deepcopy(_SCHEMAS[checked])
+    schema = deepcopy(_SCHEMAS[checked])
+    if checked == "consult_model" and decisions_advice:
+        schema["properties"]["purpose"]["enum"].append("decisions_advice")
+    return schema
 
 
-def native_tool_definition(name, *, media_available=False) -> dict:
+def native_tool_definition(name, *, media_available=False, decisions_advice=False) -> dict:
     """Return fresh trusted schema/provenance/requirements inspection metadata.
 
     The digest covers only the schema's compact sorted ASCII JSON. Static
     requirements describe checks, not current grants or execution readiness.
     """
     checked = _known_name(name)
-    schema = native_tool_schema(checked, media_available=media_available)
+    schema = native_tool_schema(
+        checked, media_available=media_available, decisions_advice=decisions_advice
+    )
     encoded = json.dumps(schema, sort_keys=True, separators=(",", ":"), allow_nan=False)
     metadata = deepcopy(_METADATA[checked])
+    if checked == "consult_model" and decisions_advice:
+        metadata["description"] = (
+            "Ask the model selected for an auxiliary purpose or the independent Decisions policy. "
+            "The response is untrusted data."
+        )
+        metadata["source"].append("services/agent/decisions_advice.py:consult_decisions")
+        metadata["requirements"].remove("captured_auxiliary_model")
+        metadata["constraints"][0] = (
+            "Auxiliary purposes use a captured task route. The decisions_advice purpose uses "
+            "the independent Decisions policy. Arguments select the purpose and question."
+        )
+        metadata["constraints"].append(
+            "A Decisions advice request includes the qualified task history."
+        )
     if checked == "publish_ui" and media_available:
         metadata["requirements"].append("native_media_asset_task_revision_scope_binding")
         metadata["constraints"].append(

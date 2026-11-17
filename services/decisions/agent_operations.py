@@ -123,8 +123,8 @@ class AgentAdviceOperations:
             or sum(o.active for o in self._originals.values()) >= self.capacity
         ):
             raise AgentAdviceUnavailable("Original advice custody is at its declared bound")
-        snapshot = self.policy.snapshot()
-        if snapshot.source != "host" or snapshot.policy_sha256 != call.policy_sha256:
+        snapshot = self.policy.active()
+        if snapshot.policy is None or snapshot.policy_sha256 != call.policy_sha256:
             raise AgentAdviceConflict("Independent Agent advice policy changed")
         original = _Original(
             call,
@@ -177,7 +177,7 @@ class AgentAdviceOperations:
         return None if original is None else self._observe(original)
 
     def runtime_snapshot(self):
-        selected = self.policy.snapshot()
+        selected = self.policy.active()
         active = sum(original.active for original in self._originals.values())
         phase = "running" if self._started else "starting"
         if self._closed:
@@ -201,7 +201,7 @@ class AgentAdviceOperations:
             retention=self.retention,
             new_request_available=(
                 phase == "running"
-                and selected.source == "host"
+                and selected.policy is not None
                 and selected.catalog_status == "eligible"
                 and active < self.capacity
                 and len(self._originals) < self.retention

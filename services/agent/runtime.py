@@ -577,9 +577,11 @@ class AgentRuntime:
         mcp_controller: Any | None = None,
         artifact_store: Any | None = None,
         task_preworker_hook: Any | None = None,
+        decisions_advice: Any | None = None,
     ) -> None:
         self.journal = journal
         self.provider = provider
+        self.decisions_advice = decisions_advice
         self.model_settings = None
         self.context_observations = ContextObservations("agent")
         self.runtime_settings = None
@@ -644,6 +646,9 @@ class AgentRuntime:
     def workspace_operation_state(self):
         """Actual owners, including cancelled callers whose native work remains."""
         records = tuple(self._tasks.values())
+        advice_pending, advice_failed = (
+            self.decisions_advice.custody() if self.decisions_advice is not None else (0, 0)
+        )
         exchanges = (
             *tuple(getattr(self.journal, "_submit_exchanges", ())),
             *tuple(getattr(self.standing_resource_client, "_submit_exchanges", ())),
@@ -694,9 +699,8 @@ class AgentRuntime:
                 getattr(actor, "_current", None) is not None or not actor._queue.empty()
                 for actor in actors
             ),
-            "cleanup_pending": sum(
-                not lease.settled and not failed_lease(lease) for lease in leases
-            )
+            "cleanup_pending": advice_pending
+            + sum(not lease.settled and not failed_lease(lease) for lease in leases)
             + sum(not owner.operation.done() for owner in self._resource_completions)
             + int(self._resource_retirement is not None and not self._resource_retirement.done())
             + sum(
@@ -708,7 +712,8 @@ class AgentRuntime:
                 for owner in self._standing_claims
             )
             + int(self._standing_shutdown is not None and not self._standing_shutdown.done()),
-            "cleanup_failed": int(
+            "cleanup_failed": advice_failed
+            + int(
                 self._workspace_cleanup_failed
                 or getattr(self.journal, "_submit_cleanup_failed", False)
                 or getattr(self.standing_resource_client, "_submit_cleanup_failed", False)
@@ -2583,6 +2588,9 @@ class AgentRuntime:
                         "op": "steer-rejected",
                         "actor": pending["actor"],
                         "reason": "source_changed_before_boundary",
+                        "steer_event_id": pending["intent_event_id"],
+                        "intent_digest": pending["intent_digest"],
+                        "objective_revision": rec.task.objective_revision,
                     },
                 )
                 return
@@ -3024,6 +3032,8 @@ class AgentRuntime:
                 pass
         if self.model_settings is not None:
             await self.model_settings.close()
+        if self.decisions_advice is not None and not await self.decisions_advice.close():
+            self._workspace_cleanup_failed = True
         artifact_store, self.artifact_store = self.artifact_store, None
         if artifact_store is not None:
             artifact_store.close()
@@ -3671,6 +3681,18 @@ class AgentRuntime:
             if self.selector_registry is not None
             else "seed-v1"
         )
+        record = self._tasks.get(task.task_id) if task is not None else None
+        advice = self.decisions_advice is not None and (
+            task is None
+            or (
+                record is not None
+                and record.task is task
+                and record.submit_confirmed
+                and not record.recovered
+                and record.standing_initial is None
+                and record.native_task_identity is not None
+            )
+        )
         return native_tool_snapshot(
             selector_available=(
                 self.selector_registry is not None
@@ -3688,6 +3710,7 @@ class AgentRuntime:
                 else self.model_settings is not None
                 and self.model_settings.auxiliary_configured(harness)
             ),
+            decisions_advice=advice,
             catalog_available=True,
             task_harness_available=task_harness_available(self, task),
             task_program_available=task_program_available(self, task),
@@ -3712,6 +3735,7 @@ class AgentRuntime:
                 tuple(name for name in snapshot.available_tools if name not in disabled),
                 owner_disabled=disabled,
                 owner_revision=revision,
+                decisions_advice=snapshot.decisions_advice and "consult_model" not in disabled,
             )
         except (ValueError, RuntimeError, OSError, sqlite3.Error):
             raise PolicyDenied("Native capability availability is unavailable") from None
@@ -3935,6 +3959,23 @@ class AgentRuntime:
             return
         await self._complete_terminal(rec, TaskState.CANCELLED, error="cancelled by owner")
 
+    def _capture_retained_disclosure(self, rec: _Record, provider_info):
+        guards = []
+        if self.skill_service is not None:
+            guards.append(
+                self.skill_service.capture_task_disclosure(
+                    rec.task.task_id,
+                    provider_info,
+                    user_skill_id=rec.explicit_skill,
+                    expected_skill_ids=frozenset(rec.used_skills),
+                )
+            )
+        if self.plugin_service is not None:
+            guards.append(
+                self.plugin_service.capture_task_disclosure(self._plugin_task(rec), provider_info)
+            )
+        return guards
+
     async def _complete(self, rec: _Record, tools: NativeToolSnapshot) -> str:
         """Admit one exact request, preserving whole native history exchanges.
 
@@ -3966,20 +4007,7 @@ class AgentRuntime:
         history = [dict(turn) for turn in rec.history]
         harness_description = copy.deepcopy(rec.task_harness_description)
         guards = tuple(rec.catalog_guards.items())
-        retained_guards = []
-        if not standing and self.skill_service is not None:
-            retained_guards.append(
-                self.skill_service.capture_task_disclosure(
-                    rec.task.task_id,
-                    provider_info,
-                    user_skill_id=rec.explicit_skill,
-                    expected_skill_ids=frozenset(rec.used_skills),
-                )
-            )
-        if not standing and self.plugin_service is not None:
-            retained_guards.append(
-                self.plugin_service.capture_task_disclosure(self._plugin_task(rec), provider_info)
-            )
+        retained_guards = () if standing else self._capture_retained_disclosure(rec, provider_info)
 
         def identity():
             task = rec.task
