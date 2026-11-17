@@ -1,5 +1,10 @@
 # Native consumption ledger qualification (#623)
 
+This is the historical ledger-only record at `c6fee11bcefa6b04a05f6894c2b3b8c669236498`.
+The later [native Agent consumer record](../live-agent-consumption-2026-11-16/README.md)
+qualifies the actual dispatcher and its additional discovery/evidence/source contracts.
+The results and limitations below describe the original ledger increment.
+
 This record covers the gated [consumption boundary](../../live-effect-consumption.md),
 branch `codex/623-live-consumers`, based on
 `04659d966d75afe4afd51c65abafdd4743adf824`. It also carries the parent input

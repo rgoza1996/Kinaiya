@@ -644,6 +644,12 @@ def schema_pin():
         "LiveEffectFinish",
         "LiveEffectRecord",
         "LiveEffectState",
+        "LiveEffectPendingQuery",
+        "LiveEffectPendingItem",
+        "LiveEffectPendingPage",
+        "LiveEffectEvidenceState",
+        "LiveAgentSourceQuery",
+        "LiveAgentSourceState",
     }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),

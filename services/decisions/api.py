@@ -19,7 +19,16 @@ def create_app(
     *,
     model_settings=None,
     live_worker=None,
+    live_dispatcher=None,
 ):
+    if live_dispatcher is not None:
+        from services.decisions.live_agent import LiveAgentDispatcher
+
+        if (
+            not isinstance(live_dispatcher, LiveAgentDispatcher)
+            or live_dispatcher.journal is not worker.journal
+        ):
+            raise ValueError("Live Agent routing requires its original native journal owner")
     if live_worker is not None:
         from services.decisions.live_worker import LiveDecisionsWorker
 
@@ -48,6 +57,10 @@ def create_app(
             if w is not None
         ]
         live_task = asyncio.create_task(live_worker.run()) if live_worker is not None else None
+        live_agent_task = (
+            asyncio.create_task(live_dispatcher.run()) if live_dispatcher is not None else None
+        )
+        state["live_agent_task"] = live_agent_task
         state.update(started=True, tasks=(task, *extras), live_task=live_task)
         try:
             yield
@@ -59,6 +72,10 @@ def create_app(
             if live_task is not None:
                 live_task.cancel()
             try:
+                if live_dispatcher is not None:
+                    state["live_agent_cleanup_confirmed"] = await live_dispatcher.close()
+                    if live_agent_task.done():
+                        await asyncio.gather(live_agent_task, return_exceptions=True)
                 await asyncio.gather(
                     task,
                     *extras,

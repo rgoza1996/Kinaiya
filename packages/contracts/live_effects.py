@@ -16,6 +16,10 @@ MAX_STRUCTURE_DEPTH = 16
 MAX_STRUCTURE_NODES = 1024
 
 
+class LiveEffectRefused(ValueError):
+    """The native metadata operation was definitively refused before a new start."""
+
+
 def effect_key(receipt):
     return "live-effect:" + receipt.receipt_id
 

@@ -6,15 +6,19 @@ import sqlite3
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from packages.contracts.live_agent_sources import LiveAgentSourceQuery
+from packages.contracts.live_effect_pending import MAX_PAGE_BYTES, LiveEffectPendingQuery
 from packages.contracts.live_effects import (
     MAX_REQUEST_BYTES,
     MAX_RESPONSE_BYTES,
     LiveEffectAdmit,
     LiveEffectFinish,
     LiveEffectQuery,
+    LiveEffectReceipt,
     LiveEffectStart,
     effect_json,
 )
+from services.session.live_agent_sources import authority
 from services.session.live_effects import LiveEffectConflict
 
 BASE = "/v2/transcript/live-effects"
@@ -58,7 +62,7 @@ def install_live_effects(app, store, auth):
             response = JSONResponse(
                 result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
             )
-            if len(response.body) > MAX_RESPONSE_BYTES:
+            if len(response.body) > (MAX_PAGE_BYTES if method == "pending" else MAX_RESPONSE_BYTES):
                 raise ValueError("Live consumer response exceeds its bound")
             return response
         except LiveEffectConflict:
@@ -78,6 +82,37 @@ def install_live_effects(app, store, auth):
     async def lookup(request: Request):
         original, _ = await body(request, LiveEffectQuery, read)
         return invoke("lookup", original)
+
+    @app.post(
+        BASE + "/pending",
+        dependencies=[Depends(read)],
+        openapi_extra=schema(LiveEffectPendingQuery),
+    )
+    async def pending(request: Request):
+        original, _ = await body(request, LiveEffectPendingQuery, read)
+        return invoke("pending", original)
+
+    @app.post(
+        BASE + "/evidence", dependencies=[Depends(read)], openapi_extra=schema(LiveEffectReceipt)
+    )
+    async def evidence(request: Request):
+        original, _ = await body(request, LiveEffectReceipt, read)
+        return invoke("evidence", original)
+
+    @app.post(
+        BASE + "/source-authority",
+        dependencies=[Depends(read)],
+        openapi_extra=schema(LiveAgentSourceQuery),
+    )
+    async def source_authority(request: Request):
+        original, _ = await body(request, LiveAgentSourceQuery, read)
+        try:
+            result = authority(store, original)
+            return JSONResponse(
+                result.model_dump(mode="json"), headers={"Cache-Control": "no-store"}
+            )
+        except (ValueError, KeyError, TypeError, sqlite3.Error, RecursionError):
+            raise HTTPException(503, "Native live Agent source remains unqualified") from None
 
     @app.post(
         BASE + "/admit", dependencies=[Depends(mutate)], openapi_extra=schema(LiveEffectAdmit)

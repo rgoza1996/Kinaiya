@@ -26,10 +26,13 @@ from packages.contracts import (
     decisions_models,
     decisions_prompts,
     journal_wake,
+    live_agent_sources,
     live_captures,
     live_decisions,
     live_decisions_attempts,
     live_decisions_pending,
+    live_effect_evidence,
+    live_effect_pending,
     live_effects,
     live_readiness,
     live_streams,
@@ -171,6 +174,19 @@ for name in (
 for name in ("LiveDecisionsPendingQuery", "LiveDecisionsPendingPage"):
     cls = getattr(live_decisions_pending, name)
     (target / f"{name}.json").write_text(json.dumps(cls.model_json_schema(), indent=2) + "\n")
+
+for module, names in (
+    (
+        live_effect_pending,
+        ("LiveEffectPendingQuery", "LiveEffectPendingItem", "LiveEffectPendingPage"),
+    ),
+    (live_effect_evidence, ("LiveEffectEvidenceState",)),
+    (live_agent_sources, ("LiveAgentSourceQuery", "LiveAgentSourceState")),
+):
+    for name in names:
+        (target / f"{name}.json").write_text(
+            json.dumps(getattr(module, name).model_json_schema(), indent=2) + "\n"
+        )
 
 (target / "LiveDecisionsReadiness.json").write_text(
     json.dumps(live_readiness.LiveDecisionsReadiness.model_json_schema(), indent=2) + "\n"

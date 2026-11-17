@@ -302,6 +302,25 @@ def test_queued_agent_route_survives_mic_end_but_requires_unchanged_user_authori
     ).source_current
 
 
+@pytest.mark.parametrize(
+    "route", ["QUEUE_UNTIL_TASK_DONE", "STEER_CURRENT_TASK", "INTERRUPT_CURRENT_TASK"]
+)
+def test_published_agent_route_can_be_reserved_after_microphone_end(live, route):
+    proof = outcome(live, "IGNORE", route)
+    live.store.live_captures.fence(fence(live.source.capture.original))
+    request = LiveEffectAdmit(
+        schema_version="2.0",
+        protocol=PROTOCOL,
+        publication=proof,
+        effect="agent_route",
+        owner_instance="c" * 32,
+        operation_id="d" * 32,
+    )
+    record = live.store.live_effects.admit(request, "decisions")
+    assert record.receipt.original == request
+    assert start_record(live, record, owner="e" * 32).started is not None
+
+
 def test_changed_queued_instruction_cannot_start_under_its_old_reservation(live):
     proof = outcome(live, "IGNORE", "QUEUE_UNTIL_TASK_DONE")
     request = LiveEffectAdmit(
@@ -421,6 +440,38 @@ def test_native_restart_preserves_queued_reservation_and_never_regrants_started_
             assert recovered.live_effects.lookup(query).record == record
     finally:
         recovered.close()
+
+
+def test_unknown_started_handoff_cannot_make_a_later_queue_assume_agent_is_idle(live):
+    proof = outcome(live, "IGNORE", "QUEUE_UNTIL_TASK_DONE")
+    first = LiveEffectAdmit(
+        schema_version="2.0",
+        protocol=PROTOCOL,
+        publication=proof,
+        effect="agent_route",
+        owner_instance="c" * 32,
+        operation_id="d" * 32,
+    )
+    start_record(live, live.store.live_effects.admit(first, "decisions"))
+    pair = publish(live.store, original(live, 1, utterance_id="public-second-queue"))
+    later = SimpleNamespace(
+        **(
+            vars(live)
+            | {
+                "pair": pair,
+                "source": LiveDecisionsSource.of(pair, live.source.capture),
+            }
+        )
+    )
+    second = first.model_copy(
+        update={
+            "publication": outcome(later, "IGNORE", "QUEUE_UNTIL_TASK_DONE"),
+            "operation_id": "e" * 32,
+        }
+    )
+    reservation = live.store.live_effects.admit(second, "decisions")
+    with pytest.raises(LiveEffectConflict):
+        start_record(later, reservation, owner="f" * 32)
 
 
 def test_no_recorded_or_uncertain_effect_can_be_claimed_before_native_start(effects):

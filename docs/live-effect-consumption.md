@@ -1,8 +1,9 @@
 # Native live outcome consumption (#623)
 
-Status: gated development boundary. The normal host, browser Call and existing
-v1 Converse/Agent consumers do not invoke this API. This ledger alone does not
-establish a running v2 consumer or complete Adaptive Live.
+Status: gated development boundary. An explicit [native Agent consumer](live-agent-consumption.md)
+now uses it in trusted embeddings. The normal host and browser Call do not
+enable a v2 consumer. Legacy speech sources gain no live revision equivalence.
+This ledger alone does not complete Adaptive Live.
 
 Session owns `native_live_effect_v2`, schema 2.0, under
 `/v2/transcript/live-effects/{lookup,admit,start,finish}`. Its nine exported root
@@ -16,7 +17,8 @@ two; Decisions owns the last. The original decision must actually select that
 effect. Reads grant nothing and create no table, reservation, inference or wake.
 Owner, Converse, Decisions and Agent can look up metadata; Resources cannot.
 
-Admission requires current native capture/source authority. A separate atomic
+Converse admission requires current native capture/source authority. A published
+Agent outcome retains independent user authority after microphone closure. A separate atomic
 start binds one actual executor instance and operation. An unstarted reservation
 can be adopted after owner replacement. Once started, a different executor is
 refused. An identical request reads its original marker: this is not a second
@@ -24,8 +26,8 @@ effect grant. The eventual consumer must retain its one actual execution Task,
 reconcile native evidence after uncertain acknowledgments and prevent duplicate
 execution on idempotent readback.
 
-Queued Agent routing reserved with positive capture permission can start after
-the microphone ends. Session/thread/epoch, original text, disclosure scope and
+Published Agent routing can be reserved and started after the microphone ends.
+Session/thread/epoch, original text, disclosure scope and
 STT binding must still match current native user authority. A later authenticated
 v2 interrupt fences earlier queued sources, including other utterances in that
 scope. Ordering uses actual source sequence, so delayed publication of an older
@@ -54,7 +56,8 @@ own depth/node limits; the frozen STT parser stays unchanged. JournalClient keep
 the original bounded HTTP read and sole close after facade cancellation and
 performs no automatic write replay. LocalJournal preserves role parity.
 
-Actual v2 consumers, their recovery/discovery and native Agent source admission,
-Converse output/playback, Call integration, representative timings and qualified
+The explicit Agent consumer has bounded discovery and native evidence/source
+qualification. Actual Converse output/playback, complete process replacement,
+Call integration, representative timings and qualified
 rollout remain outstanding in #623. Model quality is diagnostic and is not an
 acceptance gate.

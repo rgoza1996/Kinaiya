@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "8ed88ad894d81ddde7a5b87cdaad5afff7a73cfd6873f5ebfccbaeb1e3235738",
+  "content": "F                                                                        [100%]\n=================================== FAILURES ===================================\n_ test_unknown_started_handoff_cannot_make_a_later_queue_assume_agent_is_idle __\ntests/integration/test_live_effects.py:461: in test_unknown_started_handoff_cannot_make_a_later_queue_assume_agent_is_idle\n    with pytest.raises(LiveEffectConflict):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   Failed: DID NOT RAISE LiveEffectConflict\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_effects.py::test_unknown_started_handoff_cannot_make_a_later_queue_assume_agent_is_idle\n1 failed in 0.41s\n"
+}

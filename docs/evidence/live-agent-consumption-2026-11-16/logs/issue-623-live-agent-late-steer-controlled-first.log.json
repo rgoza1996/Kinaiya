@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "2953f4bbf96636f39f8b00dd91471edcaafef410e82fd7354ddcb59ba36b7e8f",
+  "content": "F                                                                        [100%]\n=================================== FAILURES ===================================\n_ test_benign_raw_revision_after_steer_acceptance_cannot_block_execution_boundary _\ntests/integration/test_live_agent_consumer.py:389: in test_benign_raw_revision_after_steer_acceptance_cannot_block_execution_boundary\n    assert updated.objective_revision == 2, updated.error\nE   AssertionError: provider error: Synthetic fixture exhausted\nE   assert 1 == 2\nE    +  where 1 = Task(schema_version='1.0', task_id='975b4fca-f996-430a-8cbe-1074d1b2eb0d', session_id='5f7872be-f478-43a3-9651-f28f8fe...seed-v1', model_pin=None, auxiliary_models={}, workspace_pin=None, error='provider error: Synthetic fixture exhausted').objective_revision\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_agent_consumer.py::test_benign_raw_revision_after_steer_acceptance_cannot_block_execution_boundary\n1 failed in 0.65s\n"
+}

@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "5ef77806ed92350147649a9e82bfd94655d38cf3c69ffa7f3c7cd6ad0f73e353",
+  "content": "......F................................................................. [ 80%]\n..................                                                       [100%]\n=================================== FAILURES ===================================\n___ test_owned_service_loop_wakes_on_native_publication_without_idle_polling ___\ntests/integration/test_live_agent_consumer.py:281: in test_owned_service_loop_wakes_on_native_publication_without_idle_polling\n    assert finalized.closed and not dispatcher.running\nE   assert (False)\nE    +  where False = <test_live_agent_consumer.test_owned_service_loop_wakes_on_native_publication_without_idle_polling.<locals>.PassiveFinalized object at 0x78db87f9ecf0>.closed\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_agent_consumer.py::test_owned_service_loop_wakes_on_native_publication_without_idle_polling\n1 failed, 89 passed in 5.79s\n"
+}

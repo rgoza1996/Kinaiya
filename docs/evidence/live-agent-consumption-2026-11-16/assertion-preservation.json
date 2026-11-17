@@ -1,0 +1,17 @@
+{
+  "tests/integration/test_live_effects.py": {
+    "original_assertions": 35,
+    "current_assertions": 37,
+    "all_original_assertions_ast_preserved": true
+  },
+  "tests/unit/test_live_effect_contracts.py": {
+    "original_assertions": 5,
+    "current_assertions": 9,
+    "all_original_assertions_ast_preserved": true
+  },
+  "tests/unit/test_standing_resource_finalization_contracts.py": {
+    "original_assertions": 74,
+    "current_assertions": 74,
+    "all_original_assertions_ast_preserved": true
+  }
+}

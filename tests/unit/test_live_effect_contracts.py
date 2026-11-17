@@ -6,7 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from packages.contracts import live_effects
+from packages.contracts import (
+    live_agent_sources,
+    live_effect_evidence,
+    live_effect_pending,
+    live_effects,
+)
 
 NAMES = (
     "LiveEffectQuery",
@@ -33,6 +38,34 @@ def test_live_effect_exports_have_separate_closed_required_bytes():
     for name in NAMES:
         schema = json.loads((root / (name + ".json")).read_bytes())
         assert schema == getattr(live_effects, name).model_json_schema()
+        assert schema["additionalProperties"] is False
+        assert set(schema["required"]) == set(schema["properties"])
+
+
+def test_recovery_and_source_metadata_exports_are_separately_pinned():
+    root = Path(__file__).resolve().parents[2] / "packages/contracts/schemas"
+    classes = [
+        live_effect_pending.LiveEffectPendingQuery,
+        live_effect_pending.LiveEffectPendingItem,
+        live_effect_pending.LiveEffectPendingPage,
+        live_effect_evidence.LiveEffectEvidenceState,
+        live_agent_sources.LiveAgentSourceQuery,
+        live_agent_sources.LiveAgentSourceState,
+    ]
+    raw = b"".join(
+        (cls.__name__ + ".json").encode()
+        + b"\0"
+        + (root / (cls.__name__ + ".json")).read_bytes()
+        + b"\0"
+        for cls in sorted(classes, key=lambda cls: cls.__name__)
+    )
+    assert (
+        hashlib.sha256(raw).hexdigest()
+        == "3569f118f7f114e1927c5e54c6a0e6812ff8458fae3117a9afd043ef8451d888"
+    )
+    for cls in classes:
+        schema = json.loads((root / (cls.__name__ + ".json")).read_bytes())
+        assert schema == cls.model_json_schema()
         assert schema["additionalProperties"] is False
         assert set(schema["required"]) == set(schema["properties"])
 

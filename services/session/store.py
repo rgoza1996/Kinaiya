@@ -2003,6 +2003,23 @@ class LocalJournal:
             raise PermissionError("Native live consumption lookup requires an authorized role")
         return self.store.live_effects.lookup(request)
 
+    async def pending_live_effects(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native live pending lookup requires an authorized role")
+        return self.store.live_effects.pending(request)
+
+    async def live_effect_evidence(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native Agent evidence lookup requires an authorized role")
+        return self.store.live_effects.evidence(request)
+
+    async def live_agent_source_authority(self, request):
+        if self.role not in {"owner", "converse", "decisions", "agent"}:
+            raise PermissionError("Native Agent source qualification requires an authorized role")
+        from services.session.live_agent_sources import authority
+
+        return authority(self.store, request)
+
     async def live_effect_admit(self, request):
         return self.store.live_effects.admit(request, self.role)
 
