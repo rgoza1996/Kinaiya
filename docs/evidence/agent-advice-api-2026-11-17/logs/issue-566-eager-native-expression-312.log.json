@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "fd2756597aff3ec0b075ccf3ebd2bd3cf3dec29a9d0d4bd2950af2cb19e5aa40",
+  "text": "{\"version\": \"3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]\", \"executable\": \"/usr/bin/python3.12\", \"statement\": \"asyncio.eager_task_factory\", \"source_line\": 577}\nExact native eager factory expression resolves\n"
+}

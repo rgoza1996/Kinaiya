@@ -1952,6 +1952,13 @@ class LocalJournal:
             raise PermissionError("Agent export admission requires Agent")
         return self.store.agent_export_admission(request)
 
+    async def agent_advice_export_admission(self, request):
+        if self.role != "decisions":
+            raise PermissionError("Agent advice export admission requires Decisions")
+        from services.session.agent_advice import admit_export
+
+        return admit_export(self.store, request)
+
     async def admit_submit(self, request):
         return self.store.admit_submit(request, self.role)
 

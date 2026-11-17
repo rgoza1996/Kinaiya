@@ -20,7 +20,18 @@ def create_app(
     model_settings=None,
     live_worker=None,
     live_dispatcher=None,
+    agent_policy=None,
+    agent_operations=None,
 ):
+    if agent_operations is not None:
+        from services.decisions.agent_operations import AgentAdviceOperations
+
+        if (
+            not isinstance(agent_operations, AgentAdviceOperations)
+            or agent_operations.policy is not agent_policy
+            or agent_operations.journal is not worker.journal
+        ):
+            raise ValueError("Agent advice requires its original native policy and journal owners")
     if live_dispatcher is not None:
         from services.decisions.live_agent import LiveAgentDispatcher
 
@@ -50,6 +61,8 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app):
+        if agent_operations is not None:
+            await agent_operations.start()
         task = asyncio.create_task(worker.run())
         extras = [
             asyncio.create_task(w.run())
@@ -83,10 +96,24 @@ def create_app(
                     return_exceptions=True,
                 )
             finally:
-                if model_settings is not None:
-                    await model_settings.close()
+                try:
+                    if agent_operations is not None:
+                        state["agent_advice_cleanup_confirmed"] = await agent_operations.close()
+                finally:
+                    if model_settings is not None:
+                        await model_settings.close()
 
     app = FastAPI(title="Kinaiya Decisions", lifespan=lifespan)
+
+    if agent_operations is not None:
+        from services.decisions.agent_advice_api import router as agent_advice_router
+
+        app.include_router(agent_advice_router(agent_operations, auth))
+
+    if agent_policy is not None:
+        from services.decisions.agent_policy import router as agent_policy_router
+
+        app.include_router(agent_policy_router(agent_policy, auth))
 
     def routing_phase():
         # This is routing-runtime readiness, not a model/GPU probe or an Agent
@@ -181,6 +208,7 @@ def create_app(
         from services.decisions.model_api import router
 
         app.include_router(router(model_settings, auth))
+    if model_settings is not None or agent_policy is not None:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=list(auth.allowed_origins),

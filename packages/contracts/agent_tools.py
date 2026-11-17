@@ -240,6 +240,27 @@ def capture_agent_export_admission():
 
 
 @contextmanager
+def advisory_text_scope(check, admission):
+    """Bind measured advisory uploads without exporting execution-tool metadata."""
+    if not callable(check) or not callable(admission):
+        raise ValueError("Advisory text requires native export checks and admission")
+    previous = capture_agent_export_check()
+
+    def permitted():
+        return previous() and check() is True
+
+    tools_token = _agent_tools.set(None)
+    guard_token = _agent_export_guard.set(permitted)
+    admission_token = _agent_export_admission.set(admission)
+    try:
+        yield
+    finally:
+        _agent_export_admission.reset(admission_token)
+        _agent_export_guard.reset(guard_token)
+        _agent_tools.reset(tools_token)
+
+
+@contextmanager
 def agent_export_scope(check: Callable[[], bool]) -> Iterator[None]:
     """Add an export condition without replacing the caller's native guard."""
     if not callable(check):

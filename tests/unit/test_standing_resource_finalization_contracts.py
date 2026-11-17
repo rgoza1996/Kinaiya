@@ -651,6 +651,17 @@ def schema_pin():
         "LiveStreamRetireProof",
     }
     # Native consumer ownership has its own independently pinned family.
+    # #566: optional Agent policy inspection is additive; retain original184.
+    additive |= {"DecisionsAgentPolicy", "DecisionsAgentPolicyState"}
+    additive |= {"AgentAdviceExportRequest", "AgentAdviceExportAdmission"}
+    additive |= {
+        "AgentAdviceCall",
+        "AgentAdviceLookup",
+        "AgentAdviceModelPin",
+        "AgentAdviceObservation",
+        "AgentAdviceLookupResponse",
+        "AgentAdviceRuntimeState",
+    }
     additive |= {
         "LiveEffectQuery",
         "LiveEffectAdmit",

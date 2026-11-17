@@ -1,0 +1,190 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "DecisionsAgentPolicy": {
+      "additionalProperties": false,
+      "description": "Host-owned optional advisory policy, referencing Core's existing catalog.",
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "consumer": {
+          "const": "agent",
+          "default": "agent",
+          "title": "Consumer",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "measured_agent_advice_v1",
+          "default": "measured_agent_advice_v1",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
+        },
+        "instructions": {
+          "maxLength": 8192,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "content_scope": {
+          "default": "local_only",
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "title": "Content Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalog_binding",
+        "instructions"
+      ],
+      "title": "DecisionsAgentPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Read-only configuration observation, never model or request readiness.",
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "owner": {
+      "const": "decisions",
+      "default": "decisions",
+      "title": "Owner",
+      "type": "string"
+    },
+    "consumer": {
+      "const": "agent",
+      "default": "agent",
+      "title": "Consumer",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "host",
+        "unconfigured",
+        "invalid_host"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DecisionsAgentPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "policy_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy Sha256"
+    },
+    "catalog_status": {
+      "enum": [
+        "not_selected",
+        "eligible",
+        "unavailable"
+      ],
+      "title": "Catalog Status",
+      "type": "string"
+    },
+    "observation": {
+      "const": "catalog_metadata_only",
+      "default": "catalog_metadata_only",
+      "title": "Observation",
+      "type": "string"
+    },
+    "change_boundary": {
+      "const": "restart_required",
+      "default": "restart_required",
+      "title": "Change Boundary",
+      "type": "string"
+    },
+    "request_admission": {
+      "const": "unavailable",
+      "default": "unavailable",
+      "title": "Request Admission",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source",
+    "policy",
+    "catalog_status"
+  ],
+  "title": "DecisionsAgentPolicyState",
+  "type": "object"
+}

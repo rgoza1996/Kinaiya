@@ -1,0 +1,84 @@
+{
+  "utc": "2026-11-17T15:37:22.829366+00:00",
+  "baseline": "ea3ecccfd3d39c388dd99ac24850dcdb745660e2",
+  "branch": "codex/566-decisions-consumers",
+  "parent_pr": 683,
+  "issues": [
+    566,
+    567,
+    688
+  ],
+  "scope": "configuration inspection only; request admission unavailable",
+  "runs": [
+    {
+      "name": "issue-566-policy-first-313",
+      "exit_code": 1,
+      "log_sha256": "a11be7e676fc0288906258890b58b5c8cb241ca6ae4c3a4c97af3ffdab4ee5ea",
+      "final": false
+    },
+    {
+      "name": "issue-688-fixture-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "510a8266d671f373296016f1036fbd66456b9296d174bb971afc07c1c0bd7155",
+      "final": false
+    },
+    {
+      "name": "issue-566-policy-final-313",
+      "exit_code": 0,
+      "log_sha256": "f2c3e5b81685db4dc7eafd9978cc8dbe373107c12c09b697bbf2cb18246ca181",
+      "final": true
+    },
+    {
+      "name": "issue-566-policy-final-314",
+      "exit_code": 0,
+      "log_sha256": "ef9245b8aef8dd331404f9cff1453af789aa95fa42dbe84d95928d5b17d523a2",
+      "final": true
+    },
+    {
+      "name": "issue-566-ruff-final",
+      "exit_code": 0,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "final": true
+    },
+    {
+      "name": "issue-566-format-final",
+      "exit_code": 0,
+      "log_sha256": "446c19f464d88306ee388b84e258f006ce39472fc0c742efd53f696ccf68df94",
+      "final": true
+    }
+  ],
+  "first_sources": {
+    "packages/contracts/decisions_consumers.py": "b5b97239217ed92273e7b756efbc0fdc29d05d13e34e3a07727b31fcc1ac0ad8",
+    "services/decisions/agent_policy.py": "956368c0f6dd21a6b4f86f0244e972e07ea8ebcba88653ca9d1b2786110a8169",
+    "services/decisions/api.py": "3637787baaf05643410e113d30a546b5ba8947cffed433484568f4e6fc373341",
+    "services/launcher.py": "9a264c93b8c0fa7553475f2a1f899d481d9f5832e0143bafe7c68ceca4a9d45e",
+    "scripts/export_contracts.py": "3326a394c036742ab16241a22433e0ecadca13fb809fe6937c1d1357daed0aac",
+    "tests/unit/test_decisions_consumer_policies.py": "a0c3086fbbddc5098804bb1e40793a6a4e44ccd13a02c03635d022ba1428cbe8"
+  },
+  "final_code_pins": {
+    "packages/contracts/decisions_consumers.py": "3701db131a28eefe799b6c14a4ca05f65f26e23d38d66fa3c1f414cc3dd4ea1e",
+    "services/decisions/agent_policy.py": "28782e9d12df0ca8ccb2c216a702b017cfefbe7cd725775f514867a2c654d26d",
+    "services/decisions/api.py": "3637787baaf05643410e113d30a546b5ba8947cffed433484568f4e6fc373341",
+    "services/launcher.py": "9a264c93b8c0fa7553475f2a1f899d481d9f5832e0143bafe7c68ceca4a9d45e",
+    "scripts/export_contracts.py": "3326a394c036742ab16241a22433e0ecadca13fb809fe6937c1d1357daed0aac",
+    "tests/unit/test_decisions_consumer_policies.py": "85175ecd8a63576b560e70378204304277b60dc918302e9dd868953fa32bb0f3",
+    "tests/integration/test_decisions_consumer_options.py": "11948d3ce1e36256e61deef3ed291218e687f9d4ceacde837f4fdb0da95e613f",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "80bb5f81d8bb20de68739561fd939d92d51f0fb3790bad2d2b113f26d1dbaa7d"
+  },
+  "final_pytest_targets": [
+    "tests/unit/test_decisions_consumer_policies.py",
+    "tests/integration/test_decisions_consumer_options.py",
+    "tests/unit/test_decisions_prompt_config.py",
+    "tests/unit/test_independent_decisions_modes.py",
+    "tests/unit/test_subsystem_topology.py",
+    "tests/unit/test_setup_subsystem_modes.py",
+    "tests/unit/test_core_subsystem_settings.py",
+    "tests/unit/test_core_subsystem_schema_exports.py",
+    "tests/integration/test_required_decisions_readiness.py",
+    "tests/unit/test_required_decisions.py",
+    "tests/integration/test_native_d1_selection.py",
+    "tests/integration/test_openrouter_decisions_selection.py",
+    "tests/unit/test_measured_chat_binding.py",
+    "tests/unit/test_standing_resource_finalization_contracts.py"
+  ]
+}

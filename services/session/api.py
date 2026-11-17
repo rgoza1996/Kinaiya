@@ -292,6 +292,9 @@ def create_app(
     from services.settings.subsystem_api import router as subsystem_router
 
     app.include_router(subsystem_router(subsystem_settings, auth))
+    from services.session.agent_advice_api import router as agent_advice_router
+
+    app.include_router(agent_advice_router(store, auth))
     app.state.core_subsystem_settings = subsystem_settings
     app.state.core_subsystems_shutdown_unconfirmed = False
     app.state.agent_control = control

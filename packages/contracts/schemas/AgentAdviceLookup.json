@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "expected_instance": {
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Expected Instance",
+      "type": "string"
+    },
+    "logical_request_id": {
+      "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+      "title": "Logical Request Id",
+      "type": "string"
+    },
+    "request_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expected_instance",
+    "logical_request_id",
+    "request_sha256"
+  ],
+  "title": "AgentAdviceLookup",
+  "type": "object"
+}

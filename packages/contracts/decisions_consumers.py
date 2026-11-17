@@ -1,0 +1,77 @@
+"""Independent Decisions consumer configuration; no execution authority."""
+
+import hashlib
+import json
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from packages.contracts.models import CatalogModelBinding, ContentScope
+
+
+class _ConsumerContract(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid", strict=True, frozen=True, revalidate_instances="always"
+    )
+    contract_version: Literal[1] = 1
+
+    @field_validator("contract_version", mode="before")
+    @classmethod
+    def exact_version(cls, value):
+        if type(value) is not int or value != 1:
+            raise ValueError("Unsupported Decisions consumer contract version")
+        return value
+
+
+class DecisionsAgentPolicy(_ConsumerContract):
+    """Host-owned optional advisory policy, referencing Core's existing catalog."""
+
+    consumer: Literal["agent"] = "agent"
+    protocol: Literal["measured_agent_advice_v1"] = "measured_agent_advice_v1"
+    catalog_binding: CatalogModelBinding
+    reasoning: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None = None
+    instructions: str = Field(max_length=8192)
+    content_scope: ContentScope = "local_only"
+
+    def fingerprint(self):
+        raw = json.dumps(
+            self.model_dump(), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        return hashlib.sha256(raw).hexdigest()
+
+    @field_validator("instructions")
+    @classmethod
+    def bounded_instructions(cls, value):
+        try:
+            if "\x00" in value or len(value.encode("utf-8")) > 8192:
+                raise ValueError("Agent decision instructions exceed the UTF-8 resource bound")
+        except UnicodeError:
+            raise ValueError("Agent decision instructions require valid UTF-8") from None
+        return value
+
+
+class DecisionsAgentPolicyState(_ConsumerContract):
+    """Read-only configuration observation, never model or request readiness."""
+
+    owner: Literal["decisions"] = "decisions"
+    consumer: Literal["agent"] = "agent"
+    source: Literal["host", "unconfigured", "invalid_host"]
+    policy: DecisionsAgentPolicy | None
+    policy_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    catalog_status: Literal["not_selected", "eligible", "unavailable"]
+    observation: Literal["catalog_metadata_only"] = "catalog_metadata_only"
+    change_boundary: Literal["restart_required"] = "restart_required"
+    request_admission: Literal["unavailable"] = "unavailable"
+
+    @model_validator(mode="after")
+    def coherent_source(self):
+        selected = self.source == "host"
+        if selected != (self.policy is not None and self.policy_sha256 is not None):
+            raise ValueError("Agent decision policy observation has inconsistent provenance")
+        if not selected and (self.policy is not None or self.policy_sha256 is not None):
+            raise ValueError("Unselected Agent decision policy cannot carry a host selection")
+        if selected == (self.catalog_status == "not_selected"):
+            raise ValueError("Agent decision catalog observation has inconsistent selection")
+        if selected and self.policy_sha256 != self.policy.fingerprint():
+            raise ValueError("Agent decision policy digest does not match its host snapshot")
+        return self

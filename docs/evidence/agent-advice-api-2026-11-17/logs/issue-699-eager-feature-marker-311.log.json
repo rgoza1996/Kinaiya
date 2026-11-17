@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "933dcfb8f1529be757c538ce80f6a602de2cb63e28b9eacfc206c5cba5f296e2",
+  "text": "{\"version\": \"3.11.15 (main, Jul 18 2026, 17:02:49) [Clang 22.1.3 ]\", \"skip_native_eager\": true, \"has_native_eager\": false}\n"
+}

@@ -1,0 +1,1630 @@
+"""Independent service launcher and direct Agent CLI. Optional imports stay lazy."""
+
+import argparse
+import asyncio
+import json
+import math
+import os
+import signal
+import subprocess
+import sys
+import time
+from contextlib import AsyncExitStack, asynccontextmanager
+from pathlib import Path
+
+import httpx
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from packages.contracts.models import TaskRequest, new_id  # noqa: E402
+from services.common.auth import Auth, load_or_create_tokens  # noqa: E402
+from services.common.topology import SubsystemTopology  # noqa: E402
+
+PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
+
+# Enable only after the complete native host/Call path and migration are qualified.
+# This release gate is trusted code, not a model/provider or owner intent setting.
+ADAPTIVE_LIVE_ENABLED = False
+
+
+def supervise(commands, *, popen=subprocess.Popen, sleep=time.sleep):
+    """Failed/unloaded components do not stop their healthy peers."""
+    children = {name: [popen(command), command, 0] for name, command in commands.items()}
+    try:
+        while children:
+            for name, (child, command, attempts) in list(children.items()):
+                code = child.poll()
+                if code is None:
+                    continue
+                if code != 0 and attempts < 3:
+                    sleep(0.1 * (attempts + 1))
+                    children[name] = [popen(command), command, attempts + 1]
+                    print(
+                        json.dumps(
+                            {"service": name, "event": "restarted", "attempt": attempts + 1}
+                        ),
+                        flush=True,
+                    )
+                else:
+                    children.pop(name)
+                    print(
+                        json.dumps({"service": name, "event": "unavailable", "exit_code": code}),
+                        flush=True,
+                    )
+            sleep(0.1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        for child, _, _ in children.values():
+            if child.poll() is None:
+                child.send_signal(signal.SIGINT)
+        for child, _, _ in children.values():
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+
+
+def load_config(path):
+    if not path.exists():
+        raise SystemExit(f"Missing configuration: {path}. Run kinaiya init first.")
+    return json.loads(path.read_text())
+
+
+def converse_speech(config, token, *, resource_state=None):
+    """Select STT and TTS independently, keeping service and cloud secrets apart."""
+    from packages.providers.speech import SpeechClient
+
+    voice = config.get("voice")
+    if not voice:
+        return None
+    choice, settings, cloud = voice.get("stt"), {}, None
+    tts_choice, cloud_tts = voice.get("tts"), None
+    tts_settings = None
+    if tts_choice is not None:
+        from packages.providers.openrouter_speech import openrouter_tts_settings
+
+        tts_settings = openrouter_tts_settings(tts_choice)
+    if isinstance(choice, dict) and choice.get("provider") == "meta":
+        from packages.providers.meta_speech import MetaSTTClient, meta_stt_settings
+
+        cloud = MetaSTTClient(**meta_stt_settings(choice))
+    elif choice is not None:
+        from services.resources.client import local_base
+        from services.resources.whistle import ManagedWhistleConfig
+
+        if (
+            config.get("resources", {}).get("enabled") is not True
+            or not isinstance(choice, dict)
+            or set(choice) != {"provider", "url"}
+            or choice["provider"] != "whistle"
+            or local_base(choice["url"])
+            != local_base(config.get("resources_url", "http://127.0.0.1:8764"))
+        ):
+            raise ValueError("Whistle STT must select the managed resources endpoint")
+        managed = ManagedWhistleConfig.model_validate(config["resources"].get("whistle"))
+        settings = {
+            "stt_url": choice["url"],
+            "stt_provider": "whistle",
+            "stt_timeout_s": managed.request_timeout_s,
+        }
+    local = None
+    if cloud is None or tts_settings is None:
+        local = SpeechClient(
+            voice["url"], token, profile=voice.get("profile", "Kokoro 82M"), **settings
+        )
+    if tts_settings is not None:
+        from packages.providers.openrouter_speech import OpenRouterTTSClient
+
+        cloud_tts = OpenRouterTTSClient(**tts_settings)
+    if cloud is not None or cloud_tts is not None:
+        from packages.providers.meta_speech import CloudSTTLocalTTS
+
+        return CloudSTTLocalTTS(
+            local,
+            cloud if cloud is not None else local,
+            tts=cloud_tts,
+            resource_state=resource_state,
+        )
+    return local
+
+
+def converse_native_audio(config, runtime, data_dir, workspace):
+    """Explicit paired host capability, never inferred from a model name.
+
+    The owner supplies and runs the external engine. This first buffered mode
+    supports the host selection only; catalog/resource-managed native audio
+    requires its own admission interface rather than borrowing a text lease.
+    """
+    declared = config.get("native_audio")
+    if declared is None:
+        return None
+    from packages.providers.realtime_audio import RealtimeAudioProvider
+    from services.converse.native_audio import NativeAudioOwner
+
+    if (
+        type(declared) is not dict
+        or set(declared)
+        - {
+            "kind",
+            "base_url",
+            "model",
+            "api_key_env",
+            "max_output_tokens",
+            "timeout",
+            "transcription_connection",
+        }
+        or declared.get("kind") != "realtime_v1"
+        or config.get("resources", {}).get("enabled") is True
+    ):
+        raise ValueError("Native buffered audio declaration is unavailable")
+    host = config.get("providers", {}).get("converse", {})
+
+    def origin(value):
+        if type(value) is not str:
+            raise ValueError("Native audio host pairing is invalid")
+        normalized = value.rstrip("/")
+        return normalized[:-3] if normalized.endswith("/v1") else normalized
+
+    if (
+        host.get("kind") not in {"compatible", "measured_chat"}
+        or host.get("allow_cloud", False) is not False
+        or origin(host.get("base_url")) != origin(declared.get("base_url"))
+        or host.get("model") != declared.get("model")
+        or host.get("api_key_env") != declared.get("api_key_env")
+        or host.get("api_key")
+    ):
+        raise ValueError("Native audio requires the exact explicit local host pair")
+    reference = declared.get("api_key_env")
+    if reference is not None and (
+        type(reference) is not str
+        or not reference.isascii()
+        or not reference.isidentifier()
+        or len(reference) > 128
+        or not os.environ.get(reference)
+    ):
+        raise ValueError("Native audio credential declaration is unavailable")
+    adapter = RealtimeAudioProvider(
+        declared["base_url"],
+        declared["model"],
+        api_key=os.environ.get(reference, "") if reference is not None else "",
+        max_output_tokens=declared.get("max_output_tokens", 512),
+        timeout=declared.get("timeout", 90),
+        transcription_connection=declared.get("transcription_connection", "intent_url"),
+    )
+    return NativeAudioOwner(
+        runtime, adapter, path=data_dir / "native-audio.sqlite", workspace=workspace
+    )
+
+
+def _resolve_api_key_env(config, key_ref: str | None, *, data_dir: str | Path | None = None) -> str:
+    """Resolve an API key from os.environ or the user-private 0600 providers.env store (#544)."""
+    if not key_ref:
+        return ""
+    env_val = os.environ.get(key_ref, "")
+    if env_val:
+        return env_val
+    candidate_dirs: list[Path] = []
+    if data_dir is not None and str(data_dir).strip():
+        candidate_dirs.append(Path(data_dir).expanduser())
+    dist = config.get("distribution") if isinstance(config, dict) else None
+    data_dir_raw = dist.get("data_dir") if isinstance(dist, dict) else None
+    if isinstance(data_dir_raw, str) and data_dir_raw.strip():
+        candidate_dirs.append(Path(data_dir_raw).expanduser())
+    for cand_dir in candidate_dirs:
+        try:
+            from services.distribution.credentials import LocalCredentialsStore
+
+            for filename in ("providers.env", "custom_providers.env"):
+                env_path = cand_dir / filename
+                if env_path.is_file() and not env_path.is_symlink():
+                    stored = LocalCredentialsStore(env_path).load_env_map().get(key_ref, "")
+                    if stored:
+                        return stored
+        except Exception:
+            pass
+    return ""
+
+
+def provider(
+    config,
+    role,
+    *,
+    resource_state=None,
+    service_token=None,
+    workspace=None,
+    data_dir=None,
+):
+    from packages.providers.text import CompatibleTextProvider, MetaResponsesProvider
+
+    profile = dict(config["providers"][role])
+    providers_env_dir = profile.pop("providers_env_dir", None) or data_dir
+    for _meta_key in ("profile_id", "qualified_model_id", "selection_source"):
+        profile.pop(_meta_key, None)
+    kind = profile.pop("kind")
+    if kind == "meta":
+        if role == "agent":
+            profile.setdefault("structured_actions", True)
+        key_ref = profile.pop("api_key_env", None)
+        if key_ref and not profile.get("api_key"):
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
+        result = MetaResponsesProvider(**profile)
+    elif kind == "measured_chat":
+        if role != "converse":
+            raise SystemExit("Measured chat supports Converse text only")
+        from packages.providers.measured_chat import MeasuredChatProvider
+
+        if profile.pop("allow_cloud", False) is not False:
+            raise ValueError("Measured chat is local only")
+        key_ref = profile.pop("api_key_env", None)
+        if key_ref:
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
+        result = MeasuredChatProvider(**profile)
+    elif kind == "lmstudio":
+        if role not in {"converse", "agent", "auxiliary"}:
+            raise SystemExit("Native LM Studio supports Converse, Agent and auxiliary text only")
+        from packages.providers.lmstudio import LMStudioProvider
+
+        profile.pop("api_key_env", None)
+        profile.pop("api_key", None)
+        # The adapter owns exact native counting, prediction and cleanup. Each
+        # model factory call constructs a fresh instance; auxiliary requests
+        # must not share the primary Agent's active operation/cleanup state.
+        # Its constructor permits only reasoning_effort="none".
+        result = LMStudioProvider(**profile)
+    elif kind in {"compatible", "laya", "native_d1", "openrouter_decisions"}:
+        if kind == "laya" and role != "decisions":
+            raise SystemExit("Laya is a typed Decisions provider, not an Agent or Converse model")
+        if kind == "native_d1" and role != "decisions":
+            raise SystemExit("Native d1 is a typed Decisions provider only")
+        if kind == "openrouter_decisions" and role != "decisions":
+            raise SystemExit("OpenRouter decisions is a typed Decisions provider only")
+        key_ref = profile.pop("api_key_env", None)
+        if key_ref:
+            profile["api_key"] = _resolve_api_key_env(config, key_ref, data_dir=providers_env_dir)
+        if kind == "native_d1":
+            from packages.providers.native_d1 import NativeD1RoutingProvider
+
+            result = NativeD1RoutingProvider(**profile)
+        elif kind == "openrouter_decisions":
+            from packages.providers.openrouter_decisions import OpenRouterDecisionsProvider
+
+            result = OpenRouterDecisionsProvider(**profile)
+        elif kind == "laya":
+            from packages.providers.laya import LayaRoutingProvider
+
+            result = LayaRoutingProvider(**profile)
+        else:
+            result = CompatibleTextProvider(**profile)
+    elif kind == "qwen3":
+        if role != "converse":
+            raise SystemExit(
+                "Qwen3 is a managed Converse provider, not an Agent or Decisions model"
+            )
+        from packages.providers.qwen3_ipc import validate_limits
+        from services.resources.client import local_base
+
+        resources = config.get("resources")
+        if (
+            set(profile) - {"base_url", "max_input_tokens", "max_new_tokens", "request_timeout_s"}
+            or not isinstance(resources, dict)
+            or resources.get("enabled") is not True
+            or not isinstance(resources.get("qwen3"), dict)
+            or resource_state is None
+            or not isinstance(service_token, str)
+            or not service_token.strip()
+            or any(char in service_token for char in "\0\r\n")
+        ):
+            raise ValueError("Qwen3 requires explicit managed resources and a service credential")
+        base_url = profile.get("base_url")
+        resources_url = config.get("resources_url", "http://127.0.0.1:8764")
+        if (
+            not isinstance(base_url, str)
+            or not isinstance(resources_url, str)
+            or local_base(base_url) != local_base(resources_url)
+        ):
+            raise ValueError("Qwen3 must select the configured managed resources endpoint")
+        managed = resources["qwen3"]
+        limits = validate_limits(
+            managed.get("max_input_tokens", 2048), managed.get("max_new_tokens", 128)
+        )
+        selected = validate_limits(
+            profile.get("max_input_tokens", limits["max_input_tokens"]),
+            profile.get("max_new_tokens", limits["max_new_tokens"]),
+        )
+        timeout = managed.get("request_timeout_s", 120)
+        selected_timeout = profile.get("request_timeout_s", timeout)
+        if (
+            selected != limits
+            or type(timeout) not in {int, float}
+            or not math.isfinite(timeout)
+            or timeout <= 0
+            or type(selected_timeout) not in {int, float}
+            or not math.isfinite(selected_timeout)
+            or selected_timeout != timeout
+        ):
+            raise ValueError("Qwen3 provider limits must match its managed worker settings")
+        from packages.providers.qwen3 import ManagedQwen3Provider
+
+        result = ManagedQwen3Provider(
+            local_base(base_url), service_token, **limits, request_timeout_s=timeout
+        )
+    elif kind == "gguf":
+        if role != "converse":
+            raise SystemExit("Managed GGUF is selected independently for Converse")
+        from packages.providers.gguf import ManagedGGUFProvider
+        from services.resources.client import local_base
+        from services.resources.gguf import ManagedGGUFConfig, configured_manifest
+
+        resources = config.get("resources")
+        if (
+            set(profile) - {"base_url"}
+            or not isinstance(resources, dict)
+            or resources.get("enabled") is not True
+            or resources.get("qwen3") is not None
+            or not isinstance(resources.get("gguf"), dict)
+            or resource_state is None
+            or workspace is None
+        ):
+            raise ValueError("GGUF requires protected managed resources and an Agent workspace")
+        base_url = local_base(profile.get("base_url", ""))
+        if base_url != local_base(config.get("resources_url", "http://127.0.0.1:8764")):
+            raise ValueError("GGUF must select the configured resources origin")
+        settings = ManagedGGUFConfig.model_validate(resources["gguf"])
+        manifest = configured_manifest(settings, workspace)
+        result = ManagedGGUFProvider(
+            base_url,
+            service_token,
+            model=manifest["model"],
+            alias=manifest["alias"],
+            profile=manifest["profile"],
+            manifest_sha256=settings.manifest_sha256,
+            context_tokens=settings.context_tokens,
+            max_new_tokens=settings.max_new_tokens,
+            request_timeout_s=settings.request_timeout_s,
+        )
+    else:
+        raise SystemExit(
+            f"Unsupported {role} provider kind {kind}; configure a live provider explicitly"
+        )
+    if resource_state is not None:
+        from services.resources.providers import ResourceBoundProvider
+
+        result = ResourceBoundProvider(result, resource_state, role)
+    return result
+
+
+def validate_setup_provider(role, profile):
+    """Validate setup role adapter selection and role-required capabilities without inference."""
+    if not isinstance(profile, dict) or not isinstance(profile.get("kind"), str):
+        raise ValueError(f"Missing explicit adapter kind for {role}")
+    kind = profile["kind"]
+    if role == "agent":
+        if kind == "compatible":
+            raise ValueError(
+                "Adapter 'compatible' does not support exact complete-request measurement "
+                "(prepare_complete) required by Agent; select 'lmstudio' for local native "
+                "loopback or 'meta' with explicit cloud disclosure"
+            )
+        if kind not in {"lmstudio", "meta"}:
+            raise ValueError(
+                f"Unsupported Agent adapter kind {kind!r}; Agent requires a measured adapter "
+                "('lmstudio' or 'meta') that implements prepare_complete"
+            )
+    elif role == "converse":
+        if kind not in {"lmstudio", "compatible", "measured_chat", "meta"}:
+            raise ValueError(
+                f"Unsupported Converse setup adapter kind {kind!r}; select 'lmstudio', "
+                "'compatible', 'measured_chat', or 'meta'"
+            )
+    elif role == "decisions":
+        if kind not in {"compatible", "laya", "native_d1", "openrouter_decisions", "meta"}:
+            raise ValueError(
+                f"Unsupported Decisions setup adapter kind {kind!r}; select 'compatible', "
+                "'laya', 'native_d1', 'openrouter_decisions', or 'meta'"
+            )
+    else:
+        raise ValueError(f"Unsupported setup provider role {role!r}")
+
+    probe_profile = dict(profile)
+    key_ref = probe_profile.get("api_key_env")
+    if key_ref and not os.environ.get(key_ref) and not probe_profile.get("api_key"):
+        probe_profile["api_key"] = "setup-validation-placeholder"
+    if kind == "laya" and "expected_artifact_sha256" not in probe_profile:
+        probe_profile["expected_artifact_sha256"] = "0" * 64
+    try:
+        adapter = provider({"providers": {role: probe_profile}}, role)
+    except SystemExit as exc:
+        raise ValueError(str(exc)) from None
+    if role == "agent":
+        if not callable(getattr(adapter, "prepare_complete", None)):
+            raise ValueError(
+                f"Adapter {kind!r} does not implement prepare_complete required by Agent"
+            )
+        if kind == "meta" and not getattr(adapter, "cloud_prompt_measurement", False):
+            raise ValueError(
+                "Cloud Agent adapter 'meta' requires an explicit context_tokens budget for prepare_complete"
+            )
+    return adapter
+
+
+def initialize(args):
+    directory = args.data_dir.resolve()
+    load_or_create_tokens(directory)
+    config_path = args.config or directory / "config.json"
+    if not config_path.exists():
+        agent_profile = {
+            "kind": "lmstudio",
+            "base_url": "http://127.0.0.1:1234",
+            "model": "configure-your-local-model",
+            "allow_cloud": False,
+            "max_tokens": 128,
+            "reasoning_effort": "none",
+        }
+        compatible_profile = {
+            "kind": "compatible",
+            "base_url": "http://127.0.0.1:8080/v1",
+            "model": "configure-your-local-model",
+            "allow_cloud": False,
+            "max_tokens": 2048,
+        }
+        config_path.write_text(
+            json.dumps(
+                {
+                    "providers": {
+                        "agent": dict(agent_profile),
+                        "converse": dict(compatible_profile),
+                        "decisions": dict(compatible_profile),
+                    },
+                    "session_url": "http://127.0.0.1:8760",
+                    "agent_url": "http://127.0.0.1:8761",
+                    "voice": {"url": "http://127.0.0.1:8765", "profile": "Kokoro 82M"},
+                    "origins": ["http://localhost:8780", "http://127.0.0.1:8780"],
+                    "policy": {
+                        "allow_write": False,
+                        "allow_shell": False,
+                        "network": False,
+                        "yolo": False,
+                    },
+                    "decisions_default_target": "laya-needs-setup",
+                    "agent_enabled": True,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+    print(
+        json.dumps(
+            {
+                "config": str(config_path),
+                "credentials": str(directory / "service-tokens.json"),
+                "next": "Configure providers, then kinaiya serve all; keys stay outside chat.",
+            }
+        )
+    )
+
+
+def managed_guard_roots():
+    if not os.environ.get("KINAIYA_INSTALL_ROOT"):
+        return ()
+    from services.distribution.cli import chosen_layout
+    from services.distribution.installation import verify_layout
+
+    layout = chosen_layout()
+    verify_layout(layout)
+    # Protect all generations, updater receipts/trust, launchers and download cache,
+    # not just the currently imported core subdirectories.
+    return (layout.install, layout.data, layout.config.parent, layout.cache, layout.bin)
+
+
+def host_service_names(config):
+    """Managed default has no Converse, Decisions, resources, voice or model work."""
+    resources = config.get("resources")
+    return SubsystemTopology.from_config(config).services(
+        resources=isinstance(resources, dict) and resources.get("enabled") is True
+    )
+
+
+def serve(args):
+    if getattr(args, "start_paused", False) and args.service != "converse":
+        raise SystemExit("--start-paused is only supported by serve converse")
+    import uvicorn
+
+    from packages.contracts.client import JournalClient
+
+    config_path = args.config or args.data_dir / "config.json"
+    config = load_config(config_path)
+    service = args.service
+    startup_mode = getattr(args, "startup_subsystem_mode", None)
+    if service in {"all", "host"} or startup_mode is not None:
+        from services.settings.subsystems import effective_config
+
+        config = effective_config(
+            config,
+            args.data_dir,
+            args.workspace,
+            developer_all=service == "all",
+            startup_mode=startup_mode,
+        )
+    topology = SubsystemTopology.from_config(config, developer_all=service == "all")
+    subsystem_settings = None
+    resources = config.get("resources")
+    resources_enabled = isinstance(resources, dict) and resources.get("enabled") is True
+    from services.distribution.start_supervisor import _service_port
+
+    selected_ports = {
+        name: _service_port(config, name, PORTS[name])
+        for name in (
+            topology.services(resources=resources_enabled)
+            if service in {"all", "host"}
+            else [service]
+        )
+    }
+    # Reject invalid explicit role combinations before creating credentials or
+    # starting even a healthy peer. The owner can correct the preserved config.
+    tokens = load_or_create_tokens(args.data_dir)
+    auth = Auth(tokens, tuple(config.get("origins", [])))
+    resource_state = args.data_dir.resolve() / "resources-state.json" if resources_enabled else None
+    if service in {"all", "host"}:
+        names = topology.services(resources=resources_enabled)
+        commands = {
+            name: [
+                sys.executable,
+                "-m",
+                "services.launcher",
+                "--data-dir",
+                str(args.data_dir.resolve()),
+                "--config",
+                str(config_path.resolve()),
+                "--workspace",
+                str(args.workspace.resolve()),
+                "serve",
+                name,
+                "--port",
+                str(selected_ports[name]),
+                "--startup-subsystem-mode",
+                topology.mode,
+            ]
+            for name in names
+            if name != "resources" or resources_enabled
+        }
+        if getattr(args, "converse_memory", False):
+            commands["session"].append("--converse-memory")
+        print(
+            "Independent processes started; failed components restart at most three times.",
+            flush=True,
+        )
+        supervise(commands)
+        return
+    if service == "resources":
+        from services.resources.launcher import resource_app
+
+        app = resource_app(args, config, auth, tokens, ROOT)
+    elif service == "session":
+        from services.session.api import create_app
+        from services.session.store import Store
+        from services.settings.subsystems import CoreSubsystemSettings, host_mode_reader
+
+        subsystem_settings = CoreSubsystemSettings(
+            host_mode_reader(config_path, args.workspace),
+            path=args.data_dir / "core-subsystems.sqlite",
+            workspace=args.workspace,
+            startup_mode=startup_mode,
+        )
+        try:
+            app = create_app(
+                Store(
+                    args.data_dir / "journal.sqlite",
+                    decisions_max_attempts=config.get("decisions_max_attempts", 2),
+                ),
+                auth,
+                converse_memory=getattr(args, "converse_memory", False),
+                agent_enabled=config.get("agent_enabled"),
+                subsystem_settings=subsystem_settings,
+            )
+        except BaseException:
+            subsystem_settings.close()
+            raise
+    elif service == "agent":
+        from core.policy import ToolPolicy
+        from packages.commands import Registry
+        from services.agent import AgentRuntime, create_app
+        from services.agent.artifacts import ArtifactStore
+
+        args.workspace.mkdir(parents=True, exist_ok=True)
+        journal = JournalClient(config["session_url"], tokens["agent"])
+        from services.agent.workspace_settings import AgentWorkspaceSettings
+
+        # These paths are native authority, not owner-editable worker overlays.
+        # The Python environment/import roots and sandbox binary must remain
+        # immutable even if an owner selects a new worker directory elsewhere.
+        native_roots = {
+            *managed_guard_roots(),
+            ROOT / "core",
+            ROOT / "services",
+            ROOT / "packages",
+            ROOT / "harnesses",
+            ROOT / "evaluation",
+            ROOT / "Roadmap.md",
+            ROOT / ".venv",
+            ROOT / ".dev-run",
+            Path(sys.executable).resolve(),
+            Path(sys.prefix).resolve(),
+            Path(sys.base_prefix).resolve(),
+            *(
+                Path(value).resolve()
+                for value in sys.path
+                if value and Path(value).resolve() != ROOT
+            ),
+        }
+        from services.agent.tools import bwrap_path
+
+        binary = bwrap_path()
+        if binary is not None:
+            native_roots.add(Path(binary).resolve())
+        protected = tuple(sorted({path.resolve() for path in native_roots}))
+        evaluations = [ROOT / "evaluation"]
+        if configured_harness := config.get("harness"):
+            evaluations.append(Path(configured_harness["suite"]).resolve())
+        configured_plugins = config.get("plugins")
+        if isinstance(configured_plugins, dict) and isinstance(
+            configured_plugins.get("suites"), dict
+        ):
+            evaluations.extend(
+                Path(value).resolve() for value in configured_plugins["suites"].values()
+            )
+        host_workspace = args.workspace.resolve()
+        host_policy = config.get("policy", {})
+        host_readonly = tuple(
+            (Path(value) if Path(value).is_absolute() else host_workspace / value).resolve()
+            for value in host_policy.get("readonly_roots", ())
+        )
+        # Saved authority is loaded before any owner stores or transport brokers
+        # capture the worker root. Corruption is a startup refusal, never host fallback.
+        try:
+            workspace_settings = AgentWorkspaceSettings(
+                host_workspace,
+                path=args.data_dir.resolve() / "agent-workspace.sqlite",
+                protected_roots=protected,
+                control_roots=(args.data_dir.resolve(), Path(config_path).resolve()),
+                evaluation_roots=evaluations,
+                credential_roots=((Path.home() / ".config/muse").resolve(),),
+                host_readonly_roots=host_readonly,
+            )
+        except ValueError:
+            # Preserve the launcher's controlled configuration refusal. Saved
+            # root availability below remains a separate, repairable state.
+            raise SystemExit(
+                "Use a dedicated worker workspace disjoint from core, evaluation, settings and credentials"
+            ) from None
+        desired_workspace = Path(workspace_settings.saved_selection().root)
+        try:
+            workspace_context = workspace_settings.initial_context()
+        except (OSError, ValueError, RuntimeError):
+            workspace_context = None
+        # Missing/replaced/aliased saved roots remain repairable in Options.
+        # This never-created reference is explicitly inactive, lies inside
+        # protected control storage, and cannot become filesystem authority.
+        workspace = (
+            desired_workspace
+            if workspace_context is not None
+            else args.data_dir.resolve() / f".inactive-workspace-{workspace_settings.instance}"
+        )
+        if workspace_context is None and os.path.lexists(workspace):
+            raise SystemExit("Inactive native workspace reference must not exist")
+        hard_guards = tuple(
+            sorted(
+                {
+                    path
+                    for group, paths in workspace_settings.guards.items()
+                    if group != "readonly"
+                    for path in paths
+                }
+            )
+        )
+        policy = ToolPolicy(
+            workspace,
+            **{key: value for key, value in host_policy.items() if key != "readonly_roots"},
+            protected_roots=hard_guards,
+            readonly_roots=workspace_context.readonly_roots
+            if workspace_context is not None
+            else host_readonly,
+        )
+        if workspace_context is not None:
+            policy.install_workspace_context(
+                workspace_context,
+                actor="owner",
+                available=lambda: workspace_settings.active_context() is workspace_context,
+            )
+        else:
+            policy.block_workspace(actor="owner")
+        configured_providers = config.get("providers")
+        host_profile = (
+            configured_providers.get("agent") if isinstance(configured_providers, dict) else None
+        )
+        if not isinstance(host_profile, dict):
+            host_profile = {}
+        selector = None
+        if harness := config.get("harness"):
+            from core.extensions import Registry as HarnessRegistry
+
+            suite = Path(harness["suite"]).resolve()
+            if suite.is_relative_to(workspace):
+                raise SystemExit("Heldout evaluation suite must be outside the worker workspace")
+            selector = HarnessRegistry(
+                args.data_dir / "harness",
+                suite,
+                model_profile={
+                    "provider": host_profile["kind"],
+                    "model": host_profile["model"],
+                    "evaluation_model_calls": 0,
+                }
+                if type(host_profile.get("kind")) is str and type(host_profile.get("model")) is str
+                else None,
+            )
+        mcp_host = None
+        mcp_controller = None
+        mcp_entries = config.get("mcp_servers", [])
+        mcp_settings = config.get("mcp")
+        mcp_enabled = bool(mcp_entries)
+        if mcp_settings is not None:
+            if (
+                not isinstance(mcp_settings, dict)
+                or set(mcp_settings) != {"enabled"}
+                or type(mcp_settings["enabled"]) is not bool
+            ):
+                raise SystemExit("mcp accepts an explicit boolean enabled flag")
+            mcp_enabled = mcp_settings["enabled"]
+        if mcp_enabled:
+            # Optional MCP host activates only with explicit owner-authored
+            # server configs. The module import stays lazy so the Agent runs
+            # without the MCP dependency when nothing is configured.
+            from packages.ecosystem.mcp_control import MCPController
+            from packages.ecosystem.mcp_host import MCPConfig
+
+            if not isinstance(mcp_entries, list):
+                raise SystemExit("mcp_servers must be a list of owner-authored server configs")
+            try:
+                mcp_configs = [MCPConfig(**entry) for entry in mcp_entries]
+            except Exception as exc:
+                raise SystemExit(f"Invalid mcp_servers configuration: {exc}") from exc
+
+            def _mcp_secret(ref: str) -> str | None:
+                # Secrets resolve only from env:NAME references against the
+                # process environment. Never arbitrary files, Muse helpers,
+                # or model-provided values.
+                if isinstance(ref, str) and ref.startswith("env:"):
+                    name = ref[len("env:") :]
+                    if name:
+                        return os.environ.get(name)
+                return None
+
+            mcp_controller = MCPController(
+                args.data_dir.resolve() / "mcp",
+                workspace,
+                policy,
+                initial_configs=mcp_configs,
+                secret_resolver=_mcp_secret,
+            )
+            mcp_host = mcp_controller.host
+        skill_service = None
+        if skill_config := config.get("skills"):
+            from services.agent.skill_service import SkillService
+
+            if not isinstance(skill_config, dict) or set(skill_config) - {"enabled"}:
+                raise SystemExit("skills accepts only an explicit enabled flag")
+            if type(skill_config.get("enabled")) is not bool:
+                raise SystemExit("skills.enabled must be a boolean")
+            if skill_config["enabled"]:
+                skill_service = SkillService(args.data_dir.resolve() / "skills", workspace)
+        plugin_service = None
+        if plugin_config := config.get("plugins"):
+            from services.agent.plugin_service import PluginService
+
+            if not isinstance(plugin_config, dict) or set(plugin_config) - {"enabled", "suites"}:
+                raise SystemExit("plugins accepts enabled and owner-held suites only")
+            if type(plugin_config.get("enabled")) is not bool:
+                raise SystemExit("plugins.enabled must be a boolean")
+            suites = plugin_config.get("suites", {})
+            if not isinstance(suites, dict) or len(suites) > 128:
+                raise SystemExit("plugins.suites must be a bounded owner mapping")
+            if plugin_config["enabled"]:
+                plugin_service = PluginService(
+                    args.data_dir.resolve() / "plugins",
+                    workspace,
+                    {key: Path(value) for key, value in suites.items()},
+                )
+        artifact_path = args.data_dir.resolve() / "artifacts.sqlite3"
+        if artifact_path.resolve().is_relative_to(workspace):
+            raise SystemExit("UI artifact storage must stay outside the worker workspace")
+        from services.settings.provider_factory import UnavailableHostProvider
+
+        try:
+            host_provider = provider(
+                config,
+                "agent",
+                resource_state=resource_state,
+                data_dir=args.data_dir.resolve(),
+            )
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
+            # This is an unavailable host profile, never a fallback. Keep the
+            # owner catalog/Options control plane available so a valid saved
+            # catalog selection can serve new work without the host credential.
+            host_provider = UnavailableHostProvider()
+        from services.agent.task_media_launcher import task_media_owner
+
+        media_owner = task_media_owner(
+            config, data_dir=args.data_dir.resolve(), workspace=workspace
+        )
+        runtime = AgentRuntime(
+            journal,
+            host_provider,
+            workspace,
+            policy,
+            selector_registry=selector,
+            mcp_host=mcp_host,
+            mcp_controller=mcp_controller,
+            skill_service=skill_service,
+            plugin_service=plugin_service,
+            artifact_store=ArtifactStore(
+                artifact_path,
+                **({"media_assets": media_owner.media_assets} if media_owner is not None else {}),
+            ),
+        )
+        runtime.workspace_settings = workspace_settings
+        workspace_settings.bind(
+            runtime,
+            operation_state=runtime.workspace_operation_state,
+            retire=runtime.retire_workspace,
+            apply=lambda context: runtime.prepare_workspace_apply(context).apply(),
+            prepare=runtime.prepare_workspace_apply,
+        )
+        if resources_enabled:
+            from services.resources.client import ResourceClient
+            from services.resources.standing_client import StandingResourceClient
+
+            runtime.resource_client = ResourceClient(
+                config.get("resources_url", "http://127.0.0.1:8764"), tokens["owner"]
+            )
+            runtime.standing_resource_client = StandingResourceClient(
+                config.get("resources_url", "http://127.0.0.1:8764"), tokens["agent"]
+            )
+        owner_journal = JournalClient(config["session_url"], tokens["owner"])
+        from services.agent.projects import Projects
+
+        project_path = args.data_dir.resolve() / "projects.sqlite"
+        if project_path.is_relative_to(workspace):
+            raise SystemExit("Owner project storage must stay outside the worker workspace")
+        runtime.projects = Projects(project_path)
+        from services.agent.runtime_settings import AgentRuntimeSettings
+
+        runtime.runtime_settings = AgentRuntimeSettings(
+            runtime, path=args.data_dir / "agent-runtime-settings.sqlite"
+        )
+        from services.agent.tool_permissions import AgentToolPermissions
+
+        runtime.tool_permissions = AgentToolPermissions(
+            runtime, path=args.data_dir / "agent-tool-permissions.sqlite"
+        )
+        profiles = {
+            name: (
+                lambda profile=profile: provider(
+                    {"providers": {"agent": profile}},
+                    "agent",
+                    resource_state=resource_state,
+                    data_dir=args.data_dir.resolve(),
+                )
+            )
+            for name, profile in config.get("agent_profiles", {}).items()
+        }
+        import sqlite3
+
+        from services.agent.model_settings import AgentModelSettings
+        from services.settings.provider_catalog import ProviderCatalog
+
+        # Create the shared protected owner early enough for task model
+        # selection. The owner router/lifespan below reuse this connection.
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                workspace,
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            catalog = None
+
+        def model_factory(profile, *, auxiliary=False):
+            def create(effort):
+                selected = dict(profile)
+                if effort is not None:
+                    selected["reasoning_effort"] = effort
+                role = "auxiliary" if auxiliary else "agent"
+                if auxiliary and selected.get("kind") == "meta":
+                    selected["structured_actions"] = False
+                    selected["action_format"] = "flat-v1"
+                result = provider(
+                    {"providers": {role: selected}},
+                    role,
+                    resource_state=None if auxiliary else resource_state,
+                    data_dir=args.data_dir.resolve(),
+                )
+                if auxiliary and resource_state is not None:
+                    from services.resources.providers import ResourceBoundProvider
+
+                    result = ResourceBoundProvider(result, resource_state, "agent")
+                return result
+
+            return create
+
+        runtime.model_settings = AgentModelSettings(
+            runtime.provider,
+            {
+                name: model_factory(profile)
+                for name, profile in config.get("agent_profiles", {}).items()
+            },
+            path=args.data_dir / "agent-models.sqlite",
+            reasoning_levels=config.get("agent_reasoning_options", {}),
+            host_factory=model_factory(host_profile),
+            auxiliary_factories={
+                name: model_factory(profile, auxiliary=True)
+                for name, profile in config.get("agent_profiles", {}).items()
+            },
+            auxiliary_host_factory=model_factory(host_profile, auxiliary=True),
+            catalog=catalog,
+            resource_state=resource_state,
+            workspace=runtime.policy.workspace,
+        )
+        try:
+            runtime.provider = runtime.model_settings.selection(None)[0]
+        except ValueError:
+            # Preserve the control plane so the owner can repair a removed or
+            # unavailable saved profile. Task acceptance still refuses it.
+            pass
+        from services.agent.capability_settings import CapabilitySettings
+
+        runtime._capabilities_configured = True
+        try:
+            runtime.capability_settings = CapabilitySettings(
+                runtime, args.data_dir.resolve() / "agent-capabilities.sqlite", workspace=workspace
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime.capability_settings = None
+
+        commands = Registry(
+            runtime, owner_journal, path=args.data_dir / "commands.sqlite", profiles=profiles
+        )
+        if media_owner is not None:
+            media_owner.bind(runtime)
+
+        @asynccontextmanager
+        async def agent_lifespan(app):
+            # Bounded retries handle supervisor startup order; no work is executed by recovery.
+            for attempt in range(30):
+                try:
+                    await runtime.recover()
+                    break
+                except httpx.ConnectError:
+                    if attempt == 29:
+                        raise
+                    await asyncio.sleep(0.1)
+            yield
+            await runtime.close()
+            if media_owner is not None:
+                await media_owner.close()
+            await runtime.authorizations.close_journal(journal)
+            await owner_journal.close()
+            commands.close()
+
+        app = create_app(runtime, auth, commands)
+        app.router.lifespan_context = agent_lifespan
+    elif service == "converse":
+        import sqlite3
+
+        from packages.agent_adapters.task_context import TaskContextClient
+        from services.converse.api import create_app
+        from services.converse.dependencies import RequiredDecisions, RequiredLiveDecisions
+        from services.converse.intent import ConverseIntent
+        from services.converse.live import LiveConverseController
+        from services.converse.memory_adapter import SessionMemoryAdapter
+        from services.converse.model_settings import ConverseModelSettings
+        from services.converse.prompts import configured_prompt
+        from services.converse.runtime import ConverseRuntime
+        from services.converse.setup import safe_host_setup
+        from services.converse.windows import WindowConverseController
+        from services.decisions.runtime import OutcomeWorker
+        from services.settings.provider_catalog import ProviderCatalog
+        from services.settings.provider_factory import UnavailableHostProvider
+
+        prompt_options = configured_prompt(config)
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                args.workspace.resolve(),
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            catalog = None
+
+        journal = JournalClient(config["session_url"], tokens["converse"])
+        initial_enabled = True
+        if resource_state is not None and resource_state.exists():
+            from services.resources.state import read_record
+
+            initial_enabled = read_record(resource_state).desired_converse
+        intent = ConverseIntent(
+            args.data_dir.resolve() / "converse-intent.json", initial_enabled=initial_enabled
+        )
+        try:
+            memory_adapters = {
+                "korina-dag-v1": SessionMemoryAdapter(config["session_url"], tokens["converse"])
+            }
+        except ValueError:
+            memory_adapters = {}
+        try:
+            host_provider = provider(
+                config,
+                "converse",
+                resource_state=resource_state,
+                service_token=tokens["converse"],
+                workspace=args.workspace.resolve(),
+                data_dir=args.data_dir.resolve(),
+            )
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
+            host_provider = UnavailableHostProvider("Converse")
+        try:
+            task_context_client = TaskContextClient(config["agent_url"], tokens["converse"])
+        except (KeyError, TypeError, ValueError):
+            task_context_client = None
+        runtime = ConverseRuntime(
+            journal,
+            host_provider,
+            intent=intent,
+            resources_managed=resources_enabled,
+            memory_adapters=memory_adapters,
+            context_budgeted=True,
+            task_context_client=task_context_client,
+            decisions_dependency=RequiredDecisions(
+                config.get("decisions_url", "http://127.0.0.1:8763"), tokens["converse"]
+            ),
+            **prompt_options,
+        )
+        if getattr(args, "start_paused", False):
+            # A launch-time availability fence, installed before observers or
+            # the listener exist. It must not rewrite the durable owner choice.
+            runtime.enabled = False
+        setup = safe_host_setup(config)
+        try:
+            runtime.model_settings = ConverseModelSettings(
+                runtime,
+                catalog,
+                args.data_dir.resolve() / "converse-model.sqlite",
+                host_reasoning=getattr(setup, "reasoning", None),
+                resource_state=resource_state,
+                workspace=args.workspace.resolve(),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            # A missing/corrupt saved role is unavailable. Never silently use
+            # the host profile in place of the owner's persisted selection.
+            runtime._model_options_unavailable = True
+        try:
+            speech = converse_speech(config, tokens["converse"], resource_state=resource_state)
+        except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
+            speech = None
+            runtime.speech_unavailable = True
+        from services.converse.stt_model_settings import STTModelSettings
+
+        runtime._stt_options_configured = True
+        try:
+            runtime.stt_model_settings = STTModelSettings(
+                runtime,
+                catalog,
+                speech,
+                args.data_dir.resolve() / "converse-stt-model.sqlite",
+                workspace=args.workspace.resolve(),
+                resource_state=resource_state,
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime._stt_options_unavailable = True
+        from services.converse.tts_model_settings import TTSModelSettings
+        from services.settings.tts_factory import TTSBudgetPolicy
+
+        budget_policy = None
+        host_voice = None
+        host_info = None
+        try:
+            tts_choice = config.get("voice", {}).get("tts")
+            if tts_choice is not None:
+                from packages.providers.openrouter_speech import openrouter_tts_settings
+
+                declaration = openrouter_tts_settings(tts_choice)
+                budget_policy = TTSBudgetPolicy(
+                    Path(declaration["budget_path"]),
+                    declaration["budget_limit_usd"],
+                    args.workspace.resolve(),
+                )
+            elif config.get("resources", {}).get("enabled") is True:
+                from packages.contracts.models import ProviderInfo
+                from packages.providers.tts_backends import validate_voice
+
+                profile = config.get("voice", {}).get("profile", "Kokoro 82M")
+                host_voice = validate_voice(profile, config["resources"].get("tts_voice"))
+                host_info = ProviderInfo(
+                    provider="local-voice", model=profile, local=True, streaming=True
+                )
+        except (ValueError, KeyError, TypeError):
+            # A malformed independent host declaration grants no new budget.
+            budget_policy = None
+            host_voice = None
+            host_info = None
+        runtime._tts_options_configured = True
+        try:
+            runtime.tts_model_settings = TTSModelSettings(
+                runtime,
+                catalog,
+                speech,
+                args.data_dir.resolve() / "converse-tts-model.sqlite",
+                workspace=args.workspace.resolve(),
+                resource_state=resource_state,
+                host_info=host_info,
+                host_voice=host_voice,
+                budget_policy=budget_policy,
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime._tts_options_unavailable = True
+        rolling_enabled = bool(config.get("streaming_windows", {}).get("enabled", True))
+        live_consumer = (
+            LiveConverseController(runtime, rolling_windows_enabled=rolling_enabled)
+            if ADAPTIVE_LIVE_ENABLED
+            else None
+        )
+        windows = live_consumer or (WindowConverseController(runtime) if rolling_enabled else None)
+        # A malformed explicit declaration must not silently run the legacy
+        # transcript-to-text/TTS path under a native-audio configuration.
+        runtime.native_audio = converse_native_audio(
+            config, runtime, args.data_dir.resolve(), args.workspace.resolve()
+        )
+        if runtime.native_audio is not None and not rolling_enabled:
+            raise ValueError("Native buffered audio requires Decisions window routing")
+        from services.converse.capture_settings import (
+            CaptureModeSettings,
+            configured_capture_default,
+        )
+
+        try:
+            runtime.capture_settings = CaptureModeSettings(
+                lambda: configured_capture_default(
+                    config,
+                    rolling=rolling_enabled,
+                    native=runtime.native_audio is not None,
+                    adaptive_live_enabled=ADAPTIVE_LIVE_ENABLED,
+                ),
+                path=args.data_dir.resolve() / "converse-capture-mode.sqlite",
+                workspace=args.workspace.resolve(),
+                adaptive_live_enabled=ADAPTIVE_LIVE_ENABLED,
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            runtime._capture_options_unavailable = True
+        live_dependency = (
+            RequiredLiveDecisions(
+                config.get("decisions_url", "http://127.0.0.1:8763"), tokens["converse"]
+            )
+            if live_consumer is not None and runtime.native_audio is None
+            else None
+        )
+        app = create_app(
+            runtime,
+            auth,
+            speech,
+            windows,
+            setup=setup,
+            live_dependency=live_dependency,
+            live_consumer=live_consumer,
+        )
+        converse_api_lifespan = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def converse_lifespan(app):
+            async def observe():
+                worker = OutcomeWorker(journal, runtime)
+                while True:
+                    try:
+                        await worker.run()
+                    except httpx.HTTPError:
+                        await asyncio.sleep(1)
+
+            observers = []
+
+            async def stop_observers():
+                for task in observers:
+                    task.cancel()
+                await asyncio.gather(*observers, return_exceptions=True)
+
+            from services.converse.stt_operations import retire_converse_shared
+
+            async with AsyncExitStack() as cleanup:
+                cleanup.push_async_callback(
+                    retire_converse_shared, runtime, journal, speech, windows
+                )
+                if runtime.model_settings is not None:
+                    cleanup.push_async_callback(runtime.model_settings.close)
+                if runtime.native_audio is not None:
+                    cleanup.push_async_callback(runtime.native_audio.close)
+                cleanup.push_async_callback(runtime.close)
+                cleanup.push_async_callback(stop_observers)
+                cleanup.push_async_callback(runtime.decisions_dependency.close)
+                await runtime.decisions_dependency.start()
+                async with converse_api_lifespan(app):
+                    observers.append(asyncio.create_task(observe()))
+                    if windows is not None and live_consumer is None:
+                        observers.append(asyncio.create_task(windows.run()))
+                    yield
+
+        app.router.lifespan_context = converse_lifespan
+    else:
+        import sqlite3
+
+        from packages.agent_adapters.http import AgentClient
+        from packages.providers.text import ProviderError
+        from services.decisions.agent_policy import AgentPolicyOwner
+        from services.decisions.api import create_app
+        from services.decisions.model_settings import (
+            DecisionsModelSettings,
+            DecisionsModelUnavailable,
+            UnavailableDecisionsModels,
+        )
+        from services.decisions.prompts import configured_prompt
+        from services.decisions.runtime import DecisionsWorker, ModelClassifier
+        from services.decisions.window_routing import WindowAgentDispatcher, WindowClassifier
+        from services.decisions.window_worker import WindowDecisionsWorker
+        from services.settings.provider_catalog import ProviderCatalog
+        from services.settings.provider_factory import UnavailableHostProvider
+
+        decision_prompt = configured_prompt(config)
+        window_chars = config.get("decisions_window_chars", 36000)
+        if type(window_chars) is not int or not 256 <= window_chars <= 36000:
+            raise SystemExit("decisions_window_chars must be an integer from 256 to 36000")
+        try:
+            catalog = ProviderCatalog(
+                args.data_dir.resolve() / "providers.sqlite",
+                args.workspace.resolve(),
+                env_refs=config.get("provider_credential_references", {}),
+            )
+        except (OSError, ValueError, RuntimeError, sqlite3.Error):
+            catalog = None
+        try:
+            host_provider = provider(
+                config,
+                "decisions",
+                resource_state=resource_state,
+                data_dir=args.data_dir.resolve(),
+            )
+        except (OSError, ValueError, ProviderError, KeyError, TypeError, ImportError, SystemExit):
+            host_provider = UnavailableHostProvider("Decisions")
+        try:
+            decision_models = DecisionsModelSettings(
+                host_provider,
+                catalog,
+                path=args.data_dir.resolve() / "decisions-model.sqlite",
+                workspace=args.workspace.resolve(),
+                resource_state=resource_state,
+            )
+        except (DecisionsModelUnavailable, OSError, ValueError, RuntimeError, sqlite3.Error):
+            decision_models = UnavailableDecisionsModels(host_provider)
+        worker = DecisionsWorker(
+            JournalClient(config["session_url"], tokens["decisions"]),
+            AgentClient(config["agent_url"], tokens["decisions"]),
+            ModelClassifier(
+                host_provider,
+                window_chars=window_chars,
+                prompt=decision_prompt,
+            ),
+            enabled=config.get("agent_enabled", True),
+            model_settings=decision_models,
+        )
+        windows_enabled = config.get("streaming_windows", {}).get("enabled", True)
+        windows = (
+            WindowDecisionsWorker(
+                worker.journal,
+                worker.agent,
+                WindowClassifier(
+                    worker.classifier.provider, window_chars=window_chars, prompt=decision_prompt
+                ),
+                agent_enabled=worker.enabled,
+                timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
+                model_settings=decision_models,
+            )
+            if windows_enabled
+            else None
+        )
+        dispatcher = (
+            WindowAgentDispatcher(worker.journal, worker.agent, enabled=worker.enabled)
+            if windows_enabled
+            else None
+        )
+        live_worker = live_dispatcher = None
+        if ADAPTIVE_LIVE_ENABLED:
+            from services.decisions.live_agent import LiveAgentDispatcher
+            from services.decisions.live_worker import LiveDecisionsWorker
+
+            live_worker = LiveDecisionsWorker(
+                worker.journal,
+                worker.agent,
+                decision_models,
+                prompt=decision_prompt,
+                window_chars=window_chars,
+                timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
+                agent_enabled=worker.enabled,
+            )
+            live_dispatcher = LiveAgentDispatcher(worker.journal, worker.agent)
+        app = create_app(
+            worker,
+            auth,
+            windows,
+            dispatcher,
+            model_settings=decision_models,
+            live_worker=live_worker,
+            live_dispatcher=live_dispatcher,
+            agent_policy=AgentPolicyOwner(config, catalog),
+        )
+    if service in {"session", "agent", "converse", "decisions"}:
+        import sqlite3
+
+        from services.settings.provider_api import router as provider_router
+        from services.settings.provider_catalog import ProviderCatalog
+
+        # Each independent owner service can manage the same protected catalog.
+        # Saving a declaration never hot-swaps any role or starts inference.
+        if service not in {"agent", "converse", "decisions"}:
+            try:
+                catalog = ProviderCatalog(
+                    args.data_dir.resolve() / "providers.sqlite",
+                    args.workspace.resolve(),
+                    env_refs=config.get("provider_credential_references", {}),
+                )
+            except (OSError, ValueError, RuntimeError, sqlite3.Error):
+                # An unavailable catalog cannot stop an independent host role.
+                catalog = None
+        app.include_router(provider_router(catalog, auth))
+        original_lifespan = app.router.lifespan_context
+
+        @asynccontextmanager
+        async def catalog_lifespan(app):
+            try:
+                async with original_lifespan(app):
+                    yield
+            finally:
+                if catalog is not None:
+                    catalog.close()
+
+        app.router.lifespan_context = catalog_lifespan
+    try:
+        uvicorn.run(
+            app, host="127.0.0.1", port=args.port or selected_ports[service], log_level="warning"
+        )
+    finally:
+        if subsystem_settings is not None:
+            subsystem_settings.close()
+
+
+def owner_login(args):
+    """Export only the owner credential to a new private file, never stdout."""
+    tokens = load_or_create_tokens(args.data_dir)
+    destination = args.output or args.data_dir / "owner-login.txt"
+    if os.path.islink(destination) or os.path.islink(destination.parent):
+        raise PermissionError("Owner login export path cannot be a symlink")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(destination, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(tokens["owner"])
+        stream.flush()
+        os.fsync(stream.fileno())
+    print(
+        json.dumps(
+            {
+                "path": str(destination.resolve()),
+                "mode": "0600",
+                "owner_epoch": getattr(tokens, "owner_epoch", 1),
+                "scope": "owner-only browser sign-in",
+            }
+        )
+    )
+
+
+async def direct_agent(args):
+    config = load_config(args.config or args.data_dir / "config.json")
+    tokens = load_or_create_tokens(args.data_dir)
+    headers = {"Authorization": f"Bearer {tokens['owner']}"}
+    session_url = config["session_url"]
+    agent_url = config["agent_url"]
+    target_url = session_url
+    try:
+        async with httpx.AsyncClient(headers=headers, timeout=30) as http:
+            response = await http.post(session_url + "/v1/sessions", json={"channel": "agent"})
+            response.raise_for_status()
+            session = response.json()
+            from packages.commands import parse
+
+            target_url = agent_url
+            if parse(args.objective) is not None:
+                response = await http.post(
+                    agent_url + "/v1/commands/execute",
+                    json={
+                        "schema_version": "1.0",
+                        **{k: session[k] for k in ("session_id", "thread_id", "epoch")},
+                        "input": args.objective,
+                        "content_scope": getattr(args, "content_scope", "local_only"),
+                        "idempotency_key": new_id(),
+                    },
+                )
+                response.raise_for_status()
+                result = response.json()
+                print(json.dumps(result, indent=2))
+                return 0 if result["status"] == "ok" else 1
+            objective = args.objective[1:] if args.objective.startswith("\\/") else args.objective
+            request = TaskRequest(
+                session_id=session["session_id"],
+                thread_id=session["thread_id"],
+                epoch=session["epoch"],
+                objective=objective,
+                content_scope=getattr(args, "content_scope", "local_only"),
+                idempotency_key=new_id(),
+            )
+            response = await http.post(agent_url + "/v1/agent/tasks", json=request.model_dump())
+            response.raise_for_status()
+            task = response.json()
+            print(json.dumps({"accepted_task_id": task["task_id"]}), flush=True)
+            while task["state"] not in {
+                "succeeded",
+                "failed",
+                "cancelled",
+                "blocked",
+                "awaiting_approval",
+                "paused",
+            }:
+                await asyncio.sleep(0.1)
+                response = await http.get(agent_url + "/v1/agent/tasks/" + task["task_id"])
+                response.raise_for_status()
+                task = response.json()
+            print(json.dumps(task, indent=2))
+            return 0 if task["state"] == "succeeded" else 1
+    except httpx.ConnectError:
+        sys.stderr.write(
+            f"kinaiya: Cannot reach local services at {target_url}. "
+            "Are Kinaiya services running? Start them with 'kinaiya start' or 'kinaiya serve host'.\n"
+        )
+        return 1
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="Kinaiya independent runtimes and Agent CLI")
+    parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--workspace", type=Path, default=Path("workspace"))
+    parser.add_argument(
+        "--content-scope",
+        choices=("local_only", "public_synthetic", "private_cloud_authorized"),
+        default="local_only",
+        help="Disclosure grant for this Agent input; defaults to local-only",
+    )
+    commands = parser.add_subparsers(dest="command", required=False)
+    commands.add_parser("help", help="Show this help message and exit")
+    commands.add_parser("init")
+    login = commands.add_parser("owner-login", help="Export an owner-only browser credential file")
+    login.add_argument("--output", type=Path)
+    server = commands.add_parser("serve")
+    server.add_argument("service", choices=[*PORTS, "all", "host"])
+    server.add_argument("--port", type=int)
+    from services.common.topology import SUBSYSTEM_MODES
+
+    server.add_argument("--startup-subsystem-mode", choices=SUBSYSTEM_MODES, help=argparse.SUPPRESS)
+    server.add_argument(
+        "--start-paused",
+        action="store_true",
+        help="Converse only: close temporary admission before startup; preserve owner intent",
+    )
+    server.add_argument(
+        "--converse-memory",
+        action="store_true",
+        help="Install experimental owner-managed local Converse memory API (no automatic recall)",
+    )
+    agent = commands.add_parser("agent", help="Submit real work directly, without Converse")
+    agent.add_argument("objective")
+    from services.distribution.cli import configure
+
+    configure(commands)
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "help":
+        parser.print_help()
+        parser.exit(0)
+    if args.command is None:
+        from services.distribution.cli import chosen_layout
+
+        layout = chosen_layout()
+        config_path = args.config if getattr(args, "config", None) is not None else layout.config
+        if not config_path.exists():
+            sys.stderr.write("No configuration found — starting setup.\n")
+            args.command = "setup"
+            args.section = None
+            args.mode = None
+            args.yes = False
+            args.check_connection = False
+            args.no_start = False
+            args.auto_start = True
+            args.quick = False
+            args.advanced = False
+            args.endpoint = None
+            args.model = None
+            args.credential_env = None
+            args.allow_cloud = False
+            args.converse = False
+        else:
+            args.command = "start"
+            args.no_browser = False
+            args.json = False
+            args.web_port = 8780
+            args.timeout = 15.0
+    if args.command in {
+        "auth",
+        "install",
+        "setup",
+        "start",
+        "update",
+        "version",
+        "doctor",
+        "recover",
+        "rollback",
+        "uninstall",
+        "web",
+    }:
+        from packages.distribution.releases import ReleaseError
+        from services.distribution.cli import dispatch, print_command_result
+        from services.distribution.installation import InstallError
+        from services.distribution.wizard_navigation import validate_setup_section
+
+        try:
+            if args.command == "setup" and getattr(args, "section", None) is not None:
+                validate_setup_section(args.section)
+            print_command_result(args, dispatch(args))
+        except (InstallError, ReleaseError) as exc:
+            parser.exit(1, f"kinaiya: {exc}\n")
+        except KeyboardInterrupt:
+            if args.command == "setup":
+                parser.exit(1, "kinaiya: Setup cancelled; no configuration written\n")
+            parser.exit(1, "kinaiya: operation cancelled\n")
+        except (OSError, ValueError):
+            parser.exit(
+                1,
+                "kinaiya: operation failed; check permissions/network and preserve files for recovery\n",
+            )
+        return
+    if args.command == "init":
+        initialize(args)
+    elif args.command == "owner-login":
+        owner_login(args)
+    elif args.command == "serve":
+        if os.environ.get("KINAIYA_INSTALL_ROOT"):
+            from services.distribution.cli import chosen_layout
+            from services.distribution.installation import InstallError, operation_lock
+
+            try:
+                managed_guard_roots()
+                with operation_lock(chosen_layout().install / "runtime.lock", shared=True):
+                    serve(args)
+            except InstallError as exc:
+                parser.exit(1, f"kinaiya: {exc}\n")
+        else:
+            serve(args)
+    else:
+        raise SystemExit(asyncio.run(direct_agent(args)))
+
+
+if __name__ == "__main__":
+    main()

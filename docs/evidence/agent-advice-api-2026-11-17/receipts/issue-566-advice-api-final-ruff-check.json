@@ -1,0 +1,14 @@
+{
+  "utc": "2026-11-17T18:12:06.439625+00:00",
+  "args": [
+    "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+    "-m",
+    "ruff",
+    "check",
+    "."
+  ],
+  "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/decisions-consumers-566",
+  "exit_code": 1,
+  "elapsed": 0.03061208299914142,
+  "log_sha256": "a5deff72170f44952069202619026c153ea1e9f96d0366f1ceef86cc86536950"
+}

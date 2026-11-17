@@ -1,0 +1,11 @@
+{
+  "utc": "2026-11-17T18:04:45.066142+00:00",
+  "args": [
+    "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+    "scripts/export_contracts.py"
+  ],
+  "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/decisions-consumers-566",
+  "exit_code": 0,
+  "elapsed": 1.5653205160051584,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

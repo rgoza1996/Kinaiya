@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "906924f3bd5d40d7dab7fe3fb5a2b1a73a5df6d14841bbe990bd76a9c0bc764b",
+  "text": "F                                                                        [100%]\n=================================== FAILURES ===================================\n____ test_resource_owner_keeps_the_original_until_adapter_cleanup_finishes _____\ntests/integration/test_agent_advice_operations.py:683: in test_resource_owner_keeps_the_original_until_adapter_cleanup_finishes\n    assert ownership.finished is False\nE   assert True is False\nE    +  where True = <packages.contracts.operation_ownership.ActualOperation object at 0x70c81c3bd160>.finished\n=========================== short test summary info ============================\nFAILED tests/integration/test_agent_advice_operations.py::test_resource_owner_keeps_the_original_until_adapter_cleanup_finishes\n1 failed, 39 deselected in 0.98s\n"
+}

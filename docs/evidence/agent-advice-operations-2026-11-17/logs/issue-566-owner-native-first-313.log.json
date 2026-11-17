@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "2dc2b71d888a203b86c5438615e33a4f149bed32fd41004a861e027fa5b6d2c9",
+  "text": "........................F......                                          [100%]\n=================================== FAILURES ===================================\n_ test_uncertain_task_factory_keeps_original_key_and_capacity[raise-after-enqueue] _\ntests/integration/test_agent_advice_operations.py:563: in test_uncertain_task_factory_keeps_original_key_and_capacity\n    assert env.owner.lookup(lookup).phase == \"setup_unconfirmed\"\nE   AssertionError: assert 'cancelled' == 'setup_unconfirmed'\nE     \nE     - setup_unconfirmed\nE     + cancelled\n=========================== short test summary info ============================\nFAILED tests/integration/test_agent_advice_operations.py::test_uncertain_task_factory_keeps_original_key_and_capacity[raise-after-enqueue]\n1 failed, 30 passed in 12.15s\n"
+}

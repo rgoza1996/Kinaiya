@@ -4,6 +4,11 @@ import json
 
 import httpx
 
+from packages.contracts.agent_advice import (
+    MAX_ADVICE_EXPORT_RESPONSE_BYTES,
+    AgentAdviceExportAdmission,
+    AgentAdviceExportRequest,
+)
 from packages.contracts.agent_control import (
     AgentControlSnapshot,
     AgentSteerAdmissionRequest,
@@ -254,6 +259,48 @@ class _JournalMetadataExchange(_SubmitExchange):
                     raise AgentSubmitUnavailable
                 raw.extend(chunk)
             return bytes(raw) if self.raw else json.loads(bytes(raw))
+        finally:
+            if self.response is not None:
+                self.close_task = asyncio.create_task(self._close())
+                self.close_task.add_done_callback(self._settled)
+                await asyncio.shield(self.close_task)
+
+
+class _AdviceMetadataExchange(_SubmitExchange):
+    """Retain the original bounded proof read and its sole response close."""
+
+    async def _run(self, request, proposal, result_type, deadline):
+        try:
+            self.response = await self.owner.http.send(request, stream=True, follow_redirects=False)
+            response = self.response
+            response.raise_for_status()
+            if (
+                response.headers.get("content-encoding", "identity").lower() not in {"", "identity"}
+                or response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise ValueError("Invalid Agent advice export response")
+            declared = response.headers.get("content-length")
+            if declared is not None and (
+                not declared.isascii()
+                or not declared.isdigit()
+                or len(declared) > 8
+                or int(declared) > MAX_ADVICE_EXPORT_RESPONSE_BYTES
+            ):
+                raise ValueError("Invalid Agent advice export response")
+            raw = bytearray()
+            # Raw iteration avoids HTTPX's implicit EOF close: one retained
+            # task below owns actual cleanup even if the observer goes away.
+            async for chunk in response.stream:
+                if (
+                    type(chunk) is not bytes
+                    or len(raw) + len(chunk) > MAX_ADVICE_EXPORT_RESPONSE_BYTES
+                ):
+                    raise ValueError("Agent advice export response exceeds its bound")
+                raw.extend(chunk)
+            if declared is not None and len(raw) != int(declared):
+                raise ValueError("Invalid Agent advice export response")
+            return AgentAdviceExportAdmission.from_json(bytes(raw)).validate_request(proposal)
         finally:
             if self.response is not None:
                 self.close_task = asyncio.create_task(self._close())
@@ -685,6 +732,20 @@ class JournalClient:
         return AgentExportAdmission.model_validate(agent_export_json(bytes(raw))).validate_request(
             request
         )
+
+    async def agent_advice_export_admission(self, request):
+        request = AgentAdviceExportRequest.model_validate(request)
+        if self._submit_closed or self._submit_cleanup_failed:
+            raise AgentSubmitUnavailable
+        native = self.http.build_request(
+            "POST",
+            "/v1/transcript/agent-advice-export-admission",
+            content=request.canonical_bytes(),
+            headers={"Content-Type": "application/json", "Accept-Encoding": "identity"},
+        )
+        exchange = _AdviceMetadataExchange(self, native, request, None, None)
+        async with asyncio.timeout(AGENT_EXPORT_TIMEOUT_S):
+            return await asyncio.shield(exchange.task)
 
     async def append(self, request):
         if current_owner() is not None:

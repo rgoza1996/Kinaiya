@@ -1,0 +1,27 @@
+{
+  "id": 134246029345,
+  "run_id": 44141733548,
+  "workflow_name": "deterministic-ci",
+  "head_branch": "codex/566-decisions-consumers",
+  "run_url": "https://api.github.com/repos/rgoza1996/Kinaiya/actions/runs/44141733548",
+  "run_attempt": 1,
+  "node_id": "CR_kwDOVYmsQ88AAAAfQa_YIQ",
+  "head_sha": "5e7559b5e750881ad77103ba286d6a3564c0e975",
+  "url": "https://api.github.com/repos/rgoza1996/Kinaiya/actions/jobs/134246029345",
+  "html_url": "https://github.com/rgoza1996/Kinaiya/actions/runs/44141733548/job/134246029345",
+  "status": "completed",
+  "conclusion": "cancelled",
+  "created_at": "2026-11-17T17:52:30Z",
+  "started_at": "2026-11-17T17:52:30Z",
+  "completed_at": "2026-11-17T18:07:31Z",
+  "name": "ios",
+  "steps": [],
+  "check_run_url": "https://api.github.com/repos/rgoza1996/Kinaiya/check-runs/134246029345",
+  "labels": [
+    "macos-15"
+  ],
+  "runner_id": 0,
+  "runner_name": "",
+  "runner_group_id": 0,
+  "runner_group_name": ""
+}

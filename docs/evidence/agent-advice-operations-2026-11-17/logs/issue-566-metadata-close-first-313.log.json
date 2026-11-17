@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "e1eac7f5662c5c071d80b2827929efb0d52988cbc5579f0a0601e3efd7aa3e1e",
+  "text": "F                                                                        [100%]\n=================================== FAILURES ===================================\n________ test_cancelled_metadata_wait_keeps_actual_response_close_owned ________\ntests/integration/test_agent_advice_export.py:517: in test_cancelled_metadata_wait_keeps_actual_response_close_owned\n    assert ownership.finished is False and closed is False\nE   assert (True is False)\nE    +  where True = <packages.contracts.operation_ownership.ActualOperation object at 0x76ac59217770>.finished\n=========================== short test summary info ============================\nFAILED tests/integration/test_agent_advice_export.py::test_cancelled_metadata_wait_keeps_actual_response_close_owned\n1 failed, 55 deselected in 0.75s\n"
+}

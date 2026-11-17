@@ -6,6 +6,8 @@ from pathlib import Path
 from pydantic import TypeAdapter
 
 from packages.contracts import (
+    agent_advice,
+    agent_advice_operations,
     agent_control,
     agent_export,
     agent_submit,
@@ -23,6 +25,7 @@ from packages.contracts import (
     core_subsystems,
     decisions,
     decisions_attempts,
+    decisions_consumers,
     decisions_models,
     decisions_prompts,
     journal_wake,
@@ -218,6 +221,16 @@ for name in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    agent_advice.AgentAdviceExportRequest,
+    agent_advice.AgentAdviceExportAdmission,
+    agent_advice_operations.AgentAdviceCall,
+    agent_advice_operations.AgentAdviceLookup,
+    agent_advice_operations.AgentAdviceModelPin,
+    agent_advice_operations.AgentAdviceObservation,
+    agent_advice_operations.AgentAdviceLookupResponse,
+    agent_advice_operations.AgentAdviceRuntimeState,
+    decisions_consumers.DecisionsAgentPolicy,
+    decisions_consumers.DecisionsAgentPolicyState,
     capture_modes.CaptureModeSelection,
     capture_modes.CaptureModeChange,
     capture_modes.CaptureModeSnapshot,

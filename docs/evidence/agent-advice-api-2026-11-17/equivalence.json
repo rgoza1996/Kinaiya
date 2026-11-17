@@ -1,0 +1,25 @@
+{
+  "baseline": "5e7559b5e750881ad77103ba286d6a3564c0e975",
+  "original_schema_count": 612,
+  "changed_original_schemas": [],
+  "new_schemas": [
+    "packages/contracts/schemas/AgentAdviceLookupResponse.json",
+    "packages/contracts/schemas/AgentAdviceRuntimeState.json"
+  ],
+  "original_assertions": [
+    {
+      "path": "tests/unit/test_standing_resource_finalization_contracts.py",
+      "original_count": 74,
+      "missing": []
+    },
+    {
+      "path": "tests/integration/test_agent_advice_operations.py",
+      "original_count": 124,
+      "missing": []
+    }
+  ],
+  "first_api_assertions": {
+    "original_count": 45,
+    "missing": []
+  }
+}

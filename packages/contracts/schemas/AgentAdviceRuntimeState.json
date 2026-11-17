@@ -1,0 +1,107 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "protocol": {
+      "const": "measured_agent_advice_v1",
+      "default": "measured_agent_advice_v1",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "consumer": {
+      "const": "agent",
+      "default": "agent",
+      "title": "Consumer",
+      "type": "string"
+    },
+    "instance_id": {
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Instance Id",
+      "type": "string"
+    },
+    "phase": {
+      "enum": [
+        "starting",
+        "running",
+        "closing",
+        "stopped",
+        "cleanup_unconfirmed"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "observation": {
+      "const": "runtime_and_catalog_metadata_only",
+      "default": "runtime_and_catalog_metadata_only",
+      "title": "Observation",
+      "type": "string"
+    },
+    "policy_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Policy Sha256"
+    },
+    "catalog_status": {
+      "enum": [
+        "not_selected",
+        "eligible",
+        "unavailable"
+      ],
+      "title": "Catalog Status",
+      "type": "string"
+    },
+    "active": {
+      "maximum": 128,
+      "minimum": 0,
+      "title": "Active",
+      "type": "integer"
+    },
+    "retained": {
+      "maximum": 128,
+      "minimum": 0,
+      "title": "Retained",
+      "type": "integer"
+    },
+    "capacity": {
+      "maximum": 128,
+      "minimum": 1,
+      "title": "Capacity",
+      "type": "integer"
+    },
+    "retention": {
+      "maximum": 128,
+      "minimum": 1,
+      "title": "Retention",
+      "type": "integer"
+    },
+    "new_request_available": {
+      "title": "New Request Available",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "instance_id",
+    "phase",
+    "policy_sha256",
+    "catalog_status",
+    "active",
+    "retained",
+    "capacity",
+    "retention",
+    "new_request_available"
+  ],
+  "title": "AgentAdviceRuntimeState",
+  "type": "object"
+}

@@ -1,0 +1,12 @@
+{
+  "args": [
+    "/usr/bin/python3.12",
+    "-c",
+    "import ast,asyncio,json,sys\nfrom pathlib import Path\nf=next(n for n in ast.parse(Path(sys.argv[1]).read_text()).body if isinstance(n,ast.AsyncFunctionDef) and n.name==\"test_eager_native_factory_still_enrolls_before_any_model_effect\")\nd=f.decorator_list[0]\nskip=eval(compile(ast.fix_missing_locations(ast.Expression(d.args[0])),str(sys.argv[1]),\"eval\"),{\"asyncio\":asyncio})\nprint(json.dumps({\"version\":sys.version,\"skip_native_eager\":skip,\"has_native_eager\":hasattr(asyncio,\"eager_task_factory\")}))\nassert skip is (not hasattr(asyncio,\"eager_task_factory\"))\n",
+    "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/decisions-consumers-566/tests/integration/test_agent_advice_operations.py"
+  ],
+  "exit_code": 0,
+  "source_sha256": "7aea00f485c6a5737895b509cfcf1a55643f04b317704291b3a099d8fe812194",
+  "log_sha256": "06e4bcbf9a8d0e093228df996ae20acedbac3aadb711f6ebedd77ac4e18f1534",
+  "scope": "stdlib-only exact marker predicate; not project/dependency qualification"
+}

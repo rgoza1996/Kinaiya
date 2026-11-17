@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/usr/bin/python3.12",
+    "-c",
+    "import ast,asyncio,json,sys\nfrom pathlib import Path\np=Path(sys.argv[1]);tree=ast.parse(p.read_text())\nf=next(n for n in tree.body if isinstance(n,ast.AsyncFunctionDef) and n.name==\"test_eager_native_factory_still_enrolls_before_any_model_effect\")\na=next(n for n in ast.walk(f) if isinstance(n,ast.Attribute) and n.attr==\"eager_task_factory\")\nprint(json.dumps({\"version\":sys.version,\"executable\":sys.executable,\"statement\":\"asyncio.eager_task_factory\",\"source_line\":a.lineno}),flush=True)\neval(compile(ast.fix_missing_locations(ast.Expression(a)),str(p),\"eval\"),{\"asyncio\":asyncio})\nprint(\"Exact native eager factory expression resolves\")\n",
+    "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/decisions-consumers-566/tests/integration/test_agent_advice_operations.py"
+  ],
+  "exit_code": 0,
+  "source_sha256": "683756a2af17e20740262fcc4eee09cb21ec0e15f8f1ea123c7470e5a77034a0",
+  "log_sha256": "fd2756597aff3ec0b075ccf3ebd2bd3cf3dec29a9d0d4bd2950af2cb19e5aa40",
+  "scope": "stdlib expression probe only; not a project test or pinned-environment qualification"
+}
