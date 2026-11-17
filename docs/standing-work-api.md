@@ -160,7 +160,10 @@ The HTTP adapter owns at most 64 actual operations, including ingress, native
 threads and serialization. Body ingress has a five-second bound within a
 25-second whole-operation deadline. Timeout/disconnect sets the native
 cancellation signal but retains capacity until the actual thread settles.
-Shutdown joins these operations before retiring the Session controller. It
+After native completion, the disconnect monitor joins its pending receive. An
+in-flight disconnect still fences the response. A final request-body frame ends
+the monitor and allows the response to be sent. Shutdown joins these operations
+before retiring the Session controller. It
 does not label an uncooperative thread stopped because its caller stopped waiting.
 
 Dispatch/producer POST requests have a separate 4,096-byte raw and canonical
