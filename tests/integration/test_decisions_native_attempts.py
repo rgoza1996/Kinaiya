@@ -536,16 +536,35 @@ async def test_provider_cancellation_retains_actual_close_before_original_comple
                 await release.wait()
 
         stream = HeldClose()
+        dispatched = asyncio.get_running_loop().create_future()
+
+        def respond(request):
+            assert not dispatched.done(), "Original provider request was sent twice"
+            dispatched.set_result(None)
+            return httpx.Response(200, stream=stream)
+
         provider = CompatibleTextProvider(
             "http://localhost/v1",
             "m",
-            transport=httpx.MockTransport(lambda request: httpx.Response(200, stream=stream)),
+            transport=httpx.MockTransport(respond),
         )
         agent = DummyAgent()
+        client = make_client()
         original = asyncio.create_task(
-            DecisionsWorker(make_client(), agent, ModelClassifier(provider)).process(source)
+            DecisionsWorker(client, agent, ModelClassifier(provider)).process(source)
         )
         try:
+            # Source and disclosure reads precede admission. Observe their
+            # original worker as well as its first actual provider request.
+            done, _ = await asyncio.wait(
+                {original, dispatched},
+                timeout=client.http.timeout.read,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if original in done:
+                await original
+                pytest.fail("Original worker ended before its provider response close")
+            assert dispatched in done, "Original worker did not dispatch before the HTTP read bound"
             await asyncio.wait_for(closing.wait(), 2)
             original.cancel()
             await asyncio.sleep(0)
