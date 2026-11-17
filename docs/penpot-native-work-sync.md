@@ -1,5 +1,11 @@
 # Native work and optional companion design synchronization
 
+This is the November 14 baseline record. The later
+[architecture responsibility copy correction](penpot-architecture-copy-sync.md)
+updates the two overview footers and the current archive identity while
+preserving every other prepared archive member. The baseline results below
+remain historical evidence.
+
 The repository's canonical `assets/penpot/Kinaiya-Converse-Agent.penpot` now
 contains a new **13 · Native work & companions** page. The owner's canonical
 master in **local Penpot at [localhost:9001](http://localhost:9001)** has also

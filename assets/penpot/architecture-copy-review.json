@@ -1,0 +1,163 @@
+{
+  "utc": "2026-11-17T01:50:29.424363+00:00",
+  "python": "3.13.18 (main, Oct 26 2026, 14:20:56) [GCC 13.3.0]",
+  "source_sha256": "a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd",
+  "source_bytes": 245704624,
+  "result_sha256": "8552960ba34dd410cf33279f8034688568b2523fbb890fd965e73af4635d4e34",
+  "result_bytes": 245704613,
+  "member_count": 50315,
+  "members_byte_identical": 50313,
+  "changed": [
+    {
+      "member": "files/aed0c863-4a2a-8195-8008-defdd82e75a3/pages/3d154fd3-c631-5f34-bf0e-4efa76283a20/0ae5a677-4ca4-507d-b28a-f6a027a05207.json",
+      "shape_id": "0ae5a677-4ca4-507d-b28a-f6a027a05207",
+      "frame_id": "3b75d980-212c-5ebd-9515-a0690da3c8ad",
+      "before_sha256": "231820547b48ad81b8e35c99f52f659b1706f1310be4ae6dd1dbd87ce2796532",
+      "after_sha256": "8dc60f9a829894c3421d479b74622e8b848bb9e2e41492d22ca54372ed1be328"
+    },
+    {
+      "member": "files/aed0c863-4a2a-8195-8008-defdd82e75a3/pages/3d154fd3-c631-5f34-bf0e-4efa76283a20/41f3f66d-c38c-5a53-af7b-66b11790387c.json",
+      "shape_id": "41f3f66d-c38c-5a53-af7b-66b11790387c",
+      "frame_id": "194b8efd-74dd-5a96-951f-00d0877779dd",
+      "before_sha256": "97d97dcae470f320382a3094c5961f0161eff3d05a89db7d13c5da882d67bd8d",
+      "after_sha256": "72e21e886e57bdc537528889cefd20ec153bf2a332ecfe04d0eb70929ec08fe4"
+    }
+  ],
+  "added_members": [],
+  "removed_members": [],
+  "zip_crc_passed": true,
+  "original_shapes_geometry_and_navigation_preserved": true,
+  "copy": "Architecture and harness correctness; model behavior is diagnostic (#483).",
+  "canonical_native_export": "7c1f9bac032b41330c90ba318fb4b1a82bd7d8288f219017bcee233a2966cde5",
+  "canonical_export_compared_to_original": "f832e651a39437fcf883176385c10652f57f9a0aa11e6651d4d9d3ade6f1f8d6",
+  "issue": 673,
+  "lfs_publication": {
+    "utc": "2026-11-17T01:52:15.059076+00:00",
+    "oid": "8552960ba34dd410cf33279f8034688568b2523fbb890fd965e73af4635d4e34",
+    "bytes": 245704613,
+    "ref": "refs/heads/codex/penpot-native-work",
+    "credential_or_signed_url_retained": false,
+    "upload_status": 200,
+    "verify_status": 200,
+    "state": "uploaded_and_full_download_verified",
+    "verified_bytes": 245704613,
+    "verified_sha256": "8552960ba34dd410cf33279f8034688568b2523fbb890fd965e73af4635d4e34"
+  },
+  "native_archive_comparison": {
+    "baseline": "f832e651a39437fcf883176385c10652f57f9a0aa11e6651d4d9d3ade6f1f8d6",
+    "updated": "7c1f9bac032b41330c90ba318fb4b1a82bd7d8288f219017bcee233a2966cde5",
+    "old_members": 50267,
+    "new_members": 50267,
+    "same_bytes": 50260,
+    "changed": [
+      "files/aed0c863-4a2a-8195-8008-defdd82e75a3.json",
+      "files/aed0c863-4a2a-8195-8008-defdd82e75a3/pages/539d030b-728d-808b-8008-f29cdb0cd579/539d030b-728d-808b-8008-f29d838bfaa7.json",
+      "files/aed0c863-4a2a-8195-8008-defdd82e75a3/pages/539d030b-728d-808b-8008-f29cdb0cd579/539d030b-728d-808b-8008-f29d838c70a3.json",
+      "files/aed0c863-4a2a-8195-8008-defdd82e75a3/thumbnails/frame/539d030b-728d-808b-8008-f29cdb0cd579/539d030b-728d-808b-8008-f29d838bfa6b.json",
+      "files/aed0c863-4a2a-8195-8008-defdd82e75a3/thumbnails/frame/539d030b-728d-808b-8008-f29cdb0cd579/539d030b-728d-808b-8008-f29d838c7067.json"
+    ],
+    "serialization_only": [],
+    "added": [
+      "objects/bf1f7db5-f77f-482b-b7bf-fb1f215707e3.json",
+      "objects/bf1f7db5-f77f-482b-b7bf-fb1f215707e3.png"
+    ],
+    "removed": [
+      "objects/f4c0a08c-5c06-4c18-a311-883ba192c2ed.json",
+      "objects/f4c0a08c-5c06-4c18-a311-883ba192c2ed.png"
+    ]
+  },
+  "native_export_verification": {
+    "boards": 34,
+    "shapes": 1221,
+    "interactive_shapes": 136,
+    "page_options": null,
+    "footers": [
+      {
+        "id": "539d030b-728d-808b-8008-f29d838bfaa7",
+        "name": "Architecture and harness correctness; model behavior is diagnostic (#483).",
+        "text": [
+          "Architecture and harness correctness; model behavior is diagnostic (#483)."
+        ]
+      },
+      {
+        "id": "539d030b-728d-808b-8008-f29d838c70a3",
+        "name": "Architecture and harness correctness; model behavior is diagnostic (#483).",
+        "text": [
+          "Architecture and harness correctness; model behavior is diagnostic (#483)."
+        ]
+      }
+    ],
+    "native_export_verified": true,
+    "flows": {
+      "539d030b-728d-808b-8008-f2a63a7aeb99": {
+        "id": "539d030b-728d-808b-8008-f2a63a7aeb99",
+        "name": "Native work & companions \u00b7 motion on",
+        "startingFrame": "539d030b-728d-808b-8008-f29d838bfa6b"
+      },
+      "539d030b-728d-808b-8008-f2a64c11bf6a": {
+        "id": "539d030b-728d-808b-8008-f2a64c11bf6a",
+        "name": "Native work & companions \u00b7 motion off",
+        "startingFrame": "539d030b-728d-808b-8008-f29d838c7067"
+      }
+    },
+    "flow_count": 2
+  },
+  "preview_png": {
+    "path": "previews/native-work/architecture-acceptance-overview.png",
+    "sha256": "96112dc3910ac0d3b173691f815e1485c28cce0495c801a2b9f3d8634a96a074",
+    "source": "Native Penpot frame export object bf1f7db5-f77f-482b-b7bf-fb1f215707e3.png; no pixel edits."
+  },
+  "safe_unique_zip_paths": true,
+  "local_master_audit_before_repository_sync": {
+    "utc": "2026-11-17T01:34:20.816561+00:00",
+    "issue": 673,
+    "canonical_url": "http://localhost:9001/#/workspace?team-id=aed0c863-4a2a-8195-8008-de835100d87c&file-id=aed0c863-4a2a-8195-8008-defdd82e75a3&page-id=539d030b-728d-808b-8008-f29cdb0cd579",
+    "board_count": 34,
+    "corrected_text": "Architecture and harness correctness; model behavior is diagnostic (#483).",
+    "updated_shape_ids": [
+      "539d030b-728d-808b-8008-f29d838bfaa7",
+      "539d030b-728d-808b-8008-f29d838c70a3"
+    ],
+    "before_version": {
+      "name": "Before architecture acceptance copy correction (#673)",
+      "locked": true,
+      "verified": "Native version menu showed Unlock after locking."
+    },
+    "verification": "Both motion variants edited through native text editor clipboard paste; canonical reload retained corrected footer and all34 boards; final native screenshot visually inspected.",
+    "first_edit_attempt": "Generic setValue produced an error toast and left original footer intact; native clipboard paste succeeded. No failed attempt is counted as a saved correction.",
+    "export": {
+      "path": "/home/roggoz/Downloads/Kinaiya \u2014 Master design (11).penpot",
+      "bytes": 245557644,
+      "sha256": "7c1f9bac032b41330c90ba318fb4b1a82bd7d8288f219017bcee233a2966cde5"
+    },
+    "remaining": "Repository archive/previews/docs synchronization and structural comparison, LFS verification and PR for673 remain outstanding. Do not close673 yet.",
+    "worktree": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/penpot-native-work",
+    "branch": "codex/penpot-native-work",
+    "head_before_edits": "2849fad354e71f48c8060d7a94672dacf8342667",
+    "source_pointer_oid": "a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd",
+    "source_lfs_object_currently_cached": false
+  },
+  "verification_commands": [
+    {
+      "command": "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python - (inline archive construction/member comparison)",
+      "result": "50313 unchanged members, exactly2 modified footer records, no added/removed members; ZIP CRC and safe unique paths passed."
+    },
+    {
+      "command": "python3 - (inline ElementTree.parse and exact SVG replacement comparison)",
+      "result": "passed; only one text occurrence differs."
+    },
+    {
+      "command": "output/issue-643-python313-venv/bin/python output/issue-673-publish-lfs.py",
+      "result": "HTTP200 upload/verify; all245704613 bytes match8552960ba34dd410cf33279f8034688568b2523fbb890fd965e73af4635d4e34."
+    }
+  ],
+  "runtime_tests": {
+    "status": "not_run",
+    "reason": "No runtime code or behavior changed. Native editor/reload/export and exact archive/preview comparisons verify the design-copy change."
+  },
+  "publication_helper_sha256": "a5d8d6bf70691c32b1bd85b64339222d77859c1e1d627a2fa8074ad49ed0154a",
+  "staged_whitespace_check": {
+    "command": "git diff --cached --check",
+    "exit_code": 0
+  }
+}
