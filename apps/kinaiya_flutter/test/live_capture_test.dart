@@ -18,14 +18,14 @@ class ControlledApi extends KinaiyaClient {
     http.Client Function()? captureFactory,
     http.Client Function()? liveFactory,
     http.Client Function()? journalFactory,
+    super.httpClient,
+    this.realSpeechControls = false,
     String serviceBase = 'http://fixture',
-    String converseBase = 'http://127.0.0.1:8762',
-    String ownerToken = 'synthetic',
+    super.converseBase = 'http://127.0.0.1:8762',
+    super.ownerToken = 'synthetic',
   }) : super(
          sessionBase: serviceBase,
          agentBase: serviceBase,
-         converseBase: converseBase,
-         ownerToken: ownerToken,
          liveStreamClientFactory: liveFactory,
          journalWakeClientFactory: journalFactory,
          captureModeClientFactory:
@@ -35,6 +35,7 @@ class ControlledApi extends KinaiyaClient {
          ),
        );
   final transcription = Completer<Map<String, Object?>>();
+  final bool realSpeechControls;
   int interrupts = 0;
   @override
   Future<Map<String, Object?>> converseHealth() async => {'enabled': true};
@@ -47,6 +48,9 @@ class ControlledApi extends KinaiyaClient {
   @override
   Future<void> interruptSpeech(String id, {int? expectedGeneration}) async {
     interrupts++;
+    if (realSpeechControls) {
+      await super.interruptSpeech(id, expectedGeneration: expectedGeneration);
+    }
   }
 }
 

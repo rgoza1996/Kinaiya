@@ -4,6 +4,7 @@ import '../api/live_stream_client.dart';
 import '../api/journal_wake.dart';
 import '../api/live_streams.dart';
 import '../api/models.dart';
+import '../api/playback_controls.dart';
 import '../api/owned_settings_client.dart';
 import '../audio/speech_audio.dart';
 
@@ -55,7 +56,7 @@ class AdaptiveLiveCapture {
   final Future<void> Function(List<JournalEntry>) onEntries;
   final _started = Completer<bool>();
   final Set<Future<void>> _actual = {};
-  Future<void>? _lifetime, _armingDone, _browserStop;
+  Future<void>? _lifetime, _armingDone, _browserStop, _playbackStop;
   Future<void>? _noticeLifetime, _noticeClose;
   Future<bool>? _settling;
   Future<IncrementalPcmState>? _waiting;
@@ -68,6 +69,7 @@ class AdaptiveLiveCapture {
   LiveStreamAbortProof? _negativeProof;
   bool _stopped = false, _ready = false, _retired = false, _configured = false;
   String? _boundaryFor;
+  String? _runtimeId;
   Completer<void> _wake = Completer<void>();
   String status = 'Starting live input';
 
@@ -400,6 +402,7 @@ class AdaptiveLiveCapture {
     final source =
         entry.payload[state ? 'source_event_id' : 'window_source_id'];
     final effect = entry.payload['live_effect_key'];
+    final runtime = entry.payload['runtime_id'];
     return ownsUtterance(
           entry.payload[state ? 'utterance_id' : 'window_utterance_id'],
         ) &&
@@ -409,7 +412,28 @@ class AdaptiveLiveCapture {
         entry.causes.length == 1 &&
         entry.causes.single == source &&
         effect is String &&
-        RegExp(r'^live-effect:[a-f0-9]{32}$').hasMatch(effect);
+        RegExp(r'^live-effect:[a-f0-9]{32}$').hasMatch(effect) &&
+        runtime is String &&
+        RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(runtime) &&
+        (_runtimeId == null || _runtimeId == runtime);
+  }
+
+  void observeOutput(JournalEntry entry) {
+    if (accepts(entry)) _runtimeId ??= entry.payload['runtime_id'] as String;
+  }
+
+  bool acceptsPlaybackStop(JournalEntry entry) {
+    if (!active || !_current() || _runtimeId == null) return false;
+    try {
+      return NativePlaybackStop.fromEntry(entry).matches(
+        sessionId: initial.body['session_id'] as String,
+        threadId: initial.body['thread_id'] as String,
+        epoch: initial.body['epoch'] as int,
+        runtimeId: _runtimeId,
+      );
+    } on FormatException {
+      return false;
+    }
   }
 
   void inputFault() {
@@ -433,6 +457,10 @@ class AdaptiveLiveCapture {
         (proof) => _negativeProof = proof,
         onError: (Object _, StackTrace __) {},
       ),
+    );
+    _playbackStop = Future<void>.sync(audio.stopPlayback);
+    unawaited(
+      _playbackStop!.then<void>((_) {}, onError: (Object _, StackTrace __) {}),
     );
     if (_armingDone != null) {
       _browserStop = audio.stopArmed();
@@ -481,6 +509,9 @@ class AdaptiveLiveCapture {
         await attempt.settled;
       }
       if (_negativeProof?.cleanupConfirmed != true) return false;
+      // Native input retirement does not prove the original local speaker
+      // stopped. Retain Call capacity through that actual adapter Future too.
+      if (_playbackStop != null) await _playbackStop;
       if (_localEpoch == null && _armingDone != null) {
         // Cancellation can precede the first state read after acquisition.
         // Arm and stop have both settled; this retained owner prevents a

@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "b3e177b356b90a9a87ff3912d885444719a39d49ca50f7890ce827a5bcdfacbc",
+  "text": "00:00 +0: loading /home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/playback_controls_test.dart\n00:00 +0: native negative stop binds exact original runtime and session scope\n00:00 +1: delivery reports and malformed controls cannot grant native stop authority\n00:00 +2: native coalesced stop permits safe monotonic jumps and initial zero\n00:00 +3: All tests passed!\n"
+}

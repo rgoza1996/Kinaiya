@@ -25,16 +25,52 @@ class _NativeLoopbackHttp extends HttpOverrides {
       super.createHttpClient(context)..findProxy = (_) => 'DIRECT';
 }
 
+class _NativeOutputHttp extends http.BaseClient {
+  final http.Client inner = IOClient(
+    _NativeLoopbackHttp().createHttpClient(null),
+  );
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (const {
+      '/v1/converse/speech',
+      '/v1/converse/delivery',
+      '/v1/converse/interrupt',
+    }.contains(request.url.path)) {
+      return inner.send(request);
+    }
+    return Future.value(
+      http.StreamedResponse(
+        Stream.value(
+          utf8.encode('{"detail":"Unrelated Flutter fixture route"}'),
+        ),
+        400,
+        headers: {'content-type': 'application/json'},
+        request: request,
+      ),
+    );
+  }
+
+  @override
+  void close() => inner.close();
+}
+
 class _ObservedNotices extends http.BaseClient {
-  _ObservedNotices(this.entries);
+  _ObservedNotices(this.entries, {this.cancelProofs});
   final List<Map<String, Object?>> entries;
+  final List<Map<String, Object?>>? cancelProofs;
   final http.Client inner = IOClient(
     _NativeLoopbackHttp().createHttpClient(null),
   );
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final result = await inner.send(request);
-    if (!request.url.path.endsWith('/v1/transcript')) return result;
+    final cancellation =
+        cancelProofs != null &&
+        request.method == 'POST' &&
+        request.url.path.contains('/cancel-original');
+    if (!request.url.path.endsWith('/v1/transcript') && !cancellation) {
+      return result;
+    }
     final bytes = <int>[];
     final stream = result.stream.transform(
       StreamTransformer<List<int>, List<int>>.fromHandlers(
@@ -51,6 +87,8 @@ class _ObservedNotices extends http.BaseClient {
             entries.addAll(
               value.map((e) => (e as Map).cast<String, Object?>()),
             );
+          } else if (cancellation && value is Map<String, Object?>) {
+            cancelProofs!.add(value);
           }
           sink.close();
         },
@@ -81,12 +119,39 @@ class PublicPcmAudio extends CaptureAudio
   final armStopStacks = <StackTrace>[];
   Completer<void>? heldStop;
   String rotationFault = '';
+  bool playbackEnabled = false;
+  final queuedAudio = <(String, int, int?)>[];
+  Completer<void>? playbackDone;
+  Completer<void>? heldPlaybackStop;
   IncrementalPcmRotation? lastRotation;
   IncrementalPcmPacket? pending;
   Completer<IncrementalPcmState>? waiting;
 
   @override
-  Future<bool> get availablePlayback async => false;
+  Future<bool> get availablePlayback async => playbackEnabled;
+  @override
+  Future<bool> get isPlaying async =>
+      playbackDone != null && !playbackDone!.isCompleted;
+  @override
+  Future<bool> queuePcm(String value, int rate) async {
+    queuedAudio.add((value, rate, pcmEpoch));
+    if (playbackDone == null || playbackDone!.isCompleted) {
+      playbackDone = Completer<void>();
+    }
+    return true;
+  }
+
+  @override
+  Future<void> awaitPlayback() => playbackDone?.future ?? Future.value();
+  @override
+  Future<void> stopPlayback() async {
+    if (heldPlaybackStop != null) await heldPlaybackStop!.future;
+    if (playbackDone != null && !playbackDone!.isCompleted) {
+      playbackDone!.complete();
+    }
+    await super.stopPlayback();
+  }
+
   @override
   bool get supportsIncrementalPcmCapture => true;
   @override
@@ -251,6 +316,9 @@ void main() {
   final rotationFault =
       Platform.environment['KINAIYA_CALL_ROTATION_FAULT'] ?? '';
   final heldReply = Platform.environment['KINAIYA_CALL_HELD_REPLY'] == 'true';
+  final playback = Platform.environment['KINAIYA_CALL_PLAYBACK'] == 'true';
+  final playbackMode =
+      Platform.environment['KINAIYA_CALL_PLAYBACK_MODE'] ?? 'native_stop';
   testWidgets(
     'actual Call retains held microphone stop through disconnect and late PCM',
     (tester) async {
@@ -477,6 +545,237 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       state.dispose();
     },
-    skip: url == null || token == null || scope == null || !consumerRequested,
+    skip:
+        url == null ||
+        token == null ||
+        scope == null ||
+        !consumerRequested ||
+        playback,
+  );
+
+  testWidgets(
+    playbackMode == 'held_stop'
+        ? 'actual Call retains unresolved speaker cleanup after native capture retirement'
+        : playbackMode == 'mute'
+        ? 'actual Converse Mute owns capture and playback with large text and reduced motion'
+        : playbackMode == 'natural_end'
+        ? 'actual backchannel reports played only after local source completion'
+        : 'actual backchannel PCM preserves capture and honors a native generation stop',
+    (tester) async {
+      final mutedSurface = const {'mute', 'held_stop'}.contains(playbackMode);
+      final semantics = mutedSurface ? tester.ensureSemantics() : null;
+      Completer<void>? heldPlayback;
+      try {
+        if (mutedSurface) {
+          tester.view.physicalSize = const Size(1280, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+        }
+        final raw = jsonDecode(scope!) as Map<String, Object?>;
+        final observed = <Map<String, Object?>>[];
+        final cancelProofs = <Map<String, Object?>>[];
+        final snapshot = {
+          ...nativeCaptureFixture()['snapshot'] as Map<String, Object?>,
+          'default_mode': 'adaptive_live',
+          'selected_mode': 'adaptive_live',
+          'adaptive_live_enabled': true,
+        };
+        final api = ControlledApi(
+          serviceBase: '$url/session',
+          converseBase: url!,
+          ownerToken: token!,
+          httpClient: _NativeOutputHttp(),
+          realSpeechControls: true,
+          liveFactory: () => _ObservedNotices([], cancelProofs: cancelProofs),
+          journalFactory: () => _ObservedNotices(observed),
+          captureFactory: () => MockClient(
+            (_) async => http.Response(
+              jsonEncode(snapshot),
+              200,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        final audio = PublicPcmAudio()..playbackEnabled = true;
+        final activities = <VoiceActivity>[];
+        final state = AppState()
+          ..connect(ConnectionProfile.defaults(), injected: api)
+          ..converseSession = SessionInfo(
+            sessionId: raw['session_id'] as String,
+            threadId: raw['thread_id'] as String,
+            channel: 'converse',
+            epoch: raw['epoch'] as int,
+          );
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                disableAnimations: mutedSurface,
+                textScaler: TextScaler.linear(mutedSurface ? 1.6 : 1),
+              ),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: CharacterView(
+                state: state,
+                audio: audio,
+                onActivityChanged: activities.add,
+                surface: mutedSurface
+                    ? CharacterSurface.interaction
+                    : CharacterSurface.legacy,
+                animateTransitions: !mutedSurface,
+                richArtifactsEnabled: !mutedSurface,
+                speechMouthMotion: !mutedSurface,
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        final start = mutedSurface
+            ? find.byKey(const ValueKey('converse-call'))
+            : find.byTooltip('Start Live listen (armed mic)');
+        await tester.ensureVisible(start);
+        await tester.tap(start);
+        await nativeSpin(tester, () => activities.any((a) => a.listening));
+        audio.feed();
+        await nativeSpin(tester, () => audio.queuedAudio.isNotEmpty);
+        expect(audio.queuedAudio, [
+          (base64Encode([16, 0, 32, 0, 48, 0, 64, 0]), 24000, 1),
+        ]);
+        expect(audio.armed, isTrue);
+        expect(audio.epoch, 1);
+        expect(audio.arms, 1);
+        expect(audio.releases, 0);
+        await nativeSpin(
+          tester,
+          () => activities.any((a) => a.listening && a.speaking),
+        );
+        expect(await audio.isPlaying, isTrue);
+        bool hasPlayed() => observed.any(
+          (entry) =>
+              entry['kind'] == 'delivery.updated' &&
+              (entry['payload'] as Map)['status'] == 'played',
+        );
+        expect(hasPlayed(), isFalse);
+        if (mutedSurface) {
+          expect(find.bySemanticsLabel('Mute'), findsOneWidget);
+          final mute = find.byKey(const ValueKey('converse-microphone'));
+          await tester.ensureVisible(mute);
+          if (playbackMode == 'held_stop') {
+            heldPlayback = audio.heldPlaybackStop = Completer<void>();
+          }
+          await tester.tap(mute);
+          if (heldPlayback != null) {
+            await nativeSpin(
+              tester,
+              () => cancelProofs.any((p) => p['cleanup_confirmed'] == true),
+            );
+            expect(audio.armed, isFalse);
+            expect(await audio.isPlaying, isTrue);
+            expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+            expect(audio.releases, 0);
+            expect(
+              tester
+                  .widget<FilledButton>(
+                    find.byKey(const ValueKey('converse-call')),
+                  )
+                  .onPressed,
+              isNull,
+            );
+            await tester.pump(const Duration(seconds: 4));
+            expect(activities.last.stopUnconfirmed, isTrue);
+            expect(AdaptiveLiveCapture.hasRetainedCapture, isTrue);
+            expect(audio.arms, 1);
+            heldPlayback.complete();
+          }
+          await nativeSpin(
+            tester,
+            () => !AdaptiveLiveCapture.hasRetainedCapture,
+          );
+          await nativeSpin(
+            tester,
+            () =>
+                !activities.last.stopPending &&
+                !activities.last.stopUnconfirmed,
+          );
+          expect(await audio.isPlaying, isFalse);
+          expect(audio.armed, isFalse);
+          expect(audio.arms, 1);
+          expect(audio.releases, 1);
+          expect(audio.queuedAudio, hasLength(1));
+          expect(hasPlayed(), isFalse);
+          expect(find.bySemanticsLabel('Unmute'), findsOneWidget);
+          await tester.pumpWidget(const SizedBox.shrink());
+          state.dispose();
+          return;
+        }
+        if (playbackMode == 'natural_end') {
+          audio.playbackDone!.complete();
+          await nativeSpin(tester, hasPlayed);
+          expect(await audio.isPlaying, isFalse);
+          expect(audio.armed, isTrue);
+          expect(audio.epoch, 1);
+          audio.feed();
+          await nativeSpin(tester, () => audio.acknowledgments == 2);
+          expect(audio.arms, 1);
+          expect(audio.queuedAudio, hasLength(1));
+          await tester.tap(find.byTooltip('Stop Live listen'));
+          await nativeSpin(
+            tester,
+            () => !AdaptiveLiveCapture.hasRetainedCapture,
+          );
+          expect(audio.releases, 1);
+          await tester.pumpWidget(const SizedBox.shrink());
+          state.dispose();
+          return;
+        }
+        final generation = state.speechEpoch;
+        final control = IOClient(_NativeLoopbackHttp().createHttpClient(null));
+        final response = await tester.runAsync(
+          () => control.post(
+            Uri.parse('$url/v1/converse/interrupt'),
+            headers: {
+              'authorization': 'Bearer $token',
+              'content-type': 'application/json',
+            },
+            body: jsonEncode({
+              'session_id': raw['session_id'],
+              'expected_generation': generation,
+            }),
+          ),
+        );
+        control.close();
+        expect(response!.statusCode, 200);
+        await nativeSpin(
+          tester,
+          () => observed.any((e) {
+            final p = e['payload'] as Map;
+            return e['kind'] == 'delivery.updated' &&
+                p['control'] == 'generation_stop' &&
+                (p['next_generation_epoch'] as num) > generation;
+          }),
+        );
+        await tester.pump();
+        expect(await audio.isPlaying, isFalse);
+        expect(audio.armed, isTrue);
+        expect(audio.epoch, 1);
+        audio.feed();
+        await nativeSpin(tester, () => audio.acknowledgments == 2);
+        expect(audio.arms, 1);
+        expect(audio.queuedAudio, hasLength(1));
+        await tester.tap(find.byTooltip('Stop Live listen'));
+        await nativeSpin(tester, () => !AdaptiveLiveCapture.hasRetainedCapture);
+        expect(audio.releases, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        state.dispose();
+      } finally {
+        if (heldPlayback != null && !heldPlayback.isCompleted) {
+          heldPlayback.complete();
+        }
+        semantics?.dispose();
+      }
+    },
+    skip: url == null || token == null || scope == null || !playback,
   );
 }

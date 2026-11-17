@@ -145,6 +145,21 @@ native cleanup and stopped FIFO readback matching its original epoch, sequence
 and acknowledged offset. A changed local epoch still requires the exact retained
 rotation receipt. Uncertain cleanup remains retained.
 
+The first current native live output enrolls its bounded runtime identity for
+this capture. A `delivery.updated` negative playback fence is accepted only with
+that same runtime, session, thread and epoch, exact native `generation_stop`,
+`interrupted` and `delivery_unknown` metadata, and safe monotonically increasing
+generation counters. Any source must match its sole cause. Audible delivery
+receipt fields, model text and another runtime cannot grant stop authority.
+The existing local generation gate stops playback without closing the armed
+microphone; duplicate or older generations cannot stop newer audio.
+
+Call stop also retains the original local speaker-stop Future. Native input
+cleanup alone cannot release the FIFO or Call capacity while that Future is
+unresolved. Adapter failure leaves cleanup unconfirmed. Synthesis EOF, local
+source completion, native capture cleanup and local speaker cleanup are separate
+facts; only actual local source completion can support a played receipt.
+
 Actual native controls in `test_live_stream_dart.py` run the Call widget against
 fresh HTTP, SQLite and synthetic Whistle IPC. They cover contiguous input, held
 physical-stop futures through disconnect, late PCM exclusion, empty backchannels,
@@ -154,11 +169,22 @@ does not dispatch finish or start a new utterance.
 These are synthetic architecture/lifecycle controls, not physical audio or
 provider latency measurements. See the [Call ownership qualification record](evidence/adaptive-call-owner-2026-11-17/README.md).
 
+The [playback qualification record](evidence/adaptive-call-playback-2026-11-17/README.md)
+adds actual native speech/delivery/interrupt HTTP controls with synthetic PCM
+from the legacy-local TTS adapter. It checks backchannel capture continuity,
+natural playback completion, native generation stops, and Mute with large text
+and reduced motion. A held speaker-stop Future must retain Call after native
+microphone cleanup and the public deadline. Browser controls separately show
+that speaker PCM does not enter or wake the input FIFO and that the bridge
+requests echo cancellation and noise suppression. These controls do not qualify
+a managed TTS worker, physical playback or room/device echo cancellation.
+
 ## Remaining integration
 
-Complete normal host/Call qualification across playback/backchannel capture,
-echo prevention, mute, accessibility, no-audio, reconnect, process replacement
-and dependency loss. Add timing
+Extend the synthetic playback/backchannel, mute and accessibility qualification
+to the remaining lifecycle and supported-adapter paths. Complete no-audio,
+reconnect, process replacement and dependency-loss qualification; physical
+echo prevention remains unverified. Add timing
 instrumentation and faithful same-conversation mode comparisons before enabling
 the default. Capture/STT/model/playback observations remain distinct. Model
 answer, classification, persona and speech quality are diagnostic evidence;

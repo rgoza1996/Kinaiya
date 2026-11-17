@@ -147,7 +147,35 @@ class _FakeCoordinator:
 @pytest.fixture
 async def converse_incremental_env(tmp_path: Path, request):
     held_reply = getattr(request, "param", None) == "adaptive-call-held"
-    live_consumer = getattr(request, "param", None) in {"adaptive-call", "adaptive-call-held"}
+    playback_mode = {
+        "adaptive-call-playback": "native_stop",
+        "adaptive-call-playback-ended": "natural_end",
+        "adaptive-call-playback-mute": "mute",
+        "adaptive-call-playback-held-stop": "held_stop",
+    }.get(getattr(request, "param", None), "")
+    playback = bool(playback_mode)
+    live_consumer = playback or getattr(request, "param", None) in {
+        "adaptive-call",
+        "adaptive-call-held",
+        "adaptive-call-playback",
+    }
+    tts_calls = []
+
+    def public_tts(request):
+        assert request.url.path == "/v1/audio/speech"
+        assert request.headers["Authorization"] == "Bearer " + AUTH.tokens["converse"]
+        tts_calls.append(json.loads(request.content))
+        frame = {
+            "audio": base64.b64encode(b"\x10\x00\x20\x00\x30\x00\x40\x00").decode(),
+            "sample_rate": 24000,
+            "index": 0,
+        }
+        return httpx.Response(
+            200,
+            content=(json.dumps(frame) + "\n").encode(),
+            headers={"content-type": "application/x-ndjson"},
+        )
+
     directory = Path(tempfile.mkdtemp(prefix="whistle-int-", dir="/tmp"))
     endpoint = WhistleEndpoint(directory)
     engine = _IncrementalEngine()
@@ -208,6 +236,7 @@ async def converse_incremental_env(tmp_path: Path, request):
         speech = SpeechClient(
             "http://127.0.0.1:8765",
             AUTH.tokens["converse"],
+            transport=httpx.MockTransport(public_tts) if playback else None,
             stt_provider="whistle",
             stt_url="http://127.0.0.1:8764",
             stt_transport=httpx.ASGITransport(app=resources_app),
@@ -218,6 +247,8 @@ async def converse_incremental_env(tmp_path: Path, request):
         journal = LocalJournal(store, "converse")
         session = store.create_session(SessionRequest(channel="converse"))
         replies = ["", "Public synthetic buffered reply."] if held_reply else ["", ""]
+        if playback:
+            replies = ["Public synthetic acknowledgment."]
         runtime = ConverseRuntime(
             journal, ScriptedProvider(replies if live_consumer else ["Hello!"])
         )
@@ -239,6 +270,9 @@ async def converse_incremental_env(tmp_path: Path, request):
         yield SimpleNamespace(
             live_consumer=live_consumer,
             held_reply=held_reply,
+            playback=playback,
+            playback_mode=playback_mode,
+            tts_calls=tts_calls,
             client=client,
             session=session,
             journal=journal,

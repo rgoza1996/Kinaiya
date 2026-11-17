@@ -1262,7 +1262,15 @@ class _CharacterViewState extends State<CharacterView> {
           _pollTimer?.cancel();
         }
       });
-      if (capture.stopping) unawaited(_stopLocalPlayback());
+      if (capture.stopping) {
+        // The original Call owner retains playback cleanup and reports failure.
+        // Presentation must not create an unhandled error or free that owner.
+        unawaited(
+          Future<void>.sync(
+            _stopLocalPlayback,
+          ).then<void>((_) {}, onError: (Object _, StackTrace __) {}),
+        );
+      }
       _publishVoiceActivity();
     });
   }
@@ -1497,10 +1505,17 @@ class _CharacterViewState extends State<CharacterView> {
 
   Future<void> _onWindowEvent(JournalEntry entry) async {
     final adaptive = _adaptiveCall;
+    if (adaptive != null && _adaptiveCurrent(adaptive)) {
+      adaptive.observeOutput(entry);
+    }
     final adaptiveOutput =
         adaptive != null &&
         _adaptiveCurrent(adaptive) &&
         adaptive.accepts(entry);
+    final adaptiveStop =
+        adaptive != null &&
+        _adaptiveCurrent(adaptive) &&
+        adaptive.acceptsPlaybackStop(entry);
     if (adaptiveOutput &&
         entry.kind == 'converse.window_state' &&
         entry.payload['phase'] == 'live_no_audio_ready' &&
@@ -1536,7 +1551,8 @@ class _CharacterViewState extends State<CharacterView> {
     }
     nativeOutput = nativeOutput && nativeOwner.bindReply(entry);
     if (nativeOutput && _windowPlayed.contains(entry.eventId)) return;
-    final liveWindow = (_armed && _windowMode) || adaptiveOutput;
+    final liveWindow =
+        (_armed && _windowMode) || adaptiveOutput || adaptiveStop;
     if (!mounted ||
         (!nativeOutput && !liveWindow) ||
         entry.sessionId != _s.converseSession?.sessionId ||

@@ -24,6 +24,55 @@ async function armed(options={}) {
   return f;
 }
 
+for (const ending of ['stop', 'natural']) {
+  test(`backchannel ${ending} keeps speaker PCM outside the mic FIFO and preserves live input`,async()=>{
+    const f=await armed(),epoch=Number(f.api.captureEpoch());
+    assert.equal(f.seen.gets[0].audio.echoCancellation,true);
+    assert.equal(f.seen.gets[0].audio.noiseSuppression,true);
+    const speaker=Buffer.from([16,0,32,0,48,0,64,0]).toString('base64');
+    assert.equal(await f.api.queuePcm(speaker,24000),'queued');
+    assert.equal(f.api.playbackActive(),'yes');
+    assert.equal(f.seen.gets.length,1);
+    assert.equal(state(f).received_samples,0,'local speaker output is never appended as mic input');
+    assert.equal(packet(f),null);
+    let inputReady=false,playbackEnded=false;
+    const input=f.api.streamPcmWait(String(epoch)).then(()=>{inputReady=true;});
+    const drain=f.api.awaitPlayback().then(()=>{playbackEnded=true;});
+    await Promise.resolve();
+    assert.equal(inputReady,false,'speaker output cannot wake captured-input readiness');
+    assert.equal(playbackEnded,false,'queued PCM is not a completed local source');
+    f.feed(new Float32Array([0.25,-0.25]));
+    await input;
+    const first=packet(f);
+    assert.equal(first.capture_epoch,epoch);
+    assert.equal(first.sample_offset,0);
+    assert.equal(first.sample_count,2);
+    assert.deepEqual([0,2].map(i=>Buffer.from(first.pcm16_base64,'base64').readInt16LE(i)),[8191,-8192]);
+    if (ending==='stop') assert.equal(f.api.stopAudio(),'stopped');
+    else {
+      assert.equal(f.seen.sources.length,1);
+      f.seen.sources[0].onended();
+    }
+    await drain;
+    assert.equal(f.api.playbackActive(),'no');
+    assert.equal(state(f).active,true,'speaker completion cannot mute the mic');
+    assert.equal(Number(f.api.captureEpoch()),epoch);
+    assert.deepEqual(packet(f),first);
+    f.feed(new Float32Array([0.5]));
+    assert.equal(acknowledge(f,first),'confirmed');
+    const next=packet(f);
+    assert.equal(next.capture_epoch,epoch);
+    assert.equal(next.sequence,2);
+    assert.equal(next.sample_offset,2);
+    assert.equal(next.sample_count,1);
+    assert.equal(Buffer.from(next.pcm16_base64,'base64').readInt16LE(0),16383);
+    assert.equal(f.seen.gets.length,1);
+    assert.equal(acknowledge(f,next),'confirmed');
+    await f.api.stopArmed();
+    assert.equal(f.api.streamPcmRelease(String(epoch)),'released');
+  });
+}
+
 test('fresh speaking is independent of a retained packet and legacy windows',async()=>{
   const f=await armed(),epoch=Number(f.api.captureEpoch());
   assert.equal(typeof f.api.streamPcmSpeaking,'function');

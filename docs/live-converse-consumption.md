@@ -60,6 +60,12 @@ authority, alongside runtime, owner admission, playback generation, memory and
 task-context checks. Missing or wrong ownership refuses. A raw speaking-hint
 event-ID change therefore does not by itself suppress an authorized v2 reply.
 
+The gated Call client binds negative generation-stop controls to the original
+native runtime and conversation scope. Stopping local playback preserves the
+armed input, and retiring native input does not prove the local speaker stopped.
+The [Call playback contract and qualification](adaptive-call-integration.md)
+keep these facts separate from synthesis EOF and actual local source completion.
+
 ## Completion and recovery
 
 Provider completion wakes the loop even while its one original native wait is
@@ -90,8 +96,10 @@ separate facts.
 
 The native controls are in
 [`test_live_converse_consumer.py`](../tests/integration/test_live_converse_consumer.py).
-Normal host/Call wiring, complete owner/process replacement, echo/self-
-transcription, mute/accessibility/no-audio qualification, representative timing
+Gated host/Call wiring and synthetic playback, mute and accessibility controls
+are recorded in the [integration contract](adaptive-call-integration.md).
+Complete owner/process replacement, physical echo/self-transcription,
+remaining no-audio/dependency-loss qualification, representative timing
 comparison and qualified default migration still require full #623 integration.
 Model answer, persona, classification and speech quality are diagnostic outcomes,
 not architectural acceptance gates.

@@ -56,6 +56,30 @@ from tests.integration.test_live_stream_api import live_client, scope_for
             "",
             id="adaptive_live_held_reply",
         ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback",
+            "",
+            id="adaptive_live_playback_stop",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-ended",
+            "",
+            id="adaptive_live_playback_ended",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-mute",
+            "",
+            id="adaptive_live_playback_mute",
+        ),
+        pytest.param(
+            "adaptive_live_call_native_test.dart",
+            "adaptive-call-playback-held-stop",
+            "",
+            id="adaptive_live_playback_held_stop",
+        ),
     ],
     indirect=["converse_incremental_env"],
 )
@@ -86,7 +110,8 @@ async def test_actual_dart_native_live_stream_rollover(
     env = converse_incremental_env
     consumer = getattr(env, "live_consumer", False)
     held_reply = getattr(env, "held_reply", False)
-    advanced = consumer and not rotation_fault and not held_reply
+    playback = getattr(env, "playback", False)
+    advanced = consumer and not rotation_fault and not held_reply and not playback
     actions = (
         [
             "WAIT_WITH_BACKCHANNEL",
@@ -95,6 +120,8 @@ async def test_actual_dart_native_live_stream_rollover(
         if consumer
         else None
     )
+    if playback:
+        actions = ["WAIT_WITH_BACKCHANNEL", "IGNORE"]
     async with live_client(env, conversation_actions=actions) as native:
         if entrypoint == "adaptive_live_call_native_test.dart":
             native.app.mount("/session", session_app(env.store, AUTH))
@@ -135,6 +162,8 @@ async def test_actual_dart_native_live_stream_rollover(
                     "KINAIYA_CALL_LIVE_CONSUMER": "true" if consumer else "false",
                     "KINAIYA_CALL_ROTATION_FAULT": rotation_fault,
                     "KINAIYA_CALL_HELD_REPLY": "true" if held_reply else "false",
+                    "KINAIYA_CALL_PLAYBACK": "true" if playback else "false",
+                    "KINAIYA_CALL_PLAYBACK_MODE": env.playback_mode,
                 },
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
@@ -157,8 +186,11 @@ async def test_actual_dart_native_live_stream_rollover(
                 assert all(status < 500 for _, _, status in requests)
                 for phase, count in (
                     ("begin", 1),
-                    ("pcm", 3 if advanced else 2),
-                    ("finish", 1 if consumer and not held_reply else 0),
+                    (
+                        "pcm",
+                        1 if env.playback_mode in {"mute", "held_stop"} else 3 if advanced else 2,
+                    ),
+                    ("finish", 1 if consumer and not held_reply and not playback else 0),
                     ("cancel", 0),
                     ("cancel-original", 1),
                     ("next-utterance", 1 if advanced else 0),
@@ -176,7 +208,36 @@ async def test_actual_dart_native_live_stream_rollover(
                 assert capture.capture_fenced and capture.cleanup_complete()
                 assert capture.native.lease.settled and not env.runtime.stt_model_settings.leases
                 assert env.engine.begin_calls == (2 if advanced else 1)
-                assert env.engine.finish_calls == (1 if consumer and not held_reply else 0)
+                assert env.engine.finish_calls == (
+                    1 if consumer and not held_reply and not playback else 0
+                )
+                if playback:
+                    assert env.tts_calls == [
+                        {"input": "Public synthetic acknowledgment.", "profile": "Kokoro 82M"}
+                    ]
+                    assert [
+                        (method, path, status)
+                        for method, path, status in requests
+                        if path == "/v1/converse/speech"
+                    ] == [("POST", "/v1/converse/speech", 200)]
+                    replies = env.store.read(kinds=["conversation.converse"])
+                    assert (
+                        len(replies) == 1
+                        and replies[0].payload["live_effect"] == "converse_backchannel"
+                    )
+                    assert replies[0].payload["text"] == "Public synthetic acknowledgment."
+                    played = [
+                        e
+                        for e in env.store.read(kinds=["delivery.updated"])
+                        if e.payload.get("status") == "played"
+                    ]
+                    if env.playback_mode == "natural_end":
+                        assert len(played) == 1
+                        assert played[0].payload["event_id"] == replies[0].event_id
+                        assert played[0].payload["played_seconds"] == pytest.approx(4 / 24000)
+                    else:
+                        assert played == []
+                    return
                 if consumer:
                     observed = [
                         e

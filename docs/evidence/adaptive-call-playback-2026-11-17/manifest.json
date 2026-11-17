@@ -1,0 +1,372 @@
+{
+  "issue": "https://github.com/rgoza1996/Kinaiya/issues/623",
+  "baseline": "0d0a2bb214117e9f9cf9b8a151c7b9534e5b61ed",
+  "branch": "codex/623-adaptive-call-integration",
+  "release_gate": false,
+  "status": "local gated qualification; issue remains open",
+  "python_versions": {
+    "313": "Python 3.13.18",
+    "314": "Python 3.14.10"
+  },
+  "flutter": {
+    "frameworkVersion": "3.47.8",
+    "channel": "stable",
+    "repositoryUrl": "https://github.com/flutter/flutter.git",
+    "frameworkRevision": "737ba8f885dc774b53b442759999a312c9461e4e",
+    "frameworkCommitDate": "2026-10-22 21:37:31 -0700",
+    "engineRevision": "cf636b1dfb818dd6a3ff16e390e93b1a036969c8",
+    "engineCommitDate": "2026-10-23 02:13:38.000Z",
+    "engineContentHash": "dfd2e6cb7d319db05e3bf1503f3e2ac60f6288a2",
+    "engineBuildDate": "2026-10-22 20:34:48.330",
+    "dartSdkVersion": "3.13.7",
+    "devToolsVersion": "2.60.0",
+    "flutterVersion": "3.47.8"
+  },
+  "source_hashes": {
+    "apps/kinaiya_flutter/lib/api/playback_controls.dart": "22b39422445a203d666da024a7c7ce14406dccb80a5e01399f9f78abdb43f35e",
+    "apps/kinaiya_flutter/lib/state/adaptive_live_capture.dart": "5f0d7c57d34a79c94a35fe88800664bb2f86bc45abd97f0bf40c98c9f8a2043a",
+    "apps/kinaiya_flutter/lib/ui/character_view.dart": "1d3cf901b07c022da11e2790dd415dabf4d367c20ae3b51c589e2c01c77c0682",
+    "apps/kinaiya_flutter/test/adaptive_live_call_native_test.dart": "cde0ba74f86cc1c580bd0049890c717e5c700115490d7c45023e969b54ea5a90",
+    "apps/kinaiya_flutter/test/live_capture_test.dart": "cd226ade2abc0381466029ea71f10e1b6e24f643895f28dd681aa80bc32b8a71",
+    "apps/kinaiya_flutter/test/playback_controls_test.dart": "dd9835f3988d05da449d1b31b39640fe482a6f2b386155b32cc6a6eae2fa22a8",
+    "apps/kinaiya_flutter/web/incremental_pcm_capture.test.js": "356f75f68ac01d72985b61e0bf6acfaa52f5d218eb3ea26855c7bd7250fff0f2",
+    "tests/integration/test_incremental_whistle_converse.py": "0b5ac62c9833ac81bf9632d132661b48e18f7dd4acac5de1a636cbcfac2e1663",
+    "tests/integration/test_live_stream_dart.py": "a079079f5047f4785ef23589acc4328e13368bb1328e2bf3234164cfc0b1bd1d"
+  },
+  "locks": {
+    "pyproject.toml": "d7854964ae228637f88e175a6941670e153e6f367a46fadbbd6d31fb05893961",
+    "apps/kinaiya_flutter/pubspec.lock": "de83a37ef60bc743efbb89f0d09c540d2049bed7ba5e81edd02999976430b882"
+  },
+  "runs": [
+    {
+      "name": "issue-623-backchannel-bridge-controls-first",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-backchannel-bridge-controls-first-receipt.json",
+      "receipt_sha256": "d7bde4fd06ed37188fce0bb8dcee32fcd1c69bedd0ae1596fa9320f4b26f307a",
+      "log_archive": "logs/issue-623-backchannel-bridge-controls-first.log.json",
+      "log_sha256": "054f0ed0e793fb521abdc8dad08d5324fdcf0e51d071c6bedf117215341bc1b6",
+      "log_archive_sha256": "04ebecf61e834c74f6a7b8e2992a4ce6f98dbc16627b260c40aad7d63b84b197",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-call-playback-lifecycle-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "receipt": "logs/issue-623-call-playback-lifecycle-first-receipt.json",
+      "receipt_sha256": "9717d28790bbe9018ea7ded83770ff88aca9aeafc354f57bd85df57e20ad4296",
+      "log_archive": "logs/issue-623-call-playback-lifecycle-first.log.json",
+      "log_sha256": "57f2617090db92123a852f2578e19b52479b41e7836c2339c1b6779736863142",
+      "log_archive_sha256": "b70abb92b5056e456d06ae326d661bbe6602a6431fe62770ca6c778642a3f003",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-call-playback-mute-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-call-playback-mute-repaired-receipt.json",
+      "receipt_sha256": "3a579bd4779f8b872171a46d678fd2dea5eaa2940152e43ad632ab21f8e50ade",
+      "log_archive": "logs/issue-623-call-playback-mute-repaired.log.json",
+      "log_sha256": "61d0b8f99563a5095b2f9579e46f91a727effd3c8f8da317250b18fac3630f87",
+      "log_archive_sha256": "8f535b810cb5bac56810cf67f4a7219aaaf600cab2f532add926a5be6a699417",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-call-playback-stop-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "receipt": "logs/issue-623-call-playback-stop-first-receipt.json",
+      "receipt_sha256": "d575f9adc685c68fcc28f85466ac97e798a81a55384180be8b510984e25304ad",
+      "log_archive": "logs/issue-623-call-playback-stop-first.log.json",
+      "log_sha256": "8d6e35d4a835947403a682810860da0e8382696882b67b7f8dc72279e4ae6c80",
+      "log_archive_sha256": "910f2531e2f83f8529eae74e3d994f195df1270ddebb78cc7d5ec589ed817ee5",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-call-playback-stop-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-call-playback-stop-repaired-receipt.json",
+      "receipt_sha256": "a2a822b6715a835c9a71bf3a6b4272432df5b8c91dbee58476b39611842ac184",
+      "log_archive": "logs/issue-623-call-playback-stop-repaired.log.json",
+      "log_sha256": "01d3d1c6ca5c95e1c5b272456a989a6ba6aee04187d5eca13310d7a26bcd3619",
+      "log_archive_sha256": "a82c28296d6c5f0c38a769e3f96a64378dec67d8cbef3e8f2b4383ae1ec8b9a9",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-playback-analyzer-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-analyzer-final-receipt.json",
+      "receipt_sha256": "a15ac84da60123f7caada3b1ed8e1c748216934ced7dac5ae5fedac434c1b1c5",
+      "log_archive": "logs/issue-623-playback-analyzer-final.log.json",
+      "log_sha256": "1bc906396d5ac106eb4d57e67f4a93d98de3f451fc04767e692f5b730c5da92d",
+      "log_archive_sha256": "68629b74faac4822eb2cd858e3e50ddc1b37d3ea329f281685916c9ecec31f76",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-analyzer-first",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-analyzer-first-receipt.json",
+      "receipt_sha256": "4181284aa090b55230ebfa323b63fc2494300d79c150a719c358da9e16f269a4",
+      "log_archive": "logs/issue-623-playback-analyzer-first.log.json",
+      "log_sha256": "d0e588a33c02be7f4e28503bd74a8bc0d82810c41b04a50fba1d7d39ff039373",
+      "log_archive_sha256": "4685e97c6e19ecb909c704319f163121dcf104b0997fcdc650bcf9c581d23f31",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-playback-browser-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-browser-final-receipt.json",
+      "receipt_sha256": "172d4369c537a78c2b7629c98faa271149cbccfeec9f11d1e10fa77b06e307a0",
+      "log_archive": "logs/issue-623-playback-browser-final.log.json",
+      "log_sha256": "3161dd14b1a51186518f88d1d1fa7dd9d9125f59223b2446c5e59917dee5accf",
+      "log_archive_sha256": "d5846abdda42d47a6e1081568a67c6ff4ff99e3417e6669e7b639d80be595358",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-control-guards-first",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-control-guards-first-receipt.json",
+      "receipt_sha256": "98d74a341903a4c1c7a670b5631ec09eb7b9dced8ab6df3446935ea59055de72",
+      "log_archive": "logs/issue-623-playback-control-guards-first.log.json",
+      "log_sha256": "b3e177b356b90a9a87ff3912d885444719a39d49ca50f7890ce827a5bcdfacbc",
+      "log_archive_sha256": "b5ce9f9f25cfe810254d14a6d043526756b7ab7a05006473ee6a6cab965b01dd",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-playback-final-313",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-final-313-receipt.json",
+      "receipt_sha256": "8cb33b6543a0564931c264df12194db244f0ede9cda16d1b1cd32f0dc6602f88",
+      "log_archive": "logs/issue-623-playback-final-313.log.json",
+      "log_sha256": "4609fa8ee88a567c477e6330c002de82560b2661ea6c77b1fc00f60f2a075b1f",
+      "log_archive_sha256": "79b1e397c85f65f4cfd2f175248aaec962a95d46cb0c6757f76fa6ff6df26ce6",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-final-314",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-final-314-receipt.json",
+      "receipt_sha256": "5ae801825a174a29970d2801fed08ef5e0d26bbab5c8c939b2de845d32218f9f",
+      "log_archive": "logs/issue-623-playback-final-314.log.json",
+      "log_sha256": "3fe11982d491e015f1330d8ba4644308a73babd220fc43d7f14f5ac1e2498e9a",
+      "log_archive_sha256": "446b52a5020cb10e7fa9c05091a940cb3b2d04f10a1fa14a24478016601accae",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-format-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-format-final-receipt.json",
+      "receipt_sha256": "b844821d92046a8ed3690a90bb52cecb20bf5156734bc1d164d11387f9115c4e",
+      "log_archive": "logs/issue-623-playback-format-final.log.json",
+      "log_sha256": "74a6aabb7bbfc85f9ecf098552a9d3ac24b60c3200207e5cd0d387859dba7de4",
+      "log_archive_sha256": "571c7f7b5134d85e77b8be8417b99935c4b4183479d03c1917caa451a62d320c",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-frontend-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-frontend-final-receipt.json",
+      "receipt_sha256": "ca2c562dc37705bb2416d9286058aac291bd825c124c7425f5ed7d656cc81036",
+      "log_archive": "logs/issue-623-playback-frontend-final.log.json",
+      "log_sha256": "82458915883bfe6be8b87408695f1dcbbba01a30306629328ce68ce65ab9c05d",
+      "log_archive_sha256": "7a5ea74ca3040ecefcbd18f78e35989b9e044da1eade144b69fbb54e7b47d604",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-ruff-final",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-ruff-final-receipt.json",
+      "receipt_sha256": "9dd82a3f280e3acc64dcb9f8fe796e11011ecc6818d99aae7c95a222e7bbdd70",
+      "log_archive": "logs/issue-623-playback-ruff-final.log.json",
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-playback-web-build",
+      "final_source_qualification": true,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-playback-web-build-receipt.json",
+      "receipt_sha256": "05779f19edd180e35886d8890337fe1e22c9f8ad7617e319ada28a0ddda57d10",
+      "log_archive": "logs/issue-623-playback-web-build.log.json",
+      "log_sha256": "70fc29ee84ecb95785871a170540bdd93b0f15c62ba08d106a0e40af5a679bcf",
+      "log_archive_sha256": "76705604644b78dbf7b8409e992b933a98cb5d94913fdff55342d95384351bed",
+      "current_source_pins_match": true
+    },
+    {
+      "name": "issue-623-speaker-stop-retention-first",
+      "final_source_qualification": false,
+      "exit_code": 1,
+      "receipt": "logs/issue-623-speaker-stop-retention-first-receipt.json",
+      "receipt_sha256": "21e1e3cf2b90096738090831ffab0f99dfbd0523a2e60abace7186c685bae4c1",
+      "log_archive": "logs/issue-623-speaker-stop-retention-first.log.json",
+      "log_sha256": "b03430ca6a1694ccbd049881da6a459c792505f0fd99e64af4dc5c6522e1a5ad",
+      "log_archive_sha256": "45f3c07c78e3818be6649b5aec771c9dbd6b170016c9e5bce76e0f5191f02e38",
+      "current_source_pins_match": null
+    },
+    {
+      "name": "issue-623-speaker-stop-retention-repaired",
+      "final_source_qualification": false,
+      "exit_code": 0,
+      "receipt": "logs/issue-623-speaker-stop-retention-repaired-receipt.json",
+      "receipt_sha256": "c73f296b492ba71def25e82ee3a87adab909a626ed98f6e16e344cef20b3bd39",
+      "log_archive": "logs/issue-623-speaker-stop-retention-repaired.log.json",
+      "log_sha256": "1dbe3ca1659f96b094060c5659b1208af5072b56e5c08e79d2812518d5a3d7e8",
+      "log_archive_sha256": "92293492890255cb523f809d42c1ca67fd23100e6f81e7d850539ef6134c2a06",
+      "current_source_pins_match": null
+    }
+  ],
+  "source_snapshots": [
+    {
+      "path": "sources/issue-623-playback-analyzer-first-api.dart.txt",
+      "sha256": "b1ddc53ab07af892d84d014449e59415a1304182422d177b4e8d75b43281fdec"
+    },
+    {
+      "path": "sources/issue-623-playback-analyzer-first-widget.dart.txt",
+      "sha256": "f360c63d18bf4f7613ce7c82ed965c66913d1a72af527439bfbdd224822d8266"
+    },
+    {
+      "path": "sources/issue-623-playback-mute-first-control.dart.txt",
+      "sha256": "a4156db8f1a8b7f3d6ff6157442743c509ad69fcb22adc0a49f83b61b499d2c8"
+    },
+    {
+      "path": "sources/issue-623-playback-stop-first-control.dart.txt",
+      "sha256": "8b28a8022e86f11c0713b16aa7df86d93ce83d020ab71cf430c423af28eaf323"
+    },
+    {
+      "path": "sources/issue-623-playback-stop-first-driver.py.txt",
+      "sha256": "fd4d9dcdbd1740e9763101080dec032565ae6c5459c99c5b1678779f1943f9c2"
+    },
+    {
+      "path": "sources/issue-623-playback-stop-first-native-fixture.py.txt",
+      "sha256": "a992c9b53dda521cefdff4ac93efc9f8292a5c9572ad94ed05545d10ce333a17"
+    },
+    {
+      "path": "sources/issue-623-playback-stop-first-owner.dart.txt",
+      "sha256": "92f52879161155a267b8f3e294aaa245aaf5985d38f9edd4660a37db1d7e0cd5"
+    },
+    {
+      "path": "sources/issue-623-playback-stop-first-ui.dart.txt",
+      "sha256": "e587ff14ef1c1179b67ae1b6d8efe4bc455efc8fdd0b92d3112f3e5f130ee9c7"
+    },
+    {
+      "path": "sources/issue-623-speaker-stop-first-control.dart.txt",
+      "sha256": "f360c63d18bf4f7613ce7c82ed965c66913d1a72af527439bfbdd224822d8266"
+    },
+    {
+      "path": "sources/issue-623-speaker-stop-first-driver.py.txt",
+      "sha256": "a079079f5047f4785ef23589acc4328e13368bb1328e2bf3234164cfc0b1bd1d"
+    },
+    {
+      "path": "sources/issue-623-speaker-stop-first-owner.dart.txt",
+      "sha256": "f35cb69d3130569e154540cf65ce3c441e0b77fbec4930c1b5c32e1a124145e7"
+    },
+    {
+      "path": "sources/issue-623-speaker-stop-first-ui.dart.txt",
+      "sha256": "cc62bff929fa3468db567b036fced66623d08730f3c0f87dbbf679c3167806fb"
+    }
+  ],
+  "schemas_sha256": "2c2334c03af2723c29642abab472bb5f8a030c774c37f7fe6fc446d36b0c365c",
+  "web_artifact_hashes": {
+    ".last_build_id": "c946afa8d489e4a52054c81b359cb393e6b4376ca184a1507d158a2c7f59d1a3",
+    "KORINA_VAD_LICENSE.txt": "a0b02c8ae84b8a6539f075cfddb8dee3bbdd196948d3460dbd7f526d1a245102",
+    "assets/AssetManifest.bin": "4e28706e71597c77661a20df1bc2ebb49b077313fba97676dfed9a66194d4038",
+    "assets/AssetManifest.bin.json": "4d08ffe976550ece7015470f4f8c89f2335ff8a543b292a104322e6c69b5d75d",
+    "assets/FontManifest.json": "af26997d33a21a0ec43fabe2c0c29877fae06bbbbe16ea9064b28293ac034107",
+    "assets/NOTICES": "0d72bbb61aba682a71b7557b168031b6b2f58021b2f8173204ca01a222dd9428",
+    "assets/assets/character/kinaiya-activity-v1.png": "c89deb785e27cb8a741fbcf697b991e46f9b03ab2256342a2c340d555761d4c2",
+    "assets/assets/character/kinaiya-activity-v1.prompts.md": "14fcb49958ba3182a407b22f2f5d47d735e4535f961d6420456b10a41bdc7e6a",
+    "assets/assets/character/kinaiya-core-v1.png": "4eabec3223bc1a921645ce086a1f9fbf8b0098e66c1017e73af826197ff39412",
+    "assets/assets/character/kinaiya-core-v1.prompts.md": "aaeec65427c4d808e252e06dded6391c689dd060453a1709363a3f5b73134beb",
+    "assets/assets/character/kinaiya-identity-v2.prompts.md": "9516424119f50518044b4dfd800ea5ed200db9c4b901c2e186b801cd98515202",
+    "assets/assets/character/kinaiya-seated-idle-v1.png": "1322c7fa9ba76ad0cbc6ac8409564d5247d0366bf53fe368f9a39338ac938259",
+    "assets/assets/character/kinaiya-seated-idle-v1.prompts.md": "60241303808476ad69505c66d778ed0f61c09c5c2d1947d48420280b794ba5c4",
+    "assets/assets/character/kinaiya-seated-idle-v2.png": "f3b08dde1f248a2ffa8156f24aecf5b8c96eba79f5a91fe39069ddd44a803861",
+    "assets/assets/character/kinaiya-sleep-transition-v1.png": "60bb899628041c1e48fd45a2cecbce5c78e9119f30468689f365ca8cca12c4e2",
+    "assets/assets/character/kinaiya-sleep-transition-v2.png": "cb26c777b9677e0021e9dda3c983b3e08cf8f07b8a6ef2fcdba5cf1eca4a188b",
+    "assets/assets/character/kinaiya-sleep-transition-v3.png": "dac0b49a10bfa261d03ac49676986cfe70b3c69f85089efc2f800d03a23eecb6",
+    "assets/assets/character/kinaiya-sleep-v1.prompts.md": "1e1689a6596ae98df1fb66d480f882d7933ad136e9f662aa2e571d736364250c",
+    "assets/assets/character/kinaiya-sleep-v2.prompts.md": "4522d05e168ddac77c36c3d92014e4678cf30480c648c9e38f98170f7fe78632",
+    "assets/assets/character/kinaiya-sleep-v3.prompts.md": "fa217f7ea0988bd53e95f7c0b0baf89b68f3c15c9eb21cbc5d3878df77bea71c",
+    "assets/assets/character/kinaiya-sleeping-idle-v1.png": "030fbcf046acd0087cb7b6fa967c9f4757f89b1eb8aeb6669ea04b7a2a826276",
+    "assets/assets/character/kinaiya-sleeping-idle-v2.png": "068d98efd497601139b1ec976f1a4b691b0e28d885ab0592cccb4ae57a83a698",
+    "assets/assets/character/kinaiya-sleeping-idle-v3.png": "1e4c38af6f789dfb35eeacecdc2ac328c86cb6b2e694840cd7fc76bb4e54e110",
+    "assets/assets/character/pack.json": "edb79da50e9566460e05f9122be99c9edd53549a3777e943966c8c12bbbc8ae9",
+    "assets/assets/design/README.md": "a4e332987d530e99067d7c26375822cdf0cd6d712ac6035aa7c62ac88a8b2939",
+    "assets/assets/design/kinaiya-expression-reference-v2.png": "594d8d8675517d0d66467ea20e289f6903d2f7d301af188d1586c066691658de",
+    "assets/assets/design/kinaiya-expression-reference.png": "ca82097c4401cabfbb290fefb5c4387a918941003afc98315114c18992f3b989",
+    "assets/assets/design/kinaiya-moonlit-background-v1.png": "57a227625a0443661802b48eef47d2d8e5e24650bd301175a9802c678b8b502a",
+    "assets/assets/design/kinaiya-moonlit-desktop-v2.png": "8c6171df7c248e977717eebe97380be5e6419df676af7fbd2f0f8159739abee0",
+    "assets/assets/design/kinaiya-moonlit-phone-v2.png": "8d9a99372645f1ff4743921fd26bd525fb4979546ab5f66104c71e96eba09d28",
+    "assets/assets/design/kinaiya-moonlit-v2.prompts.md": "25d8e3c8ca605acba7838d0307152f3d359bbc99d64f299595e848bc576d7c9a",
+    "assets/assets/design/kinaiya-options-gear-v1.png": "db007a16d63b8d9b5fd7fe177ef380c012f65d593c3ddfb71a76946f0ea4d50a",
+    "assets/assets/design/kinaiya-sleeping-home-v1.png": "617217a193bb965619ca75c5ee4fb1cb1fbff6b0b88b4efc9fbd60e4856fdfbb",
+    "assets/assets/design/kinaiya-sleeping-home-v2.png": "ec2cd865ea3434a53868b0abad767c5de1dd9064f94ca6c0edb35104f5f9a673",
+    "assets/assets/design/kinaiya-speech-mouth-portraits-v1.png": "d7aedd4fd20d44daac5c81ee43d4ffa70a5f74ba2c9b7f8ae188112004703585",
+    "assets/assets/design/kinaiya-speech-mouth-portraits-v1.prompts.md": "ec24a1e2b248639f5de7589edcbdf5ae11ba58a2fb61ebbdafd8adad22cf1629",
+    "assets/assets/fonts/Inter-Bold.ttf": "288316099b1e0a47a4716d159098005eef7c0066921f34e3200393dbdb01947f",
+    "assets/assets/fonts/Inter-Regular.ttf": "40d692fce188e4471e2b3cba937be967878f631ad3ebbbdcd587687c7ebe0c82",
+    "assets/assets/fonts/Inter-SemiBold.ttf": "78a843fade9d4612a5567302fb595b56976eb5fcebf4fea5a5912d638bafcde3",
+    "assets/assets/mascot/kinaiya-mascot.png": "426188e15d0f8dad7216b51da6a2dddbb7ff74c1aec714a7de01b5b3b3bc6977",
+    "assets/fonts/MaterialIcons-Regular.otf": "6e8d337a2644f2aaaac8e4265bb08a23a18c2c9a34a884793db99ffa89e4ab9e",
+    "assets/fonts/fallback/Roboto-Regular.ttf": "79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95",
+    "assets/shaders/ink_sparkle.frag": "2dca5ab93d4ec29e963f996f3916320ba60825e9537dfb149a68008c7a16b026",
+    "assets/shaders/stretch_effect.frag": "ab412f07a5b9b50b67a885b24dbe16929738ae28630407d6490c924caf0a3220",
+    "audio_bridge.js": "d1e356a346af5012f6c19593cc25c4e51151a59e6ce261febfe601c7692a160c",
+    "audio_bridge.test.js": "fd9d3d96f8b86fec8625dd373545f80df949bd588ff68d8305b03dd28a8da391",
+    "audio_import_activation.test.js": "2b0ea0380f59b2088d7f2f458f354458b1e88fa5316d3033a1d714cbfa0aa69d",
+    "audio_input_feedback_adversarial.test.js": "a06bea4a0b3375bf391134b533c001c9b07817cb86d5cc60f39419692d1db860",
+    "audio_output_selection.test.js": "12f7f7f6d76b0d86b8e34d73afa7b1390f29dad1160ea50ba6bc58df7fb44153",
+    "canvaskit/canvaskit.js": "bb559f6080c7d312ac2a912b4abec9f68ff3d3022d4a603c7796b9b31460642b",
+    "canvaskit/canvaskit.js.symbols": "384f80b392972c83fd4f262527e3d06215a297d33ed59732c726721e9d9311bd",
+    "canvaskit/canvaskit.wasm": "fbed517a43e82452404446683f00f2e876d835aed84410695759e67b6bb01cd3",
+    "canvaskit/chromium/canvaskit.js": "6018b12bd8ed37e6952eee72d59c1cf7ad707ccdb74a0a45190010f77edd9068",
+    "canvaskit/chromium/canvaskit.js.symbols": "31c86fac6042dd8b756150832c1d15495d0d07742e2718f75dbdde5a5a91455e",
+    "canvaskit/chromium/canvaskit.wasm": "ae8ff1d858140f7b1300ced3fa89fb8c9dce0a400a0f4f1e11f6dcfb3315fdcf",
+    "canvaskit/skwasm.js": "71d7d3e34bf71b52bdba3b588b103bba8148ba28de5754083e01b3398e7a6e1c",
+    "canvaskit/skwasm.js.symbols": "9137f1a3ae744dea575043abfc6e063a047e910e6dab1ee53e496c975d1c033e",
+    "canvaskit/skwasm.wasm": "e540fd5e8303b7b68ec2718cb49e9c421f8ade3075b15e02a7059a62654df9a1",
+    "canvaskit/skwasm_heavy.js": "cec554b46ddcf4c0e63d799e0556d546f42d2c3f69316fb4f67ed776f6104558",
+    "canvaskit/skwasm_heavy.js.symbols": "b6b79ed497e11d4cd13cc46724f9e289eacc744d2d185e31c72d595cdf62772b",
+    "canvaskit/skwasm_heavy.wasm": "565f5cc1cca6ab120f11934b105f01fec4b58b480c82e0889dca93af8e6f8635",
+    "canvaskit/webparagraph/canvaskit.js": "3110e3e4d9b7b5657d336f253aaca8acca5777cde9319fb69ac302d6ff5a8b23",
+    "canvaskit/webparagraph/canvaskit.js.symbols": "44d6c47919106235cf32252252490cdf798d907ee874ba343ab53dc94bc2a9dc",
+    "canvaskit/webparagraph/canvaskit.wasm": "0ce1b05082efdc8529550e8a01f6ff0593972d55525035010e26f5600aa9f254",
+    "canvaskit/wimp.js": "8fd8a47480c6eb0a374d159912d0b3fb15661b41f5c113ecdd39c2f01f2bee46",
+    "canvaskit/wimp.js.symbols": "b4907ebd33131302a8cd99f7c55f52357bdfde04f421b605a616ba8764ae1de4",
+    "canvaskit/wimp.wasm": "e924eaafd801d41e017d178f3fd5cf8a417f641fe35c9ed34a4e1d7582283e0c",
+    "credential_bridge.js": "809d271a1d23fba4a0abebb294ba94249425283389e46b267d16df825c52be51",
+    "export_incremental_pcm_rollover_fixture.js": "95236a982b45d3fccec158a765db343b13589dbda0fc835723b2570966613f0f",
+    "flutter.js": "2beb1ce6b159c71540aa66030af1d7964b6a92377cc78473745e02f97b74effe",
+    "flutter_bootstrap.js": "b238667187d8924b985d0d8f4983e08095e3f7fc8a12de599596296fed21d6cd",
+    "flutter_service_worker.js": "a131df5ca46154cc4eb79044f7f5a14029c2f8bfccf8cef34e3ec3b5a9f5a88c",
+    "incremental_pcm_capture.test.js": "356f75f68ac01d72985b61e0bf6acfaa52f5d218eb3ea26855c7bd7250fff0f2",
+    "index.html": "f298506763628afdbccab15a3ba7d10ca2f1e864af5074f2dd55b85bf8e090e4",
+    "input_discovery_feedback.test.js": "a03e22269c8ab84d7a90a60fec0c16e607b96253cefa59e6645c932fa4476f07",
+    "main.dart.js": "2c4b40bfcd18fdcb8730de4d19080bf3c144bebeeebf92ab5f0a27cdd3e9b925",
+    "manifest.json": "23d79dc33e1b8fb9f98e6531f4a5539aa476e08f3f5b139fc3e13f3d1940405c",
+    "native_call_input_selection.test.js": "052d8c138c103104be54ce16e62495494d57d96f09684c0ac9a6e8e090af84be",
+    "presentation_bridge.cases.js": "7aaa2bb541fa249cfe0c17f1621e266a24d293c65088a17d31832d7c58779628",
+    "presentation_bridge.js": "bf101a1875cb3966ba57b58aee889b730c04a6b2853d38ce0c624a1aaaabdd46",
+    "version.json": "dc4c7ec020c2cebdded25f34e69c18d98406f034645d8a283327209d3e8a0200",
+    "window_capture_worklet.js": "a69e88851764bf40314d79df945616af667bf433aed6f90b2a1bd34e811c30e1"
+  },
+  "log_archive_format": "Exact UTF-8 text, recover raw bytes by encoding text; raw SHA and archive SHA are separate.",
+  "qualification_limits": [
+    "Synthetic legacy-local TTS transport through real native speech/delivery/interrupt HTTP; no managed TTS worker or physical audio.",
+    "Software input/output graph isolation and requested AEC/noise suppression; no room/device echo cancellation measurement.",
+    "Release web build with Wasm compiler dry run; no Wasm build/runtime test.",
+    "No installs, SDK upgrades, live/paid model calls, held native CI retry, system changes or installed-owner promotion.",
+    "Complete lifecycle/reconnect/replacement/dependency-loss, timing and rollout remain open; model quality is diagnostic."
+  ]
+}
