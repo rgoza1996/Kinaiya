@@ -327,6 +327,7 @@ class StandingOwnerOperations:
         self, request, action, argument, event, deadline, started, ingress_done, disconnected
     ):
         monitor = None
+        stop_monitor = asyncio.Event()
         try:
             query = self._query(request, action)
             if (action in _RESOURCE_BODIES or action == "resource_observe") and any(
@@ -370,7 +371,9 @@ class StandingOwnerOperations:
             else:
                 native = asyncio.to_thread(self._call, action, argument, query, event, deadline)
             task = asyncio.create_task(native)
-            monitor = asyncio.create_task(self._disconnect(request, event, disconnected))
+            monitor = asyncio.create_task(
+                self._disconnect(request, event, disconnected, stop_monitor)
+            )
             return await self._thread_result(task, event)
         except (HTTPException, StandingConflict, StandingUnavailable):
             raise
@@ -382,15 +385,18 @@ class StandingOwnerOperations:
         finally:
             ingress_done.set()
             if monitor is not None:
+                stop_monitor.set()
                 monitor.cancel()
                 # This cleanup belongs to the retained actual operation, not
                 # the bounded public facade. A resistant receive keeps its slot.
                 await asyncio.gather(monitor, return_exceptions=True)
 
     @staticmethod
-    async def _disconnect(request, event, disconnected):
+    async def _disconnect(request, event, disconnected, stop_monitor):
         try:
-            while True:
+            # ASGI middleware can finish a pending receive while handling cancel.
+            # Process that frame, then avoid waiting for our own response to finish.
+            while not stop_monitor.is_set():
                 message = await request.receive()
                 if message["type"] == "http.disconnect":
                     event.set()
