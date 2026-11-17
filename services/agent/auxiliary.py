@@ -12,6 +12,8 @@ from packages.contracts.models import Evidence, TaskState, new_id
 from packages.providers.completion_budget import PreparedComplete
 from packages.providers.disclosure import combine_scopes, scope_allowed
 from packages.providers.text import ProviderCleanupError, ProviderError, ScriptedProvider
+from services.agent.decisions_advice import PURPOSE as DECISIONS_ADVICE_PURPOSE
+from services.agent.decisions_advice import consult_decisions
 from services.agent.model_settings import AUXILIARY_TASKS, AgentModelSettings
 from services.agent.tools import ToolFailure
 
@@ -21,7 +23,7 @@ async def consult_model(runtime, rec, arguments):
         type(arguments) is not dict
         or set(arguments) != {"purpose", "prompt"}
         or type(arguments["purpose"]) is not str
-        or arguments["purpose"] not in AUXILIARY_TASKS
+        or arguments["purpose"] not in {*AUXILIARY_TASKS, DECISIONS_ADVICE_PURPOSE}
         or type(arguments["prompt"]) is not str
         or not 1 <= len(arguments["prompt"]) <= 8000
     ):
@@ -32,6 +34,8 @@ async def consult_model(runtime, rec, arguments):
     except (UnicodeError, ValueError):
         raise ToolFailure("Auxiliary prompt exceeds its UTF-8 limit") from None
     purpose = arguments["purpose"]
+    if purpose == DECISIONS_ADVICE_PURPOSE:
+        return await consult_decisions(runtime, rec, arguments["prompt"])
     lease = rec.model_lease
     route = None if lease is None else lease.auxiliary_routes.get(purpose)
     if route is not None:

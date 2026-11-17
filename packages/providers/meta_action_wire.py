@@ -237,6 +237,15 @@ _MEDIA_ACTION = _object(
     tool=Literal["publish_ui"],
     arguments=_MEDIA_CREATE | _MEDIA_UPDATE,
 )
+_DECISIONS_ADVICE_ACTION = _object(
+    "ActionConsultWithDecisions",
+    tool=Literal["consult_model"],
+    arguments=_object(
+        "ConsultModelWithDecisions",
+        purpose=AuxiliaryTask | Literal["decisions_advice"],
+        prompt=_string(1, 8000),
+    ),
+)
 
 
 def _selection(tools):
@@ -255,23 +264,32 @@ def _selection(tools):
                 owner_disabled=snapshot.owner_disabled,
                 owner_revision=snapshot.owner_revision,
                 task_subset=snapshot.task_subset,
+                decisions_advice=snapshot.decisions_advice,
             ).available_tools
         return NativeToolSnapshot(tools).available_tools
     except (ValueError, TypeError, AttributeError):
         raise TypedWireError() from None
 
 
+def _action(name, *, media, advice):
+    if name == "publish_ui" and media:
+        return _MEDIA_ACTION
+    if name == "consult_model" and advice:
+        return _DECISIONS_ADVICE_ACTION
+    return _ACTIONS[name]
+
+
+def _advice_enabled():
+    snapshot = current_agent_tools()
+    return type(snapshot) is NativeToolSnapshot and snapshot.decisions_advice
+
+
 @lru_cache(maxsize=32)
-def _adapter(tools):
+def _adapter(tools, advice):
     return TypeAdapter(
         reduce(
             or_,
-            (
-                _MEDIA_ACTION
-                if name == "publish_ui" and "run_task_harness" in tools
-                else _ACTIONS[name]
-                for name in tools
-            ),
+            (_action(name, media="run_task_harness" in tools, advice=advice) for name in tools),
         )
     )
 
@@ -279,7 +297,7 @@ def _adapter(tools):
 def action_schema(tools: tuple[str, ...]) -> dict:
     """A fresh closed schema; no mutable schema cache or foreign catalog input."""
     tools = _selection(tools)
-    schema = _adapter(tools).json_schema()
+    schema = _adapter(tools, _advice_enabled()).json_schema()
     definitions = schema.pop("$defs", {})
     return {
         "type": "object",
@@ -334,7 +352,7 @@ def decode_action(envelope: dict, tools: tuple[str, ...]) -> dict:
         # Do not traverse or validate an unavailable operation's arguments.
         return {"tool": action["tool"], "arguments": {}}
     try:
-        return _plain(_adapter(tools).validate_python(action, strict=True))
+        return _plain(_adapter(tools, _advice_enabled()).validate_python(action, strict=True))
     except (ValidationError, ValueError, TypeError, RecursionError):
         raise TypedWireError() from None
 
@@ -397,11 +415,7 @@ def encode_action(flat_wire_action: dict, *, tools: tuple[str, ...] | None = Non
             if tools is not None
             else snapshot is not None and snapshot.supports("run_task_harness")
         )
-        model = (
-            _MEDIA_ACTION
-            if flat_wire_action["tool"] == "publish_ui" and media_available
-            else _ACTIONS[flat_wire_action["tool"]]
-        )
+        model = _action(flat_wire_action["tool"], media=media_available, advice=_advice_enabled())
         filled = _fill_model(model, flat_wire_action)
         return {"action": model.model_validate(filled, strict=True).model_dump(mode="python")}
     except (ValidationError, ValueError, TypeError, RecursionError):

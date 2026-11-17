@@ -57,6 +57,7 @@ class _Original:
     terminal: AgentAdviceObservation | None = None
     cancel_observed: bool = False
     cleanup_failed: bool = False
+    remote_cleanup_unconfirmed: bool = False
     active: bool = True
     dispatch_refused: bool = False
 
@@ -220,6 +221,19 @@ class DecisionsAdviceClient:
         self._check_loop()
         return not self._original(AgentAdviceLookup.model_validate(request)).active
 
+    def custody(self):
+        pending = sum(original.active for original in self._originals.values())
+        failed = self._cleanup_failed or any(
+            original.active and original.remote_cleanup_unconfirmed
+            for original in self._originals.values()
+        )
+        if self._close_task is not None:
+            if self._close_task.done():
+                failed |= self._close_task.cancelled() or self._close_task.exception() is not None
+            else:
+                pending += 1
+        return pending + len(self._exchange_tasks), int(failed)
+
     @staticmethod
     async def _observe(task, timeout):
         done, _ = await asyncio.wait({task}, timeout=timeout)
@@ -277,8 +291,10 @@ class DecisionsAdviceClient:
                     original.cancel_observed |= observation.cancellation_requested
                     if observation.phase in _TERMINAL and original.terminal is None:
                         original.terminal = observation
-                    elif observation.phase in _UNCERTAIN and original.parent is not None:
-                        original.parent.fail()
+                    elif observation.phase in _UNCERTAIN:
+                        original.remote_cleanup_unconfirmed = True
+                        if original.parent is not None:
+                            original.parent.fail()
             if (
                 original.active
                 and (original.terminal is not None or original.dispatch_refused)

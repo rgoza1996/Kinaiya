@@ -70,22 +70,21 @@ saved Converse selection, migrate receipts, or probe inference. Host edits take
 effect at the next Decisions process start; current catalog retirement is
 observed on each read.
 
-## Remaining integration
+## Optional runtime
 
 The [native Agent upload-admission increment](decisions-agent-admission.md)
 adds current-task/source/disclosure checks and one coherent SQLite snapshot.
-The [internal operation owner](decisions-agent-operations.md) now binds that
-callback to measured execution, exact recovery and actual cleanup. It is not
-installed in the service or exposed through an Agent client; advice admission
-remains unavailable.
+The [internal operation owner](decisions-agent-operations.md) binds that
+callback to measured execution, exact recovery and actual cleanup. Selecting
+both Agent and Decisions with a valid launch policy enables the optional route
+for ordinary [Agent workers](decisions-agent-advice-client.md). The owner can
+inspect runtime and catalog availability through the separate
+`GET /v1/decisions/options/agent-advice-runtime` endpoint.
 
-Before enabling requests, integrate the authenticated Agent bridge and current
-runtime guards, deliver complete qualified history, and qualify the internal
-owner through the full service lifecycle. Preserve raw model output;
-the optional advice cannot grant permissions, execute a handoff, determine task
-success or impose Converse's routing format. Agent startup must remain usable
-when this optional consumer is absent or unavailable. Required Converse readiness
-remains tied to its original classifier runtime.
+Advice returns raw, untrusted model text. Native Agent retains ownership of
+permissions, handoffs, and task success. Agent starts independently when the
+optional consumer is absent or unavailable. Required Converse readiness remains
+tied to its original classifier runtime.
 
 Protected per-consumer persistence, Options navigation/migration and real
 multi-consumer failure/recovery qualification remain part of #566/#567. External

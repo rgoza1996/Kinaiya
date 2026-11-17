@@ -229,7 +229,9 @@ def _native(runtime, task, query):
         if name not in SUPPORTED_NATIVE_TOOL_ORDER:
             continue
         definition = native_tool_definition(
-            name, media_available=snapshot.supports("run_task_harness")
+            name,
+            media_available=snapshot.supports("run_task_harness"),
+            decisions_advice=snapshot.decisions_advice,
         )
         configured = snapshot.supports(name)
         row = {

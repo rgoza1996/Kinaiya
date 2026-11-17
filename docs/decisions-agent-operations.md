@@ -1,9 +1,9 @@
 # Internal Agent advice operations (#566 / #567)
 
-`AgentAdviceOperations` now supplies an internal measured-execution and lifecycle
-owner. It is **not installed in the Decisions service or exposed through an Agent
-client**. The policy inspector still reports `request_admission: unavailable`.
-These controls do not complete #566/#567 or enable the optional consumer.
+`AgentAdviceOperations` owns measured execution and cleanup for the optional
+Agent consumer. With an explicit host policy and both roles selected, the
+[internal HTTP API](decisions-agent-advice-api.md) exposes it to the native
+[Agent worker](decisions-agent-advice-client.md).
 
 ## Original request and input ownership
 
@@ -13,9 +13,9 @@ complete declared task source revisions, retained context references, disclosure
 scope and role-bearing text messages. The input has a declared 4 MiB canonical
 UTF-8 bound and 2,048-message bound. Messages and policy instructions are forwarded
 in full without semantic rewriting or silent truncation. An oversized or malformed
-request refuses before enrollment. The future authenticated Agent bridge must
-construct complete qualified inputs; a declaration alone does not establish that
-the submitted message text is the native history.
+request refuses before enrollment. The authenticated Agent bridge constructs
+the complete input from the current ordinary worker and checks its binding
+again before dispatch and before returning advice.
 
 Enrollment detaches mutable caller inputs and reserves the original logical key
 before task creation. An exact repeated submission or passive lookup observes the
@@ -74,17 +74,8 @@ Every observation identifies output as `untrusted_model_data` and task status as
 
 ## Remaining integration
 
-Authenticated Agent client recovery and launcher integration, current
-Agent runtime and mode guards, complete qualified-history construction, standing
-task authority, service startup/shutdown wiring, protected policy persistence and
-Options, and full consumer/provider/resource/external-agent qualification remain
-unfinished. The internal owner cannot substitute for those boundaries.
-
-The [internal HTTP boundary](decisions-agent-advice-api.md) now supplies Agent-only
-request/lookup/cancel and runtime inspection when explicitly injected into the
-app factory, with service-lifecycle cleanup. The launcher still does not install
-it. Agent client/current-runtime integration and the other boundaries above remain
-unfinished.
+Standing-task authority, protected policy persistence and Options, and full
+consumer/provider/resource/external-agent qualification remain part of #566/#567.
 
 Supporting failures #692–#695 and their unchanged first-run evidence are described
 in the [operation verification record](evidence/agent-advice-operations-2026-11-17/README.md).

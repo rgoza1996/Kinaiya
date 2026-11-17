@@ -91,11 +91,22 @@ class AgentPolicyOwner:
             raise AgentPolicyUnavailable("Independent Agent advice policy is unavailable") from None
 
 
-def router(owner, auth):
+def router(owner, auth, *, operations=None):
     routes = APIRouter()
 
     @routes.get("/v1/decisions/options/agent-policy", dependencies=[Depends(auth.require("owner"))])
     async def state():
         return JSONResponse(owner.snapshot().model_dump(), headers={"Cache-Control": "no-store"})
+
+    if operations is not None:
+
+        @routes.get(
+            "/v1/decisions/options/agent-advice-runtime",
+            dependencies=[Depends(auth.require("owner"))],
+        )
+        async def advice_runtime():
+            return JSONResponse(
+                operations.runtime_snapshot().model_dump(), headers={"Cache-Control": "no-store"}
+            )
 
     return routes

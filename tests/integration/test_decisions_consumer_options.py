@@ -109,21 +109,23 @@ async def test_independent_policy_inspection_preserves_native_converse_receipts(
 
 
 @pytest.mark.parametrize(
-    "raw,source",
+    "raw,source,with_agent",
     [
-        (None, "unconfigured"),
-        (POLICY, "host"),
-        ({"instructions": "Invalid synthetic"}, "invalid_host"),
+        (None, "unconfigured", True),
+        (POLICY, "host", True),
+        (POLICY, "host", False),
+        ({"instructions": "Invalid synthetic"}, "invalid_host", True),
     ],
 )
 def test_official_launcher_wires_separate_agent_policy_without_modifying_converse(
-    monkeypatch, tmp_path, raw, source
+    monkeypatch, tmp_path, raw, source, with_agent
 ):
     config = {
         "session_url": "http://127.0.0.1:8760",
         "agent_url": "http://127.0.0.1:8761",
         "decisions_prompt": {"finalized": "Original Converse", "window": "Original window"},
         "decisions_agent_policy": raw,
+        "distribution": {"agent": with_agent, "decisions": True, "converse": True},
         "streaming_windows": {"enabled": False},
     }
     expected_prompt = configured_prompt(config)
@@ -142,11 +144,17 @@ def test_official_launcher_wires_separate_agent_policy_without_modifying_convers
     class StopBeforeServing(Exception):
         pass
 
-    def observe(*args, **kwargs):
+    def observe(worker, *_args, **kwargs):
         state = kwargs["agent_policy"].snapshot()
         assert state.source == source and state.request_admission == "unavailable"
         assert state.catalog_status == ("unavailable" if source == "host" else "not_selected")
         assert configured_prompt(config) == expected_prompt
+        operations = kwargs["agent_operations"]
+        assert (operations is not None) is (with_agent and source == "host")
+        if operations is not None:
+            assert operations.journal is worker.journal
+            assert operations.policy is kwargs["agent_policy"]
+            assert not operations.runtime_snapshot().new_request_available
         raise StopBeforeServing
 
     monkeypatch.setattr("services.decisions.runtime.DecisionsWorker", worker)

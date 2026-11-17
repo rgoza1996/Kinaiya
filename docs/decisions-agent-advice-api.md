@@ -1,11 +1,9 @@
 # Internal Agent advice HTTP boundary (#566 / #567)
 
-The Decisions app factory accepts an explicitly injected `agent_operations` owner
-for integration. It must be the native `AgentAdviceOperations`, with the same
-policy and journal objects as the service. The app lifespan starts that owner and
-observes its bounded cleanup on shutdown. **The launcher does not inject this
-owner yet, so ordinary launched services do not expose these routes.** The existing
-policy inspector continues to report public request admission unavailable.
+The launcher installs the native `AgentAdviceOperations` owner when both Agent
+and Decisions are selected and the host provides a valid `decisions_agent_policy`.
+The owner shares the service's policy and journal objects. The app lifespan
+starts it and observes its bounded cleanup on shutdown.
 
 ## Authentication and contracts
 
@@ -13,6 +11,10 @@ Every route below requires the **Agent service credential**. Owner, Converse,
 Decisions and Resources credentials cannot enroll or control an advice request.
 The ordinary owner policy inspector remains separate. POST authentication is
 rechecked after awaited ingress, before enrollment, lookup or cancellation.
+
+When the launcher installs the owner, `GET /v1/decisions/options/agent-advice-runtime`
+exposes the same metadata to the owner credential with `Cache-Control: no-store`.
+Operations remain available only to the Agent credential.
 
 | Method and path, under `/v1/decisions/agent-advice` | Request | Result |
 | --- | --- | --- |
@@ -70,19 +72,12 @@ controller cannot restart or use a replacement model to satisfy an old lookup.
 
 ## Remaining integration
 
-The [Agent-side client](decisions-agent-advice-client.md) now retains the original
-submission, its local exchanges and its remote cleanup result. Local Agent
-runtime integration and task guards, complete qualified input construction,
-standing authority and launcher enablement remain unfinished. Protected policy
-persistence/Options and the complete consumer/provider/external-agent fault matrix
-remain part of #566/#567. This boundary is an internal integration increment.
-
-Agent runtime integration must preserve the existing native
-`finish_already_accepted` operating-mode policy. Turning Agent Off prevents new
-task admission; it does not by itself cancel already accepted work. Session's
-control-plane instance is not an Agent worker-process identity. Do not invent a
-mode or process fence from either observation when implementing the remaining
-runtime/current-task guards.
+The [Agent-side client](decisions-agent-advice-client.md) retains the original
+submission, its local exchanges and its remote cleanup result. Ordinary Agent
+workers can use it through the native `consult_model` tool. Accepted workers
+remain subject to the existing `finish_already_accepted` operating-mode policy.
+Standing-task admission, protected policy persistence and Options, and full
+consumer/provider/external-agent qualification remain part of #566/#567.
 
 The synthetic native prediction wire's missing cancellation protocol was recorded
 as #697. Its fixture now distinguishes a qualified terminal acknowledgment,

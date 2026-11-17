@@ -113,7 +113,7 @@ def create_app(
     if agent_policy is not None:
         from services.decisions.agent_policy import router as agent_policy_router
 
-        app.include_router(agent_policy_router(agent_policy, auth))
+        app.include_router(agent_policy_router(agent_policy, auth, operations=agent_operations))
 
     def routing_phase():
         # This is routing-runtime readiness, not a model/GPU probe or an Agent

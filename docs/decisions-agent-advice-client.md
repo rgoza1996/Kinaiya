@@ -2,9 +2,20 @@
 
 `DecisionsAdviceClient` connects the Agent service credential to a fixed
 literal loopback Decisions origin. The link disables redirects and environment
-proxies. The client is available for the native Agent integration. Launched
-processes still use the existing service selection and advice remains disabled
-in the launcher.
+proxies. The launcher creates the client when both Agent and Decisions are
+selected, the host has a valid `decisions_agent_policy`, and `decisions_url`
+names a literal IPv4 loopback origin. Agent can start and work independently
+when the policy or Decisions service is unavailable.
+
+An accepted ordinary Agent worker can request the `decisions_advice` purpose of
+`consult_model` when its current native capability and permissions allow it.
+The request includes the exact current objective, complete retained role-bearing
+history, question, source revisions, retained context references, and effective
+disclosure scope. The native worker and Session check those references and the
+objective revision before admitting a provider upload. An accepted steer takes
+effect at the next stable objective revision. The worker checks retained skill
+and plugin disclosure through the native pin guards at the handoff and while it
+observes the original. See [the revocation regression](https://github.com/rgoza1996/Kinaiya/issues/708).
 
 Before creating a call, a caller can read the Decisions runtime instance and
 policy digest through the [internal HTTP API](decisions-agent-advice-api.md).
@@ -45,9 +56,13 @@ deadline. It returns false while any required cleanup remains unresolved.
 A later call can check the same originals. The transport closes once when
 the originals and their local exchanges have settled.
 
-Agent worker dispatch, complete qualified input construction, native task
-invalidation and launcher wiring remain needed before normal work can use
-this client. Standing-task authority remains a separate native boundary.
+The worker only returns a completed, measured observation after local and
+remote cleanup settles and native task and disclosure checks pass again.
+The next Agent model call receives the raw text as an untrusted tool observation.
+The native evidence record retains its digest, size, and actual model pin.
+Worker interruption requests cancellation of the same original. Unresolved
+cleanup remains visible to Agent workspace and Resources lifecycle controls.
+Standing tasks require their own admission boundary.
 
 ## Verification
 
@@ -58,3 +73,12 @@ late arrival after a null observation, withheld model and response cleanup,
 wrong identity echoes, revoked dispatch, and the surrounding topology and
 auxiliary regressions. Ruff check and formatting passed. The tests leave
 the existing wire schemas unchanged.
+
+The ordinary worker and retained-context integration passed 1,250 tests
+per interpreter on those same versions. The final tool advertisement,
+catalog and provider wire subset passed 1,039 tests per interpreter.
+The normal worker control verifies complete native history and source
+revisions, raw advice delivery, actual interruption cleanup, unavailable
+Decisions behavior, and selected service launch. The regressions cover
+accepted steer during measured preparation, retained skill revocation
+during preflight, and accurate advertisement of the optional route.
