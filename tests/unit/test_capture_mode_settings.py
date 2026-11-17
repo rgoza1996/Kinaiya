@@ -212,7 +212,8 @@ def test_unsafe_storage_refuses_without_creating_capture_state(tmp_path, kind):
     elif kind == "hardlink":
         os.link(target, path)
     else:
-        path.touch(mode=0o644)
+        path.touch()
+        path.chmod(0o644)  # Creation mode alone is masked by the runner's umask.
     with pytest.raises(ValueError):
         CaptureModeSettings(lambda: "rolling_windows", path=path, workspace=workspace)
     assert target.read_bytes() == b""
