@@ -1,0 +1,13 @@
+{
+  "staged_diff": {
+    "args": [
+      "git",
+      "diff",
+      "--cached",
+      "--check"
+    ],
+    "exit_code": 0,
+    "output": ""
+  },
+  "source_review": "Four native digest lines plus seven dedicated native controls; retirement digest preserved, no schemas/defaults/provider changes."
+}

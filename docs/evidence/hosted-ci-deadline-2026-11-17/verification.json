@@ -1,0 +1,8 @@
+{
+  "baseline": "49f94b564d249d0cc8d26adec07489312bef996d",
+  "workflow_analysis": "Parsed full YAML; only hosted Python timeout changed from 60 to 120; native stays 180; all other values identical.",
+  "command": "PYTHONPATH=. output/issue-643-python313-venv/bin/python -m pytest tests/unit/test_runner_job_policy.py tests/unit/test_distribution_workflow.py -q --tb=short",
+  "result": "27 passed in 0.15s",
+  "python_inputs": "All 912 match final 979/312 source qualification.",
+  "current_head_ci": "Required after publication; not yet claimed."
+}

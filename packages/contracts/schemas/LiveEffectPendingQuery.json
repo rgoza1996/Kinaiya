@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_effect_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "effect": {
+      "enum": [
+        "converse_reply",
+        "converse_backchannel",
+        "agent_route"
+      ],
+      "title": "Effect",
+      "type": "string"
+    },
+    "after_sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "After Sequence",
+      "type": "integer"
+    },
+    "limit": {
+      "maximum": 32,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "effect",
+    "after_sequence",
+    "limit"
+  ],
+  "title": "LiveEffectPendingQuery",
+  "type": "object"
+}

@@ -339,6 +339,41 @@ class JournalClient:
 
         return await lookup(self, request)
 
+    async def live_effect_lookup(self, request):
+        from packages.contracts.live_effect_client import lookup
+
+        return await lookup(self, request)
+
+    async def pending_live_effects(self, request):
+        from packages.contracts.live_effect_client import pending
+
+        return await pending(self, request)
+
+    async def live_effect_evidence(self, request):
+        from packages.contracts.live_effect_client import evidence
+
+        return await evidence(self, request)
+
+    async def live_agent_source_authority(self, request):
+        from packages.contracts.live_effect_client import source_authority
+
+        return await source_authority(self, request)
+
+    async def live_effect_admit(self, request):
+        from packages.contracts.live_effect_client import admit
+
+        return await admit(self, request)
+
+    async def live_effect_finish(self, request):
+        from packages.contracts.live_effect_client import finish
+
+        return await finish(self, request)
+
+    async def live_effect_start(self, request):
+        from packages.contracts.live_effect_client import start
+
+        return await start(self, request)
+
     async def pending_live_decisions(self, request):
         from packages.contracts.live_decisions_client import exchange
         from packages.contracts.live_decisions_pending import (

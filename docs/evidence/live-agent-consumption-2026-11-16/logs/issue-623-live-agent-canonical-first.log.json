@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "bae8a661426adf210d1853d0ed009246d67ba3a5a747dd74b9580d22a838d6f2",
+  "content": "F                                                                        [100%]\n=================================== FAILURES ===================================\n___ test_identical_native_raw_revision_cannot_stifle_canonical_agent_handoff ___\ntests/integration/test_live_agent_consumer.py:190: in test_identical_native_raw_revision_cannot_stifle_canonical_agent_handoff\n    assert record.completion.status == \"recorded\", dispatcher.last_error\nE   AssertionError: PolicyDenied\nE   assert 'uncertain' == 'recorded'\nE     \nE     - recorded\nE     + uncertain\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_agent_consumer.py::test_identical_native_raw_revision_cannot_stifle_canonical_agent_handoff\n1 failed in 0.54s\n"
+}

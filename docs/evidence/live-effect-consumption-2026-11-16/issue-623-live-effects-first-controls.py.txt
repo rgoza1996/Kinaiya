@@ -1,0 +1,141 @@
+"""Native one-owner consumption, provenance, revocation and uncertain outcomes."""
+
+from types import SimpleNamespace
+
+import pytest
+
+from packages.contracts.live_decisions_attempts import LiveDecisionsSource
+from packages.contracts.live_effects import (
+    PROTOCOL, LiveEffectAdmit, LiveEffectEvidence, LiveEffectFinish, LiveEffectQuery,
+)
+from packages.contracts.models import AppendRequest
+from services.session import live_effects
+from services.session.live_effects import LiveEffectConflict
+from services.session.live_windows import publish
+from tests.integration.test_live_capture_permission import env as env
+from tests.integration.test_live_capture_permission import fence
+from tests.integration.test_live_decisions_attempts import (
+    admission, finish, publication,
+)
+from tests.integration.test_live_decisions_attempts import live as live
+from tests.integration.test_live_window_publication import original
+
+
+def outcome(live):
+    attempt = live.owner.admit(admission(live))
+    completed = live.owner.finish(finish(live, attempt))
+    proof = publication(live, completed)
+    live.owner.publish_result(proof)
+    return proof
+
+
+@pytest.fixture
+def effects(live):
+    proof = outcome(live)
+    query = LiveEffectQuery(schema_version="2.0", protocol=PROTOCOL,
+        publication=proof, effect="converse_backchannel")
+    request = LiveEffectAdmit(**query.model_dump(mode="json"), owner_instance="c" * 32,
+        operation_id="d" * 32)
+    return SimpleNamespace(**vars(live), query=query, request=request, effects=live.store.live_effects)
+
+
+def completion(receipt, **change):
+    return LiveEffectFinish.model_validate(dict(schema_version="2.0", protocol=PROTOCOL,
+        original=receipt.model_dump(mode="json"), status="declined", evidence=None,
+        reason_code="public_converse_choice") | change, strict=True)
+
+
+def test_lookup_is_passive_and_one_original_owner_survives_duplicate_and_replacement(effects):
+    e = effects
+    wake = e.store.journal_wake.snapshot()
+    assert not e.effects._present()
+    state = e.effects.lookup(e.query)
+    assert state.record is None and state.source_current
+    assert not e.effects._present() and e.store.journal_wake.snapshot() == wake
+    claimed = e.effects.admit(e.request, "converse")
+    assert claimed.receipt.original == e.request and claimed.completion is None
+    assert e.effects.admit(e.request, "converse") == claimed
+    assert e.effects.lookup(e.query).record == claimed
+    for field in ("owner_instance", "operation_id"):
+        changed = e.request.model_copy(update={field: "e" * 32})
+        with pytest.raises(LiveEffectConflict):
+            e.effects.admit(changed, "converse")
+    assert e.store.db.execute("SELECT count(*) FROM live_effects").fetchone()[0] == 1
+    assert e.store.journal_wake.snapshot() == wake
+
+
+@pytest.mark.parametrize("role", ["owner", "agent", "resources", "decisions", ""])
+def test_wrong_roles_cannot_allocate_native_consumption(effects, role):
+    with pytest.raises(LiveEffectConflict):
+        effects.effects.admit(effects.request, role)
+    assert not effects.effects._present()
+
+
+@pytest.mark.parametrize("effect", ["converse_reply", "agent_route"])
+def test_advisory_axes_cannot_grant_an_unselected_effect(effects, effect):
+    request = effects.request.model_copy(update={"effect": effect})
+    with pytest.raises(LiveEffectConflict):
+        effects.effects.admit(request, "decisions" if effect == "agent_route" else "converse")
+    assert not effects.effects._present()
+
+
+def test_source_revocation_refuses_new_claim_but_preserves_original_history(effects):
+    e = effects
+    claimed = e.effects.admit(e.request, "converse")
+    e.store.live_captures.fence(fence(e.source.capture.original))
+    state = e.effects.lookup(e.query)
+    assert not state.source_current and state.record == claimed
+    assert e.effects.admit(e.request, "converse") == claimed
+    declined = completion(claimed.receipt)
+    result = e.effects.finish(declined, "converse")
+    assert result.completion == declined
+    assert e.effects.finish(declined, "converse") == result
+    with pytest.raises(LiveEffectConflict):
+        e.effects.finish(completion(claimed.receipt, status="refused"), "converse")
+    with pytest.raises(LiveEffectConflict):
+        e.effects.admit(e.request.model_copy(update={"operation_id": "e" * 32}), "converse")
+
+
+def test_foreign_transaction_is_not_rolled_back_or_committed(effects):
+    e = effects
+    e.store.db.execute("CREATE TABLE public_consumer_owner(value TEXT)")
+    e.store.db.commit()
+    e.store.db.execute("BEGIN")
+    e.store.db.execute("INSERT INTO public_consumer_owner VALUES('public still-owned write')")
+    try:
+        with pytest.raises(LiveEffectConflict):
+            e.effects.admit(e.request, "converse")
+        assert e.store.db.in_transaction
+        assert e.store.db.execute("SELECT value FROM public_consumer_owner").fetchone()[0] == "public still-owned write"
+    finally:
+        e.store.db.rollback()
+
+
+def test_uncertain_effect_keeps_its_capacity_and_never_funds_replacement(effects, monkeypatch):
+    e = effects
+    monkeypatch.setattr(live_effects, "MAX_ACTIVE", 1)
+    record = e.effects.admit(e.request, "converse")
+    e.effects.finish(completion(record.receipt, status="uncertain", reason_code="public_ack_unknown"), "converse")
+    pair = publish(e.store, original(e, 1, text="Public next fresh thought"))
+    next_live = SimpleNamespace(**(vars(e) | {"source": LiveDecisionsSource.of(pair, e.source.capture), "pair": pair}))
+    proof = outcome(next_live)
+    request = e.request.model_copy(update={"publication": proof, "operation_id": "e" * 32})
+    with pytest.raises(LiveEffectConflict):
+        e.effects.admit(request, "converse")
+
+
+def test_a_full_reply_cannot_be_reported_as_the_native_backchannel_evidence(effects):
+    e = effects
+    record = e.effects.admit(e.request, "converse")
+    source = e.source.original
+    entry = e.store.append(AppendRequest(
+        session_id=source.session_id, thread_id=source.thread_id, epoch=source.epoch,
+        kind="conversation.converse", causes=[source.source_event_id],
+        payload={"text": "Public synthetic full reply", "final": True,
+            "window_behavior": "RESPOND_INTERRUPT_USER", "window_source_id": source.source_event_id,
+            "window_utterance_id": e.source.publication.utterance_id},
+        idempotency_key="public-wrong-consumer-effect-evidence",
+    ), "converse")
+    evidence = LiveEffectEvidence(event_id=entry.event_id, sequence=entry.sequence)
+    with pytest.raises(LiveEffectConflict):
+        e.effects.finish(completion(record.receipt, status="recorded", evidence=evidence.model_dump()), "converse")

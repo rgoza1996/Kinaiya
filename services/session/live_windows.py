@@ -26,7 +26,9 @@ class LiveWindowUnavailable(JournalError):
     pass
 
 
-def _read(store, where, args):
+def _read(store, where, args, *, writer="converse"):
+    if writer not in {"converse", "owner"}:
+        raise LiveWindowUnavailable("Speech source writer is unavailable")
     # Bound protected row columns in SQLite before allocating their Python values.
     row = store.db.execute(
         "SELECT CASE WHEN typeof(request)='text' AND length(CAST(request AS BLOB))<=65536 THEN request END, "
@@ -38,7 +40,11 @@ def _read(store, where, args):
         "CASE WHEN typeof(epoch)='integer' THEN epoch END, "
         "CASE WHEN typeof(kind)='text' AND length(CAST(kind AS BLOB))<=320 THEN kind END, "
         "CASE WHEN typeof(idem)='text' AND length(CAST(idem AS BLOB))<=1024 THEN idem END "
-        "FROM entries WHERE writer='converse' AND " + where + " ORDER BY sequence DESC LIMIT 1",
+        "FROM entries WHERE "
+        + ("writer='converse'" if writer == "converse" else "writer='owner'")
+        + " AND "
+        + where
+        + " ORDER BY sequence DESC LIMIT 1",
         args,
     ).fetchone()
     if row is None:

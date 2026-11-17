@@ -1,0 +1,14 @@
+{
+  "staged_diff_check": {
+    "args": [
+      "git",
+      "diff",
+      "--cached",
+      "--check"
+    ],
+    "exit_code": 0,
+    "output": ""
+  },
+  "all_existing_assertions": "114 original assertions across three modified test files remain AST-identical; see assertion-preservation.json",
+  "source_review": "Inspected all changed production functions/contracts and new consumer controls; known remaining boundaries and #671 acceptance documented."
+}

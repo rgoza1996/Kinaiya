@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "a11683ff7323eae3d11b7272c424084f34e9c9961ee7822e4541447afe0a9cd2",
+  "content": ".F..                                                                     [100%]\n=================================== FAILURES ===================================\n_ test_real_native_targeted_handoffs_preserve_exact_source_and_revision[STEER_CURRENT_TASK] _\ntests/integration/test_live_agent_consumer.py:133: in test_real_native_targeted_handoffs_preserve_exact_source_and_revision\n    assert evidence.payload[\"source_event_ids\"] == [live.pair.source.event_id]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   KeyError: 'source_event_ids'\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_agent_consumer.py::test_real_native_targeted_handoffs_preserve_exact_source_and_revision[STEER_CURRENT_TASK]\n1 failed, 3 passed in 1.29s\n"
+}

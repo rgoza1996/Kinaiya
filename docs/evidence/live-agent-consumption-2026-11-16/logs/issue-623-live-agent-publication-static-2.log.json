@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "5ddd5773820d849d59052ad0826b27dee62c50cea3ce1d7776468879ce34bc1a",
+  "content": "Traceback (most recent call last):\n  File \"/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623/scripts/export_contracts.py\", line 8, in <module>\n    from packages.contracts import (\n    ...<54 lines>...\n    )\nImportError: cannot import name 'capture_modes' from 'packages.contracts' (/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/lib/python3.13/site-packages/packages/contracts/__init__.py)\n"
+}

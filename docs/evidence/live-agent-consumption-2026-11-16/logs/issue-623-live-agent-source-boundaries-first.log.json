@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "ed7f00a7a634ee6f2ced08ecb3a95d9baf1eabaebe99abfb217c3751fac67d6b",
+  "content": "....F............                                                        [100%]\n=================================== FAILURES ===================================\n____________ test_legacy_windows_do_not_acquire_native_equivalence _____________\ntests/integration/test_live_agent_sources.py:74: in test_legacy_windows_do_not_acquire_native_equivalence\n    state = authority(live.store, query(live, source=source))\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nservices/session/live_agent_sources.py:20: in authority\n    raise JournalError(\"Original native Agent speech source is unavailable\")\nE   services.session.store.JournalError: Original native Agent speech source is unavailable\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_agent_sources.py::test_legacy_windows_do_not_acquire_native_equivalence\n1 failed, 16 passed in 4.19s\n"
+}

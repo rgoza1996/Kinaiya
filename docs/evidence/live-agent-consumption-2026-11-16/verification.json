@@ -1,0 +1,1635 @@
+{
+  "utc": "2026-11-17T00:57:36.050603+00:00",
+  "issues": [
+    623,
+    671
+  ],
+  "branch": "codex/623-live-consumers",
+  "parent_merge_head": "5d4c533b649b64b2d63469bd07fac8126aaeee69",
+  "target_main": "cf477a36fad51bc92b40419bee2d310e834b6719",
+  "status": "Gated native Agent consumer; full Adaptive Live and #671 acceptance remain incomplete.",
+  "inputs": {
+    "count": 911,
+    "manifest": "python-input-sha256.json",
+    "both_final_runtimes_identical": true,
+    "all_still_current": true,
+    "changed_since_broader": [
+      "services/decisions/live_agent.py",
+      "tests/integration/test_live_agent_consumer.py"
+    ]
+  },
+  "environment": {
+    "Python": [
+      "3.13.18",
+      "3.14.10"
+    ],
+    "requirements_dev_lock_sha256": "22c79f72446b6044bfb532d81133789f25632a7b652a51cdfe3e6d33980e6d38",
+    "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623"
+  },
+  "checks": [
+    {
+      "utc": "2026-11-16T23:13:01.251207+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py::test_published_agent_route_can_be_reserved_after_microphone_end",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.6912410700024338,
+      "input_count": 903,
+      "inputs_unchanged": true,
+      "log_sha256": "6eb1f90bcf389a271c26cc39656b6804c9154cddcabf8cf6ba5748591d5960a8",
+      "name": "issue-623-agent-route-after-mic-first",
+      "original_receipt_sha256": "561d632789866dcbc7e840f7cc5c3c9cb8c37473bdcedcd32b71b04a22c26b83",
+      "log": "logs/issue-623-agent-route-after-mic-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "packages/contracts/live_effect_pending.py",
+        "services/decisions/live_agent.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effect_pending.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "3e78cfae345b082803d27955dfe7ce44939d9d6bc13074417812cc5062f45938",
+        "packages/contracts/live_effect_client.py": "458166cdb5d3d59a0177795277c06477c3fd580e34e8eaf75e956bd36e8e490f",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/session/live_effect_api.py": "e8feaed1d63265301aa7e5b64aa896f580ad31efc0b38832b9c7600cbd35ead5",
+        "services/session/live_effects.py": "181cf5569f6d975b9d0216c6b61a7181fafe035c07abda2d1b04ea83be1be052",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "32f92d0069cd1f66eb6a588dad87afcc2446d357c740a4ab39b78b4d5a9651c5",
+        "tests/integration/test_live_effects.py": "cbc95508340ce9fefdeddeba04fea65ce6b6bdd74b6a35952d59a0dcd57fa5f3",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed in 0.35s",
+      "investigation": "Production: Agent route incorrectly required the microphone to remain open.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932227777"
+    },
+    {
+      "utc": "2026-11-16T23:14:26.384655+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 15.334948049996456,
+      "input_count": 903,
+      "inputs_unchanged": true,
+      "log_sha256": "46b0d28f34107176cc3fbe5cc734d49224b9e9469b55598be9dadcfedda48b12",
+      "name": "issue-623-agent-route-after-mic-repaired",
+      "original_receipt_sha256": "50a4dacfbc8e242a4930878af15d54623b586d3cdb5e3eb2e8f9e3f2b2315bed",
+      "log": "logs/issue-623-agent-route-after-mic-repaired.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "packages/contracts/live_effect_pending.py",
+        "services/decisions/live_agent.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effect_pending.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "3e78cfae345b082803d27955dfe7ce44939d9d6bc13074417812cc5062f45938",
+        "packages/contracts/live_effect_client.py": "458166cdb5d3d59a0177795277c06477c3fd580e34e8eaf75e956bd36e8e490f",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/session/live_effect_api.py": "e8feaed1d63265301aa7e5b64aa896f580ad31efc0b38832b9c7600cbd35ead5",
+        "services/session/live_effects.py": "5b2b2d37c8853d068bd35d90e3751adc61cace4fbfe4cc3adc2f580c7b117faf",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "32f92d0069cd1f66eb6a588dad87afcc2446d357c740a4ab39b78b4d5a9651c5",
+        "tests/integration/test_live_effects.py": "b8352e8fe89741e421da73a74c362aa0e69e4b7d20de1fa3475a3fcd9fd726dd",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "57 passed in 14.87s"
+    },
+    {
+      "utc": "2026-11-16T23:07:33.738200+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 29.727558462996967,
+      "input_count": 903,
+      "inputs_unchanged": true,
+      "log_sha256": "ae82fb5f3e5585914ebc44c24371d8564d2ec760597f58a0707ef36c2a07f26a",
+      "name": "issue-623-consumer-parent-merge-313",
+      "original_receipt_sha256": "b079df91dc0bb5be95c4404d337527bf8234de73d34262eab9d1513b1f2a5428",
+      "log": "logs/issue-623-consumer-parent-merge-313.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "packages/contracts/live_effect_pending.py",
+        "services/decisions/live_agent.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effect_pending.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "3e78cfae345b082803d27955dfe7ce44939d9d6bc13074417812cc5062f45938",
+        "packages/contracts/live_effect_client.py": "458166cdb5d3d59a0177795277c06477c3fd580e34e8eaf75e956bd36e8e490f",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/session/live_effect_api.py": "e8feaed1d63265301aa7e5b64aa896f580ad31efc0b38832b9c7600cbd35ead5",
+        "services/session/live_effects.py": "181cf5569f6d975b9d0216c6b61a7181fafe035c07abda2d1b04ea83be1be052",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "32f92d0069cd1f66eb6a588dad87afcc2446d357c740a4ab39b78b4d5a9651c5",
+        "tests/integration/test_live_effects.py": "6adeb49f826d9dead8a564cc7640ba22cdaaad9b51c9e3f40ab47ee29b70dc1c",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "192 passed in 28.80s"
+    },
+    {
+      "utc": "2026-11-16T23:44:23.411893+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py::test_identical_native_raw_revision_cannot_stifle_canonical_agent_handoff",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.9093239399953745,
+      "input_count": 908,
+      "inputs_unchanged": true,
+      "log_sha256": "bae8a661426adf210d1853d0ed009246d67ba3a5a747dd74b9580d22a838d6f2",
+      "name": "issue-623-live-agent-canonical-first",
+      "original_receipt_sha256": "5d1a06e96ed8b70f0d9ded99199e49f7666025afbd10738cff9d785dafb14021",
+      "log": "logs/issue-623-live-agent-canonical-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "89ed8be0ce44003c62c6600b59ab4b52c9b6a05bf15c87087e633f8fbb4ef7d2",
+        "packages/contracts/live_effect_client.py": "615804445820359d634232e1695844c4f290a51551d931ce643a766f91508d21",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "54448b577d41e26ae7a094489a4c224ad866de3d2a29cfc920e2bbba784827c5",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "7c77436e7a9033f905e4f6edee528a238b9666a235672083befd956bd1a1bb56",
+        "services/session/live_effect_api.py": "c9b98f9cf84ba0ea12976b900d9c006013bdb4b215a9962f72e14a7f033988e5",
+        "services/session/live_effects.py": "678d9a79c3b4324256daac82525beac2a49006cae6015bf15dd298d0f5708629",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "17b8016d1b51082604cf5792a83b96f053504f2ed7b4de83ef2092724a8ab32f",
+        "tests/integration/test_live_agent_consumer.py": "93b718bac68a6163d63cf21d2be3e73dbff03d3773ce5d6c8b51c6ad9be7f3e4",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed in 0.54s",
+      "investigation": "Production: raw storage revision differences stifled an otherwise identical actual captured source.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932867208"
+    },
+    {
+      "utc": "2026-11-16T23:46:47.092083+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 2.0555757850015652,
+      "input_count": 910,
+      "inputs_unchanged": true,
+      "log_sha256": "a0f5a00938f165d911608a0e9984c09388ceb867ac8eb42a84f44fdac6f41177",
+      "name": "issue-623-live-agent-canonical-repaired",
+      "original_receipt_sha256": "ac0e4368f6452bca12197b821a4f6276d1e8bde855db27a00f8c524ab271c28d",
+      "log": "logs/issue-623-live-agent-canonical-repaired.log.json",
+      "absent_from_manifest": [
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/live_effect_client.py": "8a1a89739821d45adc299bf867c16d85d90635dec0ebc7bc6e092d22165cca04",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "7c77436e7a9033f905e4f6edee528a238b9666a235672083befd956bd1a1bb56",
+        "services/session/live_agent_sources.py": "d65b2762363a0caf6f570ac1597871bfc5dc5a3ce3b0b0a024dd2c7b4fe264c1",
+        "services/session/live_effects.py": "678d9a79c3b4324256daac82525beac2a49006cae6015bf15dd298d0f5708629",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "tests/integration/test_live_agent_consumer.py": "3c2b093c1ff78636d0830be035a4b79448fa6cb34ea30f80c0b1a107eec4f2b8",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "6 passed in 1.69s"
+    },
+    {
+      "utc": "2026-11-16T23:40:16.222947+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effect_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 21.49301552199904,
+      "input_count": 908,
+      "inputs_unchanged": true,
+      "log_sha256": "eacdc654c2fa4883203ff6fd2a91ef96772e50f38a0b3ac848c0f0e8ac484b30",
+      "name": "issue-623-live-agent-controls-repaired",
+      "original_receipt_sha256": "5341dde177ff212d854a04313098b15798c4336d97fe8bdfe632a3a270d7bc88",
+      "log": "logs/issue-623-live-agent-controls-repaired.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "89ed8be0ce44003c62c6600b59ab4b52c9b6a05bf15c87087e633f8fbb4ef7d2",
+        "packages/contracts/live_effect_client.py": "615804445820359d634232e1695844c4f290a51551d931ce643a766f91508d21",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "54448b577d41e26ae7a094489a4c224ad866de3d2a29cfc920e2bbba784827c5",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "7c77436e7a9033f905e4f6edee528a238b9666a235672083befd956bd1a1bb56",
+        "services/session/live_effect_api.py": "c9b98f9cf84ba0ea12976b900d9c006013bdb4b215a9962f72e14a7f033988e5",
+        "services/session/live_effects.py": "678d9a79c3b4324256daac82525beac2a49006cae6015bf15dd298d0f5708629",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "17b8016d1b51082604cf5792a83b96f053504f2ed7b4de83ef2092724a8ab32f",
+        "tests/integration/test_live_agent_consumer.py": "2286836dc1b4b141c29f62285a941cbef9bbf8fd56cd1f6cb4eb5fc5536cb9e2",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "75 passed in 21.00s"
+    },
+    {
+      "utc": "2026-11-17T00:45:16.634779+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effect_pending.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 55.56575039499876,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "2d5d2b32f0cb977d7905342c82d13d3ba91d417d2435a27caa35a5bf2e4ff3e9",
+      "name": "issue-623-live-agent-final-313",
+      "original_receipt_sha256": "59f918ecb6b15e2626ad3a7d30ba3af018e1644c0ecf2cc796455d919cc96b34",
+      "log": "logs/issue-623-live-agent-final-313.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {},
+      "pytest_summary": "234 passed, 1 warning in 54.40s"
+    },
+    {
+      "utc": "2026-11-17T00:45:16.575472+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effect_pending.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 55.5070051770017,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "2f32200cd0f6a77b1a2ea3d7d3abe56d1a92e47f9e28ba290139c845ab004e78",
+      "name": "issue-623-live-agent-final-314",
+      "original_receipt_sha256": "5fa83e83b309569acebd3c8a2e54f34261595ead4d02702ac8935d6e2d797116",
+      "log": "logs/issue-623-live-agent-final-314.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {},
+      "pytest_summary": "234 passed, 1 warning in 54.38s"
+    },
+    {
+      "utc": "2026-11-16T23:26:06.333744+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 1.2500805849995231,
+      "input_count": 907,
+      "inputs_unchanged": true,
+      "log_sha256": "eefbdc9643873761f8be63f8705abbb10cce3dafce8f86d6e5517d96542f9731",
+      "name": "issue-623-live-agent-first",
+      "original_receipt_sha256": "a82356bdf76f8c7ad572ef4bd7d5b600237606c0b2b1b63c67714e498b405463",
+      "log": "logs/issue-623-live-agent-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "72b5c8c05e98ffd5ccc68a2eef2a2d79476c818204807db8b9f97c64bd80d584",
+        "packages/contracts/live_effect_client.py": "02d99a21adba854e5fe4f9ca2e255ca27b0e0191c0d889ee3f000caf8f002123",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+        "services/session/live_effect_api.py": "6096d532809fef82c5bdc01ba465b0c10245d547798e9aa86c12b8a2db552a83",
+        "services/session/live_effects.py": "4b6d3520cdd9d320df2563fc87f84a965c64893ba87016ec34ddd35fe6b0f823",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "5f5d603385c68a7decec535b4bb1800783c84c17a852ecf6f342c9641d5e6ddc",
+        "tests/integration/test_live_agent_consumer.py": "35bdaf022e09ac1124a00b7b81c6210e8accb050fd2cfb3eb7772ccdcecd3773",
+        "tests/integration/test_live_effects.py": "b8352e8fe89741e421da73a74c362aa0e69e4b7d20de1fa3475a3fcd9fd726dd",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "2 failed in 0.88s",
+      "investigation": "Production: native Agent command uses authenticated agent-supervisor origin, not agent.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932510439"
+    },
+    {
+      "utc": "2026-11-17T00:35:07.654746+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effect_pending.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 53.26887371500197,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "e805ff987f1d89ffe475848ebe2bdba751d253ba7a1a7eb942b7abf74fab0daf",
+      "name": "issue-623-live-agent-focused-314",
+      "original_receipt_sha256": "00c14b832231db5309508d233638c9bd10f61d8d9f5396b5844e27cc1a1e5479",
+      "log": "logs/issue-623-live-agent-focused-314.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "tests/integration/test_live_agent_consumer.py": "d07bcc1f35bec7bc199f027bd406bd88bf198057d4bb5791875bfeaaa6e55d42"
+      },
+      "pytest_summary": "233 passed, 1 warning in 52.24s"
+    },
+    {
+      "utc": "2026-11-17T00:38:04.375214+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_mic_capture.py",
+        "tests/integration/test_live_stream_api.py",
+        "tests/integration/test_live_stream_capture.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/integration/test_session.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_agent_submit_runtime_review.py",
+        "tests/integration/test_agent_submit_runtime_deadlines.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_agent_submit_recovery_authority.py",
+        "tests/integration/test_agent_submit_transactions.py",
+        "tests/integration/test_agent_mode_permissions.py",
+        "tests/integration/test_agent_submit_prescope_compatibility.py",
+        "tests/integration/test_live_effect_pending.py",
+        "tests/integration/test_agent_submit_runtime_preflight.py",
+        "tests/integration/test_agent_submit_http_stack.py",
+        "tests/integration/test_agent_submit_native_wire.py",
+        "tests/integration/test_tts_interruption_settlement.py",
+        "tests/integration/test_agent_submit_native_provenance.py",
+        "tests/integration/test_agent_submit_admission.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_agent_submit_native_revision.py",
+        "tests/integration/test_agent_mode_workspace.py",
+        "tests/integration/test_agent_submit_identity_binding.py",
+        "tests/integration/test_agent_submit_admission_faults.py",
+        "tests/integration/test_agent_submit_uncertainty.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_agent_submit_receipt_recovery.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 229.96825312199508,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "f2ca17232fbb827e0c4c8304ae686bd421943fd5e80f0e84fbacf742614e57c1",
+      "name": "issue-623-live-agent-full-broader-313",
+      "original_receipt_sha256": "52fd6fe3307d2087096ca35409291cf8a4f88a25d825e002642777a13e5a5393",
+      "log": "logs/issue-623-live-agent-full-broader-313.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "tests/integration/test_live_agent_consumer.py": "d07bcc1f35bec7bc199f027bd406bd88bf198057d4bb5791875bfeaaa6e55d42"
+      },
+      "pytest_summary": "900 passed, 1 warning in 228.51s (0:03:48)"
+    },
+    {
+      "utc": "2026-11-17T00:09:15.460434+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_effects.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 9.723932175998925,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "b98b005923226d3efe5edd81087d655524173e9f22279e1254ef5fd442e568a4",
+      "name": "issue-623-live-agent-history-hints-repaired",
+      "original_receipt_sha256": "6bd848e81e18042981b1eb779c0fa58e2b8f990cf8ea38e9016293e4be78d8b2",
+      "log": "logs/issue-623-live-agent-history-hints-repaired.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "ead7fa6d5bdd16b329b095f630f43469d3e256108c5aff69ac9d2344753b9451",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "3c2b093c1ff78636d0830be035a4b79448fa6cb34ea30f80c0b1a107eec4f2b8",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "48 passed in 9.35s"
+    },
+    {
+      "utc": "2026-11-17T00:25:48.263476+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 5.191029082998284,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "f5504cf07d3fad514587d7bc99825fef8fc995068889c56e71eb1e374e58181c",
+      "name": "issue-623-live-agent-http-boundary-first",
+      "original_receipt_sha256": "96b466e46eeade2bfafdb9f6108546d8370f7ca1e7a0f84094bc6cbb5884bd5a",
+      "log": "logs/issue-623-live-agent-http-boundary-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "443e64d4f24bb2d4ce7be13058033031b6ddb4069893c3892917514b669b19ac",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a"
+      },
+      "pytest_summary": "1 failed, 9 passed in 4.81s",
+      "investigation": "Fixture: late-steer gate stopped the empty initial application before the provider entered.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933753756"
+    },
+    {
+      "utc": "2026-11-17T00:30:10.830704+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py::test_benign_raw_revision_after_steer_acceptance_cannot_block_execution_boundary",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 1.0170014640025329,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "2953f4bbf96636f39f8b00dd91471edcaafef410e82fd7354ddcb59ba36b7e8f",
+      "name": "issue-623-live-agent-late-steer-controlled-first",
+      "original_receipt_sha256": "04ad198fe1dac1945c25f2dba233d792120c0ae3ff1a5b026309e400f3bfd3d5",
+      "log": "logs/issue-623-live-agent-late-steer-controlled-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "1cb43b925a3aac80381bd0e2cf91d6dda9e46dac63a00d1a94ca149b8d660a22",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a"
+      },
+      "pytest_summary": "1 failed in 0.65s",
+      "investigation": "Production: the actual post-acceptance steer boundary rejected a benign captured raw revision. Later fixture provider exhaustion is diagnostic; the assertion checks native objective revision 2.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933818802"
+    },
+    {
+      "utc": "2026-11-17T00:28:01.859285+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py::test_benign_raw_revision_after_steer_acceptance_cannot_block_execution_boundary",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 3.0110625629968126,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "e3df89110cd250debe2e509af26e18bd88bea0e905705285d894a15f7f18c136",
+      "name": "issue-623-live-agent-late-steer-first",
+      "original_receipt_sha256": "9eab3ea6169ca6bea1836bd2af41f38452b9017f71bd85b353c6c5503b64388f",
+      "log": "logs/issue-623-live-agent-late-steer-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "4bb7666137cb2bf49f26adc72521222167485b7d8bd0e3ceb60f6cdf268ff3d4",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a"
+      },
+      "pytest_summary": "1 failed in 2.65s",
+      "investigation": "Fixture: original provider was not released before awaiting steer application.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933799231"
+    },
+    {
+      "utc": "2026-11-17T00:31:17.645941+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 3.209869730999344,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "3a1e851c5201099352c435d5575d6cbdf347601edc7f2ed7f6244e529ca0c58a",
+      "name": "issue-623-live-agent-late-steer-repaired",
+      "original_receipt_sha256": "9600b8991ed984270de19dc41fe926b257d7186de9c66b9962c4621a409a7876",
+      "log": "logs/issue-623-live-agent-late-steer-repaired.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "d07bcc1f35bec7bc199f027bd406bd88bf198057d4bb5791875bfeaaa6e55d42",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a"
+      },
+      "pytest_summary": "10 passed in 2.83s"
+    },
+    {
+      "utc": "2026-11-17T00:17:45.219772+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 6.540768851999019,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "5ef77806ed92350147649a9e82bfd94655d38cf3c69ffa7f3c7cd6ad0f73e353",
+      "name": "issue-623-live-agent-loop-first",
+      "original_receipt_sha256": "b4ec78f55b8558e12050513c4e6132ac3ff9a153785e63777fa1c1d74f163e88",
+      "log": "logs/issue-623-live-agent-loop-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "e78d582c9f88ba96af3a932c2ce2d670a9c5846f962622c3af9ba88c3fd2c776",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a"
+      },
+      "pytest_summary": "1 failed, 89 passed in 5.79s",
+      "investigation": "Fixture: legacy worker shutdown observer incorrectly expected close() rather than the actual existing run-task finally.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933651697"
+    },
+    {
+      "utc": "2026-11-17T00:23:01.137437+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 2.406035219995829,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "951a3db04da8dd06b4d71a9e2af1ce9411fa27e2985913b1e487de0484f92307",
+      "name": "issue-623-live-agent-loop-repaired",
+      "original_receipt_sha256": "7158566f33aeab7b32764f9edda21dd6d7e2b888493b9a2450c15b0c7a0569d6",
+      "log": "logs/issue-623-live-agent-loop-repaired.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "services/session/live_agent_sources.py": "e258ec5c6d2ce26e2713748e29c3255892fd24b28e0f883800f59a98e905013c",
+        "tests/integration/test_live_agent_consumer.py": "61228f0299b440e99f2e6409660313062dedb986537a047c5ff5fd30fa5d238e",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a"
+      },
+      "pytest_summary": "7 passed in 2.03s"
+    },
+    {
+      "utc": "2026-11-17T00:42:17.229335+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py::test_targeted_queue_cannot_assume_a_missing_native_target_has_finished",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.9215021060008439,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "18b63069c3b24e8a720f1cc92d7578531bab23d67b30170634f30bac1a23fe96",
+      "name": "issue-623-live-agent-missing-target-first",
+      "original_receipt_sha256": "25645848371c0fac27d17af395a7207f3fa4b9f2b2dc8ab75b0f162124d48274",
+      "log": "logs/issue-623-live-agent-missing-target-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/decisions/live_agent.py": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+        "tests/integration/test_live_agent_consumer.py": "16b88a8eb93792a44b0ab8641173e76d9a8444d10fd15b0bb1afdae885378600"
+      },
+      "pytest_summary": "1 failed in 0.57s",
+      "investigation": "Production: targeted queue treated a missing native task as completed. It now remains reserved and unstarted.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6934042905"
+    },
+    {
+      "utc": "2026-11-17T00:42:52.142471+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 3.2820947069994872,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "0cb5f02d84e85349f549547a15e78305688097602ed1cda004371094c59e644b",
+      "name": "issue-623-live-agent-missing-target-repaired",
+      "original_receipt_sha256": "a8bde83fb018b094ca7413abac21c4eb54668cd6566488cab97622dbbdce5f05",
+      "log": "logs/issue-623-live-agent-missing-target-repaired.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {},
+      "pytest_summary": "11 passed in 2.91s"
+    },
+    {
+      "utc": "2026-11-16T23:27:18.817876+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py::test_native_queue_records_one_authentic_agent_command_and_never_replays",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.9691821939995862,
+      "input_count": 907,
+      "inputs_unchanged": true,
+      "log_sha256": "14b9af1a300570e20d6d143d1f9959adf8bdee0a3d47ba451eaf2effae7032d1",
+      "name": "issue-623-live-agent-native-evidence-first",
+      "original_receipt_sha256": "a35bdd7e9bfd12b65fddce420ccb0fbc7c301c3710568fd113528ec007be092e",
+      "log": "logs/issue-623-live-agent-native-evidence-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "72b5c8c05e98ffd5ccc68a2eef2a2d79476c818204807db8b9f97c64bd80d584",
+        "packages/contracts/live_effect_client.py": "02d99a21adba854e5fe4f9ca2e255ca27b0e0191c0d889ee3f000caf8f002123",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+        "services/session/live_effect_api.py": "6096d532809fef82c5bdc01ba465b0c10245d547798e9aa86c12b8a2db552a83",
+        "services/session/live_effects.py": "4b6d3520cdd9d320df2563fc87f84a965c64893ba87016ec34ddd35fe6b0f823",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "5f5d603385c68a7decec535b4bb1800783c84c17a852ecf6f342c9641d5e6ddc",
+        "tests/integration/test_live_agent_consumer.py": "7d6195c321a80df2c3196a073d354d1d84e90736d02cd955805fc71cf5d09074",
+        "tests/integration/test_live_effects.py": "b8352e8fe89741e421da73a74c362aa0e69e4b7d20de1fa3475a3fcd9fd726dd",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed in 0.60s",
+      "investigation": "Controlled finish error retained; native origin/evidence binding still unqualified.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932529873"
+    },
+    {
+      "utc": "2026-11-16T23:36:23.585571+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effect_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 21.357788191002328,
+      "input_count": 908,
+      "inputs_unchanged": true,
+      "log_sha256": "d6592ea77ca8523f401c4833c343fb777cd6c14da67fedddec4080fee65e4b55",
+      "name": "issue-623-live-agent-native-proofs-repaired",
+      "original_receipt_sha256": "5005eb5e9a2d2bb5fb1d332b47ff2f5001dccc8d1af243844732ceecd85d73b3",
+      "log": "logs/issue-623-live-agent-native-proofs-repaired.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "89ed8be0ce44003c62c6600b59ab4b52c9b6a05bf15c87087e633f8fbb4ef7d2",
+        "packages/contracts/live_effect_client.py": "615804445820359d634232e1695844c4f290a51551d931ce643a766f91508d21",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "54448b577d41e26ae7a094489a4c224ad866de3d2a29cfc920e2bbba784827c5",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "17b68a2505403ab8838904cef235dc6e57d185cb91ca3320841a3bfa0b856c58",
+        "services/session/live_effect_api.py": "c9b98f9cf84ba0ea12976b900d9c006013bdb4b215a9962f72e14a7f033988e5",
+        "services/session/live_effects.py": "9d4a6f0b9ddf6973dd2cd53c94c6d6f6317617189fb684e8f0f7cde7a944e3f2",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "17b8016d1b51082604cf5792a83b96f053504f2ed7b4de83ef2092724a8ab32f",
+        "tests/integration/test_live_agent_consumer.py": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed, 73 passed in 20.88s",
+      "investigation": "Production: public AgentControl lookup entered another transaction inside the owned ledger transaction; reuse its pure historical proof reader instead.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932734029"
+    },
+    {
+      "utc": "2026-11-16T23:38:46.028902+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py::test_waiting_queue_retains_bounded_actual_owner_history",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 1.0704142019967549,
+      "input_count": 908,
+      "inputs_unchanged": true,
+      "log_sha256": "5fd3c67484dd8f8619a8b7333019f18f632bb7e88b7c9d86664972537c845f77",
+      "name": "issue-623-live-agent-owner-bound-first",
+      "original_receipt_sha256": "a4e928e9e3cf39cf69b799ed99252c7fad0f11e6301df64302e0a39192900176",
+      "log": "logs/issue-623-live-agent-owner-bound-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "89ed8be0ce44003c62c6600b59ab4b52c9b6a05bf15c87087e633f8fbb4ef7d2",
+        "packages/contracts/live_effect_client.py": "615804445820359d634232e1695844c4f290a51551d931ce643a766f91508d21",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "54448b577d41e26ae7a094489a4c224ad866de3d2a29cfc920e2bbba784827c5",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "17b68a2505403ab8838904cef235dc6e57d185cb91ca3320841a3bfa0b856c58",
+        "services/session/live_effect_api.py": "c9b98f9cf84ba0ea12976b900d9c006013bdb4b215a9962f72e14a7f033988e5",
+        "services/session/live_effects.py": "678d9a79c3b4324256daac82525beac2a49006cae6015bf15dd298d0f5708629",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "17b8016d1b51082604cf5792a83b96f053504f2ed7b4de83ef2092724a8ab32f",
+        "tests/integration/test_live_agent_consumer.py": "e13cf5d8b2c5da7d1b2d513209d2186ca32c2d45cb8439882220dd78deb73f3f",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed in 0.70s",
+      "investigation": "Production: repeated busy-queue observation retained 20 healthy settled operation owners.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932766969"
+    },
+    {
+      "utc": "2026-11-16T23:50:33.434606+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 4.588279288000194,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "ed7f00a7a634ee6f2ced08ecb3a95d9baf1eabaebe99abfb217c3751fac67d6b",
+      "name": "issue-623-live-agent-source-boundaries-first",
+      "original_receipt_sha256": "7a79b90599bae6c6b42b20e8c32776257d68dc95360cae4147c279119356a25f",
+      "log": "logs/issue-623-live-agent-source-boundaries-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "packages/contracts/live_effect_client.py": "8a1a89739821d45adc299bf867c16d85d90635dec0ebc7bc6e092d22165cca04",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "7c77436e7a9033f905e4f6edee528a238b9666a235672083befd956bd1a1bb56",
+        "services/session/live_agent_sources.py": "d65b2762363a0caf6f570ac1597871bfc5dc5a3ce3b0b0a024dd2c7b4fe264c1",
+        "services/session/live_effects.py": "678d9a79c3b4324256daac82525beac2a49006cae6015bf15dd298d0f5708629",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "tests/integration/test_live_agent_consumer.py": "3c2b093c1ff78636d0830be035a4b79448fa6cb34ea30f80c0b1a107eec4f2b8",
+        "tests/integration/test_live_agent_sources.py": "eb991f4e9fc2778da3de14473a269175482984da57e8032cd40e553043ea6bd6",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed, 16 passed in 4.19s",
+      "investigation": "Production: Converse-only reader could not classify an owner-authored legacy window as non-live.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933094530"
+    },
+    {
+      "utc": "2026-11-16T23:56:45.031376+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 12.783710030002112,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "7bb9e5c8a3aa017841c55bb4562799ae012f2f2f6712428d7d014d947243e7ee",
+      "name": "issue-623-live-agent-source-boundaries-repaired",
+      "original_receipt_sha256": "ad760aed3b46bd75a474c1462c5610e01f222fab631529a67d5438be3f11e163",
+      "log": "logs/issue-623-live-agent-source-boundaries-repaired.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "ead7fa6d5bdd16b329b095f630f43469d3e256108c5aff69ac9d2344753b9451",
+        "services/session/live_agent_sources.py": "b560079b2f59fd290ee280ece8acf767dd908a8413a8121f66f69cc6376c0115",
+        "services/session/live_effects.py": "0d78d84809237671f09750b20a5bd939acc811591bb06fd1a3446e7f57a7e00a",
+        "tests/integration/test_live_agent_consumer.py": "3c2b093c1ff78636d0830be035a4b79448fa6cb34ea30f80c0b1a107eec4f2b8",
+        "tests/integration/test_live_agent_sources.py": "eb991f4e9fc2778da3de14473a269175482984da57e8032cd40e553043ea6bd6",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "60 passed in 12.30s"
+    },
+    {
+      "utc": "2026-11-17T00:02:53.453605+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_sources.py::test_changed_then_restored_capture_text_does_not_revive_old_revision_authority",
+        "tests/integration/test_live_agent_sources.py::test_manual_transcript_edits_do_not_become_native_capture_equivalence",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.9369592160001048,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "38978cfa98a077d5b6eed99a79d8d607a54d6476bf7d81ba81db4e51d74d9e78",
+      "name": "issue-623-live-agent-source-history-first",
+      "original_receipt_sha256": "fd5ea2e71ae7af0e450bd2ffb714b30b030c4d9ed9caf101ed15fc76fe015184",
+      "log": "logs/issue-623-live-agent-source-history-first.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "ead7fa6d5bdd16b329b095f630f43469d3e256108c5aff69ac9d2344753b9451",
+        "services/session/live_agent_sources.py": "b560079b2f59fd290ee280ece8acf767dd908a8413a8121f66f69cc6376c0115",
+        "services/session/live_effects.py": "0d78d84809237671f09750b20a5bd939acc811591bb06fd1a3446e7f57a7e00a",
+        "tests/integration/test_live_agent_consumer.py": "3c2b093c1ff78636d0830be035a4b79448fa6cb34ea30f80c0b1a107eec4f2b8",
+        "tests/integration/test_live_agent_sources.py": "1b3c122a87404db43c569c370b195317115ddca02ef07194627edcfba66b9b94",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "2 failed in 0.60s",
+      "investigation": "Production: changed-then-restored input revived historical authority. Separate fixture attempted a manual speech-window revision that Store already rejects.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933284756"
+    },
+    {
+      "utc": "2026-11-17T00:06:33.890447+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_effects.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 11.211182931001531,
+      "input_count": 911,
+      "inputs_unchanged": true,
+      "log_sha256": "5835b1d4a0378ff1cf738cd308830ad835ff86efed476c34827d000e7386758f",
+      "name": "issue-623-live-agent-source-history-repaired",
+      "original_receipt_sha256": "65f70183d8b7e0a83dd7bcdc0f3412ce80b550d951f18f9167ee2c2ea45183e6",
+      "log": "logs/issue-623-live-agent-source-history-repaired.log.json",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "ead7fa6d5bdd16b329b095f630f43469d3e256108c5aff69ac9d2344753b9451",
+        "services/session/live_agent_sources.py": "f009f5ae47de50ad3392300b4cbb1bd56810fd3f2efb04d252d7d68fe273d4ba",
+        "tests/integration/test_live_agent_consumer.py": "3c2b093c1ff78636d0830be035a4b79448fa6cb34ea30f80c0b1a107eec4f2b8",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "28 failed, 20 passed in 10.79s",
+      "investigation": "Implementation error: history digest helper constructed forbidden user_speaking=true/capture_ended=true. The contract permits exactly three combinations.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6933359129"
+    },
+    {
+      "utc": "2026-11-16T23:38:18.768071+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 1.654437801000313,
+      "input_count": 908,
+      "inputs_unchanged": true,
+      "log_sha256": "a11683ff7323eae3d11b7272c424084f34e9c9961ee7822e4541447afe0a9cd2",
+      "name": "issue-623-live-agent-steer-proof-repaired",
+      "original_receipt_sha256": "d1f55083545656a67d604249f34fb84eb2020b33064be81a33eea44f68855f28",
+      "log": "logs/issue-623-live-agent-steer-proof-repaired.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "89ed8be0ce44003c62c6600b59ab4b52c9b6a05bf15c87087e633f8fbb4ef7d2",
+        "packages/contracts/live_effect_client.py": "615804445820359d634232e1695844c4f290a51551d931ce643a766f91508d21",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "54448b577d41e26ae7a094489a4c224ad866de3d2a29cfc920e2bbba784827c5",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "17b68a2505403ab8838904cef235dc6e57d185cb91ca3320841a3bfa0b856c58",
+        "services/session/live_effect_api.py": "c9b98f9cf84ba0ea12976b900d9c006013bdb4b215a9962f72e14a7f033988e5",
+        "services/session/live_effects.py": "678d9a79c3b4324256daac82525beac2a49006cae6015bf15dd298d0f5708629",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "17b8016d1b51082604cf5792a83b96f053504f2ed7b4de83ef2092724a8ab32f",
+        "tests/integration/test_live_agent_consumer.py": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed, 3 passed in 1.29s",
+      "investigation": "Fixture: frozen native steer event binds source IDs in causes, not payload.source_event_ids.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932766969"
+    },
+    {
+      "utc": "2026-11-16T23:28:14.091613+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_consumer.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 1.5343569059987203,
+      "input_count": 907,
+      "inputs_unchanged": true,
+      "log_sha256": "47f7fc95863a5a7c41ce3f65bdfa162d6e334a9ea10a94b01d16d870e6a0d401",
+      "name": "issue-623-live-agent-targeted-first",
+      "original_receipt_sha256": "129e2eab834811c9b041d6b1e7f0b03ade47ca2ef5166a91faed682078a56732",
+      "log": "logs/issue-623-live-agent-targeted-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "72b5c8c05e98ffd5ccc68a2eef2a2d79476c818204807db8b9f97c64bd80d584",
+        "packages/contracts/live_effect_client.py": "02d99a21adba854e5fe4f9ca2e255ca27b0e0191c0d889ee3f000caf8f002123",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+        "services/session/live_effect_api.py": "6096d532809fef82c5bdc01ba465b0c10245d547798e9aa86c12b8a2db552a83",
+        "services/session/live_effects.py": "962f936908b231f28b0a66a3883b85052ed3bd6f01f45deb3ea0725dae8b394f",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "5f5d603385c68a7decec535b4bb1800783c84c17a852ecf6f342c9641d5e6ddc",
+        "tests/integration/test_live_agent_consumer.py": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+        "tests/integration/test_live_effects.py": "b8352e8fe89741e421da73a74c362aa0e69e4b7d20de1fa3475a3fcd9fd726dd",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "2 failed, 2 passed in 1.17s",
+      "investigation": "Production: invalid SteerRequest.source_revision and native interrupt provenance omitted; interrupt tracked separately as #671.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932565634"
+    },
+    {
+      "utc": "2026-11-16T23:29:30.888045+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effects.py::test_unknown_started_handoff_cannot_make_a_later_queue_assume_agent_is_idle",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 0.7072048500049277,
+      "input_count": 907,
+      "inputs_unchanged": true,
+      "log_sha256": "8ed88ad894d81ddde7a5b87cdaad5afff7a73cfd6873f5ebfccbaeb1e3235738",
+      "name": "issue-623-live-agent-unknown-queue-first",
+      "original_receipt_sha256": "c75c63f5f10f3e8b1a60168441a7b97cbe8cb282f843508d82ed42b7f06e693e",
+      "log": "logs/issue-623-live-agent-unknown-queue-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "72b5c8c05e98ffd5ccc68a2eef2a2d79476c818204807db8b9f97c64bd80d584",
+        "packages/contracts/live_effect_client.py": "02d99a21adba854e5fe4f9ca2e255ca27b0e0191c0d889ee3f000caf8f002123",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/decisions/live_agent.py": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+        "services/session/live_effect_api.py": "6096d532809fef82c5bdc01ba465b0c10245d547798e9aa86c12b8a2db552a83",
+        "services/session/live_effects.py": "962f936908b231f28b0a66a3883b85052ed3bd6f01f45deb3ea0725dae8b394f",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "5f5d603385c68a7decec535b4bb1800783c84c17a852ecf6f342c9641d5e6ddc",
+        "tests/integration/test_live_agent_consumer.py": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+        "tests/integration/test_live_effects.py": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "1 failed in 0.41s",
+      "investigation": "Production: a started unconfirmed handoff did not atomically block a new queue in the same scope.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932565634"
+    },
+    {
+      "utc": "2026-11-16T23:18:59.616108+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effect_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 3.7498428379985853,
+      "input_count": 905,
+      "inputs_unchanged": true,
+      "log_sha256": "2b757b7630682b8d3483dd4642e286798508c6be0629a6a12ff8222ee8159a32",
+      "name": "issue-623-live-effect-pending-first",
+      "original_receipt_sha256": "75e4900735d61af211f883e8a12c413b38abcbd4ca829170e7e4a5ac8243edda",
+      "log": "logs/issue-623-live-effect-pending-first.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "services/decisions/live_agent.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "72b5c8c05e98ffd5ccc68a2eef2a2d79476c818204807db8b9f97c64bd80d584",
+        "packages/contracts/live_effect_client.py": "02d99a21adba854e5fe4f9ca2e255ca27b0e0191c0d889ee3f000caf8f002123",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/session/live_effect_api.py": "6096d532809fef82c5bdc01ba465b0c10245d547798e9aa86c12b8a2db552a83",
+        "services/session/live_effects.py": "4b6d3520cdd9d320df2563fc87f84a965c64893ba87016ec34ddd35fe6b0f823",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "5f5d603385c68a7decec535b4bb1800783c84c17a852ecf6f342c9641d5e6ddc",
+        "tests/integration/test_live_effect_pending.py": "5334c5631b0f1f1fad008cfbbfab0d2c8a1bf4066fc8819ac038396406f6b85d",
+        "tests/integration/test_live_effects.py": "b8352e8fe89741e421da73a74c362aa0e69e4b7d20de1fa3475a3fcd9fd726dd",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "7 failed, 5 passed in 3.36s",
+      "investigation": "Fixture: repeated window-0 idempotency identity and wake baseline taken before API construction.",
+      "recorded_before_fix": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6932346071"
+    },
+    {
+      "utc": "2026-11-16T23:19:39.447633+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_effect_pending.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 5.139456080003583,
+      "input_count": 905,
+      "inputs_unchanged": true,
+      "log_sha256": "1b7e8bd434b851d298d2b82952523c76764cb24d87b29efd0cce0d456231e77f",
+      "name": "issue-623-live-effect-pending-fixtures-repaired",
+      "original_receipt_sha256": "0e846f4ff1d1dbea4139377b937f63d43ab22123b4d0934f4032bf6cfdf68e64",
+      "log": "logs/issue-623-live-effect-pending-fixtures-repaired.log.json",
+      "absent_from_manifest": [
+        "packages/contracts/live_agent_sources.py",
+        "packages/contracts/live_effect_evidence.py",
+        "services/decisions/live_agent.py",
+        "services/session/live_agent_sources.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py"
+      ],
+      "input_hash_overrides": {
+        "packages/contracts/client.py": "72b5c8c05e98ffd5ccc68a2eef2a2d79476c818204807db8b9f97c64bd80d584",
+        "packages/contracts/live_effect_client.py": "02d99a21adba854e5fe4f9ca2e255ca27b0e0191c0d889ee3f000caf8f002123",
+        "packages/contracts/live_effects.py": "794057274307f72ae4a1791131efdad4752738a58e5f780c5c9c75383501aa50",
+        "services/agent/runtime.py": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+        "services/decisions/api.py": "157f6f130e800a5713fdf0a873767b4eba95c33f8105b53b334312e17108a00b",
+        "services/session/live_effect_api.py": "6096d532809fef82c5bdc01ba465b0c10245d547798e9aa86c12b8a2db552a83",
+        "services/session/live_effects.py": "4b6d3520cdd9d320df2563fc87f84a965c64893ba87016ec34ddd35fe6b0f823",
+        "services/session/live_windows.py": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+        "services/session/store.py": "5f5d603385c68a7decec535b4bb1800783c84c17a852ecf6f342c9641d5e6ddc",
+        "tests/integration/test_live_effects.py": "b8352e8fe89741e421da73a74c362aa0e69e4b7d20de1fa3475a3fcd9fd726dd",
+        "tests/unit/test_live_effect_contracts.py": "1e3ac86ff0d43ccd66f60f3888d54a34e6aae67c729cccd6ecbde9c1a3ab7bd5",
+        "tests/unit/test_standing_resource_finalization_contracts.py": "02fc63f38b03fd398f46b4446fccaead9f85247866ccff6c5514355dbf4d2a03",
+        "scripts/export_contracts.py": "21c21bc2498691820d98f5bff3d65374c27078b35b17078a4c1f0614b7d3f289"
+      },
+      "pytest_summary": "12 passed in 4.73s"
+    }
+  ],
+  "static": [
+    {
+      "utc": "2026-11-17T00:55:01.157877+00:00",
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "checks": [
+        {
+          "args": [
+            "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+            "-m",
+            "ruff",
+            "check",
+            "."
+          ],
+          "exit_code": 0,
+          "log": "issue-623-live-agent-publication-static-0.log",
+          "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+          "artifact": "logs/issue-623-live-agent-publication-static-0.log.json"
+        },
+        {
+          "args": [
+            "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+            "-m",
+            "ruff",
+            "format",
+            "--check",
+            "."
+          ],
+          "exit_code": 0,
+          "log": "issue-623-live-agent-publication-static-1.log",
+          "log_sha256": "fc5567df67f31c4fd390a9c2c739446ab7643306fb293a7917c16ad2f35d6071",
+          "artifact": "logs/issue-623-live-agent-publication-static-1.log.json"
+        },
+        {
+          "args": [
+            "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 1,
+          "log": "issue-623-live-agent-publication-static-2.log",
+          "log_sha256": "5ddd5773820d849d59052ad0826b27dee62c50cea3ce1d7776468879ce34bc1a",
+          "artifact": "logs/issue-623-live-agent-publication-static-2.log.json"
+        }
+      ],
+      "original_receipt_sha256": "8dd55a0bfc6e248d64c403baa8ed39ca422bbba96475012db1003a200eabf538"
+    },
+    {
+      "utc": "2026-11-17T00:55:56.085892+00:00",
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "environment": {
+        "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623"
+      },
+      "checks": [
+        {
+          "args": [
+            "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+            "scripts/export_contracts.py"
+          ],
+          "exit_code": 0,
+          "log": "issue-623-live-agent-publication-workspace-0.log",
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "artifact": "logs/issue-623-live-agent-publication-workspace-0.log.json"
+        },
+        {
+          "args": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0,
+          "log": "issue-623-live-agent-publication-workspace-1.log",
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "artifact": "logs/issue-623-live-agent-publication-workspace-1.log.json"
+        }
+      ],
+      "original_receipt_sha256": "09b7d395afc7fabac8815100ac989ce696d984f816f0afa00c33eb101127a114"
+    }
+  ],
+  "command_environment_failure": {
+    "issue_comment": "https://github.com/rgoza1996/Kinaiya/issues/623#issuecomment-6934296685",
+    "reason": "Initial export command lacked workspace PYTHONPATH and imported an older installed package; corrected command passed without changing source."
+  },
+  "source_snapshots": [
+    {
+      "original": "output/issue-623-agent-route-after-mic-first-controls.py.txt",
+      "sha256": "cbc95508340ce9fefdeddeba04fea65ce6b6bdd74b6a35952d59a0dcd57fa5f3",
+      "bytes": 17970,
+      "artifact": "snapshots/cbc95508340ce9fefded.json"
+    },
+    {
+      "original": "output/issue-623-agent-route-after-mic-first-store.py.txt",
+      "sha256": "181cf5569f6d975b9d0216c6b61a7181fafe035c07abda2d1b04ea83be1be052",
+      "bytes": 15273,
+      "artifact": "snapshots/181cf5569f6d975b9d02.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-canonical-first-controls.py.txt",
+      "sha256": "93b718bac68a6163d63cf21d2be3e73dbff03d3773ce5d6c8b51c6ad9be7f3e4",
+      "bytes": 9277,
+      "artifact": "snapshots/93b718bac68a6163d63c.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-canonical-first-runtime.py.txt",
+      "sha256": "54448b577d41e26ae7a094489a4c224ad866de3d2a29cfc920e2bbba784827c5",
+      "bytes": 249605,
+      "artifact": "snapshots/54448b577d41e26ae7a0-runtime-excerpts.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-first-controls.py.txt",
+      "sha256": "35bdaf022e09ac1124a00b7b81c6210e8accb050fd2cfb3eb7772ccdcecd3773",
+      "bytes": 4116,
+      "artifact": "snapshots/35bdaf022e09ac1124a0.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-first-store.py.txt",
+      "sha256": "4b6d3520cdd9d320df2563fc87f84a965c64893ba87016ec34ddd35fe6b0f823",
+      "bytes": 19183,
+      "artifact": "snapshots/4b6d3520cdd9d320df25.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-first-worker.py.txt",
+      "sha256": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+      "bytes": 12231,
+      "artifact": "snapshots/a41166206de40073ce0d.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-history-hint-first-controls.py.txt",
+      "sha256": "de7f9df478b2cb4e1ef5b56497e6f9e3d88e65f79f74f67a09d9546ee506da69",
+      "bytes": 5256,
+      "artifact": "snapshots/de7f9df478b2cb4e1ef5.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-history-hint-first-reader.py.txt",
+      "sha256": "f009f5ae47de50ad3392300b4cbb1bd56810fd3f2efb04d252d7d68fe273d4ba",
+      "bytes": 6410,
+      "artifact": "snapshots/f009f5ae47de50ad3392.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-http-boundary-first-controls.py.txt",
+      "sha256": "443e64d4f24bb2d4ce7be13058033031b6ddb4069893c3892917514b669b19ac",
+      "bytes": 15506,
+      "artifact": "snapshots/443e64d4f24bb2d4ce7b.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-late-steer-controlled-first-controls.py.txt",
+      "sha256": "1cb43b925a3aac80381bd0e2cf91d6dda9e46dac63a00d1a94ca149b8d660a22",
+      "bytes": 15698,
+      "artifact": "snapshots/1cb43b925a3aac80381b.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-late-steer-controlled-first-runtime.py.txt",
+      "sha256": "792aed5ada188d7efaef1713544be0f64522dd8123ab12a0edd4cf85d09c35e1",
+      "bytes": 251157,
+      "artifact": "snapshots/792aed5ada188d7efaef-runtime-excerpts.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-late-steer-first-controls.py.txt",
+      "sha256": "4bb7666137cb2bf49f26adc72521222167485b7d8bd0e3ceb60f6cdf268ff3d4",
+      "bytes": 15556,
+      "artifact": "snapshots/4bb7666137cb2bf49f26.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-loop-first-controls.py.txt",
+      "sha256": "e78d582c9f88ba96af3a932c2ce2d670a9c5846f962622c3af9ba88c3fd2c776",
+      "bytes": 11367,
+      "artifact": "snapshots/e78d582c9f88ba96af3a.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-missing-target-first-controls.py.txt",
+      "sha256": "16b88a8eb93792a44b0ab8641173e76d9a8444d10fd15b0bb1afdae885378600",
+      "bytes": 16868,
+      "artifact": "snapshots/16b88a8eb93792a44b0a.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-missing-target-first-worker.py.txt",
+      "sha256": "29a75d2f8da85d5a86eb96605891dc2f3cb78efb6bec30b16af30cb86ecb9954",
+      "bytes": 14275,
+      "artifact": "snapshots/29a75d2f8da85d5a86eb.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-native-proofs-first-controls.py.txt",
+      "sha256": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+      "bytes": 6939,
+      "artifact": "snapshots/3b4fac5adeddbbbddf8e.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-native-proofs-first-store.py.txt",
+      "sha256": "9d4a6f0b9ddf6973dd2cd53c94c6d6f6317617189fb684e8f0f7cde7a944e3f2",
+      "bytes": 24469,
+      "artifact": "snapshots/9d4a6f0b9ddf6973dd2c.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-owner-bound-first-controls.py.txt",
+      "sha256": "e13cf5d8b2c5da7d1b2d513209d2186ca32c2d45cb8439882220dd78deb73f3f",
+      "bytes": 8167,
+      "artifact": "snapshots/e13cf5d8b2c5da7d1b2d.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-owner-bound-first-worker.py.txt",
+      "sha256": "17b68a2505403ab8838904cef235dc6e57d185cb91ca3320841a3bfa0b856c58",
+      "bytes": 11870,
+      "artifact": "snapshots/17b68a2505403ab88389.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-source-boundaries-first-controls.py.txt",
+      "sha256": "eb991f4e9fc2778da3de14473a269175482984da57e8032cd40e553043ea6bd6",
+      "bytes": 4103,
+      "artifact": "snapshots/eb991f4e9fc2778da3de.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-source-boundaries-first-native-reader.py.txt",
+      "sha256": "44f157a71f80df8723cdbf469f6e61dc974f90cd8a5018b1dfd64fb9d3699ed6",
+      "bytes": 11568,
+      "artifact": "snapshots/44f157a71f80df8723cd.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-source-boundaries-first-source-reader.py.txt",
+      "sha256": "d65b2762363a0caf6f570ac1597871bfc5dc5a3ce3b0b0a024dd2c7b4fe264c1",
+      "bytes": 3469,
+      "artifact": "snapshots/d65b2762363a0caf6f57.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-source-history-first-controls.py.txt",
+      "sha256": "1b3c122a87404db43c569c370b195317115ddca02ef07194627edcfba66b9b94",
+      "bytes": 5051,
+      "artifact": "snapshots/1b3c122a87404db43c56.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-source-history-first-reader.py.txt",
+      "sha256": "b560079b2f59fd290ee280ece8acf767dd908a8413a8121f66f69cc6376c0115",
+      "bytes": 3814,
+      "artifact": "snapshots/b560079b2f59fd290ee2.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-targeted-first-controls.py.txt",
+      "sha256": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+      "bytes": 6939,
+      "artifact": "snapshots/3b4fac5adeddbbbddf8e.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-targeted-first-ledger-controls.py.txt",
+      "sha256": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+      "bytes": 19026,
+      "artifact": "snapshots/d2c41bbab647e1b3a1ae.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-targeted-first-store.py.txt",
+      "sha256": "962f936908b231f28b0a66a3883b85052ed3bd6f01f45deb3ea0725dae8b394f",
+      "bytes": 19194,
+      "artifact": "snapshots/962f936908b231f28b0a.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-targeted-first-worker.py.txt",
+      "sha256": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+      "bytes": 12231,
+      "artifact": "snapshots/a41166206de40073ce0d.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-unknown-queue-first-controls.py.txt",
+      "sha256": "3b4fac5adeddbbbddf8e6d3d81aee34772b86c4571f3ebafe977cd76e189ac66",
+      "bytes": 6939,
+      "artifact": "snapshots/3b4fac5adeddbbbddf8e.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-unknown-queue-first-ledger-controls.py.txt",
+      "sha256": "d2c41bbab647e1b3a1ae56413ae9e1ccee2584156033a3f44cf0dada2a76dd1a",
+      "bytes": 19026,
+      "artifact": "snapshots/d2c41bbab647e1b3a1ae.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-unknown-queue-first-store.py.txt",
+      "sha256": "962f936908b231f28b0a66a3883b85052ed3bd6f01f45deb3ea0725dae8b394f",
+      "bytes": 19194,
+      "artifact": "snapshots/962f936908b231f28b0a.json"
+    },
+    {
+      "original": "output/issue-623-live-agent-unknown-queue-first-worker.py.txt",
+      "sha256": "a41166206de40073ce0df9b8b2b0a6b2c0f0131edd8691bed68b944353f0fbca",
+      "bytes": 12231,
+      "artifact": "snapshots/a41166206de40073ce0d.json"
+    },
+    {
+      "original": "output/issue-623-live-effect-pending-first-contracts.py.txt",
+      "sha256": "c7c2605d583c1b7ef4198d61d5077ac394fde9c5fa9947cc0fcadf5e8eb6ab85",
+      "bytes": 2043,
+      "artifact": "snapshots/c7c2605d583c1b7ef419.json"
+    },
+    {
+      "original": "output/issue-623-live-effect-pending-first-controls.py.txt",
+      "sha256": "5334c5631b0f1f1fad008cfbbfab0d2c8a1bf4066fc8819ac038396406f6b85d",
+      "bytes": 5663,
+      "artifact": "snapshots/5334c5631b0f1f1fad00.json"
+    },
+    {
+      "original": "output/issue-623-live-effect-pending-first-store.py.txt",
+      "sha256": "4b6d3520cdd9d320df2563fc87f84a965c64893ba87016ec34ddd35fe6b0f823",
+      "bytes": 19183,
+      "artifact": "snapshots/4b6d3520cdd9d320df25.json"
+    },
+    {
+      "original": "output/issue-671-first-native-runtime.py.txt",
+      "sha256": "22bd48516f0acb46bca2cbcaa54475e5ce6beb4fade2442c5aed6552e86812ef",
+      "bytes": 248984,
+      "artifact": "snapshots/22bd48516f0acb46bca2-runtime-excerpts.json"
+    }
+  ],
+  "schemas": {
+    "prior_count": 588,
+    "prior_bytes_unchanged": true,
+    "new_roots": 6,
+    "new_pin": "3569f118f7f114e1927c5e54c6a0e6812ff8458fae3117a9afd043ef8451d888",
+    "original_nine_pin": "1044614df72ec0f52a38947ce3063745030401ec9baa6d2144cfdbdc13e2daf9"
+  },
+  "limits": [
+    "No actual Converse consumer, normal host or Call enablement.",
+    "No paid/live model or physical audio qualification.",
+    "No complete owner/process replacement or representative timing qualification.",
+    "#671 original native control passed; dedicated interrupt retry/lost-ACK and journal-failure ownership acceptance still outstanding.",
+    "Hosted PR CI not yet run when this local record was created."
+  ]
+}

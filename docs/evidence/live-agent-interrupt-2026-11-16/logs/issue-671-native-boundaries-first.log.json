@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "369665d0b9048439d7d1c3446897ed1f0ca9b202606ddea1dfb9647fead54e47",
+  "content": "....F                                                                    [100%]\n=================================== FAILURES ===================================\n________ test_native_interrupt_idempotency_binds_original_raw_revision _________\ntests/integration/test_live_agent_interrupt.py:151: in test_native_interrupt_idempotency_binds_original_raw_revision\n    with pytest.raises(IdemConflict):\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE   Failed: DID NOT RAISE IdemConflict\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_agent_interrupt.py::test_native_interrupt_idempotency_binds_original_raw_revision\n1 failed, 4 passed in 1.75s\n"
+}

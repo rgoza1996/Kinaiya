@@ -1059,11 +1059,40 @@ class AgentRuntime:
                 source = await self._claim_journal(rec).resolve(event_id)
             except Exception:
                 return "Source became unavailable before execution"
-            if source.payload.get("revision", 1) != revision:
+            if source.payload.get(
+                "revision", 1
+            ) != revision and not await self._live_revision_equivalent(event_id, revision, rec=rec):
                 return (
                     "Source was revised before execution; fresh authenticated steering is required"
                 )
         return None
+
+    async def _live_revision_equivalent(self, source_id, revision, *, rec=None, guard=None):
+        journal = self._claim_journal(rec)
+        qualify = getattr(journal, "live_agent_source_authority", None)
+        if not callable(qualify):
+            return False
+        if guard is not None:
+            guard()
+        original = await journal.entry(source_id)
+        if guard is not None:
+            guard()
+        if original.kind != "conversation.window":
+            return False
+        from packages.contracts.decisions_attempts import DecisionsSource
+        from packages.contracts.live_agent_sources import LiveAgentSourceQuery
+
+        proof = await qualify(
+            LiveAgentSourceQuery(
+                schema_version="2.0",
+                protocol="native_live_agent_source_v2",
+                source=DecisionsSource.of(original),
+                expected_revision=revision,
+            )
+        )
+        if guard is not None:
+            guard()
+        return proof.live is True and proof.revision_equivalent is True
 
     async def _source_authority_texts(
         self,
@@ -1155,7 +1184,13 @@ class AgentRuntime:
             if guard is not None:
                 guard()
             current_revision = resolved.payload.get("revision", 1)
-            if source_revision is not None and source_revision != current_revision:
+            if (
+                source_revision is not None
+                and source_revision != current_revision
+                and not await self._live_revision_equivalent(
+                    source_id, source_revision, guard=guard
+                )
+            ):
                 raise PolicyDenied(
                     f"decisions-routed {op} source {source_id!r} is at revision "
                     f"{current_revision}, request carries {source_revision}"
@@ -2530,7 +2565,11 @@ class AgentRuntime:
                 revision_changed = False
                 for source_id, revision in pending.get("source_revisions", {}).items():
                     resolved = await self._claim_journal(rec).resolve(source_id)
-                    revision_changed |= resolved.payload.get("revision", 1) != revision
+                    revision_changed |= resolved.payload.get(
+                        "revision", 1
+                    ) != revision and not await self._live_revision_equivalent(
+                        source_id, revision, rec=rec
+                    )
                 if pending["actor"] == "decisions" and (
                     "\n".join(texts) != pending["instruction"] or revision_changed
                 ):
@@ -2617,9 +2656,9 @@ class AgentRuntime:
     async def interrupt(
         self, task_id: str, request: InterruptRequest, actor: str = "owner"
     ) -> Task:
+        request = request.model_copy(deep=True)
         rec = self._get(task_id)
         if rec.standing_owner is not None:
-            request = request.model_copy(deep=True)
             return await rec.standing_owner.control(
                 lambda: self._interrupt(task_id, request, actor)
             )
@@ -2665,6 +2704,10 @@ class AgentRuntime:
             "reason": request.reason,
             "source_event_ids": list(request.source_event_ids),
         }
+        # Native interrupt replay binds the actual issuer and raw source revision.
+        # Already-retired owner records use the separate frozen retirement digest.
+        if actor != "owner" or not rec.retirement_keys:
+            payload.update(actor=actor, source_revision=request.source_revision)
         digest = _payload_hash(payload)
         if request.idempotency_key in rec.interrupt_idem:
             old_digest, _ = rec.interrupt_idem[request.idempotency_key]
@@ -2697,16 +2740,28 @@ class AgentRuntime:
         if worker is not None and not worker.done() and not already_requested:
             worker.cancel()
         rec.resume.set()
-        await self._append(
+        command = self._append_request(
             rec,
             "agent.command",
             {
                 "op": "interrupt",
                 "actor": actor,
                 "reason": request.reason,
+                "idempotency_key": request.idempotency_key,
+                "expected_objective_revision": request.expected_objective_revision,
+                "source_event_ids": list(request.source_event_ids),
+                "source_revision": request.source_revision,
                 "content_scope": "local_only",
             },
         )
+        command = command.model_copy(
+            update={
+                "idempotency_key": f"agent:{task_id}:interrupt:"
+                + hashlib.sha256(request.idempotency_key.encode()).hexdigest(),
+                "causes": list(request.source_event_ids),
+            }
+        )
+        await self._claim_journal(rec).append(command)
         if recovered_paused:
             rec.task.summary = "Cancelled recovered work without replay; prior uncertain effects remain unreconciled."
             await self._cancel(rec)
@@ -4706,7 +4761,13 @@ class AgentRuntime:
                 ) != (rec.task.session_id, rec.task.thread_id, rec.task.epoch):
                     raise ValueError("Wrong speech source scope")
                 expected_revision = rec.source_revisions.get(source_id)
-                if expected_revision is not None and window.revision != expected_revision:
+                if (
+                    expected_revision is not None
+                    and window.revision != expected_revision
+                    and not await self._live_revision_equivalent(
+                        source_id, expected_revision, rec=rec
+                    )
+                ):
                     raise ValueError("Speech source was revised during authority validation")
             except Exception as exc:
                 raise PolicyDenied("Speech source authority cannot be verified") from exc

@@ -633,6 +633,24 @@ def schema_pin():
         "LiveStreamProof",
         "LiveStreamCancellation",
     }
+    # Native consumer ownership has its own independently pinned family.
+    additive |= {
+        "LiveEffectQuery",
+        "LiveEffectAdmit",
+        "LiveEffectReceipt",
+        "LiveEffectEvidence",
+        "LiveEffectStart",
+        "LiveEffectStarted",
+        "LiveEffectFinish",
+        "LiveEffectRecord",
+        "LiveEffectState",
+        "LiveEffectPendingQuery",
+        "LiveEffectPendingItem",
+        "LiveEffectPendingPage",
+        "LiveEffectEvidenceState",
+        "LiveAgentSourceQuery",
+        "LiveAgentSourceState",
+    }
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

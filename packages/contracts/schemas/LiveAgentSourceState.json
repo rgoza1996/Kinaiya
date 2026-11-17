@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "DecisionsSource": {
+      "additionalProperties": false,
+      "properties": {
+        "source_event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "source_sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Sequence",
+          "type": "integer"
+        },
+        "source_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Source Revision",
+          "type": "integer"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        },
+        "thread_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Thread Id",
+          "type": "string"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Epoch",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_event_id",
+        "source_sequence",
+        "source_revision",
+        "session_id",
+        "thread_id",
+        "epoch"
+      ],
+      "title": "DecisionsSource",
+      "type": "object"
+    },
+    "LiveAgentSourceQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "native_live_agent_source_v2",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/DecisionsSource"
+        },
+        "expected_revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Expected Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema_version",
+        "protocol",
+        "source",
+        "expected_revision"
+      ],
+      "title": "LiveAgentSourceQuery",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "protocol": {
+      "const": "native_live_agent_source_v2",
+      "title": "Protocol",
+      "type": "string"
+    },
+    "original": {
+      "$ref": "#/$defs/LiveAgentSourceQuery"
+    },
+    "live": {
+      "title": "Live",
+      "type": "boolean"
+    },
+    "revision_equivalent": {
+      "title": "Revision Equivalent",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol",
+    "original",
+    "live",
+    "revision_equivalent"
+  ],
+  "title": "LiveAgentSourceState",
+  "type": "object"
+}
