@@ -561,6 +561,9 @@ async def test_shutdown_replacement_keeps_original_entered_finalizer_and_single_
     value.gates.append(gate)
     value.transport.close_release.clear()
     assert (await launch(value)).disposition == "created"
+    # The accepted worker can still be generating before retirement invokes the finalizer.
+    # Give that phase its usual retirement budget, then time the original response close.
+    await asyncio.wait_for(value.finalize_entered.wait(), 30)
     await reached(gate.entered)
     worker = value.agent.record.worker
     assert worker.done() and value.agent.record.model_lease.settled
