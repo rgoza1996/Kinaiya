@@ -158,6 +158,13 @@ This covers startup/ordinary shutdown of all five valid modes plus Core-only;
 managed-resource, external-Agent and complete failure/recovery qualification
 remain required below. No model inference or audio is run in that rehearsal.
 
+Decisions and Converse use the effective launch graph to select native Agent
+clients. When that graph excludes Agent, Decisions omits native dispatch and
+Converse omits Agent task-context lookup even if the host retains an Agent URL.
+When Agent is selected, the legacy `agent_enabled` flag still controls native
+Decisions dispatch. Session owns the separate persisted Agent operating mode.
+[#717](https://github.com/rgoza1996/Kinaiya/issues/717)
+
 ## Required Decisions runtime
 
 All supported Converse launcher paths, including `serve converse`, attach an
