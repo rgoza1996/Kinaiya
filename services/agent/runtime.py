@@ -2583,6 +2583,9 @@ class AgentRuntime:
                         "op": "steer-rejected",
                         "actor": pending["actor"],
                         "reason": "source_changed_before_boundary",
+                        "steer_event_id": pending["intent_event_id"],
+                        "intent_digest": pending["intent_digest"],
+                        "objective_revision": rec.task.objective_revision,
                     },
                 )
                 return

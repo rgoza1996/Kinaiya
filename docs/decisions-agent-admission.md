@@ -40,6 +40,15 @@ The next admission observes the new state. An existing caller transaction is
 refused and left untouched. The function rolls back only its own read snapshot;
 it never commits journal or settings changes.
 
+An accepted native steering intent fences further uploads for its current
+objective revision until the worker applies or definitively rejects it. The
+same read snapshot checks the protected intent and the matching Agent journal
+events. Application admits the new revision and its complete sources. A
+rejection can restore the original revision only with the same intent event,
+digest, actor and revision. A missing or mismatched resolution keeps the fence
+in place. The Agent operating mode retains its existing policy for already
+accepted work.
+
 ## Result and failure semantics
 
 `AgentAdviceExportAdmission` echoes the exact original request and its canonical
