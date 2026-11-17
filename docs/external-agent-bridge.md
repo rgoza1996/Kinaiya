@@ -1,10 +1,10 @@
 # External Agent bridge v1
 
 The bridge contract, Session attachment grants, and the Pi SDK peer implement
-the connection, transcript, and original submission boundaries for
+managed attachment, transcript, and original submission boundaries for
 [issue #547](https://github.com/rgoza1996/Kinaiya/issues/547). The application
-integration still requires managed peer startup, Decisions task delivery,
-durable result recovery, and an end-to-end Converse rehearsal.
+integration still requires automatic Decisions task delivery, durable result
+recovery, and an end-to-end Converse rehearsal.
 
 ## Commands and observations
 
@@ -84,6 +84,48 @@ are retained within the lifetime of the original peer and replay has a bounded
 window. The application owner needs durable attachment records and original
 request receipts to reconcile after an owner restart.
 
+## Managed Converse-only profile
+
+Select the Converse + Decisions subsystem graph and configure the independently
+installed Pi SDK in the host configuration. A dedicated Pi configuration
+directory holds the selected backend's settings, extensions, and credentials.
+The workspace is the location the owner grants to this peer.
+
+```json
+{
+  "external_agent": {
+    "profile_id": "pi-workspace",
+    "node": "/path/to/node",
+    "sdk_root": "/path/to/pi-sdk-prefix",
+    "agent_dir": "/path/to/pi-configuration",
+    "workspace": "/path/to/agent-workspace",
+    "allow_network": false
+  }
+}
+```
+
+The owner authorizes an attachment in Session and then sends its ID to
+`POST /v1/decisions/external-agent/attach` with operation `attach`.
+Decisions rechecks the current grant and profile, launches Pi with pinned
+mounts in a Bubblewrap namespace, and binds the backend identity observed
+from the SDK. Network-sharing profiles currently require a public-synthetic
+grant. The separate writable mounts contain the selected Pi profile,
+workspace and per-attachment Pi session storage. The peer gets a cleared
+environment and Session credentials stay in Decisions.
+
+The `status`, `events`, and `disconnect` routes under the same prefix
+require owner credentials and the exact bound target. A detach keeps the
+owned peer available to reconnect. A shutdown receipt reports a stopped
+peer once its process exit is observed. The SDK persists a session header
+at attach time, so reopening an empty session retains its original identity.
+Event replay covers the original live peer's bounded buffer.
+
+Authenticated Decisions code can send a recorded claim through
+`POST /v1/decisions/external-agent/submit`. The managed peer checks its
+observed occupancy before reserving a send. The app reports busy when
+the backend is already working. Automatic routing and queueing remain
+tracked by #547.
+
 ## Original submission
 
 Decisions uses the native `POST /v1/external-agent/claim` route to reserve one
@@ -123,5 +165,7 @@ revocation. The ordinary turn makes zero transcript reads. Focused Session
 tests cover concurrent binding, restart, reset, revisions and byte-accurate
 paging. A real Pi replay rehearsal sends a recorded Decisions instruction
 once, refuses another send after a lost native acknowledgment, and reopens
-the same Pi session without starting the original again. Full Converse
-routing and the production peer launcher remain open in #547.
+the same Pi session without starting the original again. The Converse-only
+launcher rehearsal attaches and reopens a real managed peer and reports the
+accepted instruction, assistant output and settled state through the managed
+routes. Automatic Converse routing remains open in #547.

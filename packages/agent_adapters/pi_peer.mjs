@@ -131,7 +131,7 @@ async function main() {
     pathToFileURL(join(sdkPackage, entry))
   );
   const sessionManager = previousFile
-    ? SessionManager.open(previousFile, sessionDir)
+    ? SessionManager.open(previousFile, sessionDir, cwd)
     : SessionManager.create(cwd, sessionDir);
   const settingsManager = SettingsManager.create(cwd, agentDir);
   const saved = sessionManager.buildSessionContext().model;

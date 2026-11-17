@@ -14,6 +14,7 @@ from packages.contracts.external_agent import (
     ExternalAgentClaimReceipt,
     ExternalAgentConnect,
     ExternalAgentGrant,
+    ExternalAgentGrantLookup,
     ExternalAgentReadTranscript,
     ExternalAgentRevoke,
     ExternalAgentScope,
@@ -85,6 +86,13 @@ class ExternalAgentSessionClient:
             or grant.attachment_id != original.target.attachment_id
             or grant.backend_session_id != original.target.backend_session_id
         ):
+            raise ExternalAgentNativeUnavailable
+        return grant
+
+    async def lookup_grant(self, request):
+        original = ExternalAgentGrantLookup.model_validate(request, strict=True)
+        grant = await self._request("grant", original, ExternalAgentGrant)
+        if grant.phase == "revoked" or grant.attachment_id != original.attachment_id:
             raise ExternalAgentNativeUnavailable
         return grant
 

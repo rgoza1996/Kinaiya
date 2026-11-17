@@ -1,8 +1,6 @@
 """Authenticated Session routes for external Agent grants and transcript pages."""
 
-import asyncio
-
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
@@ -13,11 +11,12 @@ from packages.contracts.external_agent import (
     ExternalAgentBind,
     ExternalAgentClaim,
     ExternalAgentConnect,
+    ExternalAgentGrantLookup,
     ExternalAgentReadTranscript,
     ExternalAgentRefusal,
     ExternalAgentRevoke,
 )
-from packages.contracts.transcript_scan import transcript_json
+from services.common.external_agent_http import external_agent_body
 from services.session.external_agent import (
     ExternalAgentAccess,
     ExternalAgentConflict,
@@ -26,27 +25,8 @@ from services.session.external_agent import (
 )
 
 
-async def _body(incoming, model, limit):
-    if incoming.scope.get("query_string"):
-        raise HTTPException(422, "External Agent native operations take a JSON body")
-    raw = bytearray()
-    try:
-        async with asyncio.timeout(2):
-            async for chunk in incoming.stream():
-                if len(raw) + len(chunk) > limit:
-                    raise HTTPException(413, "External Agent request exceeds its bound")
-                raw.extend(chunk)
-        bounded = bytes(raw)
-        transcript_json(bounded, limit)
-        return model.model_validate_json(bounded, strict=True)
-    except TimeoutError:
-        raise HTTPException(408, "External Agent request body is unavailable") from None
-    except (ValueError, RecursionError):
-        raise HTTPException(422, "Invalid external Agent request") from None
-
-
 async def _invoke(incoming, model, method, limit=MAX_EXTERNAL_NATIVE_REQUEST_BYTES):
-    request = await _body(incoming, model, limit)
+    request = await external_agent_body(incoming, model, limit)
     try:
         result = await run_in_threadpool(method, request)
         body = result.model_dump_json().encode("utf-8")
@@ -83,6 +63,10 @@ def router(store, auth):
     @native.post("/bind", dependencies=[decisions])
     async def bind(request: Request):
         return await _invoke(request, ExternalAgentBind, access.bind)
+
+    @native.post("/grant", dependencies=[decisions])
+    async def lookup_grant(request: Request):
+        return await _invoke(request, ExternalAgentGrantLookup, access.lookup_grant)
 
     @native.post("/revoke", dependencies=[owner])
     async def revoke(request: Request):

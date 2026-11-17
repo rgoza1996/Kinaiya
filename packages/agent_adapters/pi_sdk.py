@@ -176,6 +176,17 @@ class PiSdkPeer:
             return original.reply.result()
         return None
 
+    @property
+    def available(self):
+        return not self._unavailable and not self._reader_task.done()
+
+    @property
+    def event_cursor(self):
+        return self._cursor
+
+    def retained_events(self):
+        return tuple(event for event, _ in self._events)
+
     async def _call(self, request_id, command, detail, timeout):
         if type(request_id) is not str or _ID.fullmatch(request_id) is None:
             raise ValueError("Invalid Pi request identity")

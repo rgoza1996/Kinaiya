@@ -1,5 +1,40 @@
 {
   "$defs": {
+    "ExternalAgentAttach": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "operation": {
+          "const": "attach",
+          "title": "Operation",
+          "type": "string"
+        },
+        "attachment_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Attachment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "operation",
+        "attachment_id"
+      ],
+      "title": "ExternalAgentAttach",
+      "type": "object"
+    },
     "ExternalAgentBind": {
       "additionalProperties": false,
       "properties": {
@@ -185,6 +220,41 @@
         "mode"
       ],
       "title": "ExternalAgentDisconnect",
+      "type": "object"
+    },
+    "ExternalAgentGrantLookup": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "operation": {
+          "const": "lookup_grant",
+          "title": "Operation",
+          "type": "string"
+        },
+        "attachment_id": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Attachment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_version",
+        "request_id",
+        "operation",
+        "attachment_id"
+      ],
+      "title": "ExternalAgentGrantLookup",
       "type": "object"
     },
     "ExternalAgentInspect": {
@@ -680,12 +750,14 @@
   },
   "discriminator": {
     "mapping": {
+      "attach": "#/$defs/ExternalAgentAttach",
       "bind": "#/$defs/ExternalAgentBind",
       "claim": "#/$defs/ExternalAgentClaim",
       "connect": "#/$defs/ExternalAgentConnect",
       "disconnect": "#/$defs/ExternalAgentDisconnect",
       "events": "#/$defs/ExternalAgentReplay",
       "interrupt": "#/$defs/ExternalAgentInterrupt",
+      "lookup_grant": "#/$defs/ExternalAgentGrantLookup",
       "read_transcript": "#/$defs/ExternalAgentReadTranscript",
       "revoke": "#/$defs/ExternalAgentRevoke",
       "status": "#/$defs/ExternalAgentInspect",
@@ -703,6 +775,12 @@
     },
     {
       "$ref": "#/$defs/ExternalAgentRevoke"
+    },
+    {
+      "$ref": "#/$defs/ExternalAgentGrantLookup"
+    },
+    {
+      "$ref": "#/$defs/ExternalAgentAttach"
     },
     {
       "$ref": "#/$defs/ExternalAgentDisconnect"

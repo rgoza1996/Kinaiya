@@ -6,14 +6,19 @@ import os
 import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
+import httpx
 import pytest
+import uvicorn
 
 from packages.agent_adapters.external_submission import PiSubmission
 from packages.agent_adapters.pi_sdk import PiPeerUnavailable, PiSdkPeer
-from packages.contracts.external_agent import ExternalAgentRevoke
+from packages.contracts.external_agent import ExternalAgentRevoke, ExternalAgentTarget
 from packages.contracts.external_agent_client import ExternalAgentNativeUnavailable
 from packages.contracts.models import SessionRequest
+from packages.providers.text import ScriptedProvider
+from services import launcher
 from tests.integration.test_external_agent_session import (
     add,
     bind_to,
@@ -21,6 +26,7 @@ from tests.integration.test_external_agent_session import (
     native,
     queued_claim,
 )
+from tests.integration.test_required_decisions_readiness import TOKENS, loopback
 
 ROOT = Path(__file__).resolve().parents[2]
 SDK_ROOT = os.environ.get("KINAIYA_PI_TEST_SDK_ROOT")
@@ -96,8 +102,8 @@ def sdk_sandbox(private, previous=None, *, transcript=False):
 def private(tmp_path):
     tmp_path = tmp_path / "pi"
     tmp_path.mkdir(mode=0o700)
-    for relative in ("home", "workspace", "agent/extensions", "sessions"):
-        (tmp_path / relative).mkdir(mode=0o700, parents=True)
+    for relative in ("home", "workspace", "agent", "agent/extensions", "sessions"):
+        (tmp_path / relative).mkdir(mode=0o700)
     shutil.copyfile(
         ROOT / "tests/fixtures/pi_bridge_provider.mjs",
         tmp_path / "agent/extensions/fixture.js",
@@ -367,3 +373,163 @@ async def test_session_claim_cannot_replay_a_real_pi_run_after_peer_restart(priv
             assert (await peer.status("c" * 32)).busy is False
             assert (await peer.request_close("d" * 32)).disposition == "stopping"
             assert await asyncio.wait_for(process.wait(), 5) == 0
+
+
+async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_session(
+    private, monkeypatch
+):
+    data = private.parent / "decisions-data"
+    data.mkdir(mode=0o700)
+    node = Path(shutil.which("node")).resolve()
+    fixture = ScriptedProvider([])
+    apps = []
+    monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _: TOKENS)
+    monkeypatch.setattr(launcher, "provider", lambda *_args, **_kwargs: fixture)
+    monkeypatch.setattr(uvicorn, "run", lambda app, **_: apps.append(app))
+    async with native(private.parent / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        grant = await peers.owner.authorize(connection(session, backend=None))
+        config = private.parent / "config.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "session_url": str(peers.http.base_url).rstrip("/"),
+                    "external_agent": {
+                        "profile_id": "pi-fixture",
+                        "node": str(node),
+                        "sdk_root": SDK_ROOT,
+                        "agent_dir": str(private / "agent"),
+                        "workspace": str(private / "workspace"),
+                    },
+                }
+            )
+        )
+        launcher.serve(
+            SimpleNamespace(
+                data_dir=data,
+                workspace=private / "workspace",
+                config=config,
+                service="decisions",
+                port=None,
+                start_paused=False,
+                startup_subsystem_mode="converse-decisions",
+            )
+        )
+        (app,) = apps
+        manager = app.state.external_agent
+        attach = {
+            "contract_version": 1,
+            "request_id": "attach",
+            "operation": "attach",
+            "attachment_id": grant.attachment_id,
+        }
+        path = "/v1/decisions/external-agent"
+        async with (
+            loopback(app) as address,
+            httpx.AsyncClient(
+                base_url=address,
+                headers={"Authorization": "Bearer " + TOKENS["owner"]},
+                trust_env=False,
+                timeout=15,
+            ) as owner,
+        ):
+            denied = await owner.post(
+                path + "/attach",
+                json=attach,
+                headers={"Authorization": "Bearer " + TOKENS["decisions"]},
+            )
+            assert denied.status_code == 403 and not (data / "external-agent").exists()
+            unrelated = await peers.owner.authorize(
+                connection(session, backend=None).model_copy(update={"profile_id": "other"})
+            )
+            wrong = await owner.post(
+                path + "/attach",
+                json={
+                    **attach,
+                    "attachment_id": unrelated.attachment_id,
+                },
+            )
+            assert wrong.status_code == 403 and not (data / "external-agent").exists()
+            result = await owner.post(path + "/attach", json=attach)
+            assert result.status_code == 200, result.text
+            opened = result.json()
+            assert opened["state"] == "connected" and opened["capabilities"]["transcript_read"]
+            assert (await owner.get("/v1/decisions/status")).json()["enabled"] is False
+            first = manager._owned.process
+            target = opened["target"]
+            disconnect = {
+                "contract_version": 1,
+                "request_id": "disconnect",
+                "operation": "disconnect",
+                "target": target,
+                "mode": "detach",
+            }
+            assert (await owner.post(path + "/disconnect", json=disconnect)).json()[
+                "disposition"
+            ] == "detached"
+            reconnected = (await owner.post(path + "/attach", json=attach)).json()
+            assert reconnected["target"] == target and manager._owned.process is first
+            disconnect["mode"] = "shutdown_owned"
+            assert (await owner.post(path + "/disconnect", json=disconnect)).json()[
+                "disposition"
+            ] == "stopped"
+            assert first.returncode is not None
+            reattached = await owner.post(path + "/attach", json=attach)
+            assert reattached.status_code == 200, reattached.text
+            assert reattached.json()["target"] == target and manager._owned.process is not first
+            history = data / "external-agent" / grant.attachment_id / "session.jsonl"
+            records = [json.loads(line) for line in history.read_text().splitlines()]
+            assert records[0]["id"] == target["backend_session_id"]
+            assert all(record["type"] != "message" for record in records)
+            start = "/fixture-command from the recorded managed path"
+            source = add(peers.store, session, "conversation.user", start)
+            request = queued_claim(
+                peers.store,
+                session,
+                source,
+                SimpleNamespace(target=ExternalAgentTarget.model_validate(target)),
+            )
+            proposal = request.model_dump(mode="json")
+            assert (await owner.post(path + "/submit", json=proposal)).status_code == 403
+            accepted = await owner.post(
+                path + "/submit",
+                json=proposal,
+                headers={"Authorization": "Bearer " + TOKENS["decisions"]},
+            )
+            assert accepted.status_code == 200 and accepted.json()["disposition"] == "accepted"
+            observed, cursor = [], 0
+            async with asyncio.timeout(5):
+                while not any(item.get("state") == "settled" for item in observed):
+                    result = await owner.post(
+                        path + "/events",
+                        json={
+                            "contract_version": 1,
+                            "request_id": "poll",
+                            "operation": "events",
+                            "target": target,
+                            "after": cursor,
+                            "limit": 1,
+                        },
+                    )
+                    assert result.status_code == 200, result.text
+                    page = result.json()
+                    assert page["after"] == cursor and len(page["events"]) <= 1
+                    observed.extend(page["events"])
+                    cursor = page["next_after"]
+                    await asyncio.sleep(0.02)
+            assert [item["text"] for item in observed if item["kind"] == "assistant_message"] == [
+                start
+            ]
+            status = await owner.post(
+                path + "/status",
+                json={
+                    "contract_version": 1,
+                    "request_id": "status",
+                    "operation": "status",
+                    "target": target,
+                },
+            )
+            assert status.status_code == 200 and status.json()["tasks"][0]["state"] == "settled"
+            final = manager._owned.process
+        assert final.returncode is not None
+        assert fixture.calls == []

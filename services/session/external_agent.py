@@ -178,6 +178,14 @@ class ExternalAgentAccess:
                 )
             return self._lookup(database, request.attachment_id, request.request_id)
 
+    def lookup_grant(self, request):
+        with self._transaction() as database:
+            grant = self._lookup(database, request.attachment_id, request.request_id)
+            self._current(grant.original.scope)
+            if grant.phase == "revoked":
+                raise ExternalAgentScopeChanged
+            return grant
+
     def claim(self, request):
         """Grant one fresh send opportunity for one exact authenticated route."""
         command = request.command

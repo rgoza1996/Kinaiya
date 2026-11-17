@@ -113,6 +113,16 @@ class ExternalAgentRevoke(_Envelope):
     attachment_id: BridgeAttachmentId
 
 
+class ExternalAgentGrantLookup(_Envelope):
+    operation: Literal["lookup_grant"]
+    attachment_id: BridgeAttachmentId
+
+
+class ExternalAgentAttach(_Envelope):
+    operation: Literal["attach"]
+    attachment_id: BridgeAttachmentId
+
+
 class _TargetRequest(_Envelope):
     target: ExternalAgentTarget
 
@@ -211,6 +221,8 @@ class ExternalAgentRequest(RootModel):
         ExternalAgentConnect
         | ExternalAgentBind
         | ExternalAgentRevoke
+        | ExternalAgentGrantLookup
+        | ExternalAgentAttach
         | ExternalAgentDisconnect
         | ExternalAgentInspect
         | ExternalAgentSubmit

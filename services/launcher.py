@@ -1361,6 +1361,24 @@ def serve(args):
             )
             if worker.enabled:
                 live_dispatcher = LiveAgentDispatcher(worker.journal, worker.agent)
+        external_agent = None
+        if not topology.agent and config.get("external_agent") is not None:
+            from services.decisions.managed_pi import ManagedPi
+            from services.decisions.pi_process import PiLaunchProfile
+
+            data_directory = args.data_dir.resolve()
+            protected = (ROOT.resolve(), data_directory, config_path.resolve())
+            try:
+                protected += managed_guard_roots()
+                profile = PiLaunchProfile.model_validate(config["external_agent"], strict=True)
+            except (OSError, RuntimeError, ValueError):
+                profile = None
+            external_agent = ManagedPi(
+                profile,
+                worker.journal,
+                data_dir=data_directory,
+                protected=protected,
+            )
         app = create_app(
             worker,
             auth,
@@ -1370,6 +1388,7 @@ def serve(args):
             live_worker=live_worker,
             live_dispatcher=live_dispatcher,
             agent_policy=AgentPolicyOwner(config, catalog),
+            external_agent=external_agent,
         )
     if service in {"session", "agent", "converse", "decisions"}:
         import sqlite3
