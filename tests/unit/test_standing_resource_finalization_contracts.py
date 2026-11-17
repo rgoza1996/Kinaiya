@@ -660,6 +660,7 @@ def schema_pin():
         "DecisionsAgentPolicySettingsSnapshot",
         "DecisionsAgentPolicyChange",
         "DecisionsAgentPolicyReceipt",
+        "DecisionsAgentPolicyRefusal",
         "DecisionsAgentPolicyLookup",
     }
     additive |= {"AgentAdviceExportRequest", "AgentAdviceExportAdmission"}

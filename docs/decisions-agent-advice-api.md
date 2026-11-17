@@ -78,7 +78,7 @@ The [Agent-side client](decisions-agent-advice-client.md) retains the original
 submission, its local exchanges and its remote cleanup result. Ordinary Agent
 workers can use it through the native `consult_model` tool. Accepted workers
 remain subject to the existing `finish_already_accepted` operating-mode policy.
-Standing-task admission, the Options editor, and full
+Standing-task admission and full
 consumer/provider/external-agent qualification remain part of #566/#567.
 
 The synthetic native prediction wire's missing cancellation protocol was recorded

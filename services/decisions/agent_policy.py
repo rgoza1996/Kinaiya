@@ -13,6 +13,7 @@ from packages.contracts.decisions_consumers import (
     DecisionsAgentPolicy,
     DecisionsAgentPolicyChange,
     DecisionsAgentPolicyObservation,
+    DecisionsAgentPolicyRefusal,
     DecisionsAgentPolicySettingsSnapshot,
     DecisionsAgentPolicyState,
 )
@@ -26,6 +27,10 @@ from services.settings.provider_factory import capture_recipes, inspect_recipe
 
 
 class AgentPolicyUnavailable(RuntimeError):
+    pass
+
+
+class AgentPolicySelectionUnavailable(ValueError):
     pass
 
 
@@ -148,7 +153,7 @@ class AgentPolicyOwner:
     def change(self, original):
         def check_policy(policy):
             if self._inspect_catalog(policy) != "eligible":
-                raise ValueError("Select an eligible, explicitly scoped Core catalog generation")
+                raise AgentPolicySelectionUnavailable
 
         return self._store().change(original, check_policy=check_policy)
 
@@ -197,6 +202,12 @@ def router(owner, auth, *, operations=None):
     def settings_response(method, *args):
         try:
             return advice_response(method(*args), maximum=MAX_POLICY_SETTINGS_BYTES)
+        except AgentPolicySelectionUnavailable:
+            return advice_response(
+                DecisionsAgentPolicyRefusal(request_sha256=args[0].fingerprint()),
+                status=400,
+                maximum=MAX_POLICY_SETTINGS_BYTES,
+            )
         except AgentPolicySettingsConflict:
             raise refused(
                 409, "The policy authority changed. Look up the exact original save."

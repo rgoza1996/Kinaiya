@@ -74,7 +74,7 @@ Every observation identifies output as `untrusted_model_data` and task status as
 
 ## Remaining integration
 
-Standing-task authority, the Options editor, and full
+Standing-task authority and full
 consumer/provider/resource/external-agent qualification remain part of #566/#567.
 
 Supporting failures #692–#695 and their unchanged first-run evidence are described

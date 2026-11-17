@@ -188,6 +188,14 @@ class DecisionsAgentPolicyReceipt(_ConsumerContract):
         return self
 
 
+class DecisionsAgentPolicyRefusal(_ConsumerContract):
+    """The owner evaluated this exact selection before any persistence."""
+
+    status: Literal["refused"] = "refused"
+    request_sha256: _Digest
+    reason: Literal["selection_unavailable"] = "selection_unavailable"
+
+
 class DecisionsAgentPolicyLookup(_ConsumerContract):
     backend_id: _Identity
     instance_id: _Identity

@@ -65,7 +65,7 @@ All three settings methods require the owner credential and return
 | Method and path under `/v1/decisions/options` | Contract |
 | --- | --- |
 | `GET /agent-advice-settings` | `DecisionsAgentPolicySettingsSnapshot` with legacy host declaration, policy captured at this Decisions launch, and saved next-launch selection |
-| `POST /agent-advice-settings` | `DecisionsAgentPolicyChange` to exact `DecisionsAgentPolicyReceipt` |
+| `POST /agent-advice-settings` | `DecisionsAgentPolicyChange` to exact `DecisionsAgentPolicyReceipt` or a bound `DecisionsAgentPolicyRefusal` with HTTP 400 |
 | `POST /agent-advice-settings/lookup` | Exact original `DecisionsAgentPolicyChange` to `DecisionsAgentPolicyLookup` |
 
 Writes compare the backend, Decisions settings instance, and revision.
@@ -76,6 +76,27 @@ can permanently fence an unobserved original. The store retains 1,000 saves.
 The API accepts identity JSON up to 64 KiB with a five-second body deadline.
 Owner authentication is checked again after the body is read. Responses are
 bounded at 160 KiB.
+
+The native owner can refuse a selected catalog declaration before
+persistence. That response carries the exact original request digest
+and versioned reason `selection_unavailable`. The client releases the
+original after validating the refusal and confirming transport cleanup.
+
+## Options
+
+Open **Options → Decisions → Agent advice** to inspect the active policy
+and the selection for the next launch. Each observation can show its
+instructions, reasoning setting, disclosure scope and exact Core model
+generation. The editor offers the host policy, explicit disable, and a
+saved policy referencing an existing Core profile. A retired generation
+stays visible in the policy until the owner selects a current profile.
+
+A save compares the observed Decisions backend, instance and revision.
+Drafts stay associated with the observed revision across navigation.
+When the revision changes, the owner can explicitly adopt the current
+policy before saving. An uncertain dispatched request keeps its exact
+original in memory across same-owner reconnect. **Check original save**
+looks up that original. A matching receipt or a native fence releases it.
 
 Restart Agent and Decisions to apply saved selection on a combined launch.
 The running Decisions instance holds its captured policy until it stops.
@@ -106,10 +127,8 @@ permissions, handoffs, and task success. Agent starts independently when the
 optional consumer is absent or unavailable. Required Converse readiness remains
 tied to its original classifier runtime.
 
-Options navigation and real multi-consumer failure and recovery qualification
-remain part of #566/#567. External
-Agent adapters remain tracked in #547. This document does not claim their
-integration or model quality qualification.
+The complete multi-consumer failure and recovery matrix remains part
+of #566/#567. External Agent adapters remain tracked in #547.
 
 The thirteen-file native suite passed 374 tests on Python 3.13.18 and
 3.14.10. The final 28-case focused run on each interpreter covers a lost
@@ -117,3 +136,12 @@ save response with exact receipt recovery, retired catalog generations,
 maximum-size instructions, reauthentication during upload, and selection
 across service restarts. The export added six settings contracts and
 reproduced all 614 prior schemas byte for byte.
+
+The Options suite passed 1,566 Flutter tests with six live-service
+cases skipped for their environment requirements. Flutter analysis
+and the release web build passed. The affected native suite passed
+132 tests on each of Python 3.13.18 and 3.14.10. The loopback Dart and
+Python check verified complete 8,192-byte instructions, a lost save
+response, same-owner reconnect, one durable receipt, and the exact
+native refusal. The refusal contract added one schema with all 620
+previous schemas preserved.

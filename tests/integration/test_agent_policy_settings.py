@@ -14,6 +14,7 @@ from packages.contracts.decisions_consumers import (
     DecisionsAgentPolicyChange,
     DecisionsAgentPolicyLookup,
     DecisionsAgentPolicyReceipt,
+    DecisionsAgentPolicyRefusal,
     DecisionsAgentPolicySettingsSnapshot,
 )
 from packages.providers.text import ScriptedProvider
@@ -234,7 +235,12 @@ async def test_catalog_retirement_leaves_exact_saved_generation_visible(env, tmp
         assert retired.active.policy_sha256 == expected.next_launch.policy_sha256
         assert retired.active.catalog_status == retired.next_launch.catalog_status == "unavailable"
         assert (await client.get(RUNTIME)).json()["new_request_available"] is False
-        await post(client, SETTINGS, change(retired, "retired-catalog", "saved", selected), 400)
+        original = change(retired, "retired-catalog", "saved", selected)
+        refusal = DecisionsAgentPolicyRefusal.model_validate(
+            await post(client, SETTINGS, original, 400)
+        )
+        assert refusal.request_sha256 == original.fingerprint()
+        assert refusal.reason == "selection_unavailable"
         assert await snapshot(client) == retired
 
 

@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "description": "The owner evaluated this exact selection before any persistence.",
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "status": {
+      "const": "refused",
+      "default": "refused",
+      "title": "Status",
+      "type": "string"
+    },
+    "request_sha256": {
+      "maxLength": 64,
+      "minLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Sha256",
+      "type": "string"
+    },
+    "reason": {
+      "const": "selection_unavailable",
+      "default": "selection_unavailable",
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_sha256"
+  ],
+  "title": "DecisionsAgentPolicyRefusal",
+  "type": "object"
+}

@@ -236,6 +236,7 @@ for cls in (
     decisions_consumers.DecisionsAgentPolicySettingsSnapshot,
     decisions_consumers.DecisionsAgentPolicyChange,
     decisions_consumers.DecisionsAgentPolicyReceipt,
+    decisions_consumers.DecisionsAgentPolicyRefusal,
     decisions_consumers.DecisionsAgentPolicyLookup,
     capture_modes.CaptureModeSelection,
     capture_modes.CaptureModeChange,
