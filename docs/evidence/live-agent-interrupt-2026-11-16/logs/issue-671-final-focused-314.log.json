@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "cfc15ce4dd66b406e364f93be10fd838ca747dc58332b4de42bc76436d18e32d",
+  "content": "........................................................................ [ 23%]\n........................................................................ [ 46%]\n........................................................................ [ 69%]\n........................................................................ [ 92%]\n........................                                                 [100%]\n=============================== warnings summary ===============================\n../../output/issue-648-python314-mainlock-venv/lib/python3.14/site-packages/fastapi/testclient.py:1\n  /home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n312 passed, 1 warning in 71.96s (0:01:11)\n"
+}

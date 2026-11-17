@@ -45,7 +45,9 @@ original intent, request, receipt and event proof. The frozen `steer-requested`
 payload stays unchanged; its intent is not proof of later execution. Native
 interrupt events additionally retain the original request key, source IDs/raw
 revision and expected objective revision, with a stable hashed journal key
-(#671). `recorded` means that original native command/intent is durable, never
+(#671). Native interrupt replay also binds the authenticated actor and raw source
+revision; replay of an already retired owner record preserves the separate
+administrative-retirement digest. `recorded` means that original native command/intent is durable, never
 that the task succeeded or cleanup finished. Missing evidence remains uncertain
 and retains capacity; positive late evidence may resolve it without another call.
 
@@ -72,7 +74,8 @@ additive discovery/evidence/source roots have a separate pin
 `3569f118f7f114e1927c5e54c6a0e6812ff8458fae3117a9afd043ef8451d888`.
 
 The [qualification record](evidence/live-agent-consumption-2026-11-16/README.md)
-identifies exact checks, retained first failures and limits. Actual Converse
+and [interrupt recovery follow-up](evidence/live-agent-interrupt-2026-11-16/README.md)
+identify exact checks, retained first failures and limits. Actual Converse
 consumption, Call integration, full owner/process replacement, echo/mute/
 accessibility/no-audio behavior, representative timing comparison and qualified
 default rollout remain outstanding. Model answer, classification, persona and

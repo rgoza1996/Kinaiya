@@ -1,5 +1,10 @@
 # Native live Agent consumer qualification (#623, #671)
 
+This is the original local record at `e03eecbe07df38c4f2238e2f5f69bca3300df8a7`.
+The later [interrupt recovery record](../live-agent-interrupt-2026-11-16/README.md)
+covers dedicated #671 checks and the additional original-request digest repair.
+Results and limitations below describe the original increment.
+
 This record covers the gated [native Agent consumer](../../live-agent-consumption.md)
 on `codex/623-live-consumers`, after integrating parent PR #668 at local merge
 `5d4c533b649b64b2d63469bd07fac8126aaeee69`. Target main is

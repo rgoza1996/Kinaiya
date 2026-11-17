@@ -2704,6 +2704,10 @@ class AgentRuntime:
             "reason": request.reason,
             "source_event_ids": list(request.source_event_ids),
         }
+        # Native interrupt replay binds the actual issuer and raw source revision.
+        # Already-retired owner records use the separate frozen retirement digest.
+        if actor != "owner" or not rec.retirement_keys:
+            payload.update(actor=actor, source_revision=request.source_revision)
         digest = _payload_hash(payload)
         if request.idempotency_key in rec.interrupt_idem:
             old_digest, _ = rec.interrupt_idem[request.idempotency_key]

@@ -1,0 +1,295 @@
+{
+  "issue": 671,
+  "branch": "codex/623-live-consumers",
+  "baseline": "e03eecbe07df38c4f2238e2f5f69bca3300df8a7",
+  "input_count": 912,
+  "all_qualified_inputs_still_match": true,
+  "same_final_input_manifest": true,
+  "checks": [
+    {
+      "utc": "2026-11-17T01:07:01.011823+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_interrupt.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 2.1394486659992253,
+      "input_count": 912,
+      "inputs_unchanged": true,
+      "log_sha256": "369665d0b9048439d7d1c3446897ed1f0ca9b202606ddea1dfb9647fead54e47",
+      "name": "issue-671-native-boundaries-first",
+      "original_receipt_sha256": "9a071597a25f3fded38c9addcbfb65063776a817103fd5f9917b6d5900c571cb",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "f92177284492470ab78cf9843bb00338c683139e8a25cbc6380b9f6bddd5294b",
+        "tests/integration/test_live_agent_interrupt.py": "36416eb99c249f2388abe60c35fa4a69362e7ccaf0ce2a462a2bbd125d443a20"
+      },
+      "log": "logs/issue-671-native-boundaries-first.log.json",
+      "pytest_summary": "1 failed, 4 passed in 1.75s"
+    },
+    {
+      "utc": "2026-11-17T01:09:34.750284+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_interrupt.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 1,
+      "elapsed": 2.37435785800335,
+      "input_count": 912,
+      "inputs_unchanged": true,
+      "log_sha256": "6f3bf6b834b4e76cf8770daa3052dbb958ed91f9e8a8d58b38024dcdf9d19548",
+      "name": "issue-671-native-expanded-first",
+      "original_receipt_sha256": "aa1cf7d5231b3aae24fc6440cd8e51930bead24af34f94098731174581a9f8e8",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "services/agent/runtime.py": "f92177284492470ab78cf9843bb00338c683139e8a25cbc6380b9f6bddd5294b",
+        "tests/integration/test_live_agent_interrupt.py": "bb5863ed1e7e29ed4ab5e6e556f81dff9ce9c188d51ebc0b5925985dabf526ae"
+      },
+      "log": "logs/issue-671-native-expanded-first.log.json",
+      "pytest_summary": "2 failed, 5 passed in 1.98s"
+    },
+    {
+      "utc": "2026-11-17T01:10:53.262794+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_interrupt.py",
+        "tests/integration/test_task_retirement.py",
+        "tests/integration/test_task_retirement_authority.py",
+        "tests/integration/test_agent_resource_restore_retirement.py",
+        "tests/integration/test_agent_completion_races.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 8.422021295002196,
+      "input_count": 912,
+      "inputs_unchanged": true,
+      "log_sha256": "e7e2bebdabf12f16c351d445b686c0292871eee0ebd3581fa035b48571225334",
+      "name": "issue-671-native-boundaries-repaired",
+      "original_receipt_sha256": "d764f8fa0d74f81ffa6a296aa5fe386b7d4d638da85357b6fcfda36fff3ad582",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {
+        "tests/integration/test_live_agent_interrupt.py": "bb5863ed1e7e29ed4ab5e6e556f81dff9ce9c188d51ebc0b5925985dabf526ae"
+      },
+      "log": "logs/issue-671-native-boundaries-repaired.log.json",
+      "pytest_summary": "63 passed in 8.03s"
+    },
+    {
+      "utc": "2026-11-17T01:16:12.358554+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_decisions_inspection.py",
+        "tests/integration/test_journal_wake.py",
+        "tests/integration/test_journal_wake_http.py",
+        "tests/integration/test_live_capture_permission.py",
+        "tests/integration/test_live_capture_permission_http.py",
+        "tests/integration/test_live_completion_worker.py",
+        "tests/integration/test_live_decisions_attempts.py",
+        "tests/integration/test_live_decisions_http.py",
+        "tests/integration/test_live_decisions_pending.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_mic_capture.py",
+        "tests/integration/test_live_stream_api.py",
+        "tests/integration/test_live_stream_capture.py",
+        "tests/integration/test_live_window_contract.py",
+        "tests/integration/test_live_window_publication.py",
+        "tests/integration/test_live_window_publication_http.py",
+        "tests/integration/test_live_worker_cleanup.py",
+        "tests/integration/test_live_worker_fairness.py",
+        "tests/integration/test_live_worker_recovery.py",
+        "tests/integration/test_native_d1_selection.py",
+        "tests/integration/test_session.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/unit/test_live_stream_contracts.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_agent_submit_runtime_review.py",
+        "tests/integration/test_agent_submit_runtime_deadlines.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_agent_submit_recovery_authority.py",
+        "tests/integration/test_agent_submit_transactions.py",
+        "tests/integration/test_agent_mode_permissions.py",
+        "tests/integration/test_agent_submit_prescope_compatibility.py",
+        "tests/integration/test_live_effect_pending.py",
+        "tests/integration/test_agent_submit_runtime_preflight.py",
+        "tests/integration/test_agent_submit_http_stack.py",
+        "tests/integration/test_agent_submit_native_wire.py",
+        "tests/integration/test_tts_interruption_settlement.py",
+        "tests/integration/test_agent_submit_native_provenance.py",
+        "tests/integration/test_agent_submit_admission.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_agent_submit_native_revision.py",
+        "tests/integration/test_agent_mode_workspace.py",
+        "tests/integration/test_agent_submit_identity_binding.py",
+        "tests/integration/test_agent_submit_admission_faults.py",
+        "tests/integration/test_agent_submit_uncertainty.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_agent_submit_receipt_recovery.py",
+        "tests/integration/test_live_agent_interrupt.py",
+        "tests/integration/test_task_retirement.py",
+        "tests/integration/test_task_retirement_authority.py",
+        "tests/integration/test_agent_resource_restore_retirement.py",
+        "tests/integration/test_agent_completion_races.py",
+        "tests/integration/test_agent_completion_recovery.py",
+        "tests/integration/test_agent_standing_external_control_retirement.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 251.51793610501045,
+      "input_count": 912,
+      "inputs_unchanged": true,
+      "log_sha256": "4ab8f563f6f25902f9e71f7aade054e7c3e9ed5f080afb57654d393bf828c468",
+      "name": "issue-671-final-broader-313",
+      "original_receipt_sha256": "d454ea933099d166dfccf5d957e743ff39f92ea1704f2b0b214f8e212b71d233",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {},
+      "log": "logs/issue-671-final-broader-313.log.json",
+      "pytest_summary": "979 passed, 1 warning in 249.87s (0:04:09)"
+    },
+    {
+      "utc": "2026-11-17T01:13:15.182166+00:00",
+      "args": [
+        "/home/roggoz/Disks/SN750/Kinaiya/output/issue-648-python314-mainlock-venv/bin/python",
+        "-m",
+        "pytest",
+        "tests/integration/test_live_agent_interrupt.py",
+        "tests/integration/test_live_agent_consumer.py",
+        "tests/integration/test_live_agent_sources.py",
+        "tests/integration/test_live_effects.py",
+        "tests/integration/test_live_effect_http.py",
+        "tests/integration/test_live_effect_pending.py",
+        "tests/unit/test_live_effect_contracts.py",
+        "tests/unit/test_standing_resource_finalization_contracts.py",
+        "tests/integration/test_window_agent_routing.py",
+        "tests/integration/test_speech_action_approval.py",
+        "tests/integration/test_live_decisions_readiness.py",
+        "tests/integration/test_task_retirement.py",
+        "tests/integration/test_task_retirement_authority.py",
+        "tests/integration/test_agent_resource_restore_retirement.py",
+        "tests/integration/test_agent_completion_races.py",
+        "tests/integration/test_agent_completion_recovery.py",
+        "tests/integration/test_agent_standing_external_control_retirement.py",
+        "-q",
+        "--tb=short"
+      ],
+      "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+      "exit_code": 0,
+      "elapsed": 73.20156833100191,
+      "input_count": 912,
+      "inputs_unchanged": true,
+      "log_sha256": "cfc15ce4dd66b406e364f93be10fd838ca747dc58332b4de42bc76436d18e32d",
+      "name": "issue-671-final-focused-314",
+      "original_receipt_sha256": "8baf3815d30d65eb7abee4af4057ec8a89d5d8890bd3fe413d8cc0324f4165a7",
+      "absent_from_manifest": [],
+      "input_hash_overrides": {},
+      "log": "logs/issue-671-final-focused-314.log.json",
+      "pytest_summary": "312 passed, 1 warning in 71.96s (0:01:11)"
+    }
+  ],
+  "static": {
+    "utc": "2026-11-17T01:29:17.699042+00:00",
+    "cwd": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623",
+    "environment": {
+      "PYTHONPATH": "/home/roggoz/Disks/SN750/Kinaiya/.worktrees/live-consumers-623"
+    },
+    "checks": [
+      {
+        "args": [
+          "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+          "-m",
+          "ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "log": "issue-671-publication-static-0.log",
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "artifact": "logs/issue-671-publication-static-0.log.json"
+      },
+      {
+        "args": [
+          "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+          "-m",
+          "ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "log": "issue-671-publication-static-1.log",
+        "log_sha256": "0f904ed8642a3b1069f37fc868d276826ab4357ec3efc083ddf1245786634009",
+        "artifact": "logs/issue-671-publication-static-1.log.json"
+      },
+      {
+        "args": [
+          "/home/roggoz/Disks/SN750/Kinaiya/output/issue-643-python313-venv/bin/python",
+          "scripts/export_contracts.py"
+        ],
+        "exit_code": 0,
+        "log": "issue-671-publication-static-2.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "artifact": "logs/issue-671-publication-static-2.log.json"
+      },
+      {
+        "args": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log": "issue-671-publication-static-3.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "artifact": "logs/issue-671-publication-static-3.log.json"
+      }
+    ]
+  },
+  "original_runtime": {
+    "sha256": "f92177284492470ab78cf9843bb00338c683139e8a25cbc6380b9f6bddd5294b",
+    "public_source": "https://github.com/rgoza1996/Kinaiya/blob/e03eecbe07df38c4f2238e2f5f69bca3300df8a7/services/agent/runtime.py",
+    "full_snapshot_retained": "output/issue-671-native-boundaries-first-runtime.py.txt"
+  },
+  "original_controls": [
+    {
+      "original": "issue-671-native-boundaries-first-controls.py.txt",
+      "artifact": "snapshots/issue-671-native-boundaries-first-controls.py.txt.json",
+      "original_assertions": 19,
+      "all_original_assertions_ast_preserved": true
+    },
+    {
+      "original": "issue-671-native-expanded-first-controls.py.txt",
+      "artifact": "snapshots/issue-671-native-expanded-first-controls.py.txt.json",
+      "original_assertions": 24,
+      "all_original_assertions_ast_preserved": true
+    }
+  ],
+  "issue_before_fix": [
+    "https://github.com/rgoza1996/Kinaiya/issues/671#issuecomment-6934565675",
+    "https://github.com/rgoza1996/Kinaiya/issues/671#issuecomment-6934603314"
+  ],
+  "prior_schema_count": 594,
+  "all_prior_schemas_byte_identical": true,
+  "limits": [
+    "Local qualification only; final hosted exact-head CI still required.",
+    "Native command evidence is not physical stop, cleanup or task success.",
+    "Full623/Converse/Call/process replacement/timing/default rollout remains incomplete."
+  ]
+}
