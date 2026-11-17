@@ -1,0 +1,121 @@
+{
+  "utc": "2026-11-17T16:24:37.139263+00:00",
+  "baseline": "2879743ec409187bc5d2c1ad12e6ad854dc2dabe",
+  "branch": "codex/566-decisions-consumers",
+  "pr": 689,
+  "parent_pr": 683,
+  "issues": [
+    566,
+    567,
+    690,
+    691
+  ],
+  "scope": "Native Agent advice export-admission prerequisite; request execution remains unavailable",
+  "runs": [
+    {
+      "name": "issue-566-advice-export-first-313",
+      "exit_code": 1,
+      "log_sha256": "6a0de0dbbc61291681db5235f01908c5a82ade5a79738abf8feb1a4ca0f253d2",
+      "final": false
+    },
+    {
+      "name": "issue-690-state-fixture-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "8dc09deb7b9aa40d5feff99299946a680a25b574ef3b7fb17809457a90049ad7",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-peer-first-313",
+      "exit_code": 1,
+      "log_sha256": "ea97800ba8d6d79fd5e0a609546cc9e51002a00f493f4c95ede6affb8fca61bf",
+      "final": false
+    },
+    {
+      "name": "issue-691-snapshot-repaired-313",
+      "exit_code": 0,
+      "log_sha256": "ffc9c36513a1193bd5c5be811c36f6d074f3754c399b2f30207abb637fa2e992",
+      "final": false
+    },
+    {
+      "name": "issue-566-advice-final-313",
+      "exit_code": 0,
+      "log_sha256": "a3084887c3610fa3bde37de11c33c9b52f225fe3c8bb16d68927de29fb96f573",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-final-314",
+      "exit_code": 0,
+      "log_sha256": "5fc11828da31fc30de535ffe392c87008be1b476b54783139d9ae9527707210a",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-ruff-final",
+      "exit_code": 0,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "final": true
+    },
+    {
+      "name": "issue-566-advice-format-final",
+      "exit_code": 0,
+      "log_sha256": "3c66b9e250d4441ada468da51eb5ddb23afbd9e84cb522a7ad978aac7717d78f",
+      "final": true
+    }
+  ],
+  "first_source_captures": [
+    {
+      "name": "issue-566-advice-export-first-sources.json",
+      "sha256": "c3c35047fc62c50e87fb7803df0df2006510ab3e0e0bd52fd5eb9224a7c29e02",
+      "source_pin_count": 9
+    },
+    {
+      "name": "issue-566-advice-peer-first-sources.json",
+      "sha256": "5df1ac3f86b4fb3444bff7f99d1bb270e9166a8a69b6b9445b7ebbc39ecc180a",
+      "source_pin_count": 9
+    }
+  ],
+  "final_code_pins": {
+    "packages/contracts/agent_advice.py": "0860d9b9e0ebb13b8a50b4a30bfe34274b492415e514a09c78b4964cb26951d0",
+    "packages/contracts/client.py": "a23e62239fe6d8dce573df5d9145becd61452457380bad05cd8a4938a6c0d4c5",
+    "scripts/export_contracts.py": "edda1e23049bd4422a6aefa21f70499cb1a951854cc3af4990a51c20d5a368b5",
+    "services/session/agent_advice.py": "2e0f99e2791894fd652e7faf840b3b2bd26ebfc5ff3b5d0a67614428dd0095e9",
+    "services/session/agent_advice_api.py": "e6bda0e1f20fe9b47ab4175ea148fdf924a10f7d3fae2169667f8a613c4ecf58",
+    "services/session/api.py": "66c0a6a917a272d2288b72cb5888321f9b4a0a7addc627e93cb3799fb2608217",
+    "services/session/store.py": "a6ed078af29a2e3b0cfa76fce11c27ec78b484227c062b68aeb83f5928474aa5",
+    "tests/integration/test_agent_advice_export.py": "73930c064af035fb9cf8b5c8408b45655f0c38779691c0fc6b1c16f424304b7e",
+    "tests/unit/test_standing_resource_finalization_contracts.py": "51a074fdbf8e5b650fd9f19dd3cb1d6e60e7369114c9c118d7ce4c4ddd9a162f"
+  },
+  "final_pytest_targets": [
+    "tests/unit/test_decisions_consumer_policies.py",
+    "tests/integration/test_decisions_consumer_options.py",
+    "tests/unit/test_decisions_prompt_config.py",
+    "tests/unit/test_independent_decisions_modes.py",
+    "tests/unit/test_subsystem_topology.py",
+    "tests/unit/test_setup_subsystem_modes.py",
+    "tests/unit/test_core_subsystem_settings.py",
+    "tests/unit/test_core_subsystem_schema_exports.py",
+    "tests/integration/test_required_decisions_readiness.py",
+    "tests/unit/test_required_decisions.py",
+    "tests/integration/test_native_d1_selection.py",
+    "tests/integration/test_openrouter_decisions_selection.py",
+    "tests/unit/test_measured_chat_binding.py",
+    "tests/unit/test_standing_resource_finalization_contracts.py",
+    "tests/integration/test_agent_advice_export.py",
+    "tests/unit/test_agent_export_contract.py",
+    "tests/integration/test_agent_export_admission.py",
+    "tests/integration/test_agent_submit_admission.py",
+    "tests/integration/test_agent_submit_admission_faults.py",
+    "tests/integration/test_agent_operating_mode.py",
+    "tests/unit/test_agent_operating_mode_native.py",
+    "tests/unit/test_agent_control_contract.py",
+    "tests/unit/test_agent_control_bootstrap.py"
+  ],
+  "parent_ci": {
+    "head": "ea3ecccfd3d39c388dd99ac24850dcdb745660e2",
+    "standard_run": 44108064749,
+    "standard_jobs_passed": 8,
+    "manual_jobs_skipped": 4,
+    "installer_run": 44108064864,
+    "installer_jobs_passed": 6,
+    "qualifies_new_admission_code": false
+  }
+}

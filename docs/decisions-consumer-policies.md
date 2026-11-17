@@ -72,10 +72,15 @@ observed on each read.
 
 ## Remaining integration
 
-Before enabling requests, implement source/session/revision-bound admission,
-complete qualified history and disclosure checks at the actual upload boundary,
-measured prompts, original-operation ownership, exact recovery after an uncertain
-response, bounded retention and confirmed cleanup. Preserve raw model output;
+The [native Agent upload-admission increment](decisions-agent-admission.md)
+adds current-task/source/disclosure checks and one coherent SQLite snapshot.
+It supplies a prerequisite for the eventual measured provider callback and does
+not enable advice request execution.
+
+Before enabling requests, wire native admission into each actual provider upload,
+deliver complete qualified history, and retain measured prompts, original-operation
+ownership, exact recovery after an uncertain response, bounded retention and
+confirmed cleanup. Preserve raw model output;
 the optional advice cannot grant permissions, execute a handoff, determine task
 success or impose Converse's routing format. Agent startup must remain usable
 when this optional consumer is absent or unavailable. Required Converse readiness

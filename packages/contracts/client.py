@@ -4,6 +4,11 @@ import json
 
 import httpx
 
+from packages.contracts.agent_advice import (
+    MAX_ADVICE_EXPORT_RESPONSE_BYTES,
+    AgentAdviceExportAdmission,
+    AgentAdviceExportRequest,
+)
 from packages.contracts.agent_control import (
     AgentControlSnapshot,
     AgentSteerAdmissionRequest,
@@ -685,6 +690,41 @@ class JournalClient:
         return AgentExportAdmission.model_validate(agent_export_json(bytes(raw))).validate_request(
             request
         )
+
+    async def agent_advice_export_admission(self, request):
+        request = AgentAdviceExportRequest.model_validate(request)
+        async with (
+            asyncio.timeout(AGENT_EXPORT_TIMEOUT_S),
+            self.http.stream(
+                "POST",
+                "/v1/transcript/agent-advice-export-admission",
+                content=request.canonical_bytes(),
+                headers={"Content-Type": "application/json", "Accept-Encoding": "identity"},
+            ) as response,
+        ):
+            response.raise_for_status()
+            if (
+                response.headers.get("content-encoding", "identity").lower() not in {"", "identity"}
+                or response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                raise ValueError("Invalid Agent advice export response")
+            declared = response.headers.get("content-length")
+            if declared is not None and (
+                not declared.isascii()
+                or not declared.isdigit()
+                or len(declared) > 8
+                or int(declared) > MAX_ADVICE_EXPORT_RESPONSE_BYTES
+            ):
+                raise ValueError("Invalid Agent advice export response")
+            raw = bytearray()
+            async for chunk in response.aiter_bytes():
+                if len(raw) + len(chunk) > MAX_ADVICE_EXPORT_RESPONSE_BYTES:
+                    raise ValueError("Agent advice export response exceeds its bound")
+                raw.extend(chunk)
+            if declared is not None and len(raw) != int(declared):
+                raise ValueError("Invalid Agent advice export response")
+        return AgentAdviceExportAdmission.from_json(bytes(raw)).validate_request(request)
 
     async def append(self, request):
         if current_owner() is not None:
