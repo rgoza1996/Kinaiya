@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from packages.contracts.agent_control import AgentModeChange
 from packages.contracts.models import SessionRequest
@@ -828,6 +828,62 @@ async def test_actual_generation_cap_still_exposes_null_controller_context_and_e
     proof = response(await post(limited, STOP, stop), 200, StandingDispatchStopProof)
     assert proof.target_fenced is True and proof.state.instance_id is None
     assert proof.state.stopped_through_epoch == saved.epoch and proof.state.mode == "autonomous"
+
+
+@pytest.mark.parametrize("message_type", ["http.request", "http.disconnect"])
+async def test_dispatch_monitor_finishes_the_receive_that_overlaps_native_completion(
+    env, monkeypatch, message_type
+):
+    native_gate = threading.Event()
+    cancelled, release = asyncio.Event(), asyncio.Event()
+    snapshots, received = [], []
+    actual_snapshot = env.dispatch.snapshot
+    actual_run = env.operations.run
+
+    def snapshot():
+        assert native_gate.wait(5)
+        state = actual_snapshot()
+        snapshots.append(state)
+        return state
+
+    async def run(request, action, argument=None):
+        async def receive():
+            received.append(True)
+            message = await request.receive()
+            if len(received) == 1:
+                assert message["type"] == "http.request"
+                native_gate.set()
+                # Deliver the in-flight ASGI frame when native cleanup cancels
+                # this receive. A GET has no further body to wait for.
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    cancelled.set()
+                    await release.wait()
+                    return (
+                        message if message_type == "http.request" else {"type": "http.disconnect"}
+                    )
+            return message
+
+        return await actual_run(Request(request.scope, receive), action, argument)
+
+    monkeypatch.setattr(env.dispatch, "snapshot", snapshot)
+    monkeypatch.setattr(env.operations, "run", run)
+    caller = asyncio.create_task(env.client.get(STATE, headers=headers()))
+    try:
+        await asyncio.wait_for(cancelled.wait(), 5)
+        assert len(snapshots) == 1 and env.operations.active_operations == 1
+        assert not caller.done()
+        release.set()
+        reply = await caller
+        if message_type == "http.request":
+            assert response(reply, 200, StandingDispatchState) == snapshots[0]
+        else:
+            response(reply, 503)
+        assert received == [True] and env.operations.active_operations == 0
+    finally:
+        release.set()
+        await asyncio.gather(caller, return_exceptions=True)
 
 
 async def test_dispatch_ingress_five_second_deadline_is_503_not_input_failure(env, monkeypatch):
