@@ -93,6 +93,7 @@ async def test_actual_dart_native_live_stream_rollover(converse_incremental_env,
                 ("pcm", 2),
                 ("finish", 2),
                 ("cancel", 1),
+                ("cancel-original", 1),
             ):
                 assert (
                     sum(
@@ -109,6 +110,20 @@ async def test_actual_dart_native_live_stream_rollover(converse_incremental_env,
                 == 1
             )
             capture = native.app.state.live_streams.captures["d" * 32]
+            assert (
+                sum(
+                    method == "GET" and path.endswith("/cancel-original")
+                    for method, path, _ in requests
+                )
+                == 1
+            )
+            assert (
+                sum(
+                    method == "POST" and path.endswith("/cancel-original/lookup")
+                    for method, path, _ in requests
+                )
+                == 1
+            )
             assert capture.capture_fenced and capture.capture_task.done()
             assert capture.native.lease.settled
             assert not env.runtime.stt_model_settings.leases

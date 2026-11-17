@@ -44,6 +44,217 @@ http.Response response(Object? body) => http.Response(
 );
 
 void main() {
+  Map<String, Object?> abortFixture() => object(
+    jsonDecode(
+      File('test/fixtures/live_stream_abort_native.json').readAsStringSync(),
+    ),
+  );
+  LiveStreamAbortOperation abortOriginal() {
+    final request = object(abortFixture()['request']);
+    return LiveStreamAbortOperation(
+      LiveStreamOperation.fromJson(LiveStreamPhase.begin, request['initial']),
+      request['reason'] as String,
+    );
+  }
+
+  test(
+    'actual native negative proof binds initial begin and persistent fence',
+    () {
+      final fixture = abortFixture();
+      final original = abortOriginal();
+      final proof = LiveStreamAbortProof.fromJson(fixture['proof'], original);
+      expect(proof.confirmed, isTrue);
+      expect(proof.cleanupConfirmed, isTrue);
+      expect(proof.capture!.registered, isFalse);
+      expect(
+        LiveStreamAbortCapability.fromJson(fixture['capability']).ownerInstance,
+        original.initial.body['owner_instance'],
+      );
+      expect(
+        () => object(original.body['initial'])['epoch'] = 2,
+        throwsUnsupportedError,
+      );
+      for (final patch in <void Function(Map<String, Object?>)>[
+        (r) => r['protocol'] = 'native_live_abort_v2',
+        (r) => r['request_sha256'] = 'a' * 64,
+        (r) => r['outcome'] = 'unknown',
+        (r) => r['cleanup_confirmed'] = 1,
+        (r) => r['capture'] = null,
+        (r) => object(r['capture'])['fence'] = null,
+        (r) => object(object(r['original'])['initial'])['epoch'] = 2,
+        (r) => r['extra'] = true,
+      ]) {
+        final raw = copy(fixture['proof']);
+        patch(raw);
+        expect(
+          () => LiveStreamAbortProof.fromJson(raw, original),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => LiveStreamAbortOperation(
+          LiveStreamOperation.fromJson(
+            LiveStreamPhase.pcm,
+            operation(1)['request'],
+          ),
+          'cancelled',
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'original recovery remains negative and usable after parent client closes',
+    () async {
+      final original = abortOriginal();
+      final paths = <String>[];
+      final owner = api(
+        () => MockClient((request) async {
+          paths.add(request.url.path);
+          expect(request.headers['Authorization'], 'Bearer synthetic-owner');
+          if (request.method == 'GET') {
+            return response(abortFixture()['capability']);
+          }
+          expect(jsonDecode(request.body), original.body);
+          return response(abortFixture()['proof']);
+        }),
+      );
+      final recovery = owner.recoveryFor(original.initial);
+      expect(recovery.sameOwner(owner), isTrue);
+      await owner.close();
+      expect(() => owner.recoveryFor(original.initial), throwsStateError);
+      await expectLater(
+        owner.inspect().result,
+        throwsA(isA<OwnedSettingsFailure>()),
+      );
+      expect(
+        (await recovery.inspectCancellation().result).ownerInstance,
+        original.initial.body['owner_instance'],
+      );
+      expect(
+        (await recovery.cancelOriginal(original).result).cleanupConfirmed,
+        isTrue,
+      );
+      expect(
+        (await recovery.lookupCancellation(original).result).confirmed,
+        isTrue,
+      );
+      expect(paths.map((path) => path.split('/').last).toList(), [
+        'cancel-original',
+        'cancel-original',
+        'lookup',
+      ]);
+      await recovery.close();
+    },
+  );
+
+  test(
+    'recovery rejects substituted scope before acquiring an HTTP client',
+    () async {
+      var acquired = 0;
+      final original = abortOriginal();
+      final owner = api(() {
+        acquired++;
+        return MockClient((_) async => response(abortFixture()['proof']));
+      });
+      final recovery = owner.recoveryFor(original.initial);
+      for (final field in [
+        'owner_instance',
+        'capture_id',
+        'session_id',
+        'thread_id',
+        'epoch',
+        'content_scope',
+      ]) {
+        final changed = LiveStreamOperation.fromJson(LiveStreamPhase.begin, {
+          ...original.initial.body,
+          field: switch (field) {
+            'epoch' => 2,
+            'content_scope' => 'public_synthetic',
+            'owner_instance' || 'capture_id' => 'a' * 32,
+            _ => 'other',
+          },
+        });
+        expect(() => recovery.lookup(changed), throwsFormatException);
+        expect(
+          () => recovery.cancelOriginal(
+            LiveStreamAbortOperation(changed, 'cancelled'),
+          ),
+          throwsFormatException,
+        );
+      }
+      expect(acquired, 0);
+      await recovery.close();
+      await owner.close();
+    },
+  );
+
+  test(
+    'lost negative acknowledgment uses readback without another cancellation',
+    () async {
+      final original = abortOriginal();
+      final paths = <String>[];
+      final owner = api(
+        () => MockClient((request) async {
+          paths.add(request.url.path);
+          return request.url.path.endsWith('/lookup')
+              ? response(abortFixture()['proof'])
+              : http.Response('public synthetic link cut', 503);
+        }),
+      );
+      final recovery = owner.recoveryFor(original.initial);
+      await owner.close();
+      final attempt = recovery.cancelOriginal(original);
+      await expectLater(
+        attempt.result,
+        throwsA(
+          isA<OwnedSettingsFailure>().having(
+            (e) => e.unconfirmed,
+            'unconfirmed',
+            true,
+          ),
+        ),
+      );
+      await attempt.settled;
+      expect(
+        (await recovery.lookupCancellation(original).result).cleanupConfirmed,
+        isTrue,
+      );
+      expect(
+        paths.where((path) => path.endsWith('/cancel-original')),
+        hasLength(1),
+      );
+      await recovery.close();
+    },
+  );
+
+  test('negative HTTP original stays owned after both facades close', () async {
+    final original = abortOriginal();
+    final send = Completer<http.StreamedResponse>();
+    final client = _HeldClient(send.future);
+    final owner = api(() => client, timeout: const Duration(milliseconds: 20));
+    final recovery = owner.recoveryFor(original.initial);
+    final attempt = recovery.cancelOriginal(original);
+    var settled = false;
+    unawaited(attempt.settled.then((_) => settled = true));
+    await owner.close();
+    await recovery.close();
+    await expectLater(attempt.result, throwsA(isA<OwnedSettingsFailure>()));
+    expect(settled, isFalse);
+    expect(client.sends, 1);
+    expect(client.closes, 1);
+    send.complete(
+      http.StreamedResponse(
+        Stream.value(utf8.encode(jsonEncode(abortFixture()['proof']))),
+        200,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+    await attempt.settled.timeout(const Duration(seconds: 1));
+    expect(client.sends, 1);
+  });
+
   test(
     'actual native utterance original has a distinct route and exact begin-phase recovery',
     () {

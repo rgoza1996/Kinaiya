@@ -1,0 +1,21 @@
+import json
+from pathlib import Path
+
+from tests.integration.test_incremental_whistle_converse import converse_incremental_env
+from tests.integration.test_live_stream_api import live_client
+from tests.integration.test_live_stream_abort import abort_body, confirmed, initial_body
+from services.converse.live_stream_api import BASE
+
+
+async def test_export_actual_native_abort(converse_incremental_env):
+    env = converse_incremental_env
+    async with live_client(env) as live:
+        initial = await initial_body(env, live)
+        request = abort_body(initial, "disconnected")
+        capability = await live.client.get(BASE + "/cancel-original")
+        result = await live.client.post(BASE + "/cancel-original", json=request)
+        assert capability.status_code == result.status_code == 200
+        confirmed(result.json(), request)
+        assert not env.runtime.stt_model_settings.leases and env.engine.begin_calls == 0
+        target = Path("/home/roggoz/Disks/SN750/Kinaiya/.worktrees/adaptive-call-integration-623/apps/kinaiya_flutter/test/fixtures/live_stream_abort_native.json")
+        target.write_text(json.dumps({"source": "actual native owner HTTP and SQLite negative fence; synthetic public fixtures; no microphone, STT or model start", "capability": capability.json(), "request": request, "proof": result.json()}, ensure_ascii=False, indent=2) + "\n")

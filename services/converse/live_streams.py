@@ -5,7 +5,12 @@ import asyncio
 from fastapi import HTTPException
 
 from packages.contracts.live_captures import LiveCaptureRegistration
-from packages.contracts.live_streams import LiveStreamNextUtterance, LiveStreamScope
+from packages.contracts.live_streams import (
+    LiveStreamAbort,
+    LiveStreamBegin,
+    LiveStreamNextUtterance,
+    LiveStreamScope,
+)
 from packages.contracts.live_windows import LiveWindowPublicationProof
 from packages.providers.whistle_stream_owner import CapturedWhistleStream
 from services.converse.incremental_streams import IncrementalStreams
@@ -14,16 +19,25 @@ from services.converse.stt_operations import stt_operation
 
 
 class LiveIncrementalStreams(IncrementalStreams):
-    def __init__(self, runtime, speech, scope, *, dependency):
+    def __init__(self, runtime, speech, scope, *, dependency, negative_original=None):
         self.scope = LiveStreamScope.model_validate(scope.model_dump(mode="json"), strict=True)
         self.initial_utterance_id = self.scope.utterance_id
+        self.initial_begin = LiveStreamBegin(**self.scope.model_dump(mode="json"), segment_index=0)
+        self.abort_original = None
+        self.stt_attempted = False
         super().__init__(runtime, speech, self)
         self.dependency = dependency
-        self.admission = runtime.admission()
+        if negative_original is not None:
+            negative_original = LiveStreamAbort.model_validate(negative_original, strict=True)
+            if negative_original.initial != self.initial_begin:
+                raise ValueError("Negative owner requires its exact initial begin")
+        # Negative-only construction must remain possible while owner-off. It
+        # is permanently fenced and can never acquire positive admission later.
+        self.admission = runtime.admission() if negative_original is None else None
         self.mic = self.native = self.capture_task = None
         self.capture_ready = asyncio.Event()
         self.capture_release = asyncio.Event()
-        self.capture_fenced = False
+        self.capture_fenced = negative_original is not None
         self.segment_index = -1
         self.segment_sample_offset = 0
         self._next_segment = None
@@ -43,6 +57,8 @@ class LiveIncrementalStreams(IncrementalStreams):
 
     @property
     def busy_count(self):
+        if self.abort_original is not None:
+            return int(not self.abort_cleanup_complete())
         return int(self.capture_task is not None and not self.capture_task.done())
 
     def tasks(self):
@@ -53,27 +69,33 @@ class LiveIncrementalStreams(IncrementalStreams):
             tasks.update(self.mic.tasks)
         return tasks
 
+    async def _bind_mic(self):
+        backend = await self.runtime.journal.live_capture_backend()
+        self.mic = LiveMicCapture(
+            self.runtime.journal,
+            LiveCaptureRegistration(
+                schema_version="2.0",
+                protocol="native_live_capture_v2",
+                backend=backend,
+                owner_instance=self.initial_begin.owner_instance,
+                capture_id=self.initial_begin.capture_id,
+                session_id=self.initial_begin.session_id,
+                thread_id=self.initial_begin.thread_id,
+                epoch=self.initial_begin.epoch,
+            ),
+            current=self.current,
+        )
+
     async def _capture_lifetime(self):
         try:
-            backend = await self.runtime.journal.live_capture_backend()
-            self.mic = LiveMicCapture(
-                self.runtime.journal,
-                LiveCaptureRegistration(
-                    schema_version="2.0",
-                    protocol="native_live_capture_v2",
-                    backend=backend,
-                    owner_instance=self.scope.owner_instance,
-                    capture_id=self.scope.capture_id,
-                    session_id=self.scope.session_id,
-                    thread_id=self.scope.thread_id,
-                    epoch=self.scope.epoch,
-                ),
-                current=self.current,
-            )
+            await self._bind_mic()
             if not self.current():
-                self.mic.fence("cancelled")
+                self.mic.fence(
+                    "cancelled" if self.abort_original is None else self.abort_original.reason
+                )
                 raise HTTPException(409, "Original live capture is fenced")
             await self.mic.register()
+            self.stt_attempted = True
             async with stt_operation(self.runtime, self.scope.content_scope) as native:
                 self.native = native
                 self.capture_ready.set()
@@ -95,6 +117,52 @@ class LiveIncrementalStreams(IncrementalStreams):
                     )
         finally:
             self.capture_ready.set()
+
+    async def _negative_lifetime(self, reason):
+        # This owner may precede begin. It never registers capture or enters
+        # STT, and it retains the sole native fence separately from its facade.
+        try:
+            await self._bind_mic()
+            await self.mic.inspect()
+            self.mic.fence(reason)
+        finally:
+            self.capture_ready.set()
+
+    def abort_initial(self, original):
+        self.abort_original = original
+        self.fence_capture(original.reason)
+        super().fence()
+        if self.capture_task is None:
+            self.runtime._incremental_stream_owners.add(self)
+            self.capture_task = self._retain(
+                asyncio.create_task(self._negative_lifetime(original.reason))
+            )
+
+    def abort_cleanup_complete(self):
+        task = self.capture_task
+        return bool(
+            self.abort_original is not None
+            and self.capture_fenced
+            and self.mic is not None
+            and self.mic.fenced_state is not None
+            and task is not None
+            and task.done()
+            and not task.cancelled()
+            # An original registration can fail after a negative fence. The
+            # explicit pre-STT flag, not the exception, proves no STT entered.
+            and (
+                not self.stt_attempted
+                or (
+                    task.exception() is None
+                    and self.native is not None
+                    and self.native.lease.settled
+                )
+            )
+            and not any(not owned.done() for owned in self.tasks())
+            and not any(
+                state.client is not None and state.client.cleanup_failed for state in self.states
+            )
+        )
 
     async def _lifetime(self, state):
         try:
@@ -272,8 +340,15 @@ class LiveIncrementalStreams(IncrementalStreams):
         tasks = self.tasks()
         if tasks:
             await asyncio.wait(tasks, timeout=2)
+        return self.cleanup_complete()
+
+    def cleanup_complete(self):
+        # Closure and bounded retirement must agree with negative readback.
+        if self.abort_original is not None:
+            return self.abort_cleanup_complete()
         return bool(
-            self.mic is not None
+            self.capture_fenced
+            and self.mic is not None
             and self.mic.fenced_state is not None
             and self.capture_task is not None
             and self.capture_task.done()

@@ -155,6 +155,83 @@ class LiveUtteranceCapability {
   late final bool available;
 }
 
+class LiveStreamAbortCapability {
+  LiveStreamAbortCapability.fromJson(Object? value) {
+    final raw = _object(value, {
+      'schema_version',
+      'protocol',
+      'owner_instance',
+    });
+    _version(raw, 'native_live_abort_v1', '1.0');
+    ownerInstance = _hex(raw['owner_instance'], 32);
+  }
+  late final String ownerInstance;
+}
+
+class LiveStreamAbortOperation {
+  LiveStreamAbortOperation(this.initial, String reason) {
+    if (initial.phase != LiveStreamPhase.begin ||
+        initial.isUtteranceBoundary ||
+        initial.body['segment_index'] != 0 ||
+        !_reasons.contains(reason)) {
+      throw _invalid;
+    }
+    body =
+        _freeze({
+              'schema_version': '1.0',
+              'protocol': 'native_live_abort_v1',
+              'initial': initial.body,
+              'reason': reason,
+            })
+            as Map<String, Object?>;
+    if (utf8.encode(jsonEncode(body)).length > 4096) throw _invalid;
+    digest = _digest(body);
+  }
+  final LiveStreamOperation initial;
+  late final Map<String, Object?> body;
+  late final String digest;
+}
+
+class LiveStreamAbortProof {
+  LiveStreamAbortProof.fromJson(Object? value, this.original) {
+    final raw = _object(value, {
+      'schema_version',
+      'protocol',
+      'original',
+      'request_sha256',
+      'outcome',
+      'capture',
+      'cleanup_confirmed',
+    });
+    _version(raw, 'native_live_abort_v1', '1.0');
+    if (!_equal(raw['original'], original.body) ||
+        _hex(raw['request_sha256'], 64) != original.digest ||
+        !{'unknown', 'in_progress', 'confirmed'}.contains(raw['outcome'])) {
+      throw _invalid;
+    }
+    outcome = raw['outcome'] as String;
+    capture = raw['capture'] == null
+        ? null
+        : LiveCaptureObservation.fromJson(
+            raw['capture'],
+            original.initial.body,
+          );
+    cleanupConfirmed = _flag(raw['cleanup_confirmed']);
+    if ((confirmed &&
+            (capture == null ||
+                capture!.captureOpen ||
+                capture!.body['fence'] == null)) ||
+        (cleanupConfirmed && !confirmed)) {
+      throw _invalid;
+    }
+  }
+  final LiveStreamAbortOperation original;
+  late final String outcome;
+  late final LiveCaptureObservation? capture;
+  late final bool cleanupConfirmed;
+  bool get confirmed => outcome == 'confirmed';
+}
+
 /// Detach and hash once. Recovery never recreates or resends a mutation.
 class LiveStreamOperation {
   LiveStreamOperation.fromJson(LiveStreamPhase phase, Object? value)

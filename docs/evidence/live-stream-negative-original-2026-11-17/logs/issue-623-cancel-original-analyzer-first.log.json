@@ -1,0 +1,4 @@
+{
+  "sha256": "48159aa61cf45a7457bd06e3bd5e667f47c9437ee74275568dd27c947133e76e",
+  "utf8": "Analyzing 4 items...                                            \n\n   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • test/live_stream_client_test.dart:117:13 • curly_braces_in_flow_control_structures\n\n1 issue found. (ran in 0.7s)\n"
+}

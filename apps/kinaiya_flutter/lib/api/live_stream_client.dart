@@ -17,10 +17,20 @@ class LiveStreamApi {
          clientFactory: clientFactory,
          resultTimeout: resultTimeout,
          cleanupTimeout: cleanupTimeout,
-       );
+       ),
+       _recoveryFactory = (() => OwnedSettingsTransport(
+         domain: SettingsDomain.converseLiveStream,
+         baseUrl: baseUrl,
+         ownerToken: ownerToken,
+         clientFactory: clientFactory,
+         resultTimeout: resultTimeout,
+         cleanupTimeout: cleanupTimeout,
+       ));
 
   static const _base = '/v2/converse/audio/live-stream';
   final OwnedSettingsTransport _transport;
+  final OwnedSettingsTransport Function() _recoveryFactory;
+  bool _closed = false;
   bool get hasCapacity => _transport.hasCapacity;
   bool sameOwner(LiveStreamApi other) => _transport.sameOwner(other._transport);
   OwnedSettingsAttempt<LiveStreamCapability> inspect() => _transport.start(
@@ -78,6 +88,108 @@ class LiveStreamApi {
       ...original.identity,
       'reason': reason,
     }, (value) => LiveStreamCancellation.fromJson(value, original.identity));
+  }
+
+  /// Enroll before start. This original negative/metadata channel remains
+  /// independently owned when the normal client is closed or replaced.
+  LiveStreamRecoveryApi recoveryFor(LiveStreamOperation initial) {
+    if (_closed) throw StateError('Original live stream client is closed');
+    LiveStreamAbortOperation(initial, 'cancelled');
+    return LiveStreamRecoveryApi._(initial, _recoveryFactory());
+  }
+
+  Future<void> close() {
+    _closed = true;
+    return _transport.close();
+  }
+}
+
+/// Negative actions and exact metadata only; this channel cannot send PCM,
+/// begin capture, finish a decoder or advance an utterance.
+class LiveStreamRecoveryApi {
+  LiveStreamRecoveryApi._(this.initial, this._transport);
+  final LiveStreamOperation initial;
+  final OwnedSettingsTransport _transport;
+  bool get hasCapacity => _transport.hasCapacity;
+  bool sameOwner(LiveStreamApi other) => _transport.sameOwner(other._transport);
+
+  void _check(LiveStreamOperation original) {
+    for (final key in [
+      'owner_instance',
+      'capture_id',
+      'session_id',
+      'thread_id',
+      'epoch',
+      'content_scope',
+    ]) {
+      if (initial.body[key] != original.body[key]) {
+        throw const FormatException(
+          'Recovery changed its original live capture',
+        );
+      }
+    }
+  }
+
+  void _checkAbort(LiveStreamAbortOperation original) {
+    if (original.initial.digest != initial.digest) {
+      throw const FormatException(
+        'Cancellation changed its original initial begin',
+      );
+    }
+  }
+
+  OwnedSettingsAttempt<LiveStreamAbortCapability> inspectCancellation() =>
+      _transport.start(
+        'GET',
+        '${LiveStreamApi._base}/cancel-original',
+        null,
+        LiveStreamAbortCapability.fromJson,
+      );
+
+  OwnedSettingsAttempt<LiveStreamAbortProof> cancelOriginal(
+    LiveStreamAbortOperation original,
+  ) {
+    _checkAbort(original);
+    return _transport.start(
+      'POST',
+      '${LiveStreamApi._base}/cancel-original',
+      original.body,
+      (value) => LiveStreamAbortProof.fromJson(value, original),
+    );
+  }
+
+  OwnedSettingsAttempt<LiveStreamAbortProof> lookupCancellation(
+    LiveStreamAbortOperation original,
+  ) {
+    _checkAbort(original);
+    return _transport.start(
+      'POST',
+      '${LiveStreamApi._base}/cancel-original/lookup',
+      original.body,
+      (value) => LiveStreamAbortProof.fromJson(value, original),
+    );
+  }
+
+  OwnedSettingsAttempt<LiveStreamProof> lookup(LiveStreamOperation original) {
+    _check(original);
+    return _transport.start(
+      'POST',
+      '${LiveStreamApi._base}/lookup',
+      original.lookup,
+      (value) => LiveStreamProof.fromJson(value, original),
+    );
+  }
+
+  OwnedSettingsAttempt<LiveStreamProof> reconcile(
+    LiveStreamOperation original,
+  ) {
+    _check(original);
+    return _transport.start(
+      'POST',
+      '${LiveStreamApi._base}/reconcile',
+      original.lookup,
+      (value) => LiveStreamProof.fromJson(value, original),
+    );
   }
 
   Future<void> close() => _transport.close();

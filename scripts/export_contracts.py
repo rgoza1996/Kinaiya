@@ -193,6 +193,9 @@ for module, names in (
 )
 for name in (
     "LiveStreamCapability",
+    "LiveStreamAbortCapability",
+    "LiveStreamAbort",
+    "LiveStreamAbortProof",
     "LiveUtteranceCapability",
     "LiveStreamIdentity",
     "LiveStreamScope",

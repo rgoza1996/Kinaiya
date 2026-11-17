@@ -38,6 +38,8 @@ void main() {
         ...binding,
         'segment_index': 0,
       });
+      final recovery = api.recoveryFor(begin);
+      addTearDown(recovery.close);
       final started = await api.dispatch(begin).result;
       expect(started.confirmed, isTrue);
       expect(started.capture!.captureOpen, isTrue);
@@ -140,6 +142,19 @@ void main() {
       final stopped = await api.cancel(begin, 'cancelled').result;
       expect(stopped.capture!.captureOpen, isFalse);
       expect(stopped.cleanupConfirmed, isTrue);
+      await api.close();
+      expect(
+        (await recovery.inspectCancellation().result).ownerInstance,
+        capability.ownerInstance,
+      );
+      final negative = LiveStreamAbortOperation(begin, 'disconnected');
+      final closed = await recovery.cancelOriginal(negative).result;
+      expect(closed.confirmed, isTrue);
+      expect(closed.cleanupConfirmed, isTrue);
+      expect(
+        (await recovery.lookupCancellation(negative).result).cleanupConfirmed,
+        isTrue,
+      );
     },
     skip: url == null || token == null || scope == null,
   );

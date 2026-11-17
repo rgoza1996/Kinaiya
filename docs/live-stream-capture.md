@@ -115,6 +115,44 @@ digest binds every boundary field. Uncertain outcomes use existing exact
 begin-phase lookup/reconcile; a duplicate mutation cannot replay the decoder.
 Pending work, stale identity or missing original final/cleanup refuses.
 
+## Cancellation before the initial start arrives
+
+The additive `native_live_abort_v1`, schema 1.0, binds a negative original to
+the full initial v2 begin (segment zero) and its cancellation reason. Owner GET
+`cancel-original` declares this separate protocol and owner instance. It grants
+no input availability, provider selection or positive runtime admission.
+
+Owner POST `cancel-original` enrolls its exact original before its first wait.
+It fences the same native owner/capture and session/thread/epoch even if the
+initial begin has not arrived. A negative-only owner is permanently fenced and
+can be constructed while Converse is off, without registration or STT admission.
+A known capture must match its immutable initial begin, including after an
+explicit utterance boundary. A changed cancellation original refuses.
+
+The native Session fence is persistent. A delayed registration cannot reopen
+it after the bounded temporary Converse record retires. Owner POST
+`cancel-original/lookup` reads metadata only; when that temporary record is gone,
+it reads the original persisted native fence without reenrolling capture or
+repeating a mutation. Backend/scope conflicts and unavailable metadata remain
+unknown. Native receipt capacity is retained rather than erased to make space.
+
+The proof repeats the entire negative original and its canonical digest.
+`confirmed` requires a positive exact native fence; `cleanup_confirmed` further
+requires the original native capture, decoder, metadata tasks and STT lease to
+settle. An explicit pre-STT flag distinguishes a fenced registration failure
+from an operation that entered STT. A timeout, missing registration or transport
+failure proves neither closure nor cleanup. A cancelled HTTP facade cannot
+cancel its retained native fence. Actual browser acquisition/stop, client HTTP
+settlement, downstream inference and speech/playback remain separate obligations.
+The existing identity-only cancel contract still requires an owned capture.
+
+The frontend enrolls `LiveStreamApi.recoveryFor(initial)` before dispatching the
+initial begin. This independent original connection survives normal-client
+closure and exposes only exact cancellation and metadata lookup/reconcile.
+It cannot dispatch PCM, start capture, finish a decoder or advance an utterance.
+The Call owner must retain and close this channel through actual settlement;
+closing either facade alone is not a native cancellation receipt.
+
 ## Owner HTTP contract
 
 The explicit `converse_live_stream_v2`, schema 2.0, lives under

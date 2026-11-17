@@ -45,6 +45,17 @@ The existing transport retains actual sends, subscriptions and cleanup beyond
 facade deadlines and client replacement. A timeout remains unconfirmed; it
 does not free actual capacity or automatically resend the original operation.
 
+The [negative-original protocol](live-stream-capture.md#cancellation-before-the-initial-start-arrives)
+also supports a delayed initial begin after cancellation. A separately enrolled
+original recovery channel remains usable after normal-client closure and has
+no positive capture/audio methods. Its native persistent fence, exact readback
+and actual native cleanup are separate from browser and client HTTP settlement.
+The actual Call owner still needs to retain and join these obligations through
+stop, disconnect and replacement.
+The [negative-original qualification](evidence/live-stream-negative-original-2026-11-17/README.md)
+retains native/actual-wire checks, original failures and source-bound frontend
+and release-build evidence.
+
 Decoder rollover requires the exact confirmed final original, positive paired
 source, decoder completion and actual decoder/HTTP ownership retirement.
 Process release is separate: the same logical microphone deliberately retains

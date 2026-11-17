@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from packages.contracts.live_captures import LiveCaptureState
 from packages.contracts.live_windows import LiveWindowPublicationProof
 from packages.contracts.models import ContentScope
+from packages.contracts.stt_settlement import digest
 from packages.contracts.whistle_stream_owner import ConverseStreamProof
 
 PROTOCOL = "converse_live_stream_v2"
@@ -58,6 +59,54 @@ class LiveStreamScope(LiveStreamIdentity):
 
 class LiveStreamBegin(LiveStreamScope):
     segment_index: int = Field(ge=0, le=1000000)
+
+
+class LiveStreamAbortCapability(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_abort_v1"]
+    owner_instance: str = Field(pattern=r"^[a-f0-9]{32}$")
+
+
+class LiveStreamAbort(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_abort_v1"]
+    initial: LiveStreamBegin
+    reason: Literal["owner_off", "cancelled", "disconnected", "replaced", "shutdown"]
+
+    @model_validator(mode="after")
+    def initial_segment(self):
+        if self.initial.segment_index != 0:
+            raise ValueError("A negative original requires its exact initial begin")
+        return self
+
+
+class LiveStreamAbortProof(_Closed):
+    schema_version: Literal["1.0"]
+    protocol: Literal["native_live_abort_v1"]
+    original: LiveStreamAbort
+    request_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    outcome: Literal["unknown", "in_progress", "confirmed"]
+    capture: LiveCaptureState | None
+    cleanup_confirmed: bool
+
+    @model_validator(mode="after")
+    def original_negative(self):
+        if self.request_sha256 != digest(self.original.model_dump(mode="json")):
+            raise ValueError("A negative proof changed its exact original")
+        if self.capture is not None:
+            initial, native = self.original.initial, self.capture.original
+            if any(
+                getattr(initial, key) != getattr(native, key)
+                for key in ("owner_instance", "capture_id", "session_id", "thread_id", "epoch")
+            ):
+                raise ValueError("A negative proof changed its native scope")
+        if self.outcome == "confirmed" and (
+            self.capture is None or self.capture.capture_open or self.capture.fence is None
+        ):
+            raise ValueError("A negative confirmation requires its persistent native fence")
+        if self.cleanup_confirmed and self.outcome != "confirmed":
+            raise ValueError("Cleanup requires confirmed native closure")
+        return self
 
 
 class LiveStreamNextUtterance(LiveStreamBegin):
