@@ -1,5 +1,8 @@
 """Protected storage and replay across managed Pi generations."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import pytest
 
 from packages.agent_adapters.pi_sdk import PiEvent, PiEventReplayExpired, PiReply
@@ -115,3 +118,32 @@ def test_refused_receipts_obey_the_retention_limit(tmp_path, monkeypatch):
     observations.prepare(second, source)
     assert observations.original_reply(claim) is None
     assert observations.status(live=True)[1][0].task_id == second.admission_id
+
+
+def test_concurrent_replay_observes_committed_prefix(original_store, tmp_path):
+    readers = 5
+    writes = 160
+    start = Barrier(readers + 1, timeout=5)
+
+    def produce():
+        start.wait()
+        for cursor in range(1, writes + 1):
+            original_store.record_event(
+                PiEvent(cursor, TASK, "assistant_message", text=str(cursor))
+            )
+
+    def observe():
+        reader = PiObservations(tmp_path, TARGET)
+        start.wait()
+        for _ in range(writes):
+            page = reader.events(replay())
+            assert [event.cursor for event in page.events] == list(range(1, page.next_after + 1))
+            assert [event.text for event in page.events] == [
+                str(event.cursor) for event in page.events
+            ]
+
+    with ThreadPoolExecutor(max_workers=readers + 1) as executor:
+        jobs = [executor.submit(produce), *(executor.submit(observe) for _ in range(readers))]
+        for job in jobs:
+            job.result(timeout=15)
+    assert original_store.events(replay(writes - 1)).events[0].text == str(writes)

@@ -3,6 +3,8 @@
 import os
 import secrets
 import sqlite3
+import stat
+import threading
 from contextlib import closing, contextmanager
 from pathlib import Path
 
@@ -30,6 +32,7 @@ _MAX_RECEIPTS = 512
 _EVENT = TypeAdapter(ExternalAgentEvent)
 _FINAL = {"settled", "failed", "interrupted"}
 _IN_FLIGHT = ("starting", "running", "interrupt_requested")
+_DATABASE_ACCESS = threading.Lock()
 
 
 class PiObservationUnavailable(ValueError):
@@ -45,19 +48,19 @@ class PiObservations:
 
     @contextmanager
     def _database(self, *, write=False, create=False):
-        flags = (os.O_RDWR if write else os.O_RDONLY) | os.O_NOFOLLOW | os.O_CLOEXEC
-        if create:
-            flags |= os.O_CREAT
         try:
-            parent = _open_path(self.directory, directory=True)
-            try:
-                _require_owner_private(parent, directory=True)
-                descriptor = os.open(self.filename, flags | os.O_NONBLOCK, 0o600, dir_fd=parent)
+            # One local observation transaction at a time prevents the pipe
+            # reader's burst of writes from starving a snapshot in rollback mode.
+            with _DATABASE_ACCESS:
+                parent = _open_path(self.directory, directory=True)
                 try:
-                    _require_owner_private(descriptor, directory=False)
+                    _require_owner_private(parent, directory=True)
+                    identity = self._file_identity(parent, create=create)
                     mode = "rw" if write else "ro"
-                    uri = f"file:/proc/self/fd/{descriptor}?mode={mode}"
+                    uri = f"file:/proc/self/fd/{parent}/{self.filename}?mode={mode}"
                     with closing(sqlite3.connect(uri, uri=True, timeout=0.5)) as database:
+                        if self._file_identity(parent) != identity:
+                            raise PiObservationUnavailable
                         database.execute("PRAGMA trusted_schema=OFF")
                         if write:
                             database.execute("PRAGMA synchronous=FULL")
@@ -66,11 +69,32 @@ class PiObservations:
                             database.execute("BEGIN IMMEDIATE" if write else "BEGIN")
                             yield database
                 finally:
-                    os.close(descriptor)
-            finally:
-                os.close(parent)
+                    os.close(parent)
         except (OSError, sqlite3.Error, PiLaunchUnavailable) as error:
             raise PiObservationUnavailable from error
+
+    def _file_identity(self, parent, *, create=False):
+        # Closing an independently opened database fd can clear SQLite's POSIX
+        # locks. Use stat after the initial owner-only file creation.
+        try:
+            info = os.stat(self.filename, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            if not create:
+                raise
+            flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+            descriptor = os.open(self.filename, flags, 0o600, dir_fd=parent)
+            try:
+                info = os.fstat(descriptor)
+            finally:
+                os.close(descriptor)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.geteuid()
+            or info.st_mode & 0o077
+            or info.st_nlink != 1
+        ):
+            raise PiObservationUnavailable
+        return info.st_dev, info.st_ino
 
     def _head(self, db, *, current=False):
         if db.execute("PRAGMA user_version").fetchone() != (1,):

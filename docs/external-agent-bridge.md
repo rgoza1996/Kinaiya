@@ -145,6 +145,11 @@ and 16 MiB of encoded event data per attachment. Older cursors return
 `replay_expired`. An incomplete run becomes `uncertain` if the prior
 generation ends without a terminal observation.
 
+The store serializes local observations and replay snapshots to avoid
+contention during event bursts. After the initial owner-only file creation,
+SQLite owns its database descriptors. [SQLite file
+locking](https://www.sqlite.org/howtocorrupt.html)
+
 ## Original submission
 
 Decisions uses the native `POST /v1/external-agent/claim` route to reserve one
