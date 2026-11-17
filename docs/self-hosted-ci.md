@@ -3,6 +3,11 @@
 Infrastructure tracking: #569. Regression qualification: #379. Workflow changes
 are proposed through a PR; adding hosts does not enable any production feature.
 
+The manual **Cloud runner smoke check** targets the separate
+`kinaiya-cloud-x64` label. Registration and an online listener in the cloud
+environment are required. The workflow reports the runner name and checks its
+Linux architecture, dedicated account and job hook.
+
 ## Inspected hosts
 
 Read-only inspection on November 13, 2026 preceded installation. Both machines
