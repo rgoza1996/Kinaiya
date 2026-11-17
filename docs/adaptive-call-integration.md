@@ -51,12 +51,29 @@ Process release is separate: the same logical microphone deliberately retains
 its native STT lease across decoder segments. A begin/PCM proof or a model
 completion cannot establish this final-source/cleanup boundary.
 
+The optional `SegmentedPcmCaptureAudio` adds a local
+`browser_pcm_segment_v1` rollover original. It binds `capture_epoch`,
+`next_sequence` and the acknowledged `sample_offset`; its receipt repeats that
+exact boundary and a strictly newer local capture epoch. The caller must first
+qualify native finish and cleanup separately. Rollover preserves the speaking
+hint, armed microphone and every buffered sample after the acknowledged prefix.
+It resets only local decoder counters, inside the same fixed 960,000-sample
+allocation. Exact readback is idempotent; old-segment acknowledgments cannot
+consume new samples. Pending packets, faults, stale/corrupt originals and mic
+cleanup refuse. This does not grant native permission or mark speech ended.
+
 The [qualification record](evidence/adaptive-call-integration-2026-11-17/README.md)
 retains commands, unchanged input pins, first failures and repairs. Actual
 Dart transport runs against fresh native HTTP, SQLite and synthetic Whistle IPC
 owners, using the pinned existing Flutter dependency cache with `--no-pub`.
 It verifies two decoder starts, one PCM submission, one finish and one
 cancellation, plus metadata-only observation and one retained STT lease.
+
+The [local rollover controls](evidence/pcm-segment-rollover-2026-11-17/README.md)
+separately exercise two minutes of synthetic browser input without opening a
+replacement microphone, actual bridge-to-Dart receipt/PCM parity, and the
+release web compiler. These are local protocol controls, not a physical-device
+or complete Call qualification.
 
 ## Remaining integration
 

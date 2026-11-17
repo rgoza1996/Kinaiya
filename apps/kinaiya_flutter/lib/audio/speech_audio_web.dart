@@ -31,7 +31,7 @@ class _WebSpeechAudio
         SpeechPlaybackAudio,
         AdaptiveVadAudio,
         NativePcmCaptureAudio,
-        IncrementalPcmCaptureAudio,
+        SegmentedPcmCaptureAudio,
         AudioInputSelection,
         AudioOutputSelection {
   bool get _ready => _bridge != null;
@@ -50,6 +50,29 @@ class _WebSpeechAudio
         final method = _bridge?.getProperty<JSAny?>(name.toJS);
         return method != null && method.isA<JSFunction>();
       });
+
+  @override
+  bool get supportsIncrementalPcmRollover {
+    final method = _bridge?.getProperty<JSAny?>('streamPcmRotate'.toJS);
+    return supportsIncrementalPcmCapture &&
+        method != null &&
+        method.isA<JSFunction>();
+  }
+
+  @override
+  Future<IncrementalPcmRotation> rotateIncrementalPcm(
+    IncrementalPcmBoundary original,
+  ) async {
+    if (!supportsIncrementalPcmRollover) {
+      throw StateError('Incremental microphone rollover is unavailable');
+    }
+    return IncrementalPcmRotation.fromJson(
+      jsonDecode(
+        await _str1('streamPcmRotate', jsonEncode(original.body).toJS),
+      ),
+      original,
+    );
+  }
 
   @override
   Future<void> configureIncrementalPcmCapture(bool enabled) async {

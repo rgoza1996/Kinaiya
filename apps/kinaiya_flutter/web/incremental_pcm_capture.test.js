@@ -197,3 +197,111 @@ test('one retained readiness notification wakes on original PCM or capture retir
   assert.equal(f.api.streamPcmRelease(String(epoch)),'released');
   assert.equal(await f.api.streamPcmWait(String(epoch)),'unavailable');
 });
+
+function boundary(f) {
+  const current=state(f);
+  return {capture_epoch:current.capture_epoch,next_sequence:current.next_sequence,sample_offset:current.sample_offset};
+}
+function rotate(f,original) { return f.api.streamPcmRotate(JSON.stringify(original)); }
+
+test('segment rollover preserves every unacknowledged sample and the original live microphone',async()=>{
+  const f=await armed();
+  assert.equal(typeof f.api.streamPcmRotate,'function');
+  const epoch=Number(f.api.captureEpoch());
+  f.api.vadSample(0.9,1000,epoch);
+  f.feed(new Float32Array([0.5,-0.5]));const first=packet(f);
+  assert.equal(acknowledge(f,first),'confirmed');
+  const original=boundary(f);
+  // These samples arrive while the caller waits for its exact native finish.
+  f.feed(new Float32Array([0.25,-0.25,1]));
+  const proof=JSON.parse(rotate(f,original));
+  assert.equal(proof.schema_version,'1.0');assert.equal(proof.protocol,'browser_pcm_segment_v1');
+  assert.deepEqual(proof.original,original);assert.ok(proof.capture_epoch>epoch);
+  assert.equal(Number(f.api.captureEpoch()),proof.capture_epoch);
+  const after=state(f);
+  assert.equal(after.sample_offset,0);assert.equal(after.next_sequence,1);
+  assert.equal(after.received_samples,3);assert.equal(after.buffered_samples,3);
+  assert.equal(after.active,true);
+  const next=packet(f);
+  assert.equal(next.user_speaking,true,'decoder rollover does not end the speaker');
+  assert.equal(next.capture_epoch,proof.capture_epoch);
+  assert.deepEqual([0,2,4].map(i=>Buffer.from(next.pcm16_base64,'base64').readInt16LE(i)),[8191,-8192,32767]);
+  assert.equal(acknowledge(f,first),'mismatch','a preceding segment cannot acknowledge the new packet');
+  assert.equal(rotate(f,original),JSON.stringify(proof),'exact local rollover readback is idempotent');
+  assert.deepEqual(packet(f),next);
+  f.feed(new Float32Array([-1]));
+  assert.equal(acknowledge(f,next),'confirmed');
+  assert.equal(packet(f).sample_offset,3);
+  assert.equal(f.seen.gets.length,1);assert.equal(f.seen.stopped,0);assert.equal(f.seen.recorders.length,0);
+  await f.api.stopArmed();
+});
+
+test('segment rollover refuses a pending packet stale boundaries and malformed originals',async()=>{
+  const f=await armed();assert.equal(typeof f.api.streamPcmRotate,'function');
+  f.feed(new Float32Array([0.5]));const first=packet(f),before=state(f);
+  assert.equal(rotate(f,boundary(f)),'busy');assert.deepEqual(packet(f),first);
+  assert.equal(acknowledge(f,first),'confirmed');const original=boundary(f);
+  for(const raw of ['{','[]','{}','x'.repeat(513),
+    JSON.stringify({...original,extra:true}),JSON.stringify({...original,next_sequence:2.5}),
+    JSON.stringify({...original,sample_offset:0}),JSON.stringify({...original,capture_epoch:before.capture_epoch+1}),
+    `{"capture_epoch":${original.capture_epoch},"next_sequence":2,"next_sequence":2,"sample_offset":1}`,
+    `{"capture_epoch":${original.capture_epoch},"next_sequence":2e0,"sample_offset":1}`]) {
+    assert.equal(f.api.streamPcmRotate(raw),'mismatch');
+    assert.equal(state(f).sample_offset,1);
+  }
+  const proof=JSON.parse(rotate(f,original));assert.ok(proof.capture_epoch>original.capture_epoch);
+  await f.api.stopArmed();
+});
+
+test('sequential decoder boundaries can exceed sixty seconds without releasing the armed mic',async()=>{
+  const f=await armed();assert.equal(typeof f.api.streamPcmRotate,'function');
+  let total=0;
+  for(let segment=0;segment<4;segment++) {
+    for(let block=0;block<30;block++) {
+      f.feed(new Float32Array(16000).fill((block%2?1:-1)*0.25));
+      for(let p=packet(f);p;p=packet(f)) {
+        total+=p.sample_count;assert.equal(acknowledge(f,p),'confirmed');
+      }
+    }
+    const original=boundary(f);
+    assert.equal(original.sample_offset,480000);
+    const proof=JSON.parse(rotate(f,original));assert.ok(proof.capture_epoch>original.capture_epoch);
+    assert.equal(state(f).received_samples,0);assert.equal(state(f).fault,null);
+  }
+  assert.equal(total,1920000);assert.equal(f.seen.gets.length,1);assert.equal(f.seen.stopped,0);
+  await f.api.stopArmed();
+});
+
+test('rollover wakes the old local notification and keeps the new notification owned',async()=>{
+  const f=await armed();assert.equal(typeof f.api.streamPcmRotate,'function');
+  const original=boundary(f),wait=f.api.streamPcmWait(String(original.capture_epoch));
+  const proof=JSON.parse(rotate(f,original));
+  assert.equal(JSON.parse(await wait).capture_epoch,original.capture_epoch);
+  assert.equal(await f.api.streamPcmWait(String(original.capture_epoch)),'unavailable');
+  const next=f.api.streamPcmWait(String(proof.capture_epoch));
+  assert.equal(f.api.streamPcmWait(String(proof.capture_epoch)),next);
+  f.feed(new Float32Array([0.5]));
+  assert.equal(JSON.parse(await next).capture_epoch,proof.capture_epoch);
+  await f.api.stopArmed();
+});
+
+test('fault or held actual cleanup cannot roll a local decoder segment into fresh capacity',async()=>{
+  const closing=gate(),f=await armed({closeGate:closing});
+  assert.equal(typeof f.api.streamPcmRotate,'function');
+  f.feed(new Float32Array([0.5]));assert.equal(acknowledge(f,packet(f)),'confirmed');
+  const original=boundary(f);f.feed(new Float32Array([NaN]));
+  assert.equal(rotate(f,original),'unavailable');
+  assert.equal(state(f).capture_epoch,original.capture_epoch);
+  closing.resolve();await f.api.stopArmed();
+  assert.equal(rotate(f,original),'unavailable');
+});
+
+test('a clean stopped microphone cannot roll while its original context cleanup is held',async()=>{
+  const closing=gate(),f=await armed({closeGate:closing});
+  f.feed(new Float32Array([0.5]));assert.equal(acknowledge(f,packet(f)),'confirmed');
+  const original=boundary(f),stop=f.api.stopArmed();
+  assert.equal(state(f).fault,null);assert.equal(state(f).cleanup_pending,true);
+  assert.equal(rotate(f,original),'unavailable');assert.equal(state(f).capture_epoch,original.capture_epoch);
+  closing.resolve();await stop;
+  assert.equal(f.api.streamPcmRelease(String(original.capture_epoch)),'released');
+});
