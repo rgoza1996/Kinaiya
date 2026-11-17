@@ -168,7 +168,34 @@ Additional responsive layouts, error and permission states, interaction links,
 and refined character animation remain design work. Keep sample labels and
 status indicators distinguishable from the behavior of the running product.
 
-## Native work and optional companions · November 14
+## Architecture responsibility copy · November 16
+
+The canonical local master and versioned archive now state:
+**Architecture and harness correctness; model behavior is diagnostic (#483).**
+This corrects the two native-work overview footers in [#673](https://github.com/rgoza1996/Kinaiya/issues/673).
+Model behavior does not gate architecture fixes, releases or issue closure.
+
+Current archive: **245,704,613 bytes**; SHA-256:
+`8552960ba34dd410cf33279f8034688568b2523fbb890fd965e73af4635d4e34`.
+Only the two footer name/text records changed from the November 14 archive;
+all other **50,313 members** retain their exact bytes. Shape identities,
+geometry, motion variants, navigation, artwork and original source pages remain
+unchanged. The new LFS object was uploaded and its complete remote download
+verified before updating the pointer.
+
+The canonical master retains a named, locked version from before the correction.
+Both overview variants were edited in the native editor, reloaded and checked.
+Its independent native export confirms 34 native-work boards, 136 interactive
+shapes and both flow starts. The prepared archive preserves its existing IDs;
+it is not byte-identical to the separate native export.
+
+See the [copy review](architecture-copy-review.json) and
+[verification notes](../../docs/penpot-architecture-copy-sync.md).
+This preview is the corrected native Penpot frame, extracted without image edits:
+
+![Current native Penpot overview](previews/native-work/architecture-acceptance-overview.png)
+
+## Native work and optional companions · November 14 baseline
 
 The current editable archive extends the same **Kinaiya — Master design** with
 **13 · Native work & companions**. It has 15 pages and 403 real boards. The 14
@@ -176,7 +203,7 @@ source pages, all 369 original boards, and every original archive member remain
 byte-exact. The new page has 34 boards, 744 editable native text shapes and 136
 prototype links, split into motion-on (220ms dissolve) and instant motion-off.
 
-Archive: **245,704,624 bytes**; SHA-256:
+Historical archive: **245,704,624 bytes**; SHA-256:
 `a32eb13839d17d524a3251870655640a3b4e44318f06a4ae555c75c1d74c84bd`.
 The LFS object was uploaded and its complete remote download verified before
 the tracked pointer was changed. No credentials or signed download URLs are
@@ -192,12 +219,12 @@ synthetic content.
 Converse instructions show the owner-editable handoff preference implemented
 in [PR #589](https://github.com/rgoza1996/Kinaiya/pull/589); Decisions host
 preferences are implemented in [PR #601](https://github.com/rgoza1996/Kinaiya/pull/601).
-The boards' earlier “Backend draft: #589” caption records their preparation
-baseline. The visual instruction editor, external Agent/Pi bridge, mobile
+The November 16 correction replaces the earlier overview caption with the
+architecture/harness boundary. The visual instruction editor, external Agent/Pi bridge, mobile
 transport/foreground voice and creations organization are explicitly proposed
 interfaces, not claims of shipped runtime behavior. Buffered original-audio
-turns remain distinct from planned duplex adapters. #483's actual LFM3 handoff
-quality remains unqualified.
+turns remain distinct from planned duplex adapters. Model behavior observations
+remain diagnostic and do not gate architectural acceptance.
 
 The local canonical master now has the new page, all 136 transparent painted
 hotspots and both flow starts. Native clicks exercised task states, return
@@ -216,7 +243,7 @@ changed. See the
 [review record](native-work-sync-review.json) and
 [scope/verification notes](../../docs/penpot-native-work-sync.md).
 
-![Updated local Penpot master](previews/native-work/local-master-overview.jpg)
+![Historical November 14 local Penpot master](previews/native-work/local-master-overview.jpg)
 
 ![Local mobile catch-up prototype](previews/native-work/local-master-mobile-catchup.jpg)
 
