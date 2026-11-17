@@ -1286,14 +1286,17 @@ async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_ro
             "old_http_results": finished,
         }
 
+    def old_request():
+        return asyncio.create_task(
+            env.raw.get("/v1/standing/responsibilities", headers=headers(env, "owner"))
+        )
+
     try:
-        old_jobs = [
-            asyncio.create_task(
-                env.raw.get("/v1/standing/responsibilities", headers=headers(env, "owner"))
-            )
-            for _ in range(63)
-        ]
+        # Observe a real held worker before the remaining request setup can
+        # compete with its one-second readiness witness on a slower host.
+        old_jobs.append(old_request())
         assert await asyncio.to_thread(entered.wait, 1), snapshot()
+        old_jobs.extend(old_request() for _ in range(62))
         for _ in range(100):
             if hub.active_operations == 63:
                 break
@@ -1314,6 +1317,8 @@ async def test_native_scan_shares_64_actual_operation_slots_with_old_standing_ro
     finally:
         release.set()
         await asyncio.gather(*old_jobs, *([scan_job] if scan_job else []), return_exceptions=True)
+    assert [job.result().status_code for job in old_jobs] == [200] * 63
+    assert scan_job.result().status_code == 200
     assert hub.active_operations == 0
 
 

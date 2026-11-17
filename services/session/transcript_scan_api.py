@@ -86,6 +86,7 @@ class TranscriptScanOperations(StandingOwnerOperations):
         self, request, action, argument, event, deadline, started, ingress_done, disconnected
     ):
         monitor = None
+        stop_monitor = asyncio.Event()
         try:
             if request.scope.get("query_string") or any(
                 key.lower().startswith(b"x-kinaiya-") for key, _ in request.scope["headers"]
@@ -95,7 +96,9 @@ class TranscriptScanOperations(StandingOwnerOperations):
             self._guard(event, min(deadline, started + STANDING_INGRESS_SECONDS))
             ingress_done.set()
             task = asyncio.create_task(asyncio.to_thread(self._call, argument, event, deadline))
-            monitor = asyncio.create_task(self._disconnect(request, event, disconnected))
+            monitor = asyncio.create_task(
+                self._disconnect(request, event, disconnected, stop_monitor)
+            )
             return await self._thread_result(task, event)
         except (
             HTTPException,
@@ -112,6 +115,7 @@ class TranscriptScanOperations(StandingOwnerOperations):
         finally:
             ingress_done.set()
             if monitor is not None:
+                stop_monitor.set()
                 monitor.cancel()
                 await asyncio.gather(monitor, return_exceptions=True)
 
