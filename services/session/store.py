@@ -1297,6 +1297,24 @@ class Store:
                     ).fetchone()
                     if native is not None:
                         raise AgentSubmitUnavailable
+                    # Reserve each Decisions source for one executor in the
+                    # transaction shared with the external Agent claim path.
+                    if (
+                        proposal.payload["actor"] == "decisions"
+                        and self.db.execute(
+                            "SELECT 1 FROM external_agent_claims AS c JOIN entries AS s "
+                            "ON s.event_id=c.source_event_id "
+                            "WHERE s.session_id=? AND s.thread_id=? AND s.epoch=? "
+                            "AND s.event_id IN (SELECT value FROM json_each(?)) LIMIT 1",
+                            (
+                                proposal.session_id,
+                                proposal.thread_id,
+                                proposal.epoch,
+                                json.dumps(proposal.payload["source_event_ids"]),
+                            ),
+                        ).fetchone()
+                    ):
+                        raise AgentSubmitConflict
                     # Exact historical proof above remains usable while Off.
                     # No await or second transaction separates mode and receipt.
                     self.agent_control.require_admission()

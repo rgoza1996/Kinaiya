@@ -153,7 +153,9 @@ Session verifies the recorded decision, source identity, current revision,
 instruction and disclosure scope. A corrected finalized turn keeps the
 original source ID and names the exact correction as the decision's cause.
 A recorded prior dispatch or another grant for the same source blocks a new
-send. For Rolling Windows, Session also checks the current utterance for
+send. Native Agent submission checks for an existing Pi claim for the same
+Decisions source before admitting new work. For Rolling Windows, Session
+also checks the current utterance for
 changed text and an earlier claim for the same spoken instruction. These
 checks and the claim write share one native transaction.
 

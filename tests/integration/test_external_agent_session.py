@@ -35,6 +35,8 @@ from packages.contracts.models import (
 from services.common.auth import Auth
 from services.session.api import create_app
 from services.session.store import Store
+from tests.integration.test_agent_submit_admission import ADMIT, TASK_B
+from tests.integration.test_agent_submit_admission import proposal as native_proposal
 from tests.integration.test_required_decisions_readiness import TOKENS, loopback
 
 
@@ -373,6 +375,66 @@ async def test_claim_checks_native_route_text_revision_and_disclosure(tmp_path):
         )
         claimed = await peers.decisions.claim(queued_claim(peers.store, session, rolling, binding))
         assert claimed.disposition == "original"
+
+
+@pytest.mark.parametrize("first_executor", ["pi", "native", "concurrent"])
+async def test_original_decisions_source_is_reserved_to_one_executor(tmp_path, first_executor):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        source = add(peers.store, session, "conversation.user", "One synthetic route")
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        external = queued_claim(peers.store, session, source, binding)
+        native_request = native_proposal(
+            session,
+            key=external.command.idempotency_key,
+            content_scope="public_synthetic",
+            objective=external.command.instruction,
+            source_event_ids=[source.event_id],
+        )
+        native_request = native_request.model_copy(
+            update={
+                "causes": [source.event_id],
+                "payload": {**native_request.payload, "actor": "decisions"},
+            }
+        )
+        headers = {"Authorization": "Bearer " + TOKENS["agent"]}
+        wire = native_request.model_dump(mode="json")
+        if first_executor == "pi":
+            assert (await peers.decisions.claim(external)).disposition == "original"
+            blocked = await peers.http.post(ADMIT, json=wire, headers=headers)
+            assert blocked.status_code == 409, blocked.text
+            assert not peers.store.read(kinds=["agent.command"])
+        elif first_executor == "native":
+            original = await peers.http.post(ADMIT, json=wire, headers=headers)
+            assert original.status_code == 200 and original.json()["disposition"] == "created"
+            with pytest.raises(ExternalAgentNativeConflict):
+                await peers.decisions.claim(external)
+            retained = await peers.http.post(ADMIT, json=wire, headers=headers)
+            assert retained.status_code == 200 and retained.json()["disposition"] == "retained"
+            assert retained.json()["entry"] == original.json()["entry"]
+        else:
+            native_result, external_result = await asyncio.gather(
+                peers.http.post(ADMIT, json=wire, headers=headers),
+                peers.decisions.claim(external),
+                return_exceptions=True,
+            )
+            if native_result.status_code == 200:
+                assert isinstance(external_result, ExternalAgentNativeConflict)
+                assert native_result.json()["disposition"] == "created"
+            else:
+                assert (
+                    native_result.status_code == 409 and external_result.disposition == "original"
+                )
+
+        separate_owner = native_proposal(session, task_id=TASK_B, key="independent-owner-action")
+        accepted = await peers.http.post(
+            ADMIT,
+            json=separate_owner.model_dump(mode="json"),
+            headers=headers,
+        )
+        assert accepted.status_code == 200 and accepted.json()["disposition"] == "created"
 
 
 @pytest.mark.parametrize("superseded", [False, True])
