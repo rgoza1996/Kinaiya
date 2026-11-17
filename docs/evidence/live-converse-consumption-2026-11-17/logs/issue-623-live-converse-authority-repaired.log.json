@@ -1,0 +1,4 @@
+{
+  "encoding": "utf-8",
+  "content": "...F.................................................................... [ 93%]\n.....                                                                    [100%]\n=================================== FAILURES ===================================\n_______ test_noninterrupting_native_reply_waits_for_actual_speaking_hint _______\ntests/integration/test_live_converse_consumer.py:124: in test_noninterrupting_native_reply_waits_for_actual_speaking_hint\n    assert result.completion.status == \"recorded\"\nE   AssertionError: assert 'declined' == 'recorded'\nE     \nE     - recorded\nE     + declined\n=========================== short test summary info ============================\nFAILED tests/integration/test_live_converse_consumer.py::test_noninterrupting_native_reply_waits_for_actual_speaking_hint\n1 failed, 76 passed in 20.77s\n"
+}

@@ -1,7 +1,8 @@
 # Native live outcome consumption (#623)
 
-Status: gated development boundary. An explicit [native Agent consumer](live-agent-consumption.md)
-now uses it in trusted embeddings. The normal host and browser Call do not
+Status: gated development boundary. Explicit [native Agent](live-agent-consumption.md)
+and [native Converse](live-converse-consumption.md) consumers
+use it in trusted embeddings. The normal host and browser Call do not
 enable a v2 consumer. Legacy speech sources gain no live revision equivalence.
 This ledger alone does not complete Adaptive Live.
 
@@ -17,7 +18,11 @@ two; Decisions owns the last. The original decision must actually select that
 effect. Reads grant nothing and create no table, reservation, inference or wake.
 Owner, Converse, Decisions and Agent can look up metadata; Resources cannot.
 
-Converse admission requires current native capture/source authority. A published
+Converse admission requires current native capture/source authority. Published
+Converse effects can survive harmless speaking/end-hint revisions with unchanged
+text, disclosure, STT and complete native capture history. Current capture
+permission and later source-ordered native wait/conversation controls remain
+required. Decisions inference/publication freshness stays strict. A published
 Agent outcome retains independent user authority after microphone closure. A separate atomic
 start binds one actual executor instance and operation. An unstarted reservation
 can be adopted after owner replacement. Once started, a different executor is
@@ -56,8 +61,10 @@ own depth/node limits; the frozen STT parser stays unchanged. JournalClient keep
 the original bounded HTTP read and sole close after facade cancellation and
 performs no automatic write replay. LocalJournal preserves role parity.
 
-The explicit Agent consumer has bounded discovery and native evidence/source
-qualification. Actual Converse output/playback, complete process replacement,
-Call integration, representative timings and qualified
+Both explicit consumers have bounded discovery and native evidence/source
+qualification. Native Converse output and speech authority use the original
+Converse owner; this does not qualify physical playback. Complete process
+replacement, Call integration, echo/mute/accessibility/no-audio controls,
+representative timings and qualified
 rollout remain outstanding in #623. Model quality is diagnostic and is not an
 acceptance gate.

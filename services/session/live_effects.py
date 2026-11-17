@@ -95,10 +95,80 @@ class LiveEffectStore:
 
     def _current(self, query):
         try:
-            self.store.live_decisions_attempts.check_current(query.publication.source)
+            if query.effect == "agent_route":
+                self.store.live_decisions_attempts.check_current(query.publication.source)
+            else:
+                self._converse_authority(query.publication, query.effect)
             return True
-        except DecisionsAttemptConflict:
+        except (DecisionsAttemptConflict, LiveEffectConflict):
             return False
+
+    def _converse_authority(self, publication, effect):
+        from services.session.live_agent_sources import unchanged_capture_history
+        from services.session.live_windows import latest
+
+        binding = publication.source
+        source = self.store.live_decisions_attempts._source(binding)
+        permission = self.store.live_captures.source_state(binding.publication)
+        if not permission.capture_permits_source or permission.capture.receipt != binding.capture:
+            raise LiveEffectConflict("Original Converse capture permission is no longer current")
+        current = latest(
+            self.store,
+            source.session_id,
+            source.thread_id,
+            source.epoch,
+            binding.publication.utterance_id,
+        )
+        if current is None:
+            raise LiveEffectConflict("Original Converse source is unavailable")
+        pair = current.latest
+        original = binding.publication
+        resolved = self.store.resolve(source.event_id)
+        if (
+            (pair.original.owner_instance, pair.original.capture_id)
+            != (original.owner_instance, original.capture_id)
+            or any(
+                pair.source.payload.get(key) != source.payload.get(key)
+                or resolved.payload.get(key) != source.payload.get(key)
+                for key in ("text", "content_scope", "stt_model")
+            )
+            or not unchanged_capture_history(self.store, source, pair.source, same_slot=False)
+        ):
+            raise LiveEffectConflict("Original Converse user authority changed")
+        # Publication order can lag the original source. Only a control from
+        # a newer captured source can fence this producer. Switching between
+        # acknowledgment and full-reply intent also supersedes the older mode.
+        controlled = self.store.db.execute(
+            """SELECT 1 FROM decisions_attempt_outcomes o
+            JOIN entries e ON e.event_id=o.event_id
+            JOIN entries s ON s.event_id=o.source_event_id
+            WHERE e.kind=? AND e.writer='decisions'
+              AND e.session_id=? AND e.thread_id=? AND e.epoch=?
+              AND s.kind='conversation.window' AND s.writer='converse'
+              AND s.session_id=e.session_id AND s.thread_id=e.thread_id AND s.epoch=e.epoch
+              AND s.sequence>?
+              AND json_extract(e.value,'$.payload.decision.conversation')!='IGNORE'
+              AND (json_extract(e.value,'$.payload.decision.conversation')='WAIT_FOR_NEXT_WINDOW'
+                OR (?='converse_backchannel' AND json_extract(e.value,'$.payload.decision.conversation')
+                  IN ('RESPOND_INTERRUPT_USER','RESPOND_WITHOUT_INTERRUPTING_USER'))
+                OR (?='converse_reply' AND json_extract(e.value,'$.payload.decision.conversation')='WAIT_WITH_BACKCHANNEL')
+                OR json_extract(s.value,'$.payload.utterance_id')!=?
+                OR json_extract(s.value,'$.payload.text')!=?)
+            LIMIT 1""",
+            (
+                OUTCOME_KIND,
+                source.session_id,
+                source.thread_id,
+                source.epoch,
+                source.sequence,
+                effect,
+                effect,
+                source.payload["utterance_id"],
+                source.payload["text"],
+            ),
+        ).fetchone()
+        if controlled is not None:
+            raise LiveEffectConflict("A later native conversation control fenced this reply")
 
     def lookup(self, query):
         query = LiveEffectQuery.model_validate(query, strict=True)
@@ -266,7 +336,7 @@ class LiveEffectStore:
             if request.effect == "agent_route":
                 self._agent_authority(request.publication)
             else:
-                self.store.live_decisions_attempts.check_current(request.publication.source)
+                self._converse_authority(request.publication, request.effect)
             if (
                 db.execute("SELECT count(*) FROM live_effects").fetchone()[0] >= MAX_RECORDS
                 or db.execute(
@@ -335,7 +405,7 @@ class LiveEffectStore:
                             "Another original Agent handoff remains unconfirmed"
                         )
             else:
-                self.store.live_decisions_attempts.check_current(original.publication.source)
+                self._converse_authority(original.publication, original.effect)
             through = db.execute("SELECT coalesce(max(sequence),0) FROM entries").fetchone()[0]
             started = LiveEffectStarted(
                 schema_version="2.0",
@@ -410,6 +480,26 @@ class LiveEffectStore:
             )
         )
 
+    @staticmethod
+    def _converse_evidence(record, outcome, evidence):
+        original = record.receipt.original
+        source = original.publication.source.original
+        return (
+            record.started is not None
+            and evidence.sequence > record.started.through_sequence
+            and (evidence.session_id, evidence.thread_id, evidence.epoch)
+            == (source.session_id, source.thread_id, source.epoch)
+            and evidence.kind == "conversation.converse"
+            and evidence.origin == "converse"
+            and evidence.causes == [source.source_event_id]
+            and evidence.payload.get("window_source_id") == source.source_event_id
+            and evidence.payload.get("window_utterance_id")
+            == original.publication.source.publication.utterance_id
+            and evidence.payload.get("window_behavior") == outcome.decision.conversation
+            and evidence.payload.get("final") is True
+            and evidence.idempotency_key == effect_key(record.receipt) + ":0"
+        )
+
     def evidence(self, receipt):
         receipt = LiveEffectReceipt.model_validate(receipt, strict=True)
         query = LiveEffectQuery(
@@ -418,8 +508,8 @@ class LiveEffectStore:
         with self.store.lock:
             entry, outcome = self._outcome(query)
             record = self._record(entry.event_id, query)
-            if record is None or record.receipt != receipt or query.effect != "agent_route":
-                raise LiveEffectConflict("Original Agent reservation is unavailable")
+            if record is None or record.receipt != receipt:
+                raise LiveEffectConflict("Original consumer reservation is unavailable")
             evidence = None
             if record.started is not None:
                 source = query.publication.source.original
@@ -430,7 +520,14 @@ class LiveEffectStore:
                     source.epoch,
                     record.started.through_sequence,
                 )
-                if outcome.decision.agent_route == "STEER_CURRENT_TASK":
+                if query.effect != "agent_route":
+                    rows = self.store.db.execute(
+                        "SELECT e.event_id FROM entries e WHERE e.idem=? "
+                        "AND e.kind='conversation.converse' AND e.writer='converse' "
+                        "AND e.session_id=? AND e.thread_id=? AND e.epoch=? AND e.sequence>? LIMIT 2",
+                        (args[0] + ":0", *args[1:]),
+                    ).fetchall()
+                elif outcome.decision.agent_route == "STEER_CURRENT_TASK":
                     rows = self.store.db.execute(
                         "SELECT e.event_id FROM agent_steer_intents i JOIN entries e ON e.event_id=i.event_id "
                         "WHERE i.key=? AND e.session_id=? AND e.thread_id=? AND e.epoch=? AND e.sequence>? LIMIT 2",
@@ -447,8 +544,13 @@ class LiveEffectStore:
                     raise LiveEffectConflict("Original Agent evidence is ambiguous")
                 if rows:
                     actual = self.store.entry(rows[0][0])
-                    if not self._agent_evidence(record, outcome, actual):
-                        raise LiveEffectConflict("Original Agent evidence binding changed")
+                    valid = (
+                        self._agent_evidence(record, outcome, actual)
+                        if query.effect == "agent_route"
+                        else self._converse_evidence(record, outcome, actual)
+                    )
+                    if not valid:
+                        raise LiveEffectConflict("Original consumer evidence binding changed")
                     evidence = LiveEffectEvidence(
                         event_id=actual.event_id, sequence=actual.sequence
                     )
@@ -490,17 +592,7 @@ class LiveEffectStore:
                 if original.effect == "agent_route":
                     valid = self._agent_evidence(record, outcome, evidence)
                 else:
-                    valid = (
-                        evidence.kind == "conversation.converse"
-                        and evidence.origin == "converse"
-                        and evidence.causes == [source.source_event_id]
-                        and evidence.payload.get("window_source_id") == source.source_event_id
-                        and evidence.payload.get("window_utterance_id")
-                        == original.publication.source.publication.utterance_id
-                        and evidence.payload.get("window_behavior") == outcome.decision.conversation
-                        and evidence.payload.get("final") is True
-                        and evidence.idempotency_key == effect_key(record.receipt) + ":0"
-                    )
+                    valid = self._converse_evidence(record, outcome, evidence)
                 if not valid:
                     raise LiveEffectConflict(
                         "Consumer evidence has no authenticated original action"

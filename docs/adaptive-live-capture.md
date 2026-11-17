@@ -68,6 +68,11 @@ session turns and exact-result recovery. It retains the original wake and cleanu
 owners. Host/Call and consumer integration remain separate work; Adaptive Live
 continues to report unavailable while its feature gate is off.
 
+The optional [native Converse consumer](live-converse-consumption.md) joins the
+native Agent consumer behind trusted embedding. Backchannel and full-reply
+effects share the original Converse generation/speech owner and preserve the
+armed capture. Normal host/Call integration and complete rollout remain open.
+
 Only fresh eligible transcript or speaking/capture-state changes can admit new
 Adaptive inference. Persisted duplicate hypotheses do not spin the worker.
 Keep one in-flight inference per worker by default, coalesce pending work to the

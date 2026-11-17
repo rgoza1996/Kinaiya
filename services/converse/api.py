@@ -286,26 +286,54 @@ class SpeechTurnResponse(TypedTurnResponse):
 
 
 def create_app(
-    runtime, auth, speech=None, window_controller=None, *, setup=None, live_dependency=None
+    runtime,
+    auth,
+    speech=None,
+    window_controller=None,
+    *,
+    setup=None,
+    live_dependency=None,
+    live_consumer=None,
 ):
     from services.converse.capture_api import install_capture_controls
     from services.converse.memory_api import install_memory_controls
     from services.converse.stt_model_api import install_stt_model_controls
     from services.converse.tts_model_api import install_tts_model_controls
 
+    if live_consumer is not None:
+        from services.converse.live import LiveConverseController
+
+        if (
+            not isinstance(live_consumer, LiveConverseController)
+            or live_consumer is not window_controller
+            or live_consumer.runtime is not runtime
+        ):
+            raise ValueError("Live Converse requires its original native window owner")
+
     @asynccontextmanager
     async def lifespan(app):
-        if live_dependency is None:
+        if live_dependency is None and live_consumer is None:
             yield
             return
+        live_task = None
         try:
-            await live_dependency.start()
+            if live_dependency is not None:
+                await live_dependency.start()
+            if live_consumer is not None:
+                live_task = asyncio.create_task(live_consumer.run())
             yield
         finally:
             try:
-                await live_streams.close()
+                if live_consumer is not None:
+                    app.state.live_consumer_cleanup_confirmed = await live_consumer.close()
+                    if live_task is not None and live_task.done():
+                        await asyncio.gather(live_task, return_exceptions=True)
             finally:
-                await live_dependency.close()
+                try:
+                    await live_streams.close()
+                finally:
+                    if live_dependency is not None:
+                        await live_dependency.close()
 
     app = FastAPI(title="Kinaiya Converse", version="1.0", lifespan=lifespan)
     owner = [Depends(auth.require("owner"))]

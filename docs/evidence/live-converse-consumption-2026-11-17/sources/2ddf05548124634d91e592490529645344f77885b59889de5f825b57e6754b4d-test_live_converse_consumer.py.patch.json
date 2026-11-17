@@ -1,0 +1,4 @@
+{
+  "encoding": "utf-8",
+  "content": "--- a/tests/integration/test_live_converse_consumer.py\n+++ b/tests/integration/test_live_converse_consumer.py\n@@ -597,9 +597,7 @@\n \n \n @pytest.mark.parametrize(\"pending_close\", [False, True])\n-async def test_terminal_native_wake_failure_recovers_without_releasing_original_cleanup(\n-    live, monkeypatch, pending_close\n-):\n+async def test_terminal_native_wake_failure_recovers_without_releasing_original_cleanup(live, monkeypatch, pending_close):\n     from packages.contracts.operation_ownership import retain_task\n \n     controller, provider = consumer(live, \"Public recovered response.\")\n"
+}

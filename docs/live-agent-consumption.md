@@ -3,8 +3,9 @@
 Status: gated trusted embedding. `LiveAgentDispatcher` executes native v2
 handoffs and can be supplied explicitly to Decisions `create_app` with the same
 native journal owner. Normal launcher, Call and Capture Mode rollout remain off.
-Converse backchannel/output and complete process replacement qualification remain
-separate unfinished parts of #623.
+An optional [native Converse consumer](live-converse-consumption.md) owns
+backchannel/output separately. Complete process replacement and integrated Call
+qualification remain unfinished parts of #623.
 
 The consumer discovers bounded native publications through
 `POST /v2/transcript/live-effects/pending`. Each delivery is checked against its

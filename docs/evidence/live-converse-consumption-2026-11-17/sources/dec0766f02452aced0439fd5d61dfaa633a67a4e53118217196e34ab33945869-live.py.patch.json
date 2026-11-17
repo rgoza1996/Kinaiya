@@ -1,0 +1,4 @@
+{
+  "encoding": "utf-8",
+  "content": "--- a/services/converse/live.py\n+++ b/services/converse/live.py\n@@ -486,11 +486,8 @@\n                 while not self.closed:\n                     try:\n                         if self.native_wait is not None and self.native_wait.done():\n-                            # A terminal error must not pin the loop to this\n-                            # observation. Its actual cleanup stays enrolled.\n-                            native_wait = self.native_wait\n+                            self.native_wait.result()\n                             self.native_wait = None\n-                            native_wait.result()\n                         self.changed.clear()\n                         before = await self.journal.journal_wake_cursor()\n                         backlog = await self.step()\n"
+}

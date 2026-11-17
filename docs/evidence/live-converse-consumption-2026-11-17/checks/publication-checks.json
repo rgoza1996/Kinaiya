@@ -1,0 +1,13 @@
+{
+  "captured_python_inputs": 914,
+  "both_current_qualified_receipts_match_source": true,
+  "schema_files_unchanged": 594,
+  "original_assertion_asts_preserved": 28,
+  "current_assertion_count": 103,
+  "logs_audited_byte_exact": 21,
+  "first_snapshots_reconstructed_byte_exact": 24,
+  "smaller_patches_reconstructed_without_fuzz": 18,
+  "high_precision_secret_scan": "no matching credentials or private keys in staged files",
+  "staged_whitespace": "passed before this record; checked again before commit",
+  "full_current_head_hosted_ci": "required after publication; not yet claimed"
+}

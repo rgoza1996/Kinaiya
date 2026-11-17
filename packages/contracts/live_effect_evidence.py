@@ -1,4 +1,4 @@
-"""Passive original Agent command evidence; never a second handoff grant."""
+"""Passive original native command/chunk evidence; never a second effect grant."""
 
 from typing import Literal
 

@@ -1,0 +1,13 @@
+{
+  "baseline_run": "issue-623-live-converse-final2-broader-313",
+  "baseline_result": "2194 passed,1 existing warning",
+  "all_inputs": 914,
+  "changed_inputs": [
+    "services/converse/live.py",
+    "tests/integration/test_live_converse_consumer.py"
+  ],
+  "only_production_delta": "Completed wake observation clears its loop reference before result can raise; original actual cleanup remains enrolled. All other production and existing-test bytes identical.",
+  "old_sha256": "dec0766f02452aced0439fd5d61dfaa633a67a4e53118217196e34ab33945869",
+  "new_sha256": "ddadd7d606e15268a632568756d846481ce789c958c95b904d87201b2d8e6c18",
+  "verification_plan": "Current composed776-case target set on both pinned Python3.13 and3.14, including new terminal-read/cleanup controls; complete hosted current-head CI remains required. No third full local2194 rerun: only the exactly verified wake block changed."
+}
