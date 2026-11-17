@@ -124,6 +124,7 @@ class StandingResourceFinalizationOperations(StandingOwnerOperations):
         self, request, action, argument, event, deadline, started, ingress_done, disconnected
     ):
         monitor = None
+        stop_monitor = asyncio.Event()
         try:
             query = self._query(request, action)
             if action not in _BODIES or any(
@@ -137,7 +138,9 @@ class StandingResourceFinalizationOperations(StandingOwnerOperations):
             task = asyncio.create_task(
                 asyncio.to_thread(self._call, action, argument, query, event, deadline)
             )
-            monitor = asyncio.create_task(self._disconnect(request, event, disconnected))
+            monitor = asyncio.create_task(
+                self._disconnect(request, event, disconnected, stop_monitor)
+            )
             return await self._thread_result(task, event)
         except (HTTPException, StandingConflict, StandingUnavailable):
             raise
@@ -149,6 +152,7 @@ class StandingResourceFinalizationOperations(StandingOwnerOperations):
         finally:
             ingress_done.set()
             if monitor is not None:
+                stop_monitor.set()
                 monitor.cancel()
                 await asyncio.gather(monitor, return_exceptions=True)
 
