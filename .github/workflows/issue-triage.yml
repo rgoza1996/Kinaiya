@@ -1,0 +1,39 @@
+name: Label untriaged issues
+
+on:
+  issues:
+    types: [opened, reopened, transferred, unlabeled]
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Find issues without labels
+        run: |
+          if [[ -n "$ISSUE_NUMBER" ]]; then
+            printf '%s\n' "$ISSUE_NUMBER" > "$RUNNER_TEMP/issues"
+          else
+            gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" \
+              --jq '.[] | select(.pull_request == null and (.labels | length) == 0) | .number' \
+              > "$RUNNER_TEMP/issues"
+          fi
+      - name: Mark issues awaiting classification
+        run: |
+          while read -r number; do
+            issue="repos/$GITHUB_REPOSITORY/issues/$number"
+            count=$(gh api "$issue" --jq '.labels | length')
+            if [[ "$count" == 0 ]]; then
+              gh api --method POST "$issue/labels" -f 'labels[]=needs triage' --silent
+              echo "Labeled issue #$number"
+            fi
+          done < "$RUNNER_TEMP/issues"
