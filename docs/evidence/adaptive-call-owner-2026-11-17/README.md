@@ -48,6 +48,13 @@ The [Call ownership contract](../../adaptive-call-integration.md) and
 ordering, limits, no-audio readiness and retained cleanup.
 
 First failing outputs, diagnostic runs and repair runs remain under `logs/`;
+each `.log.json` archive stores the exact original UTF-8 output in `text` and
+its original byte digest in `sha256`. Decoding and UTF-8 encoding that field
+recovers the original bytes. Receipt and manifest `log_sha256` values describe
+those original bytes; `log_archive_sha256` describes the JSON file. The first
+whole-diff whitespace check failed on raw failure-log blank lines in 15 files;
+the manifest preserves that diagnostic. Lossless wrapping repairs the archive
+format without trimming or changing the failed outputs.
 27 original source snapshots remain under `sources/`. The manifest marks only
 the eight final runs as final-source qualification. Earlier 441-case runs and
 the first release build predate the held-reply repair and are historical.

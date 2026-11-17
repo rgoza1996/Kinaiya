@@ -1295,362 +1295,452 @@
     "issue-623-actual-call-consumer-first": {
       "receipt": "logs/issue-623-actual-call-consumer-first-receipt.json",
       "receipt_sha256": "a45a09ba12e6b607155a96618ddd22e98cbfc0430aa1cf4772a9c5623311a086",
-      "log": "logs/issue-623-actual-call-consumer-first.log",
+      "log": "logs/issue-623-actual-call-consumer-first.log.json",
       "log_sha256": "c26788fa10ac7bde18746fb27f2e93bb932fc095ff2039130456f1eabe22fa24",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "e6fe2f53c40bc274538067ebf932b1b3d2f64c81df2fadb4ac7a1732be2d58e4",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-actual-call-journal-wake": {
       "receipt": "logs/issue-623-actual-call-journal-wake-receipt.json",
       "receipt_sha256": "db973209246346be0b92c88de7b3ebf3b966182fae2f378f8ad8819027e1d2fb",
-      "log": "logs/issue-623-actual-call-journal-wake.log",
+      "log": "logs/issue-623-actual-call-journal-wake.log.json",
       "log_sha256": "f01604592102b13523a2cd14033fc4e74594db72e48fbbc640d19c980e097efc",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "9914042daeba12debdcda2b90cfbee5d8f9b691f0da260401463bfb2fb83ab90",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-actual-call-widget-first": {
       "receipt": "logs/issue-623-actual-call-widget-first-receipt.json",
       "receipt_sha256": "eec8270ceee35d034249e113ac9afbfd07c5f7059efa3c8829819efc28082470",
-      "log": "logs/issue-623-actual-call-widget-first.log",
+      "log": "logs/issue-623-actual-call-widget-first.log.json",
       "log_sha256": "07713b87185c1ed248dbdc645e30ca2e5a97a3ec762d677ca26c7258f0b8139e",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "5b2f44039c3fbbe19e037be976b64ad664e1b3b55111b0c906a47da3e9caa659",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-actual-call-widget-loopback": {
       "receipt": "logs/issue-623-actual-call-widget-loopback-receipt.json",
       "receipt_sha256": "bb53bc54eb489463b39d1c45062741ef11b15670f1156e50208d79bd239b71b5",
-      "log": "logs/issue-623-actual-call-widget-loopback.log",
+      "log": "logs/issue-623-actual-call-widget-loopback.log.json",
       "log_sha256": "17ee7756f0f9d650af75b9fc262bfea5431c05102acf366f071dded715645d69",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "f759a50cf88d9be8dc5dfdc066cba8786091d934831478851eef36f12a70622e",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-browser-final": {
       "receipt": "logs/issue-623-call-browser-final-receipt.json",
       "receipt_sha256": "70dab903d1b7a3912ae4bcc9e2646258a3d2dd8f7b2f35066bbb15925aa89076",
-      "log": "logs/issue-623-call-browser-final.log",
+      "log": "logs/issue-623-call-browser-final.log.json",
       "log_sha256": "e34ce90beef007a0e7e259d424b799498d80b156e77781b10a9e516b4b5fd5ee",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "bd859fab5051bfaf0a38d1c87e16f2e56df4d8def69364edbead6c1315a1a888",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-composed-final-313": {
       "receipt": "logs/issue-623-call-composed-final-313-receipt.json",
       "receipt_sha256": "b44dc54f353836950d303cc3bcaedc4415bf7d92c0879d4499cc88d568cffe4b",
-      "log": "logs/issue-623-call-composed-final-313.log",
+      "log": "logs/issue-623-call-composed-final-313.log.json",
       "log_sha256": "dd187b523d0a42a1fe66510739f8d2969960e8e011fa97c638bc5176640785d5",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "5a99b007c0c0cc34dea0d097dc141bc6fcdd77573455d8771de21ef0bfb18d57",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-composed-final-314": {
       "receipt": "logs/issue-623-call-composed-final-314-receipt.json",
       "receipt_sha256": "70cf814c164c3d8a097d025a0193b114553baed5c1ddab0be4aaacefd08625bb",
-      "log": "logs/issue-623-call-composed-final-314.log",
+      "log": "logs/issue-623-call-composed-final-314.log.json",
       "log_sha256": "17857763a9376fbb447eb7b916db9490d31b8f234ee817c4ce6e09a9c267f630",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "196c12e514d7506b20aec621231f0d6428bb919b4df6a461e58b66fdf1522760",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-consumer-diagnostic": {
       "receipt": "logs/issue-623-call-consumer-diagnostic-receipt.json",
       "receipt_sha256": "d6fb74ff16613dafff4a954c22c4cff7e9ec808d15b26924b619471519322c77",
-      "log": "logs/issue-623-call-consumer-diagnostic.log",
+      "log": "logs/issue-623-call-consumer-diagnostic.log.json",
       "log_sha256": "e97da2f7d78fb1c1824c4c612d15b488cf98c85e10ef7d3b4993e16fa8c73a63",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "3a785d51c3a25c96493d278f2280e34ef3a3e012e67fae10eeb35ccf1f97e997",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-consumer-journal-repaired": {
       "receipt": "logs/issue-623-call-consumer-journal-repaired-receipt.json",
       "receipt_sha256": "d38f89fb2f7ff25bd7eab947434c326a7b033a9816aa28f25532d6af2adc379f",
-      "log": "logs/issue-623-call-consumer-journal-repaired.log",
+      "log": "logs/issue-623-call-consumer-journal-repaired.log.json",
       "log_sha256": "2498b7dfbafc5dd1d2032b8a2657ff98d225a1463bf26fa2321a0d2d68d47640",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "65e347630006df4cbcb79d63e066787c5c573a7a334e9109e45771190cee5038",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-consumer-listener-diagnostic": {
       "receipt": "logs/issue-623-call-consumer-listener-diagnostic-receipt.json",
       "receipt_sha256": "8388443deb0ed0c3d9d4c36b4b3402e25e9a1196efaca2b50f3e3dc075ad0d59",
-      "log": "logs/issue-623-call-consumer-listener-diagnostic.log",
+      "log": "logs/issue-623-call-consumer-listener-diagnostic.log.json",
       "log_sha256": "ced3798d60df1b9e87ea1ba49b9385d101436d5add44dad793c1bdb177d66eec",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "79f25360b5b4f134b46db7a351b94933949d47c40c681bbf1234ef594038dbd7",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-existing-regression": {
       "receipt": "logs/issue-623-call-existing-regression-receipt.json",
       "receipt_sha256": "7e46cedd3807f4ab360d9c34d283bd59fec560a3005c24c56746a6008e09ff82",
-      "log": "logs/issue-623-call-existing-regression.log",
+      "log": "logs/issue-623-call-existing-regression.log.json",
       "log_sha256": "08fc2af0d008c18a7dbf2f2f71a9368d8c3e20c3f874ee1d6ac55bb9c7d2ff17",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "13d45e207ad0f1ce772b684e6e1549a39029512099caca3c246c7dee91b0dd7a",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-format-final": {
       "receipt": "logs/issue-623-call-format-final-receipt.json",
       "receipt_sha256": "4549000db3ac46a1c1cfbec9ac65b921a3169730f1b667cf57119c4e5e7c97a5",
-      "log": "logs/issue-623-call-format-final.log",
+      "log": "logs/issue-623-call-format-final.log.json",
       "log_sha256": "66fa1662c50acd8dab74322721f58e3e28048b7651be59620b53f94c8364a95e",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "47d12b62e3ca289abcde687b04dee64dd251b75a9635bed886a067d67d0985e6",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-frontend-composed-final": {
       "receipt": "logs/issue-623-call-frontend-composed-final-receipt.json",
       "receipt_sha256": "169798b8e2c1f2767885be130f7d1c81965ae720088f0d9e4da10fea79321106",
-      "log": "logs/issue-623-call-frontend-composed-final.log",
+      "log": "logs/issue-623-call-frontend-composed-final.log.json",
       "log_sha256": "995decf03f53b6ca0b3d089cef42156734eae02494b81fb1c02bb900e8f80021",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "d8229c4df60cc41e39a1127f1e95ae2b8544fb0f118fcfea02d228a1619fdab2",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-held-reply-first": {
       "receipt": "logs/issue-623-call-held-reply-first-receipt.json",
       "receipt_sha256": "98aa2415a719b9ea3012370842f6740d62aff4c81b4044183b180e5755fd13a8",
-      "log": "logs/issue-623-call-held-reply-first.log",
+      "log": "logs/issue-623-call-held-reply-first.log.json",
       "log_sha256": "ba3d9f3776a6ef185ef36aec241b0489212539b5b18bccd57bd99085cedea359",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "5684110146342b27f890a2c9967a4ebb786424beae17cfc3873b9d1d095e4d76",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-held-stop-first": {
       "receipt": "logs/issue-623-call-held-stop-first-receipt.json",
       "receipt_sha256": "2ff889ca3fa0437d107b8c7c14a9c4623270c57938c3cce9c618cfe5a730ea67",
-      "log": "logs/issue-623-call-held-stop-first.log",
+      "log": "logs/issue-623-call-held-stop-first.log.json",
       "log_sha256": "afcc505462260b44d3315252972b59b8789aa9d9b8f77d6482eb563b04b83b7e",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "946c3f7173bd5d6bf4cf4e80ce299286c5fc588246cf2468107e9de675ba96e7",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-journal-codec-control-first": {
       "receipt": "logs/issue-623-call-journal-codec-control-first-receipt.json",
       "receipt_sha256": "ea42b2fcd201e0d53e5210915a8fd3862205a75ffbec19881d3b9cee3561ba5d",
-      "log": "logs/issue-623-call-journal-codec-control-first.log",
+      "log": "logs/issue-623-call-journal-codec-control-first.log.json",
       "log_sha256": "2665a4a30e4ff4dca58e638846e534db42ebeb46fec871c9109e61b04e9e249a",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "4ab7ca6811af739689ac2200882dcfab0c5b66f1b8428aa1deec71b81fd15e91",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-journal-codec-control-json": {
       "receipt": "logs/issue-623-call-journal-codec-control-json-receipt.json",
       "receipt_sha256": "b97454e6d718b241e8ca9f101d57eeab93c66c2643643fba8c4e45266a408dd4",
-      "log": "logs/issue-623-call-journal-codec-control-json.log",
+      "log": "logs/issue-623-call-journal-codec-control-json.log.json",
       "log_sha256": "b6878018a9cc2237db9a340f139217b2d1287edab492789c2c9e9810d69c95c2",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "30650851bdd9f0c1c7f423e43782a49a10c3fd4ac337ff14b9806573a5399b35",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-journal-codec-repaired": {
       "receipt": "logs/issue-623-call-journal-codec-repaired-receipt.json",
       "receipt_sha256": "9e7935e7da940e622c88f9b2ec7e23e1559f39d16d056b5099179a3fffdcf42e",
-      "log": "logs/issue-623-call-journal-codec-repaired.log",
+      "log": "logs/issue-623-call-journal-codec-repaired.log.json",
       "log_sha256": "57a5ce1e15360798af63341f2ed9a18fdd78b870adeb2114424f651f21368147",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "189f73ea7ce102b9a9e3459f46467e262d3ed9b1c93b9462bb39d651e849b618",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-journal-expanded": {
       "receipt": "logs/issue-623-call-journal-expanded-receipt.json",
       "receipt_sha256": "656d16bf06c0885da5f2cb0023d6ea098754d2f9476b602de6dac1c7814eede0",
-      "log": "logs/issue-623-call-journal-expanded.log",
+      "log": "logs/issue-623-call-journal-expanded.log.json",
       "log_sha256": "8f2cce9752118785c07723fa1b21810017c1c8bdca5f1d7a0d4cf8d4d64aeabb",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "eb5eb63a0a643886d1751af55c7ccda4c70cc502719f79a3253a2edc19f1da2a",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-journal-expanded-repaired": {
       "receipt": "logs/issue-623-call-journal-expanded-repaired-receipt.json",
       "receipt_sha256": "c39ffba3c0230cb3c889375e375ce7b8b41d1107c46e335765111a1ff187df2f",
-      "log": "logs/issue-623-call-journal-expanded-repaired.log",
+      "log": "logs/issue-623-call-journal-expanded-repaired.log.json",
       "log_sha256": "aedec2154c9cb41b43125d0e6545f573ba1020682845aeb9966ef5878871c8d2",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "488651bccbab5421067a68c32222c50315c6fd909306a363e8e8e89a82e8111a",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-owner-analyzer-expanded": {
       "receipt": "logs/issue-623-call-owner-analyzer-expanded-receipt.json",
       "receipt_sha256": "98ac10c0726a87e489ffa1a2493e80bf5cd3592d3ad904f74202072bf4d324af",
-      "log": "logs/issue-623-call-owner-analyzer-expanded.log",
+      "log": "logs/issue-623-call-owner-analyzer-expanded.log.json",
       "log_sha256": "b06aebb13f92ed29009e0b3980be147ee9289623bbd8e643ab3c56a93cc3e60c",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "9b4514500eb82542943757414b3ca25dde5fb6f5ce5b6452ea7262924d248886",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-owner-analyzer-final": {
       "receipt": "logs/issue-623-call-owner-analyzer-final-receipt.json",
       "receipt_sha256": "e6cdbe816f9313d32ce9f0970d78d5d3f1f331e1a529d662e7216a920e1f281f",
-      "log": "logs/issue-623-call-owner-analyzer-final.log",
+      "log": "logs/issue-623-call-owner-analyzer-final.log.json",
       "log_sha256": "ef8d0c0714b01f1c1f3db3d7128e36cb0fea164b2389322ba2b1eb4262384e76",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "44754bf59599764c3ef2dc57c079e37a3350321abe5847714d9197e4b8271cac",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-owner-analyzer-first": {
       "receipt": "logs/issue-623-call-owner-analyzer-first-receipt.json",
       "receipt_sha256": "f988ef05b5ae626c515c1e14a4828b7dbfea0289393861fc7bb999903ac983fd",
-      "log": "logs/issue-623-call-owner-analyzer-first.log",
+      "log": "logs/issue-623-call-owner-analyzer-first.log.json",
       "log_sha256": "f987a28bec8901d661fc288c2096f1fde5745c47821c737a9118c90eec517e1c",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "007dd6347cf36db99bec6e7becf9972c80c0b40da3fec54bc8f558d9477453c1",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-owner-web-build": {
       "receipt": "logs/issue-623-call-owner-web-build-receipt.json",
       "receipt_sha256": "0ff9f29061fe48a740127838c54806250bfc9349fe57e2590621f05a0085dc1e",
-      "log": "logs/issue-623-call-owner-web-build.log",
+      "log": "logs/issue-623-call-owner-web-build.log.json",
       "log_sha256": "4b4c641ee1b91413f74515b91fbb0beafeee6c58ebdebb23d355fe6215ab2c58",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "c6bda68c88ef80b98fc024d4ff0f3afc16ed3a6b50cd1c949cb1323dcce531ff",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-post-boundary-diagnostic": {
       "receipt": "logs/issue-623-call-post-boundary-diagnostic-receipt.json",
       "receipt_sha256": "d080e650e6b23f4c75527f686a3bee3d11efcc384f39a5421bed75844262fb70",
-      "log": "logs/issue-623-call-post-boundary-diagnostic.log",
+      "log": "logs/issue-623-call-post-boundary-diagnostic.log.json",
       "log_sha256": "cc37f966664170683cf69968d7926e329baa05be7794dd96e28b189f983658ec",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "e2443d0db9decd418ea4c84b8e7462372df1d3b0e763d94d12faf161850bcf6e",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-post-boundary-repaired": {
       "receipt": "logs/issue-623-call-post-boundary-repaired-receipt.json",
       "receipt_sha256": "69a9ca18c696301d8f4f0b79cfd55a4e42a061e671663cb4eb788b37f63f1bbe",
-      "log": "logs/issue-623-call-post-boundary-repaired.log",
+      "log": "logs/issue-623-call-post-boundary-repaired.log.json",
       "log_sha256": "a7fcfc24bf20ca34ffcbfd5c4592b246b075454654e3558c8320b0e971dd336d",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "0aec90090d278a0c6d174abc772bb58b9b50a0cc7c026c01ebc811a6b6185a52",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-analyzer-final": {
       "receipt": "logs/issue-623-call-ready-analyzer-final-receipt.json",
       "receipt_sha256": "b6c3182b35b0554c15b6e10b8106fbe173809e3996f98c7eaf2259c4b5d52f1a",
-      "log": "logs/issue-623-call-ready-analyzer-final.log",
+      "log": "logs/issue-623-call-ready-analyzer-final.log.json",
       "log_sha256": "ef8d0c0714b01f1c1f3db3d7128e36cb0fea164b2389322ba2b1eb4262384e76",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "44754bf59599764c3ef2dc57c079e37a3350321abe5847714d9197e4b8271cac",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-browser-final": {
       "receipt": "logs/issue-623-call-ready-browser-final-receipt.json",
       "receipt_sha256": "a7857874ba441e1fd842d3d13adfc7e521ee5c449ec4ee2500d553c8c20dfb62",
-      "log": "logs/issue-623-call-ready-browser-final.log",
+      "log": "logs/issue-623-call-ready-browser-final.log.json",
       "log_sha256": "b75b2087e01482ee753ff3a8a1728d0464ddb12f91d23d3b1cc9f5807c452654",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "3f60188db1255a4be6bb738750f9e6d2cebb52aea995d1bf68d3336ccf03ec91",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-final-313": {
       "receipt": "logs/issue-623-call-ready-final-313-receipt.json",
       "receipt_sha256": "d619a2c4a559fe3a04ded8e014703cb6e2f1f526da5b4f86e50a72444b852c8a",
-      "log": "logs/issue-623-call-ready-final-313.log",
+      "log": "logs/issue-623-call-ready-final-313.log.json",
       "log_sha256": "9b8f9b54d323d804d73ec3e3b8925e370e7ac5021ef5ae7db83786f573fb9a3d",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "647d9290e44315479b5aff8717cbea9a3e1909fcffc8f81aa61895ce33a6bfb6",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-final-314": {
       "receipt": "logs/issue-623-call-ready-final-314-receipt.json",
       "receipt_sha256": "9901e4fbe57dfb64a23d7a34495dc98e4fc38c86b3c1992e9d67963a01e44057",
-      "log": "logs/issue-623-call-ready-final-314.log",
+      "log": "logs/issue-623-call-ready-final-314.log.json",
       "log_sha256": "605ef07ff6094e924b9b5826a04308a161723d0cb78a48a6c956e1d353e8161c",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "207ae01b9aed6712f81b172c60b178cd1510a22ad09ce1a8e50519d61bccbb4b",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-format-final": {
       "receipt": "logs/issue-623-call-ready-format-final-receipt.json",
       "receipt_sha256": "0f15f5497dc8baca0df182aff9649edac3597c8e78588b05459a726cd41dbe03",
-      "log": "logs/issue-623-call-ready-format-final.log",
+      "log": "logs/issue-623-call-ready-format-final.log.json",
       "log_sha256": "66fa1662c50acd8dab74322721f58e3e28048b7651be59620b53f94c8364a95e",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "47d12b62e3ca289abcde687b04dee64dd251b75a9635bed886a067d67d0985e6",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-frontend-final": {
       "receipt": "logs/issue-623-call-ready-frontend-final-receipt.json",
       "receipt_sha256": "567bdf55a08818a0857261ce4c7ddfd981024e94c62c158e4b46b9f8bd7b78be",
-      "log": "logs/issue-623-call-ready-frontend-final.log",
+      "log": "logs/issue-623-call-ready-frontend-final.log.json",
       "log_sha256": "f325ff117ca1fb6bb321b2bd596bcf45b7ab24c20161738b03671dfcbc82218b",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "28a8c523dc0aa412a63ef1886fb4a3512b198c572a9d858a56871c08dce0606f",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-ruff-final": {
       "receipt": "logs/issue-623-call-ready-ruff-final-receipt.json",
       "receipt_sha256": "ecb0a43800447c12c1761338aad64ce27b84fe01dbde60f3cbd53fe2dea5496a",
-      "log": "logs/issue-623-call-ready-ruff-final.log",
+      "log": "logs/issue-623-call-ready-ruff-final.log.json",
       "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ready-web-build": {
       "receipt": "logs/issue-623-call-ready-web-build-receipt.json",
       "receipt_sha256": "bf735a8b274e852ca5cdd1f45007cdc9315ff99755f984e6cd43c48c15c80674",
-      "log": "logs/issue-623-call-ready-web-build.log",
+      "log": "logs/issue-623-call-ready-web-build.log.json",
       "log_sha256": "4b4c641ee1b91413f74515b91fbb0beafeee6c58ebdebb23d355fe6215ab2c58",
       "exit_code": 0,
-      "role": "final"
+      "role": "final",
+      "log_archive_sha256": "c6bda68c88ef80b98fc024d4ff0f3afc16ed3a6b50cd1c949cb1323dcce531ff",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-rotation-cleanup-first": {
       "receipt": "logs/issue-623-call-rotation-cleanup-first-receipt.json",
       "receipt_sha256": "2b94b4911ebe05816030066e23f3e692a99a39a0f0ca3e37ddd16062e51f2848",
-      "log": "logs/issue-623-call-rotation-cleanup-first.log",
+      "log": "logs/issue-623-call-rotation-cleanup-first.log.json",
       "log_sha256": "d2df0d36d60c90d054d437603961de2a9d841e26a59c6a2f1582edc3b4d0661f",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "8a2d6a1705d937936c0bf8c431db87d66c9de73bbf616b8e34b595b76a69b5e4",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-rotation-cleanup-repaired": {
       "receipt": "logs/issue-623-call-rotation-cleanup-repaired-receipt.json",
       "receipt_sha256": "fb40859f35c36ec1d5bdfcbc29a5e433d7af19aa5f43645c8739592cddb58be9",
-      "log": "logs/issue-623-call-rotation-cleanup-repaired.log",
+      "log": "logs/issue-623-call-rotation-cleanup-repaired.log.json",
       "log_sha256": "0db0762f26d705f00fc31a274693077ab0553ebad2bdd8cebf519bef4db539b9",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "3c122d3047a9ff09e74391f47d1ad856593824600042825db8f3f3aaf1367c0c",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ruff-broader-final": {
       "receipt": "logs/issue-623-call-ruff-broader-final-receipt.json",
       "receipt_sha256": "f5cb06d1285e6c935ebccb6af8ee136f477da6f182187b30ae2fe642da6de279",
-      "log": "logs/issue-623-call-ruff-broader-final.log",
+      "log": "logs/issue-623-call-ruff-broader-final.log.json",
       "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ruff-final": {
       "receipt": "logs/issue-623-call-ruff-final-receipt.json",
       "receipt_sha256": "e9ad40a722328f3ebe72d5a9809cb148f110c7bd606a0070171c428234834ef2",
-      "log": "logs/issue-623-call-ruff-final.log",
+      "log": "logs/issue-623-call-ruff-final.log.json",
       "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "708581f695b637fb4444f9dfaf774bd3535df741fb85c1cd33040c39ba45c02e",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-speaking-first": {
       "receipt": "logs/issue-623-call-speaking-first-receipt.json",
       "receipt_sha256": "8acc8a7d77c3fdded8d5c8ef79e94c56d1c73e045e19b1a953ac81e4174cdf9f",
-      "log": "logs/issue-623-call-speaking-first.log",
+      "log": "logs/issue-623-call-speaking-first.log.json",
       "log_sha256": "847e7b2bd23caf64752fd16efe7f1a195c8501d5c0934a7164b82450a829adcb",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "135cccc85194993b0d5a68cc207a0e3fe2330541f331f502110f4c20bb2e9004",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-speaking-repaired": {
       "receipt": "logs/issue-623-call-speaking-repaired-receipt.json",
       "receipt_sha256": "687a06f2e7eb124c337c908c6f522c48d0220c5a664bf2ffec9cb4fdf700808e",
-      "log": "logs/issue-623-call-speaking-repaired.log",
+      "log": "logs/issue-623-call-speaking-repaired.log.json",
       "log_sha256": "cd311fb6c39e3acbfc81fd53db9bb5197a7ae2d0f91dbd65348a2c044ad50e13",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "3db4fa79f553bc180cfb9876c72294e4f653e76676b3ffcae960f4c8b8b2860a",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-call-ui-analyzer-first": {
       "receipt": "logs/issue-623-call-ui-analyzer-first-receipt.json",
       "receipt_sha256": "037e9d12f83de8757355944abbce97cabdd9c726b8e6b2781398f0580a88aa12",
-      "log": "logs/issue-623-call-ui-analyzer-first.log",
+      "log": "logs/issue-623-call-ui-analyzer-first.log.json",
       "log_sha256": "7dfdc6deda4766e28e4e1b3b3c64e430e4245c8daac25ca7d4488665875d3a42",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "fa9e5b5543696fb5e13de9fc604585ca2a6bbf45ac6e10d1e5ae6bc89f68b6d8",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-no-audio-ready-controls-first": {
       "receipt": "logs/issue-623-no-audio-ready-controls-first-receipt.json",
       "receipt_sha256": "cf82195bf5ff8ee47a4e63e8d1408b2720cc2e769e3dd1b9b1d45a0047f57985",
-      "log": "logs/issue-623-no-audio-ready-controls-first.log",
+      "log": "logs/issue-623-no-audio-ready-controls-first.log.json",
       "log_sha256": "14cea9be6f19f48c7b2663a6accc9d2ef2164ad3c76d9d70427b19db7fcb2235",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "2f5192191e3500ab7c132d8532b15c998b17c65d50f616254df798570f9d1886",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-623-no-audio-ready-repaired": {
       "receipt": "logs/issue-623-no-audio-ready-repaired-receipt.json",
       "receipt_sha256": "98359902154b64580650f27b7749c441ad63e577a4d82206dd3b84e58b5eecd8",
-      "log": "logs/issue-623-no-audio-ready-repaired.log",
+      "log": "logs/issue-623-no-audio-ready-repaired.log.json",
       "log_sha256": "ceb6d76173c34722abc5449d58451428613c1c7c19fbf6f768a03684ec561457",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "78a80aee6c43b30cf6f47dc2ae7fc39ff598d805c7eebb5dd8f9761eaac3b4ab",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-682-disconnect-controls-first": {
       "receipt": "logs/issue-682-disconnect-controls-first-receipt.json",
       "receipt_sha256": "75f2c527f7787dee534c644ba4c0cffc308fbec73f8b0b789425aaf24b4b2a1d",
-      "log": "logs/issue-682-disconnect-controls-first.log",
+      "log": "logs/issue-682-disconnect-controls-first.log.json",
       "log_sha256": "4d9c3e85e37ac166d82be6a1d30a9f71d342b0d837fd707c753b66e6a50b509a",
       "exit_code": 1,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "75f13b9230cde5628ca5d78e7a2271a13ec4728e4669ad5c552f16f1522eb3fe",
+      "log_encoding": "utf8_text_in_json"
     },
     "issue-682-wake-repaired-313": {
       "receipt": "logs/issue-682-wake-repaired-313-receipt.json",
       "receipt_sha256": "bddd44423398f94464979972ce84f5f25cb29b92eadeb042a49b56f9115d7555",
-      "log": "logs/issue-682-wake-repaired-313.log",
+      "log": "logs/issue-682-wake-repaired-313.log.json",
       "log_sha256": "6dc5f4c18b5ea76a609fd8053e0ffcf5b40f47af1047336bb99795ecd8d08668",
       "exit_code": 0,
-      "role": "historical diagnostic/control/repair; not final-source qualification"
+      "role": "historical diagnostic/control/repair; not final-source qualification",
+      "log_archive_sha256": "b0224a52922ee798da0c9728984ce3215ab15157c34491af0b593f3f404d9416",
+      "log_encoding": "utf8_text_in_json"
     }
   },
   "original_sources": {
@@ -1821,5 +1911,39 @@
     "Full playback/backchannel/echo/mute/accessibility/no-audio, replacement/reconnect and dependency-loss acceptance remain open.",
     "Representative same-conversation timing comparisons and qualified default migration/rollout remain open.",
     "No installs, SDK upgrades, paid/live model calls, physical microphone, held native CI retry or installed-owner promotion."
-  ]
+  ],
+  "artifact_repair": {
+    "first_check": {
+      "args": [
+        "git",
+        "diff",
+        "341c7fda6e51b8cf34e986a97fc1fb62b6b290c1",
+        "HEAD",
+        "--check"
+      ],
+      "exit_code": 2,
+      "log_sha256": "2544a660577579c29e3c2576d8dae61087381867d010418804a40797a7ec656b",
+      "affected_raw_logs": [
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-actual-call-consumer-first.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-actual-call-widget-first.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-consumer-diagnostic.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-consumer-journal-repaired.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-consumer-listener-diagnostic.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-journal-codec-control-first.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-journal-codec-control-json.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-journal-expanded.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-owner-analyzer-first.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-owner-web-build.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-post-boundary-diagnostic.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-ready-web-build.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-rotation-cleanup-first.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-speaking-first.log",
+        "docs/evidence/adaptive-call-owner-2026-11-17/logs/issue-623-call-ui-analyzer-first.log"
+      ],
+      "implementation_issues": 0
+    },
+    "first_log": "logs/issue-623-evidence-whitespace-first.log.json",
+    "first_log_archive_sha256": "0fe20eafb12301c12c0dc93e0ab4805a370c8356bbf29e8d892e7f6d09abc3bc",
+    "correction": "All 45 original logs are lossless JSON text archives. Original log SHA-256 and source/receipt bytes remain unchanged."
+  }
 }

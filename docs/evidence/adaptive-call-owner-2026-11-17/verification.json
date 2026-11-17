@@ -1,9 +1,20 @@
 {
   "archived_runs_verified": 45,
+  "lossless_log_roundtrips_verified": 45,
   "archived_sources_verified": 27,
   "final_runs_verified": 8,
   "python_inputs_verified": 923,
   "frontend_inputs_verified": 336,
   "schemas_verified": 599,
-  "manifest_sha256": "40e2fe925fef87072edbbc2ee264ff098c3f5047b97f0f2a9d4a2c00d1248746"
+  "manifest_sha256": "9f2f80c99c10e518d8aff3b969d7c9dbe75567125f181eb21923fb2638e01287",
+  "full_milestone_diff_check": {
+    "args": [
+      "git",
+      "diff",
+      "--cached",
+      "341c7fda6e51b8cf34e986a97fc1fb62b6b290c1",
+      "--check"
+    ],
+    "exit_code": 0
+  }
 }
