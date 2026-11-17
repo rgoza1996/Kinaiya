@@ -1267,6 +1267,7 @@ def serve(args):
 
         from packages.agent_adapters.http import AgentClient
         from packages.providers.text import ProviderError
+        from services.decisions.agent_policy import AgentPolicyOwner
         from services.decisions.api import create_app
         from services.decisions.model_settings import (
             DecisionsModelSettings,
@@ -1365,6 +1366,7 @@ def serve(args):
             model_settings=decision_models,
             live_worker=live_worker,
             live_dispatcher=live_dispatcher,
+            agent_policy=AgentPolicyOwner(config, catalog),
         )
     if service in {"session", "agent", "converse", "decisions"}:
         import sqlite3

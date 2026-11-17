@@ -23,6 +23,7 @@ from packages.contracts import (
     core_subsystems,
     decisions,
     decisions_attempts,
+    decisions_consumers,
     decisions_models,
     decisions_prompts,
     journal_wake,
@@ -218,6 +219,8 @@ for name in (
 
 # Owner policy requests are strict frozen models, separate from journal events.
 for cls in (
+    decisions_consumers.DecisionsAgentPolicy,
+    decisions_consumers.DecisionsAgentPolicyState,
     capture_modes.CaptureModeSelection,
     capture_modes.CaptureModeChange,
     capture_modes.CaptureModeSnapshot,

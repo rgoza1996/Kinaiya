@@ -20,6 +20,7 @@ def create_app(
     model_settings=None,
     live_worker=None,
     live_dispatcher=None,
+    agent_policy=None,
 ):
     if live_dispatcher is not None:
         from services.decisions.live_agent import LiveAgentDispatcher
@@ -87,6 +88,11 @@ def create_app(
                     await model_settings.close()
 
     app = FastAPI(title="Kinaiya Decisions", lifespan=lifespan)
+
+    if agent_policy is not None:
+        from services.decisions.agent_policy import router as agent_policy_router
+
+        app.include_router(agent_policy_router(agent_policy, auth))
 
     def routing_phase():
         # This is routing-runtime readiness, not a model/GPU probe or an Agent
@@ -181,6 +187,7 @@ def create_app(
         from services.decisions.model_api import router
 
         app.include_router(router(model_settings, auth))
+    if model_settings is not None or agent_policy is not None:
         app.add_middleware(
             CORSMiddleware,
             allow_origins=list(auth.allowed_origins),
