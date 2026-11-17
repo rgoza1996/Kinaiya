@@ -17,6 +17,7 @@ from test_skills_agent import activate, package
 from core.policy import ToolPolicy
 from packages.contracts.agent_tools import agent_tool_scope, native_tool_snapshot
 from packages.contracts.client import JournalClient
+from packages.contracts.decisions_consumers import DecisionsAgentPolicyChange
 from packages.contracts.models import InterruptRequest, TaskRequest
 from packages.contracts.native_tool_schemas import native_tool_definition, native_tool_schema
 from packages.providers.meta_action_wire import TypedWireError, action_schema, decode_action
@@ -24,6 +25,7 @@ from packages.providers.text import ScriptedProvider
 from services import agent, launcher
 from services.agent.runtime import AgentRuntime
 from services.agent.skill_service import SkillService
+from services.decisions.agent_policy_settings import POLICY_STORE_NAME, AgentPolicySettings
 from services.session.store import LocalJournal
 
 OBJECTIVE = "Synthetic objective for the complete Agent history."
@@ -220,37 +222,59 @@ def test_native_and_typed_provider_schemas_advertise_only_configured_decisions_a
 
 
 @pytest.mark.parametrize(
-    "with_decisions,with_policy,decisions_host,available",
+    "with_decisions,with_policy,decisions_host,stored,available",
     [
-        (True, True, "127.0.0.1", True),
-        (False, True, "127.0.0.1", False),
-        (True, False, "127.0.0.1", False),
-        (True, True, "localhost", False),
+        (True, True, "127.0.0.1", None, True),
+        (False, True, "127.0.0.1", None, False),
+        (True, False, "127.0.0.1", None, False),
+        (True, True, "localhost", None, False),
+        (True, False, "127.0.0.1", "saved", True),
+        (False, False, "127.0.0.1", "saved", False),
+        (True, True, "127.0.0.1", "disabled", False),
+        (True, True, "127.0.0.1", "corrupt", False),
     ],
 )
 def test_agent_launcher_keeps_decisions_optional_and_owns_the_client_lifespan(
-    tmp_path, monkeypatch, with_decisions, with_policy, decisions_host, available
+    tmp_path, monkeypatch, with_decisions, with_policy, decisions_host, stored, available
 ):
+    policy = {
+        "catalog_binding": {
+            "id": "synthetic-advisor",
+            "generation": 1,
+            "configuration_sha256": "a" * 64,
+        },
+        "instructions": "Synthetic advice policy.",
+    }
     raw = {
         "session_url": "http://127.0.0.1:8760",
         "agent_url": "http://127.0.0.1:8761",
         "decisions_url": f"http://{decisions_host}:8763",
         "distribution": {"agent": True, "decisions": with_decisions},
-        "decisions_agent_policy": (
-            {
-                "catalog_binding": {
-                    "id": "synthetic-advisor",
-                    "generation": 1,
-                    "configuration_sha256": "a" * 64,
-                },
-                "instructions": "Synthetic advice policy.",
-            }
-            if with_policy
-            else None
-        ),
+        "decisions_agent_policy": policy if with_policy else None,
     }
     config = tmp_path / "config.json"
     config.write_text(json.dumps(raw))
+    data, workspace = tmp_path / "data", tmp_path / "workspace"
+    store_path = data / POLICY_STORE_NAME
+    if stored == "corrupt":
+        data.mkdir(mode=0o700)
+        store_path.write_text("Synthetic corrupt store")
+        store_path.chmod(0o600)
+    elif stored is not None:
+        settings = AgentPolicySettings(store_path, workspace)
+        try:
+            settings.change(
+                DecisionsAgentPolicyChange(
+                    expected_backend=settings.backend,
+                    expected_instance=settings.instance,
+                    expected_revision=0,
+                    idempotency_key="seed-synthetic-state",
+                    selection={"source": stored, "policy": policy if stored == "saved" else None},
+                ),
+                check_policy=lambda _: None,
+            )
+        finally:
+            settings.close()
     app_factory = agent.create_app
     captured = []
 
@@ -282,10 +306,13 @@ def test_agent_launcher_keeps_decisions_optional_and_owns_the_client_lifespan(
     launcher.serve(
         SimpleNamespace(
             config=config,
-            data_dir=tmp_path / "data",
-            workspace=tmp_path / "workspace",
+            data_dir=data,
+            workspace=workspace,
             service="agent",
             port=None,
         )
     )
     assert len(captured) == 1
+    assert config.read_text() == json.dumps(raw)
+    if stored is None:
+        assert not store_path.exists()

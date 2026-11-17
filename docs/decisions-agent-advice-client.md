@@ -3,8 +3,9 @@
 `DecisionsAdviceClient` connects the Agent service credential to a fixed
 literal loopback Decisions origin. The link disables redirects and environment
 proxies. The launcher creates the client when both Agent and Decisions are
-selected, the host has a valid `decisions_agent_policy`, and `decisions_url`
-names a literal IPv4 loopback origin. Agent can start and work independently
+selected, the protected next-launch policy or its legacy host source has a
+valid declaration, and `decisions_url` names a literal IPv4 loopback origin.
+Agent can start and work independently
 when the policy or Decisions service is unavailable.
 
 An accepted ordinary Agent worker can request the `decisions_advice` purpose of

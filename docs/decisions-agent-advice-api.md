@@ -1,7 +1,9 @@
 # Internal Agent advice HTTP boundary (#566 / #567)
 
 The launcher installs the native `AgentAdviceOperations` owner when both Agent
-and Decisions are selected and the host provides a valid `decisions_agent_policy`.
+and Decisions are selected and Decisions has a valid policy at launch.
+The [protected policy store](decisions-consumer-policies.md) selects the next
+policy or defers to the legacy host declaration.
 The owner shares the service's policy and journal objects. The app lifespan
 starts it and observes its bounded cleanup on shutdown.
 
@@ -76,7 +78,7 @@ The [Agent-side client](decisions-agent-advice-client.md) retains the original
 submission, its local exchanges and its remote cleanup result. Ordinary Agent
 workers can use it through the native `consult_model` tool. Accepted workers
 remain subject to the existing `finish_already_accepted` operating-mode policy.
-Standing-task admission, protected policy persistence and Options, and full
+Standing-task admission, the Options editor, and full
 consumer/provider/external-agent qualification remain part of #566/#567.
 
 The synthetic native prediction wire's missing cancellation protocol was recorded

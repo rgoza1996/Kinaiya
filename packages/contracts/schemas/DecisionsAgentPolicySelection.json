@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "CatalogModelBinding": {
+      "additionalProperties": false,
+      "description": "Explicit immutable native provider reference, never a display alias.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Generation",
+          "type": "integer"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "generation",
+        "configuration_sha256"
+      ],
+      "title": "CatalogModelBinding",
+      "type": "object"
+    },
+    "DecisionsAgentPolicy": {
+      "additionalProperties": false,
+      "description": "Host-owned optional advisory policy, referencing Core's existing catalog.",
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Contract Version",
+          "type": "integer"
+        },
+        "consumer": {
+          "const": "agent",
+          "default": "agent",
+          "title": "Consumer",
+          "type": "string"
+        },
+        "protocol": {
+          "const": "measured_agent_advice_v1",
+          "default": "measured_agent_advice_v1",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "catalog_binding": {
+          "$ref": "#/$defs/CatalogModelBinding"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
+        },
+        "instructions": {
+          "maxLength": 8192,
+          "title": "Instructions",
+          "type": "string"
+        },
+        "content_scope": {
+          "default": "local_only",
+          "enum": [
+            "local_only",
+            "public_synthetic",
+            "private_cloud_authorized"
+          ],
+          "title": "Content Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalog_binding",
+        "instructions"
+      ],
+      "title": "DecisionsAgentPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Retain a host pointer, an explicit disable, or one complete saved policy.",
+  "properties": {
+    "contract_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Contract Version",
+      "type": "integer"
+    },
+    "source": {
+      "enum": [
+        "host",
+        "disabled",
+        "saved"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DecisionsAgentPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "source"
+  ],
+  "title": "DecisionsAgentPolicySelection",
+  "type": "object"
+}

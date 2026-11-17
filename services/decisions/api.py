@@ -60,7 +60,7 @@ def create_app(
         }
 
     @asynccontextmanager
-    async def lifespan(app):
+    async def worker_lifespan():
         if agent_operations is not None:
             await agent_operations.start()
         task = asyncio.create_task(worker.run())
@@ -102,6 +102,15 @@ def create_app(
                 finally:
                     if model_settings is not None:
                         await model_settings.close()
+
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            async with worker_lifespan():
+                yield
+        finally:
+            if agent_policy is not None:
+                agent_policy.close()
 
     app = FastAPI(title="Kinaiya Decisions", lifespan=lifespan)
 

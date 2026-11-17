@@ -1,9 +1,8 @@
 # Independent Decisions consumer policies (#566, #567)
 
-This increment adds **read-only configuration inspection** for an optional Agent
-advisory policy. Public request execution, an Agent client, protected Options writes and
-the complete service/resource/external-agent matrix remain unfinished. Neither
-issue is complete. A policy declaration never activates Agent or Decisions.
+Decisions owns the optional Agent advice policy separately from the Converse
+classifier. A policy declaration applies to the next launch of selected roles.
+Core still owns which roles launch.
 
 ## Ownership and compatibility
 
@@ -12,15 +11,14 @@ issue is complete. A policy declaration never activates Agent or Decisions.
 | Shared provider configuration and credential references | Core | Existing provider catalog |
 | Converse finalized/window routing preferences | Decisions, Converse consumer | Existing `decisions_prompt`, unchanged |
 | Converse classifier selection and protected receipts | Decisions, Converse consumer | Existing `decisions-model.sqlite`, unchanged |
-| Optional Agent advisory instructions/model selection | Decisions, Agent consumer | New host `decisions_agent_policy` snapshot |
+| Optional Agent advisory instructions/model selection | Decisions, Agent consumer | Protected `decisions-agent-policy.sqlite` override and legacy host declaration |
 | Agent execution model, auxiliary models and permissions | Agent | Existing owners, unchanged |
 
-`decisions_agent_policy` is absent/null by default. It never falls back to
-Converse's classifier, the Agent execution model or an auxiliary default. An
-invalid optional declaration reports `invalid_host` through its own inspection
-endpoint without replacing the valid Converse settings. The instruction string
-is preserved exactly, including whitespace and an empty preference. It has an
-explicit 8,192-byte UTF-8 resource bound and rejects NUL/invalid Unicode.
+`decisions_agent_policy` is absent/null by default. It is the legacy host
+source for Agent advice. An invalid declaration reports `invalid_host` in the
+host observation. The instruction string preserves whitespace and empty
+preferences. It has an 8,192-byte UTF-8 resource bound and rejects NUL or
+invalid Unicode.
 
 Example with a synthetic catalog binding (replace all three identity fields
 with the exact observed Core generation):
@@ -52,23 +50,45 @@ The configured instruction disclosure scope must also permit the declared
 provider. A catalog binding retains its exact generation/configuration digest;
 rotation or retirement can make it unavailable without selecting another model.
 
-## Native inspection
+## Protected settings
 
-`GET /v1/decisions/options/agent-policy` requires **owner** authentication and
-returns a closed version-1 `DecisionsAgentPolicyState` with `Cache-Control:
-no-store`. It includes the active launch snapshot and its canonical SHA-256,
-the source (`host`, `unconfigured`, `invalid_host`), and the current metadata-only
-catalog observation (`eligible`, `unavailable`, `not_selected`). Invalid raw host
-values and underlying exception details are never reflected in the response.
+The protected store starts with a host pointer. Saving a policy stores one
+complete declaration and its exact Core catalog binding. Explicit disable
+overrides even a configured host policy. Reset restores the host pointer.
+The SQLite owner commits the selection and the idempotent save receipt
+together. Historical receipts retain request and policy digests and source
+metadata. The current selection retains the instruction text.
 
-`eligible` means the exact declaration passes metadata/protocol and instruction
-disclosure checks. It does not prove a usable credential, reachable provider,
-available resource lease, model output or task success. Every response explicitly
-sets `observation: catalog_metadata_only`, `change_boundary: restart_required`
-and `request_admission: unavailable`. Inspection does not write settings, reset a
-saved Converse selection, migrate receipts, or probe inference. Host edits take
-effect at the next Decisions process start; current catalog retirement is
-observed on each read.
+All three settings methods require the owner credential and return
+`Cache-Control: no-store`.
+
+| Method and path under `/v1/decisions/options` | Contract |
+| --- | --- |
+| `GET /agent-advice-settings` | `DecisionsAgentPolicySettingsSnapshot` with legacy host declaration, policy captured at this Decisions launch, and saved next-launch selection |
+| `POST /agent-advice-settings` | `DecisionsAgentPolicyChange` to exact `DecisionsAgentPolicyReceipt` |
+| `POST /agent-advice-settings/lookup` | Exact original `DecisionsAgentPolicyChange` to `DecisionsAgentPolicyLookup` |
+
+Writes compare the backend, Decisions settings instance, and revision.
+An equal original key and digest can observe its historical receipt. A
+different digest under the same key conflicts. A missing receipt alone leaves
+the original uncertain. A newer revision or replacement settings instance
+can permanently fence an unobserved original. The store retains 1,000 saves.
+The API accepts identity JSON up to 64 KiB with a five-second body deadline.
+Owner authentication is checked again after the body is read. Responses are
+bounded at 160 KiB.
+
+Restart Agent and Decisions to apply saved selection on a combined launch.
+The running Decisions instance holds its captured policy until it stops.
+Agent reads the protected selection at startup to determine whether to
+advertise the optional capability. Settings access failure disables the
+optional launch route and leaves independent Agent work and the Converse
+classifier available under their respective owners.
+
+`GET /agent-policy` retains the original version-1 legacy host projection.
+Its `request_admission: unavailable` is part of that metadata contract.
+Active policy and current catalog status appear in the new settings snapshot.
+`eligible` describes catalog, protocol and instruction disclosure metadata.
+The owner runtime endpoint separately reports availability for enrollment.
 
 ## Optional runtime
 
@@ -76,7 +96,7 @@ The [native Agent upload-admission increment](decisions-agent-admission.md)
 adds current-task/source/disclosure checks and one coherent SQLite snapshot.
 The [internal operation owner](decisions-agent-operations.md) binds that
 callback to measured execution, exact recovery and actual cleanup. Selecting
-both Agent and Decisions with a valid launch policy enables the optional route
+both Agent and Decisions with a resolved launch policy enables the optional route
 for ordinary [Agent workers](decisions-agent-advice-client.md). The owner can
 inspect runtime and catalog availability through the separate
 `GET /v1/decisions/options/agent-advice-runtime` endpoint.
@@ -86,7 +106,14 @@ permissions, handoffs, and task success. Agent starts independently when the
 optional consumer is absent or unavailable. Required Converse readiness remains
 tied to its original classifier runtime.
 
-Protected per-consumer persistence, Options navigation/migration and real
-multi-consumer failure/recovery qualification remain part of #566/#567. External
+Options navigation and real multi-consumer failure and recovery qualification
+remain part of #566/#567. External
 Agent adapters remain tracked in #547. This document does not claim their
 integration or model quality qualification.
+
+The thirteen-file native suite passed 374 tests on Python 3.13.18 and
+3.14.10. The final 28-case focused run on each interpreter covers a lost
+save response with exact receipt recovery, retired catalog generations,
+maximum-size instructions, reauthentication during upload, and selection
+across service restarts. The export added six settings contracts and
+reproduced all 614 prior schemas byte for byte.
