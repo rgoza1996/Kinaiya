@@ -53,10 +53,13 @@ class LivePreparedReply(PreparedReply):
 class LiveConverseController(WindowConverseController):
     """Explicit trusted embedding; construction starts no inference or capture."""
 
-    def __init__(self, runtime):
+    def __init__(self, runtime, *, rolling_windows_enabled=True):
+        if type(rolling_windows_enabled) is not bool:
+            raise ValueError("Legacy window availability must be explicit")
         if runtime._window_text_ready is not None:
             raise ValueError("Converse already has its original window owner")
         super().__init__(runtime)
+        self.rolling_windows_enabled = rolling_windows_enabled
         runtime._live_speech_authority = self.validate_live_speech
         self.owner_instance = secrets.token_hex(16)
         self.routes = {}
@@ -68,6 +71,10 @@ class LiveConverseController(WindowConverseController):
         self.native_wait = None
         self.local_wait = None
         self.changed = asyncio.Event()
+
+    async def process(self, entry):
+        if self.rolling_windows_enabled:
+            await super().process(entry)
 
     def _changed(self, task=None):
         self.changed.set()

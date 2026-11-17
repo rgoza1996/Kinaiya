@@ -26,6 +26,7 @@ import 'agent_runtime_client.dart';
 import 'agent_runtime_settings.dart';
 import 'core_subsystems_client.dart';
 import 'capture_modes_client.dart';
+import 'live_stream_client.dart';
 import 'agent_control_client.dart';
 import 'library_models.dart';
 import 'artifact_client.dart';
@@ -113,6 +114,7 @@ class KinaiyaClient {
     http.Client Function()? agentControlClientFactory,
     http.Client Function()? coreSubsystemClientFactory,
     http.Client Function()? captureModeClientFactory,
+    http.Client Function()? liveStreamClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -167,7 +169,12 @@ class KinaiyaClient {
            captureModeClientFactory ??
            (httpClient == null
                ? http.Client.new
-               : _captureModeInjectionRequired);
+               : _captureModeInjectionRequired),
+       _liveStreamClientFactory =
+           liveStreamClientFactory ??
+           (httpClient == null
+               ? http.Client.new
+               : _liveStreamInjectionRequired);
 
   final String sessionBase;
   final String agentBase;
@@ -384,6 +391,16 @@ class KinaiyaClient {
     clientFactory: _captureModeClientFactory,
   );
 
+  final http.Client Function() _liveStreamClientFactory;
+  static http.Client _liveStreamInjectionRequired() => throw StateError(
+    'Adaptive Live requires an independently injected transport',
+  );
+  late final LiveStreamApi liveStreams = LiveStreamApi(
+    baseUrl: converseBase,
+    ownerToken: _token,
+    clientFactory: _liveStreamClientFactory,
+  );
+
   Future<ConverseSetup> converseSetup() async =>
       ConverseSetup.fromJson(await _get(converseBase, '/v1/converse/setup'));
 
@@ -425,6 +442,7 @@ class KinaiyaClient {
     http.Client Function()? agentControlClientFactory,
     http.Client Function()? coreSubsystemClientFactory,
     http.Client Function()? captureModeClientFactory,
+    http.Client Function()? liveStreamClientFactory,
   }) : sessionBase = normalizeServiceRoot(sessionBase),
        agentBase = normalizeServiceRoot(agentBase),
        converseBase = normalizeServiceRoot(converseBase),
@@ -460,7 +478,9 @@ class KinaiyaClient {
        _coreSubsystemClientFactory =
            coreSubsystemClientFactory ?? _coreSubsystemInjectionRequired,
        _captureModeClientFactory =
-           captureModeClientFactory ?? _captureModeInjectionRequired {
+           captureModeClientFactory ?? _captureModeInjectionRequired,
+       _liveStreamClientFactory =
+           liveStreamClientFactory ?? _liveStreamInjectionRequired {
     _mockLabel = label;
   }
 
@@ -1232,6 +1252,7 @@ class KinaiyaClient {
       unawaited(agentControl.close());
       unawaited(coreSubsystems.close());
       unawaited(captureModes.close());
+      unawaited(liveStreams.close());
       artifacts.close();
     }
   }

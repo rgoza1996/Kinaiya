@@ -1,0 +1,833 @@
+{
+  "capability": {
+    "schema_version": "2.0",
+    "protocol": "converse_live_stream_v2",
+    "owner_instance": "97d4f365326d2493377f380535312edb",
+    "available": true
+  },
+  "operations": [
+    {
+      "phase": "begin",
+      "request": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "segment_index": 0,
+        "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+        "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+        "epoch": 1,
+        "utterance_id": "public-owned-lease",
+        "content_scope": "local_only"
+      },
+      "proof": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "phase": "begin",
+        "request_sha256": "7cf54b4632047c74ac4df00f8cb4f045240408e666ab89bdcb62b804a78c95f2",
+        "segment_index": 0,
+        "segment_sample_offset": 0,
+        "capture": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend_id": "db58893fd9055b5364040b08c4fa583d",
+              "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+            },
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1
+          },
+          "backend": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend_id": "db58893fd9055b5364040b08c4fa583d",
+            "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+          },
+          "receipt": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "original": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend": {
+                "schema_version": "2.0",
+                "protocol": "native_live_capture_v2",
+                "backend_id": "db58893fd9055b5364040b08c4fa583d",
+                "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+              },
+              "owner_instance": "97d4f365326d2493377f380535312edb",
+              "capture_id": "dddddddddddddddddddddddddddddddd",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1
+            },
+            "registration_id": "be8d4d17626e0562c1590108631d6402",
+            "registered_sequence": 0
+          },
+          "fence": null,
+          "scope_current": true,
+          "capture_open": true
+        },
+        "native": {
+          "schema_version": "1.0",
+          "protocol": "converse_stream_owner_v1",
+          "owner_instance": "06498638a6350538992e224fac5f2099",
+          "phase": "begin",
+          "request_sha256": "7cf54b4632047c74ac4df00f8cb4f045240408e666ab89bdcb62b804a78c95f2",
+          "outcome": "confirmed",
+          "result": {
+            "content_scope": "local_only",
+            "epoch": 1,
+            "profile": "experimental_buffered_cpu",
+            "provider": "whistle",
+            "sample_offset": 0,
+            "sequence": 0,
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "stream_id": "01cc013a696293d38166666b174e9477214938252973fa4756d1230ab7b4c96d",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "utterance_id": "public-owned-lease",
+            "worker_incarnation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "native_original": {
+            "schema_version": "1.0",
+            "protocol": "whistle_stream_owner_v1",
+            "broker_instance": "b989b388491eb29c03c5085b874c1c3e",
+            "phase": "begin",
+            "request_sha256": "98e752bc55d36d1b085c456711ae1055d70426ba620f7a2d90449c24228f8b39",
+            "operation_id": "00000000000000000000000000000001"
+          },
+          "decoder_finished": false,
+          "process_released": false,
+          "never_dispatched": false,
+          "ownership_retired": false
+        },
+        "publication": null
+      }
+    },
+    {
+      "phase": "pcm",
+      "request": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "segment_index": 0,
+        "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+        "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+        "epoch": 1,
+        "utterance_id": "public-owned-lease",
+        "content_scope": "local_only",
+        "stream_id": "01cc013a696293d38166666b174e9477214938252973fa4756d1230ab7b4c96d",
+        "worker_incarnation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "sequence": 1,
+        "sample_offset": 0,
+        "user_speaking": true,
+        "pcm16_base64": "AQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQABAAEAAQA="
+      },
+      "proof": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "phase": "pcm",
+        "request_sha256": "a442d824df8ac37ae352c12eeb6f7a706df9289c03998701230cbdb74d9eedf2",
+        "segment_index": 0,
+        "segment_sample_offset": 0,
+        "capture": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend_id": "db58893fd9055b5364040b08c4fa583d",
+              "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+            },
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1
+          },
+          "backend": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend_id": "db58893fd9055b5364040b08c4fa583d",
+            "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+          },
+          "receipt": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "original": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend": {
+                "schema_version": "2.0",
+                "protocol": "native_live_capture_v2",
+                "backend_id": "db58893fd9055b5364040b08c4fa583d",
+                "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+              },
+              "owner_instance": "97d4f365326d2493377f380535312edb",
+              "capture_id": "dddddddddddddddddddddddddddddddd",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1
+            },
+            "registration_id": "be8d4d17626e0562c1590108631d6402",
+            "registered_sequence": 0
+          },
+          "fence": null,
+          "scope_current": true,
+          "capture_open": true
+        },
+        "native": {
+          "schema_version": "1.0",
+          "protocol": "converse_stream_owner_v1",
+          "owner_instance": "06498638a6350538992e224fac5f2099",
+          "phase": "pcm",
+          "request_sha256": "a442d824df8ac37ae352c12eeb6f7a706df9289c03998701230cbdb74d9eedf2",
+          "outcome": "confirmed",
+          "result": {
+            "capture_ended": false,
+            "committed_text": "",
+            "delta_text": "",
+            "entry": {
+              "causes": [],
+              "created_at": "2026-11-17T05:21:52.952569Z",
+              "epoch": 1,
+              "event_id": "9b84d818-c0c6-4d02-9484-cbcb434bcae2",
+              "idempotency_key": "speech-window:1:public-owned-lease:0:r1",
+              "kind": "conversation.window",
+              "origin": "authenticated-user",
+              "payload": {
+                "audio_sha256": "662e862b9ac76348d50a94b65bb0dd296fcbedc4db99848728dcd2b139ca4bc3",
+                "capture_ended": false,
+                "content_scope": "local_only",
+                "end_ms": 10,
+                "epoch": 1,
+                "revision": 1,
+                "schema_version": "1.0",
+                "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+                "start_ms": 0,
+                "stt_model": {
+                  "backend_id": "a9824c9ff16dc85f5e6d1415e7ef62d0",
+                  "catalog_binding": null,
+                  "catalog_revision": null,
+                  "instance_id": "379809e75ee2d9fd5416ed28c88cef36",
+                  "local": null,
+                  "model": null,
+                  "provider": null,
+                  "role": "stt",
+                  "schema_version": "1.0",
+                  "settings_revision": 0,
+                  "source": "host"
+                },
+                "text": "please check",
+                "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+                "user_speaking": true,
+                "utterance_id": "public-owned-lease",
+                "window_index": 0
+              },
+              "schema_version": "1.0",
+              "sequence": 1,
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "task_refs": [],
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788"
+            },
+            "final": false,
+            "journal_sequence": 1,
+            "pcm_sequence": 1,
+            "pending_text": "please check",
+            "received_samples": 160,
+            "recognizer_updates": 1,
+            "stream_id": "01cc013a696293d38166666b174e9477214938252973fa4756d1230ab7b4c96d",
+            "window_index": 0,
+            "window_revision": 1,
+            "worker_incarnation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "native_original": {
+            "schema_version": "1.0",
+            "protocol": "whistle_stream_owner_v1",
+            "broker_instance": "b989b388491eb29c03c5085b874c1c3e",
+            "phase": "pcm",
+            "request_sha256": "c5bf055fd06dfdd7a182ea77c84a9724e5f981c412f67888a120625df14c71dc",
+            "operation_id": "00000000000000000000000000000002"
+          },
+          "decoder_finished": false,
+          "process_released": false,
+          "never_dispatched": false,
+          "ownership_retired": false
+        },
+        "publication": {
+          "schema_version": "2.0",
+          "protocol": "live_window_publication_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "live_window_publication_v2",
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1,
+            "utterance_id": "public-owned-lease",
+            "idempotency_key": "speech-window:1:public-owned-lease:0:r1",
+            "request_sha256": "a4717a17427548f15a00ab4b2094c3e8f94fb960fa630dc8f8805f6f09853ec2"
+          },
+          "source": {
+            "schema_version": "1.0",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1,
+            "kind": "conversation.window",
+            "payload": {
+              "schema_version": "1.0",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1,
+              "utterance_id": "public-owned-lease",
+              "window_index": 0,
+              "revision": 1,
+              "text": "please check",
+              "start_ms": 0,
+              "end_ms": 10,
+              "user_speaking": true,
+              "capture_ended": false,
+              "audio_sha256": "662e862b9ac76348d50a94b65bb0dd296fcbedc4db99848728dcd2b139ca4bc3",
+              "stt_model": {
+                "schema_version": "1.0",
+                "role": "stt",
+                "source": "host",
+                "backend_id": "a9824c9ff16dc85f5e6d1415e7ef62d0",
+                "instance_id": "379809e75ee2d9fd5416ed28c88cef36",
+                "settings_revision": 0,
+                "catalog_revision": null,
+                "catalog_binding": null,
+                "provider": null,
+                "model": null,
+                "local": null
+              },
+              "content_scope": "local_only"
+            },
+            "causes": [],
+            "task_refs": [],
+            "idempotency_key": "speech-window:1:public-owned-lease:0:r1",
+            "event_id": "9b84d818-c0c6-4d02-9484-cbcb434bcae2",
+            "sequence": 1,
+            "origin": "authenticated-user",
+            "created_at": "2026-11-17T05:21:52.952569Z"
+          },
+          "capture": {
+            "schema_version": "1.0",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1,
+            "kind": "conversation.window_capture",
+            "payload": {
+              "schema_version": "2.0",
+              "protocol": "live_window_publication_v2",
+              "capture_mode": "adaptive_live",
+              "original": {
+                "schema_version": "2.0",
+                "protocol": "live_window_publication_v2",
+                "owner_instance": "97d4f365326d2493377f380535312edb",
+                "capture_id": "dddddddddddddddddddddddddddddddd",
+                "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+                "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+                "epoch": 1,
+                "utterance_id": "public-owned-lease",
+                "idempotency_key": "speech-window:1:public-owned-lease:0:r1",
+                "request_sha256": "a4717a17427548f15a00ab4b2094c3e8f94fb960fa630dc8f8805f6f09853ec2"
+              },
+              "source_event_id": "9b84d818-c0c6-4d02-9484-cbcb434bcae2",
+              "source_sequence": 1,
+              "source_revision": 1,
+              "input_sha256": "dcd47a86f55f5b3fe58bac032e349ba48b1e063c9bebc3447c90c7fbb3c3238a",
+              "eligible_revision": 1,
+              "eligible_source_event_id": "9b84d818-c0c6-4d02-9484-cbcb434bcae2",
+              "eligible_source_sequence": 1,
+              "eligible_source_revision": 1
+            },
+            "causes": [
+              "9b84d818-c0c6-4d02-9484-cbcb434bcae2"
+            ],
+            "task_refs": [],
+            "idempotency_key": "live-window-capture:9b84d818-c0c6-4d02-9484-cbcb434bcae2",
+            "event_id": "98206005-72cd-45c6-839a-e832cc219736",
+            "sequence": 2,
+            "origin": "converse",
+            "created_at": "2026-11-17T05:21:52.953443Z"
+          }
+        }
+      }
+    },
+    {
+      "phase": "finish",
+      "request": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "segment_index": 0,
+        "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+        "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+        "epoch": 1,
+        "utterance_id": "public-owned-lease",
+        "content_scope": "local_only",
+        "stream_id": "01cc013a696293d38166666b174e9477214938252973fa4756d1230ab7b4c96d",
+        "worker_incarnation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "sequence": 2,
+        "sample_offset": 160,
+        "user_speaking": false,
+        "capture_ended": false
+      },
+      "proof": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "phase": "finish",
+        "request_sha256": "eb3ae960b005a8663a89dd9a36d34697ff8105ca1f3c951b0a233dee8372a9fe",
+        "segment_index": 0,
+        "segment_sample_offset": 0,
+        "capture": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend_id": "db58893fd9055b5364040b08c4fa583d",
+              "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+            },
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1
+          },
+          "backend": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend_id": "db58893fd9055b5364040b08c4fa583d",
+            "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+          },
+          "receipt": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "original": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend": {
+                "schema_version": "2.0",
+                "protocol": "native_live_capture_v2",
+                "backend_id": "db58893fd9055b5364040b08c4fa583d",
+                "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+              },
+              "owner_instance": "97d4f365326d2493377f380535312edb",
+              "capture_id": "dddddddddddddddddddddddddddddddd",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1
+            },
+            "registration_id": "be8d4d17626e0562c1590108631d6402",
+            "registered_sequence": 0
+          },
+          "fence": null,
+          "scope_current": true,
+          "capture_open": true
+        },
+        "native": {
+          "schema_version": "1.0",
+          "protocol": "converse_stream_owner_v1",
+          "owner_instance": "06498638a6350538992e224fac5f2099",
+          "phase": "finish",
+          "request_sha256": "eb3ae960b005a8663a89dd9a36d34697ff8105ca1f3c951b0a233dee8372a9fe",
+          "outcome": "confirmed",
+          "result": {
+            "capture_ended": false,
+            "committed_text": "please check the build status",
+            "delta_text": "build status",
+            "entry": {
+              "causes": [],
+              "created_at": "2026-11-17T05:21:53.033740Z",
+              "epoch": 1,
+              "event_id": "ee69fc19-1215-4730-aa30-b363d580b917",
+              "idempotency_key": "speech-window:1:public-owned-lease:1:r1",
+              "kind": "conversation.window",
+              "origin": "authenticated-user",
+              "payload": {
+                "audio_sha256": "662e862b9ac76348d50a94b65bb0dd296fcbedc4db99848728dcd2b139ca4bc3",
+                "capture_ended": false,
+                "content_scope": "local_only",
+                "end_ms": 10,
+                "epoch": 1,
+                "revision": 1,
+                "schema_version": "1.0",
+                "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+                "start_ms": 0,
+                "stt_model": {
+                  "backend_id": "a9824c9ff16dc85f5e6d1415e7ef62d0",
+                  "catalog_binding": null,
+                  "catalog_revision": null,
+                  "instance_id": "379809e75ee2d9fd5416ed28c88cef36",
+                  "local": null,
+                  "model": null,
+                  "provider": null,
+                  "role": "stt",
+                  "schema_version": "1.0",
+                  "settings_revision": 0,
+                  "source": "host"
+                },
+                "text": "please check the build status",
+                "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+                "user_speaking": false,
+                "utterance_id": "public-owned-lease",
+                "window_index": 1
+              },
+              "schema_version": "1.0",
+              "sequence": 4,
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "task_refs": [],
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788"
+            },
+            "final": true,
+            "journal_sequence": 4,
+            "pcm_sequence": 2,
+            "pending_text": "",
+            "received_samples": 160,
+            "recognizer_updates": 2,
+            "stream_id": "01cc013a696293d38166666b174e9477214938252973fa4756d1230ab7b4c96d",
+            "window_index": 1,
+            "window_revision": 1,
+            "worker_incarnation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "native_original": {
+            "schema_version": "1.0",
+            "protocol": "whistle_stream_owner_v1",
+            "broker_instance": "b989b388491eb29c03c5085b874c1c3e",
+            "phase": "finish",
+            "request_sha256": "9df1a4f583bd671c624b8acd683e3514c7653ad08754f5d21f25adf78a568f74",
+            "operation_id": "00000000000000000000000000000003"
+          },
+          "decoder_finished": true,
+          "process_released": false,
+          "never_dispatched": false,
+          "ownership_retired": false
+        },
+        "publication": {
+          "schema_version": "2.0",
+          "protocol": "live_window_publication_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "live_window_publication_v2",
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1,
+            "utterance_id": "public-owned-lease",
+            "idempotency_key": "speech-window:1:public-owned-lease:1:r1",
+            "request_sha256": "12526900642e07ec0b596e8e0c74bfbad05c8162465bde2bff3d1c38fb596056"
+          },
+          "source": {
+            "schema_version": "1.0",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1,
+            "kind": "conversation.window",
+            "payload": {
+              "schema_version": "1.0",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1,
+              "utterance_id": "public-owned-lease",
+              "window_index": 1,
+              "revision": 1,
+              "text": "please check the build status",
+              "start_ms": 0,
+              "end_ms": 10,
+              "user_speaking": false,
+              "capture_ended": false,
+              "audio_sha256": "662e862b9ac76348d50a94b65bb0dd296fcbedc4db99848728dcd2b139ca4bc3",
+              "stt_model": {
+                "schema_version": "1.0",
+                "role": "stt",
+                "source": "host",
+                "backend_id": "a9824c9ff16dc85f5e6d1415e7ef62d0",
+                "instance_id": "379809e75ee2d9fd5416ed28c88cef36",
+                "settings_revision": 0,
+                "catalog_revision": null,
+                "catalog_binding": null,
+                "provider": null,
+                "model": null,
+                "local": null
+              },
+              "content_scope": "local_only"
+            },
+            "causes": [],
+            "task_refs": [],
+            "idempotency_key": "speech-window:1:public-owned-lease:1:r1",
+            "event_id": "ee69fc19-1215-4730-aa30-b363d580b917",
+            "sequence": 4,
+            "origin": "authenticated-user",
+            "created_at": "2026-11-17T05:21:53.033740Z"
+          },
+          "capture": {
+            "schema_version": "1.0",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1,
+            "kind": "conversation.window_capture",
+            "payload": {
+              "schema_version": "2.0",
+              "protocol": "live_window_publication_v2",
+              "capture_mode": "adaptive_live",
+              "original": {
+                "schema_version": "2.0",
+                "protocol": "live_window_publication_v2",
+                "owner_instance": "97d4f365326d2493377f380535312edb",
+                "capture_id": "dddddddddddddddddddddddddddddddd",
+                "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+                "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+                "epoch": 1,
+                "utterance_id": "public-owned-lease",
+                "idempotency_key": "speech-window:1:public-owned-lease:1:r1",
+                "request_sha256": "12526900642e07ec0b596e8e0c74bfbad05c8162465bde2bff3d1c38fb596056"
+              },
+              "source_event_id": "ee69fc19-1215-4730-aa30-b363d580b917",
+              "source_sequence": 4,
+              "source_revision": 1,
+              "input_sha256": "868a2831bb0d63221bb768f6203be5240841a22b395f9a3e3cc6b0d8c3077ac3",
+              "eligible_revision": 2,
+              "eligible_source_event_id": "ee69fc19-1215-4730-aa30-b363d580b917",
+              "eligible_source_sequence": 4,
+              "eligible_source_revision": 1
+            },
+            "causes": [
+              "ee69fc19-1215-4730-aa30-b363d580b917"
+            ],
+            "task_refs": [],
+            "idempotency_key": "live-window-capture:ee69fc19-1215-4730-aa30-b363d580b917",
+            "event_id": "bb15863c-4f35-48ad-af87-319e878df7d6",
+            "sequence": 5,
+            "origin": "converse",
+            "created_at": "2026-11-17T05:21:53.035621Z"
+          }
+        }
+      }
+    },
+    {
+      "phase": "begin",
+      "request": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "segment_index": 1,
+        "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+        "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+        "epoch": 1,
+        "utterance_id": "public-owned-lease",
+        "content_scope": "local_only"
+      },
+      "proof": {
+        "schema_version": "2.0",
+        "protocol": "converse_live_stream_v2",
+        "owner_instance": "97d4f365326d2493377f380535312edb",
+        "capture_id": "dddddddddddddddddddddddddddddddd",
+        "phase": "begin",
+        "request_sha256": "86fabc526d97d7c44f3c2dd88fd7a70002b8abc44c323b89b1fffd5f56dcc4d6",
+        "segment_index": 1,
+        "segment_sample_offset": 160,
+        "capture": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend_id": "db58893fd9055b5364040b08c4fa583d",
+              "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+            },
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1
+          },
+          "backend": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend_id": "db58893fd9055b5364040b08c4fa583d",
+            "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+          },
+          "receipt": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "original": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend": {
+                "schema_version": "2.0",
+                "protocol": "native_live_capture_v2",
+                "backend_id": "db58893fd9055b5364040b08c4fa583d",
+                "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+              },
+              "owner_instance": "97d4f365326d2493377f380535312edb",
+              "capture_id": "dddddddddddddddddddddddddddddddd",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1
+            },
+            "registration_id": "be8d4d17626e0562c1590108631d6402",
+            "registered_sequence": 0
+          },
+          "fence": null,
+          "scope_current": true,
+          "capture_open": true
+        },
+        "native": {
+          "schema_version": "1.0",
+          "protocol": "converse_stream_owner_v1",
+          "owner_instance": "06498638a6350538992e224fac5f2099",
+          "phase": "begin",
+          "request_sha256": "86fabc526d97d7c44f3c2dd88fd7a70002b8abc44c323b89b1fffd5f56dcc4d6",
+          "outcome": "confirmed",
+          "result": {
+            "content_scope": "local_only",
+            "epoch": 1,
+            "profile": "experimental_buffered_cpu",
+            "provider": "whistle",
+            "sample_offset": 0,
+            "sequence": 0,
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "stream_id": "83a320fe3ad8dd4c97c3477d8643783b4b6db7b2eb44f040625889db70be50a0",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "utterance_id": "public-owned-lease",
+            "worker_incarnation": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "native_original": {
+            "schema_version": "1.0",
+            "protocol": "whistle_stream_owner_v1",
+            "broker_instance": "b989b388491eb29c03c5085b874c1c3e",
+            "phase": "begin",
+            "request_sha256": "98e752bc55d36d1b085c456711ae1055d70426ba620f7a2d90449c24228f8b39",
+            "operation_id": "00000000000000000000000000000004"
+          },
+          "decoder_finished": false,
+          "process_released": false,
+          "never_dispatched": false,
+          "ownership_retired": false
+        },
+        "publication": null
+      }
+    }
+  ],
+  "cancel": {
+    "request": {
+      "schema_version": "2.0",
+      "protocol": "converse_live_stream_v2",
+      "owner_instance": "97d4f365326d2493377f380535312edb",
+      "capture_id": "dddddddddddddddddddddddddddddddd",
+      "reason": "cancelled"
+    },
+    "proof": {
+      "schema_version": "2.0",
+      "protocol": "converse_live_stream_v2",
+      "owner_instance": "97d4f365326d2493377f380535312edb",
+      "capture_id": "dddddddddddddddddddddddddddddddd",
+      "fenced": true,
+      "capture": {
+        "schema_version": "2.0",
+        "protocol": "native_live_capture_v2",
+        "original": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "backend": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend_id": "db58893fd9055b5364040b08c4fa583d",
+            "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+          },
+          "owner_instance": "97d4f365326d2493377f380535312edb",
+          "capture_id": "dddddddddddddddddddddddddddddddd",
+          "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+          "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+          "epoch": 1
+        },
+        "backend": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "backend_id": "db58893fd9055b5364040b08c4fa583d",
+          "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+        },
+        "receipt": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "original": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "backend": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend_id": "db58893fd9055b5364040b08c4fa583d",
+              "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+            },
+            "owner_instance": "97d4f365326d2493377f380535312edb",
+            "capture_id": "dddddddddddddddddddddddddddddddd",
+            "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+            "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+            "epoch": 1
+          },
+          "registration_id": "be8d4d17626e0562c1590108631d6402",
+          "registered_sequence": 0
+        },
+        "fence": {
+          "schema_version": "2.0",
+          "protocol": "native_live_capture_v2",
+          "request": {
+            "schema_version": "2.0",
+            "protocol": "native_live_capture_v2",
+            "original": {
+              "schema_version": "2.0",
+              "protocol": "native_live_capture_v2",
+              "backend": {
+                "schema_version": "2.0",
+                "protocol": "native_live_capture_v2",
+                "backend_id": "db58893fd9055b5364040b08c4fa583d",
+                "controller_id": "f232dd65f7deb78ad95cffafedf80832"
+              },
+              "owner_instance": "97d4f365326d2493377f380535312edb",
+              "capture_id": "dddddddddddddddddddddddddddddddd",
+              "session_id": "6f09bd49-7375-4c1f-a7e6-402e6a63f527",
+              "thread_id": "803ce540-991e-4b2f-ba8f-58141053e788",
+              "epoch": 1
+            },
+            "request_id": "5b1359e743bdbea5069e3904546c063f",
+            "reason": "cancelled"
+          },
+          "fence_id": "f3511d6d0bb97d7d3932209cd062c086"
+        },
+        "scope_current": true,
+        "capture_open": false
+      },
+      "cleanup_confirmed": true
+    }
+  }
+}

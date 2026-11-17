@@ -1,0 +1,4 @@
+{
+  "sha256": "bbd038d6b3e238792e15835e4a4dfbf66c11fa3af796dbc63daeae6c9d95c5a7",
+  "utf8": "00:00 +0: loading /tmp/pytest-of-roggoz/pytest-5/test_actual_dart_native_live_s0/native-stream-flutter/test/live_stream_native_live_test.dart\n00:00 +0: real Dart transports preserve one native mic across decoder rollover\n00:03 +0 -1: real Dart transports preserve one native mic across decoder rollover [E]\n  Expected: true\n    Actual: <false>\n  Decoder cleanup can finish before the logical mic/STT lifetime\n  \n  package:matcher                                     expect\n  package:flutter_test/src/widget_tester.dart 473:18  expect\n  test/live_stream_native_live_test.dart 78:7         main.<fn>\n  \n00:03 +0 -1: Some tests failed.\n\nFailing tests:\n  /tmp/pytest-of-roggoz/pytest-5/test_actual_dart_native_live_s0/native-stream-flutter/test/live_stream_native_live_test.dart: real Dart transports preserve one native mic across decoder rollover\n"
+}

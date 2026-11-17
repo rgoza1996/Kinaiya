@@ -310,6 +310,11 @@ def create_app(
         ):
             raise ValueError("Live Converse requires its original native window owner")
 
+    def rolling_windows_available():
+        return window_controller is not None and getattr(
+            window_controller, "rolling_windows_enabled", True
+        )
+
     @asynccontextmanager
     async def lifespan(app):
         if live_dependency is None and live_consumer is None:
@@ -412,7 +417,7 @@ def create_app(
             "voice_configured": speech is not None,
             "speech_operations": runtime.speech_status(),
             "text_operations": runtime.text_status(),
-            "streaming_windows": window_controller is not None,
+            "streaming_windows": rolling_windows_available(),
             "native_audio": (
                 runtime.native_audio.status()
                 if getattr(runtime, "native_audio", None) is not None
@@ -681,7 +686,7 @@ def create_app(
         _reserve_api_model(runtime, http_request)
         if request.stt_model is not None:
             raise HTTPException(400, "STT provenance is captured by native audio admission only")
-        if window_controller is None:
+        if not rolling_windows_available():
             raise HTTPException(503, "Streaming conversation control is unavailable")
         if not runtime.enabled:
             raise _off_error(runtime)
@@ -694,7 +699,7 @@ def create_app(
     @app.post("/v1/converse/audio/windows", dependencies=owner)
     async def audio_window(request: AudioWindow, http_request: Request):
         _reserve_api_model(runtime, http_request)
-        if window_controller is None or (
+        if not rolling_windows_available() or (
             speech is None and not getattr(runtime, "_stt_options_configured", False)
         ):
             raise HTTPException(503, "Configure streaming conversation control and STT")

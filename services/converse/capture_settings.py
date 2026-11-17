@@ -31,12 +31,14 @@ _TABLES = {
 _MAX_FILE_BYTES = 64 * 1024 * 1024
 
 
-def configured_capture_default(config, *, rolling, native):
-    """Preserve implicit host behavior; explicit modes never select a fallback."""
-    if type(rolling) is not bool or type(native) is not bool:
+def configured_capture_default(config, *, rolling, native, adaptive_live_enabled=False):
+    """Resolve a qualified rollout without rewriting an explicit host choice."""
+    if any(type(value) is not bool for value in (rolling, native, adaptive_live_enabled)):
         raise ValueError("Invalid host capture capability")
     declared = config.get("converse_capture")
     if declared is None:
+        if adaptive_live_enabled:
+            return "adaptive_live"
         return "legacy_silence" if native or not rolling else "rolling_windows"
     if (
         type(declared) is not dict
@@ -210,10 +212,11 @@ def _token(state, default_mode):
 class CaptureModeSettings:
     """One native Converse preference owner; saves never acquire a microphone."""
 
-    def __init__(self, default_mode, *, path, workspace):
-        if not callable(default_mode):
+    def __init__(self, default_mode, *, path, workspace, adaptive_live_enabled=False):
+        if not callable(default_mode) or type(adaptive_live_enabled) is not bool:
             raise ValueError("Invalid Converse capture mode owner")
         self.default_mode = default_mode
+        self.adaptive_live_enabled = adaptive_live_enabled
         self.path = Path(os.path.abspath(path))
         self.backend_id = None
         self.closed = self.failed = False
@@ -305,6 +308,7 @@ class CaptureModeSettings:
                 selection=state[4],
                 default_mode=host,
                 selected_mode=host if state[4].source == "host" else state[4].mode,
+                adaptive_live_enabled=self.adaptive_live_enabled,
                 writable=state[1] < MAX_CAPTURE_MODE_CHANGES,
             ).model_dump(mode="json")
         except (sqlite3.Error, ValueError, OSError, TypeError):

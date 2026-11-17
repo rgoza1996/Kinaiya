@@ -24,6 +24,10 @@ from services.common.topology import SubsystemTopology  # noqa: E402
 
 PORTS = {"session": 8760, "agent": 8761, "converse": 8762, "decisions": 8763, "resources": 8764}
 
+# Enable only after the complete native host/Call path and migration are qualified.
+# This release gate is trusted code, not a model/provider or owner intent setting.
+ADAPTIVE_LIVE_ENABLED = False
+
 
 def supervise(commands, *, popen=subprocess.Popen, sleep=time.sleep):
     """Failed/unloaded components do not stop their healthy peers."""
@@ -1020,8 +1024,9 @@ def serve(args):
 
         from packages.agent_adapters.task_context import TaskContextClient
         from services.converse.api import create_app
-        from services.converse.dependencies import RequiredDecisions
+        from services.converse.dependencies import RequiredDecisions, RequiredLiveDecisions
         from services.converse.intent import ConverseIntent
+        from services.converse.live import LiveConverseController
         from services.converse.memory_adapter import SessionMemoryAdapter
         from services.converse.model_settings import ConverseModelSettings
         from services.converse.prompts import configured_prompt
@@ -1168,17 +1173,19 @@ def serve(args):
             )
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             runtime._tts_options_unavailable = True
-        windows = (
-            WindowConverseController(runtime)
-            if config.get("streaming_windows", {}).get("enabled", True)
+        rolling_enabled = bool(config.get("streaming_windows", {}).get("enabled", True))
+        live_consumer = (
+            LiveConverseController(runtime, rolling_windows_enabled=rolling_enabled)
+            if ADAPTIVE_LIVE_ENABLED
             else None
         )
+        windows = live_consumer or (WindowConverseController(runtime) if rolling_enabled else None)
         # A malformed explicit declaration must not silently run the legacy
         # transcript-to-text/TTS path under a native-audio configuration.
         runtime.native_audio = converse_native_audio(
             config, runtime, args.data_dir.resolve(), args.workspace.resolve()
         )
-        if runtime.native_audio is not None and windows is None:
+        if runtime.native_audio is not None and not rolling_enabled:
             raise ValueError("Native buffered audio requires Decisions window routing")
         from services.converse.capture_settings import (
             CaptureModeSettings,
@@ -1188,14 +1195,34 @@ def serve(args):
         try:
             runtime.capture_settings = CaptureModeSettings(
                 lambda: configured_capture_default(
-                    config, rolling=windows is not None, native=runtime.native_audio is not None
+                    config,
+                    rolling=rolling_enabled,
+                    native=runtime.native_audio is not None,
+                    adaptive_live_enabled=ADAPTIVE_LIVE_ENABLED,
                 ),
                 path=args.data_dir.resolve() / "converse-capture-mode.sqlite",
                 workspace=args.workspace.resolve(),
+                adaptive_live_enabled=ADAPTIVE_LIVE_ENABLED,
             )
         except (OSError, ValueError, RuntimeError, sqlite3.Error):
             runtime._capture_options_unavailable = True
-        app = create_app(runtime, auth, speech, windows, setup=setup)
+        live_dependency = (
+            RequiredLiveDecisions(
+                config.get("decisions_url", "http://127.0.0.1:8763"), tokens["converse"]
+            )
+            if live_consumer is not None and runtime.native_audio is None
+            else None
+        )
+        app = create_app(
+            runtime,
+            auth,
+            speech,
+            windows,
+            setup=setup,
+            live_dependency=live_dependency,
+            live_consumer=live_consumer,
+        )
+        converse_api_lifespan = app.router.lifespan_context
 
         @asynccontextmanager
         async def converse_lifespan(app):
@@ -1228,10 +1255,11 @@ def serve(args):
                 cleanup.push_async_callback(stop_observers)
                 cleanup.push_async_callback(runtime.decisions_dependency.close)
                 await runtime.decisions_dependency.start()
-                observers.append(asyncio.create_task(observe()))
-                if windows is not None:
-                    observers.append(asyncio.create_task(windows.run()))
-                yield
+                async with converse_api_lifespan(app):
+                    observers.append(asyncio.create_task(observe()))
+                    if windows is not None and live_consumer is None:
+                        observers.append(asyncio.create_task(windows.run()))
+                    yield
 
         app.router.lifespan_context = converse_lifespan
     else:
@@ -1314,7 +1342,30 @@ def serve(args):
             if windows_enabled
             else None
         )
-        app = create_app(worker, auth, windows, dispatcher, model_settings=decision_models)
+        live_worker = live_dispatcher = None
+        if ADAPTIVE_LIVE_ENABLED:
+            from services.decisions.live_agent import LiveAgentDispatcher
+            from services.decisions.live_worker import LiveDecisionsWorker
+
+            live_worker = LiveDecisionsWorker(
+                worker.journal,
+                worker.agent,
+                decision_models,
+                prompt=decision_prompt,
+                window_chars=window_chars,
+                timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
+                agent_enabled=worker.enabled,
+            )
+            live_dispatcher = LiveAgentDispatcher(worker.journal, worker.agent)
+        app = create_app(
+            worker,
+            auth,
+            windows,
+            dispatcher,
+            model_settings=decision_models,
+            live_worker=live_worker,
+            live_dispatcher=live_dispatcher,
+        )
     if service in {"session", "agent", "converse", "decisions"}:
         import sqlite3
 

@@ -18,6 +18,7 @@ enum SettingsDomain {
   standingDispatch,
   coreSubsystems,
   converseCapture,
+  converseLiveStream,
 }
 
 class OwnedSettingsFailure implements Exception {
@@ -63,6 +64,7 @@ class OwnedSettingsTransport {
     SettingsDomain.standingDispatch => 'Standing dispatch',
     SettingsDomain.coreSubsystems => 'Core subsystem settings',
     SettingsDomain.converseCapture => 'Converse capture mode',
+    SettingsDomain.converseLiveStream => 'Adaptive Live stream',
   };
   String get _connectionLabel => switch (domain) {
     SettingsDomain.model => 'model',
@@ -72,11 +74,17 @@ class OwnedSettingsTransport {
     SettingsDomain.standingDispatch => 'standing dispatch',
     SettingsDomain.coreSubsystems => 'Core subsystem settings',
     SettingsDomain.converseCapture => 'Converse capture mode',
+    SettingsDomain.converseLiveStream => 'Adaptive Live stream',
   };
-  int get _requestBytes => domain == SettingsDomain.standing ? 131072 : 4096;
+  int get _requestBytes => switch (domain) {
+    SettingsDomain.standing => 131072,
+    SettingsDomain.converseLiveStream => 96000,
+    _ => 4096,
+  };
   int get _responseBytes => switch (domain) {
     SettingsDomain.standing => 262144,
     SettingsDomain.standingDispatch => 32768,
+    SettingsDomain.converseLiveStream => 448 * 1024,
     _ => 16384,
   };
   final String baseUrl, _token;
@@ -196,7 +204,7 @@ class OwnedSettingsTransport {
         throw TimeoutException('$_label deadline');
       }
       // Reuse the bounded duplicate-key/unsafe-number/UTF8 rejecting codec.
-      result = decode(providerJsonDecode(raw));
+      result = decode(providerJsonDecode(raw, maxBytes: _responseBytes));
     } on _SettingsStatus catch (error) {
       failure = OwnedSettingsFailure(
         '$_label request was refused',
