@@ -653,6 +653,7 @@ def schema_pin():
     # Native consumer ownership has its own independently pinned family.
     # #566: optional Agent policy inspection is additive; retain original184.
     additive |= {"DecisionsAgentPolicy", "DecisionsAgentPolicyState"}
+    additive |= {"ExternalAgentRequest", "ExternalAgentResponse"}
     additive |= {"AgentAdviceExportRequest", "AgentAdviceExportAdmission"}
     additive |= {
         "AgentAdviceCall",
