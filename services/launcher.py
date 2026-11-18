@@ -12,8 +12,8 @@ import time
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
-# Older managed updaters import this module from staged source before activation.
-if sys.version_info[:2] < (3, 12):  # noqa: UP036
+# Managed updaters import staged source before activating its generation.
+if not (3, 12) <= sys.version_info[:2] < (3, 15):
     raise SystemExit(
         f"Kinaiya requires Python 3.12-3.14. This runtime uses Python "
         f"{sys.version_info.major}.{sys.version_info.minor}. Rerun install.sh with "

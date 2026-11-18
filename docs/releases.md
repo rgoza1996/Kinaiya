@@ -81,7 +81,7 @@ instructions belong to their consuming runtime/client implementations.
 
 Linux host releases from the Python 3.12 minimum onward use 3.12, 3.13 or
 3.14. The source bootstrap checks the chosen interpreter, and the application
-wheel declares `Requires-Python: >=3.12`. Owners of a managed 3.11 installation
+wheel requires `>=3.12,<3.15`. Owners of a managed 3.11 installation
 can stage the new release with a supported interpreter on their existing
 channel. [Python 3.11 upgrade instructions](linux-installation.md#moving-an-existing-python-311-installation)
 

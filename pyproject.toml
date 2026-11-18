@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "kinaiya"
 version = "0.1.0.dev0"
 description = "Independent voice and work runtimes with a shared evidence journal"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.34,<1",

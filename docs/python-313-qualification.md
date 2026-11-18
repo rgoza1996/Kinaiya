@@ -21,8 +21,9 @@ Git blob is `8468b3406cb309a299b2ead4109d0a2b2467153b`; release ID is
 
 Both published asset digests agree with the downloaded `hashes.sha256`
 (SHA-256 `9011ff8e558cd9c5373a3b814778e67b920ab8c1317a170fe1ce4161361aab1a`).
-The x64 archive was also downloaded and hashed locally. ARM archive execution
-is pending; matching published metadata is not an ARM qualification.
+The x64 archive was also downloaded and hashed locally. Oracle subsequently
+executed the pinned ARM64 build and passed 16,157 tests on Python 3.13.
+[Full native job on `71d797c5`](https://github.com/rgoza1996/Kinaiya/actions/runs/44211402907/job/134490417868)
 
 The existing CI helper verifies each archive, relocates only its private
 interpreter using the pinned patchelf, imports with an empty environment and
@@ -121,11 +122,13 @@ It is not silently installed into the host's 3.13 environment or relabeled as
 
 ## Python 3.11 retirement
 
-The retirement change sets the application minimum to 3.12 and retains
-3.13 and 3.14. The installer validates the selected interpreter before
-resolving a release. The staged launcher also checks the interpreter so a
-generation built by an older 3.11 updater fails its import probe before the
-launcher switch. See [upgrading a 3.11 installation](linux-installation.md#moving-an-existing-python-311-installation).
+The retirement wheel declares `>=3.12,<3.15`. The installer validates the
+selected interpreter before resolving a release. The staged launcher enforces
+the same range before loading application dependencies. A generation built
+by an older 3.11 updater fails its import probe before the launcher switch.
+The hosted installer workflow builds one wheel, installs it on 3.12, 3.13 and
+3.14, and checks wheel and source-launcher refusal on real 3.11 and 3.15.
+[Upgrading a 3.11 installation](linux-installation.md#moving-an-existing-python-311-installation)
 
 The sandboxed extension worker uses only the system standard library in a
 separate process. Its interpreter discovery is independent of the host
@@ -135,9 +138,15 @@ with an in-flight observation.
 
 Before merging retirement, record complete hosted and native ARM64/x64
 results, the Ubuntu 24.04/3.12 baseline, primary 3.14 behavior, and native
-wheel, packaging and sandbox outcomes. The default Ubuntu 26.04 policy
-denied the sealed GGUF executable on Dell x64 in prior runs.
-[#481](https://github.com/rgoza1996/Kinaiya/issues/481)
+wheel, packaging and sandbox outcomes. The following runs exercised the
+listed revisions of `main`.
+
+| Target | Source | Result |
+| --- | --- | --- |
+| Oracle ARM64, 3.12 | `ad619cba` | A bounded read before the second provider admission stopped the retry-budget test after 2,096 passes. [Job](https://github.com/rgoza1996/Kinaiya/actions/runs/44232510743/job/134560821150) · [Regression #739](https://github.com/rgoza1996/Kinaiya/issues/739) |
+| Oracle ARM64, 3.13 | `71d797c5` | Full suite passed, 16,157 tests. [Job](https://github.com/rgoza1996/Kinaiya/actions/runs/44211402907/job/134490417868) |
+| Oracle ARM64, 3.14 | `ad619cba` | Full suite passed, 16,213 tests. [Job](https://github.com/rgoza1996/Kinaiya/actions/runs/44232510743/job/134560822427) |
+| Dell x64, 3.13 | `71d797c5` | The sealed GGUF worker exited 126 after 8,104 passes. [Job](https://github.com/rgoza1996/Kinaiya/actions/runs/44211402907/job/134490417600) · [AppArmor issue #481](https://github.com/rgoza1996/Kinaiya/issues/481) |
 
 Prior native failures (#575/#576/#577/#578/#582/#587) retain their own evidence.
 A missing platform result or an unresolved applicable blocker keeps the full
