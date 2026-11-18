@@ -282,7 +282,10 @@ async def test_http_decisions_calls_endpoint_enforces_roles_and_scope(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_http_journal_client_retry_budget_persists_across_worker_restarts(tmp_path):
+@pytest.mark.parametrize("hold_second_attempt", [False, True])
+async def test_http_journal_client_retry_budget_persists_across_worker_restarts(
+    tmp_path, monkeypatch, hold_second_attempt
+):
     async with session_http_env(tmp_path) as (store, session, _app, make_client):
         source = append_user_source(store, session, idem="retry-restart")
         calls = 0
@@ -292,31 +295,65 @@ async def test_http_journal_client_retry_budget_persists_across_worker_restarts(
 
             async def complete(self, messages):
                 nonlocal calls
-                calls += 1
                 await capture_request(
                     self, {"model": "m", "messages": messages}, "chat_completions"
                 )
+                calls += 1
                 raise ProviderError("Provider HTTP 503")
 
         agent = DummyAgent()
-        worker_1 = DecisionsWorker(
-            make_client("decisions"), agent, ModelClassifier(FailingProvider())
-        )
-        with pytest.raises(ProviderError, match="503"):
-            await worker_1.tick()
-        assert calls == 1
-        assert store.read(kinds=["routing.classification_refused"]) == []
-        assert store.cursor("decisions", worker_1.consumer) == 0
+        audit = make_client("decisions")
 
-        # Recreate DecisionsWorker with a brand new HTTP JournalClient; must see 1 prior attempt.
-        worker_2 = DecisionsWorker(
-            make_client("decisions"), agent, ModelClassifier(FailingProvider())
-        )
-        persisted = await worker_2._persisted_call_state(source)
+        def new_worker(client):
+            return DecisionsWorker(client, agent, ModelClassifier(FailingProvider()))
+
+        async def assert_no_progress(prior, worker):
+            assert await native_attempt_state(audit, source) == prior
+            assert calls == prior.charged_attempts
+            assert store.cursor("decisions", worker.consumer) == 0
+            assert not store.read(
+                kinds=["routing.decided", "routing.dispatch", "routing.classification_refused"]
+            )
+            assert not (agent.submitted or agent.steered or agent.interrupted)
+
+        async def tick_after_restart(prior):
+            # A fresh worker can see a bounded read fail before admission (#739).
+            for observation in range(3):
+                worker = new_worker(make_client("decisions"))
+                try:
+                    await worker.tick()
+                except CaptureNativeUnavailable:
+                    await assert_no_progress(prior, worker)
+                    if observation == 2:
+                        raise
+                else:
+                    return worker
+
+        initial = await native_attempt_state(audit, source)
+        assert initial.state == "known_absent"
+        with pytest.raises(ProviderError, match="503"):
+            await tick_after_restart(initial)
+
+        first_error = await native_attempt_state(audit, source)
+        assert first_error.state == "retryable_error"
+        assert first_error.charged_attempts == 1
+        client = make_client("decisions")
+        restarted = new_worker(client)
+        await assert_no_progress(first_error, restarted)
+        persisted = await restarted._persisted_call_state(source)
         assert persisted.state == "retryable_error"
         assert persisted.prior_attempts == 1
+        if hold_second_attempt:
+            async with held_recovery_currentness(client, monkeypatch) as entered:
+                with pytest.raises(CaptureNativeUnavailable):
+                    await restarted.tick()
+                assert entered.is_set()
+                await assert_no_progress(first_error, restarted)
 
-        await worker_2.tick()
+        worker = await tick_after_restart(first_error)
+        exhausted = await native_attempt_state(audit, source)
+        assert exhausted.state == "exhausted"
+        assert exhausted.charged_attempts == 2
         assert calls == 2
         refusals = store.read(kinds=["routing.classification_refused"])
         assert len(refusals) == 1
@@ -326,13 +363,13 @@ async def test_http_journal_client_retry_budget_persists_across_worker_restarts(
             "reason": "provider_failed",
             "error_type": "ProviderError",
         }
-        assert store.cursor("decisions", worker_2.consumer) >= source.sequence
+        assert store.cursor("decisions", worker.consumer) >= source.sequence
 
         # A third worker must not make any further provider calls.
-        worker_3 = DecisionsWorker(
-            make_client("decisions"), agent, ModelClassifier(FailingProvider())
-        )
-        await worker_3.tick()
+        await new_worker(make_client("decisions")).tick()
+        assert await native_attempt_state(audit, source) == exhausted
+        assert store.read(kinds=["routing.classification_refused"]) == refusals
+        assert not (agent.submitted or agent.steered or agent.interrupted)
         assert calls == 2
 
 
