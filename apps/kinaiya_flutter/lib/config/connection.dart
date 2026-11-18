@@ -1,20 +1,23 @@
 /// Connection profiles and URL validation.
 ///
-/// Credentials live in memory only: never persisted, never logged, never
-/// placed in URLs. Insecure remote HTTP is rejected; loopback HTTP is allowed.
+/// Owner and session bearers stay in memory. A paired loopback browser can
+/// remember a separate revocable device proof for session renewal.
 library;
 
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../api/models.dart';
+import 'credential_picker.dart';
 import 'service_root.dart';
 
 const String defaultSessionUrl = 'http://127.0.0.1:8760';
 const String defaultAgentUrl = 'http://127.0.0.1:8761';
 const String defaultConverseUrl = 'http://127.0.0.1:8762';
 const String localSignInPath = '/__kinaiya/local-signin';
+const String localRefreshPath = '/__kinaiya/refresh-session';
 const String localRecoveryChallengePath = '/__kinaiya/recovery/challenge';
 const String localRecoverAccessPath = '/__kinaiya/recover-access';
 const String localRotateOwnerPath = '/__kinaiya/rotate-owner';
@@ -34,12 +37,18 @@ class LocalSignInException implements Exception {
   final String? code;
   final int? statusCode;
 
+  bool get proofRejected => const {
+    'LocalSignInDenied',
+    'LocalSignInExpired',
+    'LocalSignInStale',
+  }.contains(code);
+
   @override
   String toString() => message;
 }
 
 /// Callback for exchanging a same-origin loopback handoff for an in-memory
-/// owner session. Never persists tokens to browser storage or disk.
+/// owner session. The service credential stays in memory.
 typedef LocalSignInExchange = Future<LocalSignInResult> Function();
 
 /// Verified local-host sign-in payload returned by `POST /__kinaiya/local-signin`.
@@ -129,249 +138,158 @@ class LocalSignInResult {
   }
 }
 
-/// Performs the same-origin loopback `POST /__kinaiya/local-signin` exchange.
+bool isLocalBrokerPage(Uri page) =>
+    (page.scheme == 'http' || page.scheme == 'https') &&
+    page.userInfo.isEmpty &&
+    ConnectionProfile._isLoopback(page.host);
+
+Uri _brokerEndpoint(String path, Uri? endpoint) {
+  final page = kIsWeb ? Uri.base : Uri.parse(permittedWebOrigins.last);
+  final target = endpoint ?? page.resolve(path);
+  if (!isLocalBrokerPage(target) ||
+      (kIsWeb && (!isLocalBrokerPage(page) || target.origin != page.origin))) {
+    throw const LocalSignInException(
+      'Open Kinaiya on its local host to use local sign-in.',
+    );
+  }
+  return target;
+}
+
+Future<Map<String, Object?>> _postLocalBroker(
+  String path, {
+  Uri? endpoint,
+  http.Client? httpClient,
+  Map<String, Object?>? body,
+}) async {
+  final target = _brokerEndpoint(path, endpoint);
+  final client = httpClient ?? http.Client();
+  try {
+    final request = http.Request('POST', target)
+      ..followRedirects = false
+      ..headers.addAll({localSignInHeader: '1', 'Accept': 'application/json'});
+    if (body != null) {
+      request.headers['Content-Type'] = 'application/json';
+      request.body = jsonEncode(body);
+    }
+    final response = await client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(const Duration(seconds: 5));
+    if (response.statusCode != 200) {
+      Map? error;
+      try {
+        final parsed = jsonDecode(response.body);
+        if (parsed is Map) error = parsed;
+      } on FormatException {
+        // A non-Kinaiya host can return a non-JSON error.
+      }
+      throw LocalSignInException(
+        error?['detail']?.toString() ??
+            'Local host request failed (${response.statusCode}).',
+        code: error?['code']?.toString(),
+        statusCode: response.statusCode,
+      );
+    }
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, Object?>) {
+      throw const FormatException('Invalid local host response.');
+    }
+    return json;
+  } finally {
+    if (httpClient == null) client.close();
+  }
+}
+
+final _deviceProofFormat = RegExp(r'^kny_refr_[A-Za-z0-9_-]{32,128}$');
+
+Future<LocalSignInResult> _pairedSession(Map<String, Object?> json) async {
+  final session = LocalSignInResult.fromJson(json);
+  session
+      .toConnectionProfile(); // Validate the returned endpoints before pairing.
+  final proof = json['refresh_token'];
+  if (proof is String && _deviceProofFormat.hasMatch(proof)) {
+    await rememberDeviceProof(proof);
+  }
+  return session;
+}
+
+/// Reuse the paired device. A rejected proof can be replaced by a launch handoff.
 Future<LocalSignInResult> exchangeLocalSignIn({
   http.Client? httpClient,
   Uri? endpoint,
+  Future<String?> Function() readProof = readDeviceProof,
 }) async {
-  final target =
-      endpoint ?? Uri.parse('${permittedWebOrigins.last}$localSignInPath');
-  if (!ConnectionProfile._isLoopback(target.host)) {
-    throw const LocalSignInException(
-      'Local sign-in exchange is restricted to loopback origins.',
-    );
-  }
-  final client = httpClient ?? http.Client();
-  final ownsClient = httpClient == null;
-  try {
-    final response = await client
-        .post(
-          target,
-          headers: const <String, String>{
-            localSignInHeader: '1',
-            'Accept': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) {
-      String? detail;
-      String? code;
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map) {
-          detail = decoded['detail']?.toString();
-          code = decoded['code']?.toString();
-        }
-      } catch (_) {}
-      throw LocalSignInException(
-        detail ?? 'Local sign-in exchange failed (${response.statusCode}).',
-        code: code,
-        statusCode: response.statusCode,
+  final target = _brokerEndpoint(localSignInPath, endpoint);
+  final proof = await readProof();
+  if (proof != null && _deviceProofFormat.hasMatch(proof)) {
+    try {
+      final json = await _postLocalBroker(
+        localRefreshPath,
+        endpoint: target.resolve(localRefreshPath),
+        httpClient: httpClient,
+        body: {'refresh_token': proof},
       );
-    }
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw const FormatException('Local sign-in response must be a JSON map.');
-    }
-    return LocalSignInResult.fromJson(decoded.cast<String, Object?>());
-  } finally {
-    if (ownsClient) {
-      client.close();
+      return LocalSignInResult.fromJson(json);
+    } on LocalSignInException catch (error) {
+      if (!error.proofRejected) rethrow;
     }
   }
+  return _pairedSession(
+    await _postLocalBroker(
+      localSignInPath,
+      endpoint: target,
+      httpClient: httpClient,
+    ),
+  );
 }
 
-/// Requests a single-use local recovery authorization challenge written to host storage.
+/// Requests a single-use recovery file on the local host.
 Future<Map<String, Object?>> requestRecoveryChallenge({
   http.Client? httpClient,
   Uri? endpoint,
-}) async {
-  final target =
-      endpoint ??
-      Uri.parse('${permittedWebOrigins.last}$localRecoveryChallengePath');
-  if (!ConnectionProfile._isLoopback(target.host)) {
-    throw const LocalSignInException(
-      'Recovery challenge is restricted to loopback origins.',
-    );
-  }
-  final client = httpClient ?? http.Client();
-  final ownsClient = httpClient == null;
-  try {
-    final response = await client
-        .post(
-          target,
-          headers: const <String, String>{
-            localSignInHeader: '1',
-            'Accept': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) {
-      String? detail;
-      String? code;
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map) {
-          detail = decoded['detail']?.toString();
-          code = decoded['code']?.toString();
-        }
-      } catch (_) {}
-      throw LocalSignInException(
-        detail ??
-            'Failed to request recovery challenge (${response.statusCode}).',
-        code: code,
-        statusCode: response.statusCode,
-      );
-    }
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw const FormatException(
-        'Recovery challenge response must be a JSON map.',
-      );
-    }
-    return decoded.cast<String, Object?>();
-  } finally {
-    if (ownsClient) {
-      client.close();
-    }
-  }
-}
+}) => _postLocalBroker(
+  localRecoveryChallengePath,
+  endpoint: endpoint,
+  httpClient: httpClient,
+);
 
-/// Recovers local owner access using a verified local authorization proof.
 Future<LocalSignInResult> recoverLocalAccess({
   required String authorizationProof,
   http.Client? httpClient,
   Uri? endpoint,
-}) async {
-  final target =
-      endpoint ??
-      Uri.parse('${permittedWebOrigins.last}$localRecoverAccessPath');
-  if (!ConnectionProfile._isLoopback(target.host)) {
-    throw const LocalSignInException(
-      'Access recovery is restricted to loopback origins.',
-    );
-  }
-  final client = httpClient ?? http.Client();
-  final ownsClient = httpClient == null;
-  try {
-    final response = await client
-        .post(
-          target,
-          headers: const <String, String>{
-            localSignInHeader: '1',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode(<String, Object?>{
-            'authorization_proof': authorizationProof,
-          }),
-        )
-        .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) {
-      String? detail;
-      String? code;
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map) {
-          detail = decoded['detail']?.toString();
-          code = decoded['code']?.toString();
-        }
-      } catch (_) {}
-      throw LocalSignInException(
-        detail ?? 'Local access recovery failed (${response.statusCode}).',
-        code: code,
-        statusCode: response.statusCode,
-      );
-    }
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw const FormatException(
-        'Access recovery response must be a JSON map.',
-      );
-    }
-    return LocalSignInResult.fromJson(decoded.cast<String, Object?>());
-  } finally {
-    if (ownsClient) {
-      client.close();
-    }
-  }
-}
+}) async => _pairedSession(
+  await _postLocalBroker(
+    localRecoverAccessPath,
+    endpoint: endpoint,
+    httpClient: httpClient,
+    body: {'authorization_proof': authorizationProof},
+  ),
+);
 
-/// Atomically rotates the owner credential and returns new session/owner authority.
 Future<LocalSignInResult> rotateOwnerCredential({
   required String authorizationProof,
   bool returnExportedToken = true,
   http.Client? httpClient,
   Uri? endpoint,
-}) async {
-  final target =
-      endpoint ?? Uri.parse('${permittedWebOrigins.last}$localRotateOwnerPath');
-  if (!ConnectionProfile._isLoopback(target.host)) {
-    throw const LocalSignInException(
-      'Credential rotation is restricted to loopback origins.',
-    );
-  }
-  final client = httpClient ?? http.Client();
-  final ownsClient = httpClient == null;
-  try {
-    final response = await client
-        .post(
-          target,
-          headers: const <String, String>{
-            localSignInHeader: '1',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: jsonEncode(<String, Object?>{
-            'authorization_proof': authorizationProof,
-            'confirm': true,
-            'return_exported_token': returnExportedToken,
-          }),
-        )
-        .timeout(const Duration(seconds: 5));
-    if (response.statusCode != 200) {
-      String? detail;
-      String? code;
-      try {
-        final decoded = jsonDecode(response.body);
-        if (decoded is Map) {
-          detail = decoded['detail']?.toString();
-          code = decoded['code']?.toString();
-        }
-      } catch (_) {}
-      throw LocalSignInException(
-        detail ?? 'Credential rotation failed (${response.statusCode}).',
-        code: code,
-        statusCode: response.statusCode,
-      );
-    }
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map) {
-      throw const FormatException(
-        'Credential rotation response must be a JSON map.',
-      );
-    }
-    return LocalSignInResult.fromJson(decoded.cast<String, Object?>());
-  } finally {
-    if (ownsClient) {
-      client.close();
-    }
-  }
-}
+}) async => _pairedSession(
+  await _postLocalBroker(
+    localRotateOwnerPath,
+    endpoint: endpoint,
+    httpClient: httpClient,
+    body: {
+      'authorization_proof': authorizationProof,
+      'confirm': true,
+      'return_exported_token': returnExportedToken,
+    },
+  ),
+);
 
 /// Checks private credential storage health on the local host.
 Future<Map<String, Object?>> checkStorageStatus({
   http.Client? httpClient,
   Uri? endpoint,
 }) async {
-  final target =
-      endpoint ??
-      Uri.parse('${permittedWebOrigins.last}$hostCredentialStorageStatusPath');
-  if (!ConnectionProfile._isLoopback(target.host)) {
-    throw const LocalSignInException(
-      'Storage status check is restricted to loopback origins.',
-    );
-  }
+  final target = _brokerEndpoint(hostCredentialStorageStatusPath, endpoint);
   final client = httpClient ?? http.Client();
   final ownsClient = httpClient == null;
   try {

@@ -65,6 +65,8 @@ class AppState extends ChangeNotifier {
   LocalSignInExchange? localSignInExchange;
   LocalHostSignInState localSignInState = LocalHostSignInState.idle;
   String? localSignInError;
+  bool localRecoveryNeedsProof = false;
+  int _localSignInRequest = 0;
   BackendProfile _preferredBackendProfile = BackendProfile.clean;
 
   ConnectionProfile? connection;
@@ -406,7 +408,10 @@ class AppState extends ChangeNotifier {
       converseInferenceAllowed &&
       client?.converseModels.hasUnconfirmedChange != true;
 
-  void connect(ConnectionProfile profile, {KinaiyaClient? injected}) {
+  Future<void> connect(
+    ConnectionProfile profile, {
+    KinaiyaClient? injected,
+  }) async {
     _setNativeAudioSupport(
       const NativeAudioSupport.unknown(),
       stopCurrent: false,
@@ -517,10 +522,32 @@ class AppState extends ChangeNotifier {
         : 'Checking services…';
     notifyListeners();
     if (client != null && injected == null) {
-      unawaited(_verifyConnection(generation));
+      final verification = _verifyConnection(generation);
       // Independent Decisions owner metadata never depends on other role health.
       unawaited(refreshDecisionsModelOptions());
+      await verification;
     }
+  }
+
+  Future<bool> _applyLocalSession(
+    LocalSignInResult result,
+    BackendProfile disclosure,
+    KinaiyaClient? injected,
+  ) async {
+    final profile = result.toConnectionProfile(backendProfile: disclosure);
+    await connect(profile, injected: injected);
+    if (!identical(connection, profile)) return false;
+    if (injected != null && !result.converseEnabled) {
+      converseOnline = false;
+      converseInferenceAllowed = false;
+    }
+    final verified = connected && sessionAuthenticated;
+    localSignInState = verified
+        ? LocalHostSignInState.connected
+        : LocalHostSignInState.unavailable;
+    localSignInError = verified ? null : connectionError;
+    notifyListeners();
+    return verified;
   }
 
   /// Exchanges a trusted local handoff for an in-memory owner session without
@@ -537,10 +564,14 @@ class AppState extends ChangeNotifier {
         connection?.backendProfile ??
         _preferredBackendProfile;
     _preferredBackendProfile = preservedDisclosure;
+    final request = ++_localSignInRequest;
+    final generation = _connectionGeneration;
+    localRecoveryNeedsProof = false;
     localSignInState = LocalHostSignInState.connecting;
     localSignInError = null;
     notifyListeners();
     if (runner == null) {
+      localRecoveryNeedsProof = true;
       localSignInState = LocalHostSignInState.unavailable;
       localSignInError =
           'Local automatic sign-in unavailable. Retry local sign-in or use Advanced connection.';
@@ -549,36 +580,19 @@ class AppState extends ChangeNotifier {
     }
     try {
       final result = await runner();
-      final profile = result.toConnectionProfile(
-        backendProfile: preservedDisclosure,
-      );
-      connect(profile, injected: injected);
-      if (injected != null) {
-        if (!result.converseEnabled) {
-          converseOnline = false;
-          converseInferenceAllowed = false;
-        }
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
-        notifyListeners();
-        return true;
+      if (request != _localSignInRequest ||
+          generation != _connectionGeneration) {
+        return false;
       }
-      final generation = _connectionGeneration;
-      await _verifyConnection(generation);
-      if (connected && sessionAuthenticated) {
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
-        notifyListeners();
-        return true;
-      }
-      localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          connectionError ?? 'Local automatic sign-in unavailable.';
-      notifyListeners();
-      return false;
+      return await _applyLocalSession(result, preservedDisclosure, injected);
     } catch (error) {
+      if (request != _localSignInRequest ||
+          generation != _connectionGeneration) {
+        return false;
+      }
       localSignInState = LocalHostSignInState.unavailable;
       if (error is LocalSignInException) {
+        localRecoveryNeedsProof = error.proofRejected;
         if (error.code == 'LocalSignInExpired') {
           localSignInError =
               'Local sign-in handoff has expired. Click Recover access to restore your session.';
@@ -586,6 +600,12 @@ class AppState extends ChangeNotifier {
             error.message.contains('already been consumed')) {
           localSignInError =
               'Local sign-in handoff was already used. Click Recover access to restore your session.';
+        } else if (error.code == 'LocalSignInDenied' &&
+            error.message.contains(
+              'Missing single-use local sign-in handoff cookie',
+            )) {
+          localSignInError =
+              'This browser needs to be paired. Choose Recover access to connect.';
         } else if (error.code == 'LocalSignInStale') {
           localSignInError =
               'Host was restarted or owner credential rotated. Click Recover access or enter updated credentials.';
@@ -628,6 +648,9 @@ class AppState extends ChangeNotifier {
         connection?.backendProfile ??
         _preferredBackendProfile;
     _preferredBackendProfile = preservedDisclosure;
+    final request = ++_localSignInRequest;
+    final generation = _connectionGeneration;
+    localRecoveryNeedsProof = false;
     localSignInState = LocalHostSignInState.connecting;
     localSignInError = null;
     notifyListeners();
@@ -636,35 +659,16 @@ class AppState extends ChangeNotifier {
       final result = customRecovery != null
           ? await customRecovery(authorizationProof)
           : await recoverLocalAccess(authorizationProof: authorizationProof);
-      final profile = result.toConnectionProfile(
-        backendProfile: preservedDisclosure,
-      );
-      connect(profile, injected: injected);
-      if (injected != null) {
-        if (!result.converseEnabled) {
-          converseOnline = false;
-          converseInferenceAllowed = false;
-        }
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
-        notifyListeners();
-        return true;
+      if (request != _localSignInRequest ||
+          generation != _connectionGeneration) {
+        return false;
       }
-      final generation = _connectionGeneration;
-      await _verifyConnection(generation);
-      if (connected && sessionAuthenticated) {
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
-        notifyListeners();
-        return true;
-      }
-      localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          connectionError ??
-          'Local access recovery succeeded but session verification failed.';
-      notifyListeners();
-      return false;
+      return await _applyLocalSession(result, preservedDisclosure, injected);
     } catch (error) {
+      if (request != _localSignInRequest ||
+          generation != _connectionGeneration) {
+        return false;
+      }
       localSignInState = LocalHostSignInState.unavailable;
       if (error is LocalSignInException) {
         localSignInError = error.message;
@@ -692,6 +696,9 @@ class AppState extends ChangeNotifier {
         connection?.backendProfile ??
         _preferredBackendProfile;
     _preferredBackendProfile = preservedDisclosure;
+    final request = ++_localSignInRequest;
+    final generation = _connectionGeneration;
+    localRecoveryNeedsProof = false;
     localSignInState = LocalHostSignInState.connecting;
     localSignInError = null;
     notifyListeners();
@@ -700,34 +707,16 @@ class AppState extends ChangeNotifier {
       final result = customRotation != null
           ? await customRotation(authorizationProof)
           : await rotateOwnerCredential(authorizationProof: authorizationProof);
-      final profile = result.toConnectionProfile(
-        backendProfile: preservedDisclosure,
-      );
-      connect(profile, injected: injected);
-      if (injected != null) {
-        if (!result.converseEnabled) {
-          converseOnline = false;
-          converseInferenceAllowed = false;
-        }
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
-        notifyListeners();
-        return result;
+      if (request == _localSignInRequest &&
+          generation == _connectionGeneration) {
+        await _applyLocalSession(result, preservedDisclosure, injected);
       }
-      final generation = _connectionGeneration;
-      await _verifyConnection(generation);
-      if (connected && sessionAuthenticated) {
-        localSignInState = LocalHostSignInState.connected;
-        localSignInError = null;
-        notifyListeners();
-        return result;
-      }
-      localSignInState = LocalHostSignInState.unavailable;
-      localSignInError =
-          connectionError ?? 'Credential rotated, but reconnect failed.';
-      notifyListeners();
       return result;
     } catch (error) {
+      if (request != _localSignInRequest ||
+          generation != _connectionGeneration) {
+        return null;
+      }
       localSignInState = LocalHostSignInState.unavailable;
       if (error is LocalSignInException) {
         localSignInError = error.message;

@@ -810,3 +810,68 @@ async def test_native_draft_usage_refuses_even_without_a_named_draft_model(field
     wire.terminal = terminal
     with pytest.raises(ProviderCleanupError):
         await provider(wire).complete(MESSAGES)
+
+
+def prepared_reasoning_stream(wire, fragments):
+    def frames(ws):
+        for kind, structural, content in fragments:
+            yield {
+                "type": "channelSend",
+                "channelId": 1,
+                "message": {
+                    "type": "fragment",
+                    "fragment": {
+                        "reasoningType": kind,
+                        "isStructural": structural,
+                        "content": content,
+                        "tokensCount": 0 if structural else 1,
+                        "containsDrafted": False,
+                    },
+                },
+            }
+        yield {"type": "channelSend", "channelId": 1, "message": wire.terminal(ws)}
+        yield {"type": "channelClose", "channelId": 1}
+
+    wire.frames = frames
+
+
+@pytest.mark.parametrize("explicit_start", [True, False])
+async def test_prepared_agent_returns_only_native_final_text(explicit_start):
+    wire = NativeFixture()
+    fragments = [("reasoningStartTag", True, "<think>")] if explicit_start else []
+    fragments.extend(
+        [
+            ("reasoning", False, '{"tool":"fixture-only"}'),
+            ("reasoningEndTag", True, "</think>"),
+            ("none", False, "  A"),
+            ("none", False, " final reply.\n"),
+        ]
+    )
+    prepared_reasoning_stream(wire, fragments)
+    request = await provider(wire).prepare_complete(MESSAGES)
+    assert await request.complete() == "  A final reply.\n"
+    assert all(ws.closed for ws in wire.connections)
+
+
+@pytest.mark.parametrize(
+    "fragments",
+    [
+        [("unknown", False, "")],
+        [("none", True, "")],
+        [("reasoning", True, "")],
+        [("reasoningEndTag", False, "")],
+        [("reasoning", False, "private")],
+        [("reasoning", False, "private"), ("none", False, "premature")],
+        [("reasoningStartTag", True, ""), ("reasoningStartTag", True, "")],
+        [("none", False, "<thi"), ("none", False, "nk>")],
+        [("reasoning", False, "x" * 33), ("reasoningEndTag", True, "")],
+    ],
+)
+async def test_prepared_agent_rejects_invalid_or_oversized_reasoning_stream(fragments, monkeypatch):
+    wire = NativeFixture()
+    prepared_reasoning_stream(wire, fragments)
+    monkeypatch.setattr("packages.providers.lmstudio._MAX_TEXT", 32)
+    request = await provider(wire).prepare_complete(MESSAGES)
+    with pytest.raises(ProviderRefusal):
+        await request.complete()
+    assert all(ws.closed for ws in wire.connections)

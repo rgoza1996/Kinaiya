@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api/client.dart';
@@ -6,7 +7,11 @@ import 'config/connection.dart';
 import 'state/app_state.dart';
 
 void main() {
-  final state = AppState();
+  final state = AppState(
+    localSignInExchange: kIsWeb && isLocalBrokerPage(Uri.base)
+        ? exchangeLocalSignIn
+        : null,
+  );
   // Real HTTP transport. Tests inject a labeled mock via connect(injected:).
   state.clientFactory = (ConnectionProfile profile) => KinaiyaClient(
     sessionBase: profile.sessionUrl,

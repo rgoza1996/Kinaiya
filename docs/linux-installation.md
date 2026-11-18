@@ -43,14 +43,15 @@ kinaiya web           # http://127.0.0.1:8780 with automatic local launch handof
   connection check (#391) and `kinaiya doctor` (#392).
 - **Owner credentials and GUI access.** Internal service tokens in `data/service-tokens.json`
   (mode 0600) are managed by Kinaiya; do not edit or share them.
-  - **Automatic local sign-in:** Launching via `kinaiya start` or `kinaiya web`
-    automatically exchanges a single-use loopback launch handoff for a scoped owner
-    session (`kny_sess_...`) in memory, without requiring manual token entry or terminal
-    commands (#393, #396, #492).
-  - **Access recovery:** When automatic sign-in cannot complete (e.g. handoff expired or
-    interrupted), the GUI provides **Recover access** to restore the session using a local
-    authorization proof (such as your private credential file `service-tokens.json` or a
-    local challenge file) without rotating the underlying credential (#492).
+  - **Automatic local sign-in.** Open the loopback page from `kinaiya start` or
+    `kinaiya web`. A single-use handoff pairs that browser. On later visits, the
+    browser exchanges its origin-scoped device proof for a fresh owner session.
+    Only the device proof is stored in IndexedDB. Owner and session bearers stay
+    in memory. [#740](https://github.com/rgoza1996/Kinaiya/issues/740)
+  - **Recover access** reuses an available pairing or launch handoff. If this
+    browser has neither, select the temporary file at the path shown in the
+    dialog or your exported `owner-login.txt`. The app verifies and applies the
+    recovered session immediately. Your owner credential keeps its current value.
   - **Credential rotation:** For potentially compromised credentials, the GUI and CLI
     (`kinaiya auth rotate-owner`) support atomic owner credential replacement,
     invalidating prior credentials, active owner sessions, and outstanding handoffs (#394, #492).
@@ -397,7 +398,7 @@ None of them requires editing JSON or `.env` files by hand.
 | **Invalid or missing API key** | Export the correct value into the environment variable named by `--credential-env` in the shell that runs `kinaiya serve host`, then restart it. To change which variable is used, rerun `kinaiya setup`. Never pass the key as an argument. |
 | **Missing web assets** (`kinaiya web` refuses) | The matching release has no prebuilt UI. Install a release that includes it (`kinaiya update --plan`, then `kinaiya update --yes`), or follow the developer path in [Owner web client](#owner-web-client) in a separate checkout. Kinaiya never downloads Flutter for you. |
 | **Interrupted install or update** | Stop managed services, then run `kinaiya recover --yes`. It reconciles the pending transaction without deleting the active generation or data. If a release is broken, `kinaiya rollback --generation <id> --yes` restores retained code/runtime only. |
-| **Lost access / expired handoff** | In the GUI, click **Recover access** and provide local authorization (e.g. select `service-tokens.json` from your data directory or generate a local challenge) to restore an authenticated session without rotating credentials. Or via CLI: `kinaiya owner-login --output <new-path>` to export a new 0600 file. |
+| **Local sign-in expired or browser unpaired** | Click **Recover access**. If Kinaiya asks to pair this browser, choose the temporary recovery file shown in the dialog or an exported `owner-login.txt`. Kinaiya applies the recovered session automatically. |
 | **Potentially compromised credential** | In the GUI, click **Replace owner credential** on the host card, review the effects, and confirm. Or via CLI: `kinaiya auth rotate-owner`. Both invalidate previous credentials, existing owner sessions, and outstanding handoffs. |
 | **Corrupt or missing credential storage** | Setup and recovery refuse to silently reinitialize missing or corrupt private storage. Preserve existing files for recovery and check filesystem permissions (`chmod 0700` on data directory, `chmod 0600` on `service-tokens.json`), or run `kinaiya setup` / restore a backup. |
 
