@@ -1349,8 +1349,24 @@ def serve(args):
             )
         except (DecisionsModelUnavailable, OSError, ValueError, RuntimeError, sqlite3.Error):
             decision_models = UnavailableDecisionsModels(host_provider)
+        journal = JournalClient(config["session_url"], tokens["decisions"])
+        external_agent = None
+        if not topology.agent and config.get("external_agent") is not None:
+            from services.decisions.managed_pi import ManagedPi
+            from services.decisions.pi_process import PiLaunchProfile
+
+            data_directory = args.data_dir.resolve()
+            protected = (ROOT.resolve(), data_directory, config_path.resolve())
+            try:
+                protected += managed_guard_roots()
+                profile = PiLaunchProfile.model_validate(config["external_agent"], strict=True)
+            except (OSError, RuntimeError, ValueError):
+                profile = None
+            external_agent = ManagedPi(
+                profile, journal, data_dir=data_directory, protected=protected
+            )
         worker = DecisionsWorker(
-            JournalClient(config["session_url"], tokens["decisions"]),
+            journal,
             AgentClient(config["agent_url"], tokens["decisions"]) if topology.agent else None,
             ModelClassifier(
                 host_provider,
@@ -1359,6 +1375,7 @@ def serve(args):
             ),
             enabled=topology.agent and config.get("agent_enabled", True),
             model_settings=decision_models,
+            external_agent=external_agent,
         )
         windows_enabled = config.get("streaming_windows", {}).get("enabled", True)
         windows = (
@@ -1371,12 +1388,18 @@ def serve(args):
                 agent_enabled=worker.enabled,
                 timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
                 model_settings=decision_models,
+                external_agent=external_agent,
             )
             if windows_enabled
             else None
         )
         dispatcher = (
-            WindowAgentDispatcher(worker.journal, worker.agent, enabled=worker.enabled)
+            WindowAgentDispatcher(
+                worker.journal,
+                worker.agent,
+                enabled=worker.enabled,
+                external_agent=external_agent,
+            )
             if windows_enabled
             else None
         )
@@ -1419,6 +1442,7 @@ def serve(args):
                 live_dispatcher=live_dispatcher,
                 agent_policy=agent_policy,
                 agent_operations=agent_operations,
+                external_agent=external_agent,
             )
         except BaseException:
             agent_policy.close()

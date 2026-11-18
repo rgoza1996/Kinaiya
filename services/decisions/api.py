@@ -22,7 +22,16 @@ def create_app(
     live_dispatcher=None,
     agent_policy=None,
     agent_operations=None,
+    external_agent=None,
 ):
+    if external_agent is not None:
+        from services.decisions.managed_pi import ManagedPi
+
+        if (
+            not isinstance(external_agent, ManagedPi)
+            or external_agent.authority.journal is not worker.journal
+        ):
+            raise ValueError("The managed Pi peer requires its native Decisions journal")
     if agent_operations is not None:
         from services.decisions.agent_operations import AgentAdviceOperations
 
@@ -100,8 +109,12 @@ def create_app(
                     if agent_operations is not None:
                         state["agent_advice_cleanup_confirmed"] = await agent_operations.close()
                 finally:
-                    if model_settings is not None:
-                        await model_settings.close()
+                    try:
+                        if external_agent is not None:
+                            state["external_agent_cleanup_confirmed"] = await external_agent.close()
+                    finally:
+                        if model_settings is not None:
+                            await model_settings.close()
 
     @asynccontextmanager
     async def lifespan(app):
@@ -113,6 +126,12 @@ def create_app(
                 agent_policy.close()
 
     app = FastAPI(title="Kinaiya Decisions", lifespan=lifespan)
+
+    if external_agent is not None:
+        from services.decisions.managed_pi_api import router as managed_pi_router
+
+        app.state.external_agent = external_agent
+        app.include_router(managed_pi_router(external_agent, auth))
 
     if agent_operations is not None:
         from services.decisions.agent_advice_api import router as agent_advice_router

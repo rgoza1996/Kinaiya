@@ -121,6 +121,15 @@ class Store:
             INSERT INTO schema_meta(version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM schema_meta);
             CREATE TABLE IF NOT EXISTS sessions(
                 session_id TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS external_agent_grants(
+                attachment_id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE,
+                original TEXT NOT NULL, backend_session_id TEXT UNIQUE,
+                revoked INTEGER NOT NULL CHECK(revoked IN (0,1)));
+            CREATE TABLE IF NOT EXISTS external_agent_claims(
+                attachment_id TEXT NOT NULL REFERENCES external_agent_grants(attachment_id),
+                idempotency_key TEXT NOT NULL, command_digest TEXT NOT NULL,
+                admission_id TEXT NOT NULL UNIQUE, decision_event_id TEXT NOT NULL UNIQUE,
+                source_event_id TEXT NOT NULL UNIQUE, PRIMARY KEY(attachment_id,idempotency_key));
             CREATE TABLE IF NOT EXISTS entries(
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_id TEXT NOT NULL UNIQUE,
@@ -1288,6 +1297,24 @@ class Store:
                     ).fetchone()
                     if native is not None:
                         raise AgentSubmitUnavailable
+                    # Reserve each Decisions source for one executor in the
+                    # transaction shared with the external Agent claim path.
+                    if (
+                        proposal.payload["actor"] == "decisions"
+                        and self.db.execute(
+                            "SELECT 1 FROM external_agent_claims AS c JOIN entries AS s "
+                            "ON s.event_id=c.source_event_id "
+                            "WHERE s.session_id=? AND s.thread_id=? AND s.epoch=? "
+                            "AND s.event_id IN (SELECT value FROM json_each(?)) LIMIT 1",
+                            (
+                                proposal.session_id,
+                                proposal.thread_id,
+                                proposal.epoch,
+                                json.dumps(proposal.payload["source_event_ids"]),
+                            ),
+                        ).fetchone()
+                    ):
+                        raise AgentSubmitConflict
                     # Exact historical proof above remains usable while Off.
                     # No await or second transaction separates mode and receipt.
                     self.agent_control.require_admission()
@@ -1535,6 +1562,7 @@ class Store:
             )
         if pending_only:
             where.append("json_extract(e.value,'$.payload.state')='queued'")
+            where.append("json_extract(e.value,'$.payload.executor') IS NOT 'pi'")
             where.append("""NOT EXISTS (SELECT 1 FROM entries t
                 WHERE t.kind='routing.window_dispatch' AND t.session_id=e.session_id
                 AND json_extract(t.value,'$.payload.decision_id')=json_extract(e.value,'$.payload.decision_id')

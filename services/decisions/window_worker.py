@@ -55,6 +55,7 @@ class WindowDecisionsWorker:
         parallel=2,
         max_age=60,
         model_settings=None,
+        external_agent=None,
     ):
         if getattr(classifier, "window_contract_version", 1) != 1:
             raise ValueError("Rolling Windows worker requires window contract1.0")
@@ -68,6 +69,9 @@ class WindowDecisionsWorker:
         ):
             raise ValueError("Window maximum age must be positive and at most 3600 seconds")
         self.agent_enabled, self.timeout = agent_enabled, timeout
+        if agent_enabled and external_agent is not None:
+            raise ValueError("Decisions requires one work executor")
+        self.external_agent = external_agent
         self.parallel, self.max_age = max(1, min(parallel, 4)), max_age
         self.jobs = {}
         self.pending = OrderedDict()
@@ -187,8 +191,12 @@ class WindowDecisionsWorker:
         source, window = await self._scoped_source(source, window)
         recent = await self._native("recent", session_id=source.session_id, limit=100)
         context = await self._resolve_context(source, window, recent)
-        tasks, task_history, available = [], [], self.agent_enabled
-        if available:
+        external_target = (
+            self.external_agent.routing_target(source) if self.external_agent else None
+        )
+        routing_enabled = self.agent_enabled or external_target is not None
+        tasks, task_history, available = [], [], routing_enabled
+        if self.agent_enabled:
             try:
                 tasks = await asyncio.wait_for(self.agent.status(), 0.25)
                 if not isinstance(tasks, list):
@@ -209,9 +217,11 @@ class WindowDecisionsWorker:
                 tasks = [t for t in scoped_status if t.state not in TERMINAL_TASK_STATES]
             except Exception:
                 tasks, task_history, available = [], [], False
+        elif external_target is not None:
+            tasks = await self.external_agent.routing_tasks(source)
         tasks = await self._scoped_tasks(tasks)
         task_history = await self._scoped_tasks(task_history, force=True)
-        self.agent_available = available if self.agent_enabled else None
+        self.agent_available = available if routing_enabled else None
         if self.agent_enabled and not available:
             await self.status(source, "agent_unavailable", "agent_status_unavailable")
         started = time.monotonic()
@@ -229,7 +239,7 @@ class WindowDecisionsWorker:
             tasks,
             provider_info=provider_info,
             window_chars=window_chars,
-            agent_enabled=self.agent_enabled,
+            agent_enabled=routing_enabled,
             agent_available=available,
             model_stamp=model_stamp,
             instructions_stamp=instructions_stamp,
@@ -365,7 +375,7 @@ class WindowDecisionsWorker:
         if len(self.outputs) > 128:
             evicted, _ = self.outputs.popitem(last=False)
             self.output_models.pop(evicted, None)
-        if not self.agent_enabled:
+        if not routing_enabled:
             # Explicitly disabled work never replays later. A failed status
             # probe is different: preserve valid intent, then let the native
             # dispatcher wait for a confirmed boundary and recheck admission.

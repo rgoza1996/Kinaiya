@@ -28,6 +28,7 @@ from packages.contracts import (
     decisions_consumers,
     decisions_models,
     decisions_prompts,
+    external_agent,
     journal_wake,
     live_agent_sources,
     live_captures,
@@ -90,6 +91,12 @@ for module in (
 (target / "ConverseSetup.json").write_text(
     json.dumps(converse_setup.ConverseSetup.model_json_schema(), indent=2) + "\n"
 )
+
+# Transport-neutral requests and responses share one versioned bridge schema.
+for cls in (external_agent.ExternalAgentRequest, external_agent.ExternalAgentResponse):
+    (target / f"{cls.__name__}.json").write_text(
+        json.dumps(cls.model_json_schema(), indent=2) + "\n"
+    )
 
 # These strict, immutable control types deliberately require every wire field;
 # they do not inherit the legacy event defaults from WireModel.

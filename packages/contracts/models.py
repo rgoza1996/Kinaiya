@@ -1,5 +1,6 @@
 """Shared wire models; service authentication supplies provenance, never request JSON."""
 
+import hashlib
 import re
 import unicodedata
 from datetime import UTC, datetime
@@ -370,6 +371,11 @@ class SpeechWindow(WireModel):
         if self.capture_ended and self.user_speaking:
             raise ValueError("Ended capture cannot still report speaking")
         return self
+
+
+def window_agent_key(decision_id: str, route: str) -> str:
+    digest = hashlib.sha256(f"{decision_id}:{route}".encode()).hexdigest()[:32]
+    return f"window:{route.lower()}:{digest}"
 
 
 class WindowDecision(WireModel):

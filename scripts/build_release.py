@@ -25,7 +25,14 @@ from packages.distribution.releases import (
     verify_gzip_archive,
 )
 
-ROOT_FILES = {"pyproject.toml", "requirements-runtime.lock", "LICENSE", "README.md", "install.sh"}
+EXPLICIT_SOURCE_FILES = {
+    "pyproject.toml",
+    "requirements-runtime.lock",
+    "LICENSE",
+    "README.md",
+    "install.sh",
+    "packages/agent_adapters/pi_peer.mjs",
+}
 SOURCE_ROOTS = {"core", "services", "packages", "harnesses"}
 SOURCE_SUFFIXES = {".py", ".json", ".txt", ".patch"}
 MAX_FILE_BYTES = 64 * 1024 * 1024
@@ -74,7 +81,7 @@ def _check_files(files):
 
 def _source_allowed(name):
     parts = PurePosixPath(name).parts
-    if name in ROOT_FILES:
+    if name in EXPLICIT_SOURCE_FILES:
         return True
     if any(part.startswith(".") or part == "__pycache__" for part in parts):
         return False
