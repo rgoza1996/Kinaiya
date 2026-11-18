@@ -203,6 +203,28 @@ def _identity(value, alias):
     return {key: value.get(key) for key in _IDENTITY}
 
 
+def _fragment(message):
+    fragment = message.get("fragment")
+    required = {"content", "tokensCount", "containsDrafted", "reasoningType", "isStructural"}
+    if (
+        set(message) != {"type", "fragment"}
+        or type(fragment) is not dict
+        or not required <= fragment.keys() <= required | {"tokens"}
+        or type(fragment["content"]) is not str
+        or not _integer(fragment["tokensCount"], 0, 2048)
+        or fragment["containsDrafted"] is not False
+        or fragment.get("tokens") not in (None, [])
+    ):
+        raise _refuse()
+    kind = fragment["reasoningType"]
+    if kind not in ("none", "reasoning", "reasoningStartTag", "reasoningEndTag"):
+        raise _refuse()
+    tag = kind in ("reasoningStartTag", "reasoningEndTag")
+    if fragment["isStructural"] is not tag:
+        raise _refuse()
+    return kind, fragment["content"]
+
+
 def _history(messages):
     if type(messages) is not list or not 1 <= len(messages) <= _MAX_EVENTS:
         raise _refuse()
@@ -901,6 +923,7 @@ class LMStudioProvider:
                     )
                     current()
                     text_bytes, completed, pending = 0, False, ""
+                    in_reasoning = False
                     while not op.channel_closed:
                         message = self._channel_packet(op, await self._receive(op))
                         if message is None:
@@ -909,40 +932,23 @@ class LMStudioProvider:
                             raise _refuse()
                         kind = message.get("type")
                         if kind == "fragment":
-                            fragment = message.get("fragment")
-                            if (
-                                set(message) != {"type", "fragment"}
-                                or type(fragment) is not dict
-                                or not {
-                                    "content",
-                                    "tokensCount",
-                                    "containsDrafted",
-                                    "reasoningType",
-                                    "isStructural",
-                                }
-                                <= set(fragment)
-                                or set(fragment)
-                                - {
-                                    "content",
-                                    "tokensCount",
-                                    "containsDrafted",
-                                    "reasoningType",
-                                    "isStructural",
-                                    "tokens",
-                                }
-                                or type(fragment["content"]) is not str
-                                or not _integer(fragment["tokensCount"], 0, 2048)
-                                or fragment["containsDrafted"] is not False
-                                or fragment["reasoningType"] != "none"
-                                or fragment["isStructural"] is not False
-                                or fragment.get("tokens") not in (None, [])
-                            ):
-                                raise _refuse()
-                            text_bytes += len(fragment["content"].encode("utf-8"))
+                            reasoning, content = _fragment(message)
+                            text_bytes += len(content.encode("utf-8"))
                             if text_bytes > _MAX_TEXT:
                                 raise _refuse()
                             current()
-                            pending += fragment["content"]
+                            if reasoning != "none":
+                                # Prepared Agent completions consume only the native final channel.
+                                # Some templates put the opening reasoning tag in the prompt.
+                                if expected is None or (
+                                    reasoning == "reasoningStartTag" and in_reasoning
+                                ):
+                                    raise _refuse()
+                                in_reasoning = reasoning != "reasoningEndTag"
+                                continue
+                            if in_reasoning:
+                                raise _refuse()
+                            pending += content
                             if re.search(r"</?think(?:>|\s)", pending, re.I):
                                 raise _refuse()
                             # Native token fragments can split a control delimiter.
@@ -980,7 +986,7 @@ class LMStudioProvider:
                     if await self._snapshot(op, check=current) != snapshot:
                         raise _refuse()
                     current()
-                    if not completed:
+                    if not completed or in_reasoning:
                         raise _refuse()
                     if pending:
                         yield pending

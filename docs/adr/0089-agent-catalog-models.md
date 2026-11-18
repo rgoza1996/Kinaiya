@@ -28,6 +28,13 @@ reference growth independently of the per-harness count limits.
 
 Only native LM Studio text completion (`none` reasoning) and Meta text with an
 explicit context budget have the required measured complete interface here.
+On a prepared Agent completion, LM Studio can still emit native reasoning when a
+model uses a reasoning-prefilled template. The adapter charges reasoning and its
+structural markers to the same stream limits and delivers only final-channel text
+after native terminal, usage, identity and cleanup checks. Unknown fragment types
+or a transition to final text inside an unclosed reasoning block fail admission.
+See [#738](https://github.com/rgoza1996/Kinaiya/issues/738).
+
 OpenAI-compatible and Laya declarations remain in the catalog but cannot become
 Agent complete-request choices by declaration alone. Actual endpoint/model
 support remains subject to native admission and provider refusal; no model name
