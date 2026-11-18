@@ -7,16 +7,24 @@ control/persistence behavior, not voice/model or physical playback performance.
 import asyncio
 import json
 import os
+import signal
 import socket
 import sys
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import httpx
 import pytest
 from test_standing_resources_registration import factory as factory
 from test_standing_resources_registration import gateway, ordinary, query
 
+from packages.contracts.client import JournalClient
+from packages.contracts.live_captures import (
+    PROTOCOL,
+    LiveCaptureRecoveryQuery,
+    LiveCaptureRegistration,
+)
 from packages.resources import WorkerManager, WorkerSpec
 from services.common.auth import load_or_create_tokens
 from services.converse.intent import ConverseIntent
@@ -34,8 +42,10 @@ async def native_services(root, data, config, workspace, ports, tokens):
     logs = []
     try:
         for role, port in ports.items():
-            log_path = data / f"readiness-{role}.log"
-            log = log_path.open("xb")
+            log = NamedTemporaryFile(
+                dir=data, prefix=f"readiness-{role}-", suffix=".log", delete=False
+            )
+            log_path = Path(log.name)
             logs.append(log)
             child = await asyncio.create_subprocess_exec(
                 sys.executable,
@@ -93,6 +103,62 @@ async def native_services(root, data, config, workspace, ports, tokens):
         for log in logs:
             log.close()
         assert not forced, f"Temporary services needed forced cleanup: {forced}"
+
+
+async def test_killed_session_recovers_closed_live_registration_over_http(tmp_path):
+    data = tmp_path / "data"
+    tokens = load_or_create_tokens(data)
+    config = data / "config.json"
+    config.write_text("{}")
+    root = Path(__file__).resolve().parents[2]
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    url = f"http://127.0.0.1:{port}"
+    args = root, data, config, tmp_path / "workspace", {"session": port}, tokens
+    journal = JournalClient(url, tokens["converse"], transport=httpx.AsyncHTTPTransport())
+    try:
+        async with native_services(*args) as children:
+            async with httpx.AsyncClient(base_url=url, trust_env=False) as owner:
+                response = await owner.post(
+                    "/v1/sessions",
+                    headers={"Authorization": "Bearer " + tokens["owner"]},
+                    json={"channel": "converse"},
+                )
+                response.raise_for_status()
+                session = response.json()
+            original = LiveCaptureRegistration(
+                schema_version="2.0",
+                protocol=PROTOCOL,
+                backend=await journal.live_capture_backend(),
+                owner_instance="a" * 32,
+                capture_id="b" * 32,
+                session_id=session["session_id"],
+                thread_id=session["thread_id"],
+                epoch=session["epoch"],
+            )
+            registered = await journal.register_live_capture(original)
+            assert registered.capture_open and registered.receipt.original == original
+            child = children["session"]
+            child.kill()
+            assert await asyncio.wait_for(child.wait(), 5) == -signal.SIGKILL
+
+        query = LiveCaptureRecoveryQuery.model_validate(
+            original.model_dump(mode="json", exclude={"backend"}), strict=True
+        )
+        with pytest.raises(httpx.ConnectError):
+            await journal.recover_live_capture(query)
+        async with native_services(*args):
+            recovered = await journal.recover_live_capture(query)
+            assert recovered.original == query
+            assert recovered.capture.original == original
+            assert recovered.capture.receipt == registered.receipt
+            assert recovered.capture.backend.backend_id == original.backend.backend_id
+            assert recovered.capture.backend.controller_id != original.backend.controller_id
+            assert not recovered.capture.capture_open
+            assert await journal.recover_live_capture(query) == recovered
+    finally:
+        await journal.close()
 
 
 @pytest.fixture

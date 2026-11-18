@@ -274,11 +274,12 @@ def test_storage_guards_reject_untrusted_locations(tmp_path, implementation, kin
     elif kind == "workspace":
         path = workspace / "core-subsystems.sqlite"
     elif kind == "public":
-        path.touch(mode=0o644)
+        path.touch()
+        path.chmod(0o644)
     else:
         path.touch(mode=0o600)
         os.link(path, private / "other")
-    with pytest.raises((implementation.CoreSubsystemUnavailable, ValueError, OSError)):
+    with pytest.raises(ValueError):
         implementation.CoreSubsystemSettings(lambda: "agent", path=path, workspace=workspace)
 
 

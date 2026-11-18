@@ -1,0 +1,21 @@
+name: Cloud runner smoke check
+
+on: workflow_dispatch
+
+permissions: {}
+
+jobs:
+  smoke:
+    runs-on: kinaiya-cloud-x64
+    timeout-minutes: 5
+    steps:
+      - name: Check the registered Linux runner
+        run: |
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$(id -un)" = kinaiya-ci
+          test "$(id -Gn)" = kinaiya-ci
+          test ! -e /var/run/docker.sock
+          test -x /etc/kinaiya-ci/job-started.sh
+          test ! -w /etc/kinaiya-ci/job-started.sh
+          printf 'Runner %s passed the account and isolation checks.\n' "$RUNNER_NAME" >> "$GITHUB_STEP_SUMMARY"

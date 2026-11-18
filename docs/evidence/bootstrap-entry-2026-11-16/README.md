@@ -12,3 +12,20 @@ This establishes controlled entry ordering before native identity verification.
 It does not establish the historical cause of every #577/#620 refusal, physical
 cgroup isolation, native target qualification, model behavior or a completed
 resource lifecycle matrix. Exact-head hosted CI remains separate evidence.
+
+## Follow-up on the positive JPEG failure in #620
+
+On Linux x64 with Python 3.14.10 and the hashed development dependencies,
+the unchanged positive JPEG test reproduced the failure at pre-repair commit
+`7299f8b`. Sample 114 failed at bootstrap verification after 113 passes.
+The existing observer recorded a zero-byte command-line read and
+`pre_command_mismatch`. The 18-original slot-reuse case also produced this
+pair of observations on its first run. The original hosted failure predates
+the observer.
+
+At integrated commit `ec1ab17`, all 120 positive JPEG samples passed, as did
+12 runs of the slot-reuse case. Each pytest sample used a fresh fixture.
+The cases are
+`test_actual_still_image_point_body_and_real_eof[positive-jpeg]` and
+`test_more_than_sixteen_positive_originals_reuse_slots_without_rearming`.
+The entry protocol and its controlled failure cases are in PR #647.

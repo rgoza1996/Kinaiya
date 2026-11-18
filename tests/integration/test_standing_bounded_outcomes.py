@@ -131,8 +131,10 @@ async def execute(stack, monkeypatch, state, mode, *, reads=READS):
             value.task_id,
             InterruptRequest(expected_objective_revision=1, idempotency_key="public-stop"),
         )
-    final = await value.runtime.wait(value.task_id, timeout=20)
+    await value.runtime.wait(value.task_id, timeout=20)
     await asyncio.wait_for(asyncio.shield(value.record.worker), 5)
+    # The bounded public wait can return a running snapshot before the worker joins.
+    final = await value.runtime.status(value.task_id)
     assert path.read_bytes() == PUBLIC_BYTES
     assert not (value.workspace / "result.txt").exists()
     assert value.base.calls == []

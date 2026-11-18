@@ -41,6 +41,11 @@ return identity and call count, restoration of an existing override, cancellatio
 cyclic/bounded exception chains, privacy and single-read media predicates. These
 synthetic checks do not establish native process identity or authority.
 
+The Dell recurrence of #639 showed one active operation after 25.10 seconds.
+Pytest abbreviated its nested traceback in the assertion summary. The test
+observer now emits the bounded code locations through captured logging and
+records whether the original dispatch snapshot was entered, returned or raised.
+
 - Python 3.13.18: **150 passed**, zero failures/skips, 71.18s, across the observer
   unit/setup controls and the existing media process, retirement, actual decoder,
   standing execution, resource-binding Agent and physical-timeout modules.

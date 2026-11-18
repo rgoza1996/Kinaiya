@@ -491,13 +491,21 @@ async def test_native_attempt_endpoints_require_decisions_identity(tmp_path, rol
 async def test_final_transport_rejects_request_hook_substitution(tmp_path):
     async with session_http_env(tmp_path) as (store, session, _app, make_client):
         source = append_user_source(store, session, idem="wire-substitution")
-        entered = []
+        client, agent = make_client(), DummyAgent()
+        admissions, hooks, entered = [], [], []
+
+        async def observe_admission(request):
+            if request.url.path == "/v1/decisions/attempts/admit":
+                admissions.append(request)
+
+        client.http.event_hooks["request"].append(observe_admission)
 
         def complete(request):
             entered.append(request.content)
             return response()
 
         async def substitute(request):
+            hooks.append(request)
             # Leave cached request.content intact while replacing the wire stream.
             request.stream = httpx.ByteStream(b'{"model":"other","messages":[]}')
 
@@ -505,13 +513,38 @@ async def test_final_transport_rejects_request_hook_substitution(tmp_path):
             "http://localhost/v1", "m", transport=httpx.MockTransport(complete)
         )
         provider.http.event_hooks["request"].append(substitute)
+
+        async def observe_guard():
+            with pytest.raises(PromptCountUnavailable, match="HTTP request binding changed"):
+                await DecisionsWorker(client, agent, ModelClassifier(provider)).process(source)
+
         try:
-            with pytest.raises(PromptCountUnavailable):
-                await DecisionsWorker(
-                    make_client(), DummyAgent(), ModelClassifier(provider)
-                ).process(source)
+            try:
+                await observe_guard()
+            except CaptureNativeUnavailable as error:
+                # A currentness timeout can precede the first admission and hook (#724).
+                # Only that exact zero-charge case permits one fresh observation.
+                currentness = error.__context__
+                if (
+                    not isinstance(currentness, CaptureNativeUnavailable)
+                    or str(currentness) != "Decisions currentness check exceeded its bound"
+                    or not isinstance(currentness.__cause__, TimeoutError)
+                ):
+                    raise
+                prior = await state_of(client, source)
+                assert (prior.state, prior.charged_attempts, prior.last_attempt) == (
+                    "known_absent",
+                    0,
+                    None,
+                )
+                assert not admissions and not hooks and not entered
+                assert not client._submit_exchanges and not client._submit_cleanup_failed
+                assert not store.read(kinds=["routing.decided", "routing.classification_refused"])
+                assert not (agent.submitted or agent.steered or agent.interrupted)
+                await observe_guard()
+            assert len(admissions) == len(hooks) == 1
             assert not entered
-            state = await state_of(make_client(), source)
+            state = await state_of(client, source)
             assert state.charged_attempts == 1  # Reservation retained, never refunded.
             assert state.last_attempt.admission.request_sha256 != "0" * 64
         finally:
@@ -536,16 +569,35 @@ async def test_provider_cancellation_retains_actual_close_before_original_comple
                 await release.wait()
 
         stream = HeldClose()
+        dispatched = asyncio.get_running_loop().create_future()
+
+        def respond(request):
+            assert not dispatched.done(), "Original provider request was sent twice"
+            dispatched.set_result(None)
+            return httpx.Response(200, stream=stream)
+
         provider = CompatibleTextProvider(
             "http://localhost/v1",
             "m",
-            transport=httpx.MockTransport(lambda request: httpx.Response(200, stream=stream)),
+            transport=httpx.MockTransport(respond),
         )
         agent = DummyAgent()
+        client = make_client()
         original = asyncio.create_task(
-            DecisionsWorker(make_client(), agent, ModelClassifier(provider)).process(source)
+            DecisionsWorker(client, agent, ModelClassifier(provider)).process(source)
         )
         try:
+            # Source and disclosure reads precede admission. Observe their
+            # original worker as well as its first actual provider request.
+            done, _ = await asyncio.wait(
+                {original, dispatched},
+                timeout=client.http.timeout.read,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if original in done:
+                await original
+                pytest.fail("Original worker ended before its provider response close")
+            assert dispatched in done, "Original worker did not dispatch before the HTTP read bound"
             await asyncio.wait_for(closing.wait(), 2)
             original.cancel()
             await asyncio.sleep(0)
