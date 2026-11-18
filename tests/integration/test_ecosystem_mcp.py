@@ -439,7 +439,7 @@ async def test_concurrent_calls_are_serialized(tmp_path) -> None:
 
 
 def test_tool_module_imports_without_optional_runtime() -> None:
-    assert sys.version_info >= (3, 11)
+    assert sys.version_info >= (3, 12)
 
 
 @pytest.fixture

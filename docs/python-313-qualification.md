@@ -1,11 +1,10 @@
 # Python 3.13 qualification (#624)
 
-This is the additive qualification stage of
-[#624](https://github.com/rgoza1996/Kinaiya/issues/624). CI temporarily exercises
-3.11, 3.12, 3.13 and 3.14 with the same complete non-live suite. Manual full/media
-selection accepts 3.13. The application minimum, installer, Doctor, Ruff target,
-dependency locks, original interpreter pins and runner admission/isolation
-remain unchanged. This does not complete the 3.11 retirement.
+This record begins with the additive stage of
+[#624](https://github.com/rgoza1996/Kinaiya/issues/624). At that stage CI
+exercised 3.11, 3.12, 3.13 and 3.14 with the same complete non-live suite and
+accepted 3.13 in manual full/media runs. The release retained its 3.11
+minimum while the native builds were under qualification.
 
 ## Native build provenance
 
@@ -48,7 +47,7 @@ glibc 2.39. All qualification files are private task artifacts under local
   members verify. It installs with the unchanged hashed binary-only runtime
   closure into a second clean environment. Imports resolve to that environment's
   site-packages outside the checkout, `pip check` passes, and CLI help runs.
-  The wheel retains the existing `Requires-Python: >=3.11` during this stage.
+  That wheel declared `Requires-Python: >=3.11`.
 - Runtime and Supertonic locks resolve under 3.13 with hash enforcement and
   binary-only wheels, without changing the running test environment. This is
   wheel-resolution evidence, not inference or full optional-worker execution.
@@ -120,15 +119,25 @@ x64 worker (`requirements-vibevoice.in`), with an explicitly cp312 Torch wheel.
 It is not silently installed into the host's 3.13 environment or relabeled as
 3.13-qualified. Its protocol/worker-runtime boundary retains separate checks.
 
-## Remaining retirement acceptance
+## Python 3.11 retirement
 
-Before replacing the supported matrix with 3.12/3.13/3.14, record complete hosted
-and actual ARM64/x64 results, native wheel/install/package/sandbox behavior,
-meaningful Ubuntu 24.04/3.12 and primary 3.14 baselines, and any unresolved
-platform failures. Then update minimum-version metadata, installer/Doctor,
-compatibility fixtures, documentation and release statements together. Existing
-3.11 installations must receive an explicit upgrade requirement. Remove a
-3.11 workaround only with evidence that it is obsolete.
+The retirement change sets the application minimum to 3.12 and retains
+3.13 and 3.14. The installer validates the selected interpreter before
+resolving a release. The staged launcher also checks the interpreter so a
+generation built by an older 3.11 updater fails its import probe before the
+launcher switch. See [upgrading a 3.11 installation](linux-installation.md#moving-an-existing-python-311-installation).
+
+The sandboxed extension worker uses only the system standard library in a
+separate process. Its interpreter discovery is independent of the host
+application minimum. The Agent symlink-loop handling also applies on 3.12,
+and Converse still needs its operation-token check when cancellation races
+with an in-flight observation.
+
+Before merging retirement, record complete hosted and native ARM64/x64
+results, the Ubuntu 24.04/3.12 baseline, primary 3.14 behavior, and native
+wheel, packaging and sandbox outcomes. The default Ubuntu 26.04 policy
+denied the sealed GGUF executable on Dell x64 in prior runs.
+[#481](https://github.com/rgoza1996/Kinaiya/issues/481)
 
 Prior native failures (#575/#576/#577/#578/#582/#587) retain their own evidence.
 A missing platform result or an unresolved applicable blocker keeps the full

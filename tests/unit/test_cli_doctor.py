@@ -239,7 +239,7 @@ def healthy_sandbox(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "minor,supported", [(11, True), (12, True), (13, True), (14, True), (15, False)]
+    "minor,supported", [(11, False), (12, True), (13, True), (14, True), (15, False)]
 )
 def test_doctor_python_candidate_range_matches_installer(
     monkeypatch, healthy_sandbox, minor, supported
@@ -255,6 +255,9 @@ def test_doctor_python_candidate_range_matches_installer(
     assert check["python_supported"] is supported
     assert check["status"] == ("pass" if supported else "fail")
     assert check["bwrap_probe"] == "pass"
+    if not supported:
+        assert "Python 3.12-3.14" in " ".join(check["blockers"])
+        assert "KINAIYA_PYTHON" in check["remediation"]
 
 
 def test_doctor_healthy_configured_and_listening_passes(tmp_path, healthy_sandbox):

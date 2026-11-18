@@ -12,11 +12,19 @@ import time
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 
-import httpx
+# Older managed updaters import this module from staged source before activation.
+if sys.version_info[:2] < (3, 12):  # noqa: UP036
+    raise SystemExit(
+        f"Kinaiya requires Python 3.12-3.14. This runtime uses Python "
+        f"{sys.version_info.major}.{sys.version_info.minor}. Rerun install.sh with "
+        "KINAIYA_PYTHON set to a supported interpreter."
+    )
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+import httpx  # noqa: E402
 
 from packages.contracts.models import TaskRequest, new_id  # noqa: E402
 from services.common.auth import Auth, load_or_create_tokens  # noqa: E402

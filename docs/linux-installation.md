@@ -61,8 +61,9 @@ kinaiya web           # http://127.0.0.1:8780 with automatic local launch handof
 ## Candidate baseline and prerequisites
 
 - Native Ubuntu **22.04, 24.04, or 26.04**, `x86_64` or `aarch64`.
-- Python **3.11–3.14**, with matching `venv` and `ensurepip`. Ubuntu 22.04's
-  default Python 3.10 is insufficient; select an explicitly installed interpreter.
+- Python **3.12–3.14**, with matching `venv` and `ensurepip`. Ubuntu 24.04
+  supplies the minimum Python 3.12. On Ubuntu 22.04, install a supported
+  interpreter alongside the distribution's default Python 3.10.
   Ubuntu 26.04's default Python 3.14 is accepted; if its venv support is missing,
   the installer plans `python3.14-venv` under the same no-upgrade policy below.
 - `bubblewrap`, `libseccomp2`, at least **1 GiB** free for Agent-only staging,
@@ -119,7 +120,7 @@ and `kinaiya install` first run a non-mutating `apt-get -s --no-upgrade --no-rem
 `dpkg` status snapshot, verify that every `Inst` record is a newly installed
 package with zero upgrades, removals, or downgrades, and bind the exact approved
 `package=version` pairs to `sudo apt-get install`. If an existing system component
-(`Ubuntu` release `< 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`,
+(`Ubuntu` release `< 22.04`, `Python < 3.12`, `bubblewrap < 0.6.1`,
 `libseccomp2 < 2.5`, a transitive dependency requiring an upgrade/removal/downgrade,
 or an out-of-date local package index) blocks installation, the CLI and setup
 wizard stop before any mutating command and warn the user to update that specific
@@ -146,9 +147,10 @@ KINAIYA_PYTHON=python3.12 sh install.sh --channel nightly --yes --no-setup
 sh install.sh --workspace "$HOME/My Work" --data-dir "$HOME/Private Kinaiya Data"
 ```
 
-When `KINAIYA_PYTHON` is not set, `install.sh` automatically selects a supported
-Python `3.11`–`3.14` interpreter (`python3`, `python3.14`, `python3.13`, `python3.12`, or
-`python3.11`) if installed. The release source allowlist includes root
+With `KINAIYA_PYTHON` unset, `install.sh` tries `python3`, `python3.14`,
+`python3.13`, and `python3.12` in that order. It checks the running version
+of each candidate. An explicit `KINAIYA_PYTHON` must also pass the version check.
+The release source allowlist includes root
 `install.sh`, `services/distribution/*`, and `packages/distribution/*`.
 
 Preflight occurs before feed resolution, cache creation or runtime publication.
@@ -343,6 +345,26 @@ hosting requires a separately configured authenticated TLS reverse proxy and
 explicit allowed origins; this change does not qualify a remote-host recipe.
 
 ## Check, update and recovery
+
+### Moving an existing Python 3.11 installation
+
+A managed launcher always uses its generation's virtual environment.
+Installing another interpreter on the host leaves that launcher on 3.11.
+When upgrading to a release that requires 3.12, stop the managed services,
+select a supported interpreter with `venv`, and run the release's reviewed
+bootstrap on the same channel. For example, a stable installation can use
+`KINAIYA_PYTHON=python3.12 sh install.sh --channel stable --no-setup`. For
+nightly, select `--channel nightly`. Repeat any original `--workspace` and
+`--data-dir` overrides. The bootstrap reuses the recorded install root and
+stages the new release in a fresh virtual environment before switching the
+launcher. Existing configuration, credentials, journals, and workspace stay
+at their saved paths. Run `kinaiya version` and `kinaiya doctor` afterwards.
+
+For a source checkout, create a fresh virtual environment with the supported
+interpreter and reinstall the locked dependencies there. Python's existing
+3.11 virtual environments retain their original interpreter.
+
+### Checking a managed release
 
 ```sh
 kinaiya version

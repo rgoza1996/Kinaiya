@@ -57,7 +57,7 @@ def host_preflight(request, monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("ubuntu", ["22.04", "24.04", "26.04"])
-@pytest.mark.parametrize("minor", [11, 12, 13, 14])
+@pytest.mark.parametrize("minor", [12, 13, 14])
 @pytest.mark.parametrize("architecture", ["x86_64", "aarch64"])
 def test_supported_hosts_still_require_namespace_probe(
     host_preflight, monkeypatch, tmp_path, ubuntu, minor, architecture
@@ -88,12 +88,17 @@ def test_other_distros_and_interim_releases_remain_refused(
     assert not (tmp_path / ".local").exists()
 
 
-@pytest.mark.parametrize("minor", [10, 15])
-def test_python_versions_outside_candidate_range_remain_refused(host_preflight, monkeypatch, minor):
+@pytest.mark.parametrize("minor", [10, 11, 15])
+def test_python_versions_outside_candidate_range_remain_refused(
+    host_preflight, monkeypatch, tmp_path, minor
+):
     monkeypatch.setattr(host_preflight.module.sys, "version_info", (3, minor, 0, "final", 0))
-    with pytest.raises(host_preflight.error, match="Python"):
+    with pytest.raises(host_preflight.error, match=r"Python 3\.12-3\.14") as failure:
         host_preflight.run()
+    if minor == 11:
+        assert "KINAIYA_PYTHON" in str(failure.value)
     assert not host_preflight.probes
+    assert not (tmp_path / ".local").exists()
 
 
 @pytest.mark.parametrize("blocker", ["root", "system", "architecture", "disk", "namespace"])
@@ -123,7 +128,7 @@ def test_shell_discovers_python314_when_default_python_is_unsupported(tmp_path):
     for name, supported in [("python3", False), ("python3.14", True)]:
         binary = tmp_path / name
         binary.write_text(
-            '#!/bin/sh\nif [ "$1" = "-c" ]; then\n'
+            '#!/bin/sh\nif [ "$1" = "-I" ] && [ "$2" = "-c" ]; then\n'
             f"  exit {0 if supported else 1}\nfi\n"
             f"printf '%s\\n' '{name}'\n"
         )
@@ -135,3 +140,26 @@ def test_shell_discovers_python314_when_default_python_is_unsupported(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "python3.14"
+
+
+@pytest.mark.parametrize("pin", [False, True])
+def test_shell_refuses_unsupported_python_before_installation(tmp_path, pin):
+    script = Path(__file__).resolve().parents[2] / "install.sh"
+    obsolete = tmp_path / "python3"
+    obsolete.write_text('#!/bin/sh\n[ "$2" = "-c" ] && exit 1\nexit 99\n')
+    obsolete.chmod(0o755)
+    env = {"PATH": str(tmp_path), "HOME": str(tmp_path)}
+    if pin:
+        env["KINAIYA_PYTHON"] = str(obsolete)
+        available = tmp_path / "python3.12"
+        available.write_text("#!/bin/sh\nexit 0\n")
+        available.chmod(0o755)
+
+    result = subprocess.run(
+        ["/bin/sh", str(script), "--yes", "--no-setup"], env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 1
+    assert "Python 3.12-3.14" in result.stderr
+    assert "KINAIYA_PYTHON" in result.stderr
+    assert not (tmp_path / ".cache").exists()
+    assert not (tmp_path / ".local").exists()
