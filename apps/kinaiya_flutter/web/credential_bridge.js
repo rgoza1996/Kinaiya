@@ -1,4 +1,4 @@
-/* Owner-selected local file only. No network, storage, logging or implicit reads. */
+/* Owner-selected local file import/export. No credential logging or network calls. */
 window.kinaiyaChooseCredential = () => new Promise(resolve => {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.txt,.json';
@@ -31,3 +31,38 @@ window.kinaiyaExportCredential = (filename, content) => {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 };
+
+// IndexedDB is origin-scoped, including the port. This store accepts only the
+// revocable device proof. Session bearers and owner exports stay in memory.
+window.kinaiyaDeviceProof = (value) => new Promise(resolve => {
+  const valid = proof => typeof proof === 'string' && /^kny_refr_[A-Za-z0-9_-]{32,128}$/.test(proof);
+  if (value != null && !valid(value)) { resolve(''); return; }
+  let database, transaction, settled = false;
+  const finish = (result = '') => {
+    settled = true;
+    clearTimeout(timer);
+    database?.close();
+    resolve(result);
+  };
+  // A blocked upgrade or storage denial must leave a fresh launch usable.
+  const timer = setTimeout(() => {
+    try { transaction?.abort(); } catch (_) { /* already complete */ }
+    finish();
+  }, 1500);
+  try {
+    const open = window.indexedDB.open('kinaiya-device-v1', 1);
+    open.onupgradeneeded = () => open.result.createObjectStore('pairing');
+    open.onerror = open.onblocked = () => finish();
+    open.onsuccess = () => {
+      database = open.result;
+      if (settled) { database.close(); return; }
+      try {
+        transaction = database.transaction('pairing', value == null ? 'readonly' : 'readwrite');
+        const store = transaction.objectStore('pairing');
+        const request = value == null ? store.get('device') : store.put(value, 'device');
+        transaction.oncomplete = () => finish(value == null && valid(request.result) ? request.result : '');
+        transaction.onabort = transaction.onerror = () => finish();
+      } catch (_) { finish(); }
+    };
+  } catch (_) { finish(); }
+});

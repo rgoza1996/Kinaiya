@@ -226,10 +226,14 @@ class _HomeShellState extends State<HomeShell> {
     _converseVisible = widget.presentation.preferences.showConverseView;
     widget.presentation.addListener(_presentationChanged);
     widget.state.addListener(_viewChanged);
-    if (widget.state.localSignInExchange != null &&
-        widget.state.localSignInState == LocalHostSignInState.idle &&
-        !widget.state.connected) {
-      unawaited(widget.state.attemptLocalSignIn());
+    if (widget.state.localSignInExchange != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            widget.state.localSignInState == LocalHostSignInState.idle &&
+            !widget.state.connected) {
+          unawaited(widget.state.attemptLocalSignIn());
+        }
+      });
     }
   }
 
@@ -1082,6 +1086,7 @@ class ConnectionDot extends StatelessWidget {
     final label = state.connected ? 'Connection checked' : 'Not connected';
     final detail =
         state.connectionError ??
+        state.localSignInError ??
         (state.connected
             ? 'Services checked.'
             : 'Open Connection setup to enter service URLs and the owner token.');

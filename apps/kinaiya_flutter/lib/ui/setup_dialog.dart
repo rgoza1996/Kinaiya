@@ -12,7 +12,7 @@ import 'widgets.dart';
 
 /// Connection setup: trusted local auto-connect status plus advanced manual
 /// service URLs and owner access token field.
-/// Everything stays in memory; nothing is persisted, logged or URL-encoded.
+/// Owner credentials stay in memory. A local browser can remember its device pairing.
 class SetupDialog extends StatefulWidget {
   const SetupDialog({
     super.key,
@@ -65,23 +65,27 @@ class _SetupDialogState extends State<SetupDialog> {
         widget.state.isTrustedLocalFirstRun ||
         kIsWeb;
     _showServiceEndpointFields = !isLocalFirstRun;
-    if ((widget.localSignInExchange != null ||
-            widget.state.localSignInExchange != null) &&
-        widget.state.localSignInState == LocalHostSignInState.idle &&
-        !widget.state.connected) {
-      unawaited(_retryLocalSignIn());
+    if (widget.localSignInExchange != null ||
+        widget.state.localSignInExchange != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            widget.state.localSignInState == LocalHostSignInState.idle &&
+            !widget.state.connected) {
+          unawaited(_retryLocalSignIn());
+        }
+      });
     }
   }
 
-  Future<void> _retryLocalSignIn() async {
+  Future<bool> _retryLocalSignIn() async {
     if (mounted) {
       setState(() => _validationModalMessage = null);
     }
-    await widget.state.attemptLocalSignIn(
+    final verified = await widget.state.attemptLocalSignIn(
       exchange: widget.localSignInExchange,
       backendProfile: _profile,
     );
-    if (!mounted) return;
+    if (!mounted) return false;
     final c = widget.state.connection;
     if (c != null) {
       _session.text = c.sessionUrl;
@@ -89,10 +93,49 @@ class _SetupDialogState extends State<SetupDialog> {
       _converse.text = c.converseUrl;
       _decisions.text = c.decisionsUrl ?? '';
     }
+    return verified;
   }
 
   Future<void> _handleRecoverAccess() async {
-    final chosen = await chooseCredential();
+    if (await _retryLocalSignIn() ||
+        !mounted ||
+        !widget.state.localRecoveryNeedsProof) {
+      return;
+    }
+    // A new browser needs one proof of host access. Generate it here so the
+    // owner can pair this browser even if they never exported a credential.
+    String? path;
+    try {
+      final challenge = await requestRecoveryChallenge();
+      path = challenge['challenge_path'] as String?;
+    } on Exception {
+      // An existing exported owner file is also a supported proof.
+    }
+    if (!mounted) return;
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Pair this browser'),
+        content: SelectableText(
+          path == null
+              ? 'Choose your owner-login.txt file to reconnect to this host.'
+              : 'Choose the temporary file below to reconnect. You can also use an existing owner-login.txt file.\n\n$path',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final proof = await chooseCredential();
+              if (dialog.mounted) Navigator.pop(dialog, proof);
+            },
+            child: const Text('Choose file'),
+          ),
+        ],
+      ),
+    );
     if (!mounted || chosen == null || chosen.trim().isEmpty) return;
     setState(() => _validationModalMessage = null);
     final success = await widget.state.recoverAccess(
@@ -187,6 +230,16 @@ class _SetupDialogState extends State<SetupDialog> {
   }
 
   void _connect() {
+    if (widget.state.localSignInExchange != null &&
+        widget.state.connection == null &&
+        _token.text.isEmpty &&
+        _session.text == defaultSessionUrl &&
+        _agent.text == defaultAgentUrl &&
+        _converse.text == defaultConverseUrl &&
+        _decisions.text.trim().isEmpty) {
+      unawaited(_handleRecoverAccess());
+      return;
+    }
     final profile = ConnectionProfile(
       sessionUrl: _session.text,
       agentUrl: _agent.text,
@@ -353,7 +406,8 @@ class _SetupDialogState extends State<SetupDialog> {
                   label: const Text('Retry local sign-in'),
                 ),
               ],
-              if (isUnavailable) ...[
+              if (isUnavailable &&
+                  (!kIsWeb || isLocalBrokerPage(Uri.base))) ...[
                 OutlinedButton.icon(
                   key: const Key('local-host-recover-access'),
                   onPressed: _handleRecoverAccess,
@@ -420,7 +474,7 @@ class _SetupDialogState extends State<SetupDialog> {
             Text(
               widget.privacyOnly
                   ? 'Choose whether Kinaiya may use only local/self-hosted models or also allow configured cloud providers.'
-                  : 'Connect to your Kinaiya host using its service URLs and your owner access token. Credentials stay in memory only for this session.',
+                  : 'Kinaiya signs in automatically on this host. Use Recover access to pair a new browser, or Advanced connection for custom service URLs.',
               key: const ValueKey('setup-user-guide'),
               style: textTheme.bodyMedium?.copyWith(
                 color: scheme.onSurfaceVariant,

@@ -6,3 +6,8 @@ Future<String?> chooseCredential() => platform.chooseCredential();
 
 Future<void> exportCredential(String filename, String content) =>
     platform.exportCredential(filename, content);
+
+Future<String?> readDeviceProof() => platform.readDeviceProof();
+
+Future<void> rememberDeviceProof(String proof) =>
+    platform.rememberDeviceProof(proof);

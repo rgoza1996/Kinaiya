@@ -4449,6 +4449,9 @@ class _CharacterViewState extends State<CharacterView> {
           : 'Waiting for the host to confirm Converse is sleeping.';
     }
     if (!_s.connected) {
+      if (_s.localRecoveryNeedsProof && _s.localSignInExchange != null) {
+        return 'Open Connect / Setup and choose Recover access to pair this browser.';
+      }
       final error = _s.connectionError?.trim();
       if (error != null && error.isNotEmpty) {
         return 'Connection failed: $error. Open Connect / Setup to check your host URLs and owner token, then retry.';
