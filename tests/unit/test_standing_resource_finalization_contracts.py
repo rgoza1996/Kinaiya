@@ -689,6 +689,7 @@ def schema_pin():
         "LiveAgentSourceQuery",
         "LiveAgentSourceState",
     }
+    additive |= {"ExternalAgentRequest", "ExternalAgentResponse"}
     paths = sorted(
         (path for path in root.glob("*.json") if path.stem not in additive),
         key=lambda path: path.name,

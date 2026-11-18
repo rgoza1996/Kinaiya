@@ -30,6 +30,7 @@ from packages.contracts.models import (
     WindowDecision,
     new_id,
 )
+from packages.contracts.models import window_agent_key as _stable_key
 from packages.providers.decision_capture import _capture, capture_prompt_scope, capture_sources
 from packages.providers.disclosure import combine_scopes, scope_allowed, source_scope
 from services.decisions.prompts import DEFAULT_PROMPT, instructions, prompt_stamp
@@ -676,11 +677,6 @@ class WindowClassifier:
         }
 
 
-def _stable_key(decision_id: str, route: str) -> str:
-    digest = hashlib.sha256(f"{decision_id}:{route}".encode()).hexdigest()[:32]
-    return f"window:{route.lower()}:{digest}"
-
-
 class WindowAgentDispatcher:
     """Dispatch native ``routing.window_decided`` events to the Agent executor.
 
@@ -690,10 +686,13 @@ class WindowAgentDispatcher:
     order. No model calls happen here.
     """
 
-    def __init__(self, journal, agent, *, enabled: bool = True):
+    def __init__(self, journal, agent, *, enabled: bool = True, external_agent=None):
+        if enabled and external_agent is not None:
+            raise ValueError("Decisions requires one work executor")
         self.journal = journal
         self.agent = agent
         self.enabled = enabled
+        self.external_agent = external_agent
         self.consumer = "window-dispatch-v1"
         self.last_error: str | None = None
         self.running = False
@@ -721,6 +720,9 @@ class WindowAgentDispatcher:
         reason: str,
         native_task_id: str | None = None,
         native_task_state: str | None = None,
+        executor: str | None = None,
+        external_task_id: str | None = None,
+        external_task_state: str | None = None,
         http_status: int | None = None,
         suffix: str = "",
     ) -> None:
@@ -740,6 +742,12 @@ class WindowAgentDispatcher:
             payload["native_task_id"] = native_task_id
         if native_task_state is not None:
             payload["native_task_state"] = native_task_state
+        if executor is not None:
+            payload["executor"] = executor
+        if external_task_id is not None:
+            payload["external_task_id"] = external_task_id
+        if external_task_state is not None:
+            payload["external_task_state"] = external_task_state
         if http_status is not None:
             payload["http_status"] = http_status
         key = f"window-dispatch:{decision.decision_id}:{state}{suffix}"
@@ -773,6 +781,8 @@ class WindowAgentDispatcher:
             if payload.get("decision_id") != decision_id:
                 continue
             if payload.get("state") in {"applied", "rejected", "unknown", "not_applied"}:
+                return entry
+            if payload.get("state") == "queued" and payload.get("executor") == "pi":
                 return entry
         return None
 
@@ -869,6 +879,10 @@ class WindowAgentDispatcher:
         for entry in matching:
             prior = entry.payload if isinstance(entry.payload, dict) else {}
             if prior.get("state") not in {"applied", "queued", "unknown"}:
+                continue
+            if prior.get("state") == "queued" and prior.get("executor") == "pi":
+                # Session deduplicates these at the Pi send. An earlier
+                # waiting window can still become stale before that check.
                 continue
             if prior.get("decision_id") == decision.decision_id:
                 continue
@@ -1171,7 +1185,7 @@ class WindowAgentDispatcher:
         except ValueError as exc:
             self.last_error = type(exc).__name__
             return None
-        if not self.enabled:
+        if not self.enabled and self.external_agent is None:
             await self._record(decision, entry, state="not_applied", reason="agent_disabled")
             return None
         try:
@@ -1202,6 +1216,38 @@ class WindowAgentDispatcher:
         if await self._duplicate_applied(receipts, decision, source):
             await self._record(decision, entry, state="rejected", reason="duplicate_suppressed")
             return None
+        if self.external_agent is not None:
+            target = self.external_agent.routing_target(source)
+            key = _stable_key(decision.decision_id, decision.agent_route)
+            if decision.agent_route == "QUEUE_UNTIL_TASK_DONE" and not decision.target_task_id:
+                receipt = await self.external_agent.dispatch(
+                    target,
+                    source,
+                    entry,
+                    key=key,
+                    event_ids=[source.event_id],
+                    instruction=source.payload.get("text", ""),
+                    accepted_state="applied",
+                )
+            elif decision.agent_route == "INTERRUPT_CURRENT_TASK":
+                receipt = await self.external_agent.dispatch_interrupt(
+                    target,
+                    source,
+                    entry,
+                    key=key,
+                    event_ids=[source.event_id],
+                    task_id=decision.target_task_id,
+                    revision=decision.expected_objective_revision,
+                    accepted_state="applied",
+                )
+            else:
+                receipt = {
+                    "state": "not_applied",
+                    "reason": "external_agent_unsupported",
+                    "executor": "pi",
+                }
+            await self._record(decision, entry, **receipt)
+            return decision
         try:
             if decision.agent_route == "STEER_CURRENT_TASK":
                 await self._dispatch_steer(decision, source, entry)

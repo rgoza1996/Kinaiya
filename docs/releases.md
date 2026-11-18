@@ -157,7 +157,9 @@ Only committed Git blobs are source inputs, not modified/untracked working files
 Allowed runtime roots are `core`, `services`, `packages`, `harnesses`, plus
 `evaluation/harness` and its package initializer, with `.py`, `.json`, `.txt`, `.patch`
 suffixes. Reviewed root files are `pyproject.toml`, `requirements-runtime.lock`,
-`LICENSE`, `README.md`, `install.sh`. Hidden/cache files and conventional non-code
+`LICENSE`, `README.md`, `install.sh`. The managed Pi adapter also ships its reviewed
+JavaScript peer at `packages/agent_adapters/pi_peer.mjs`. The release inventory
+records its digest. Hidden/cache files and conventional non-code
 config/credential/secret/token filenames are excluded. Data/workspace directories,
 `.env`, private keys, developer configs and environment dumps are not included.
 This is not a general secret scanner: approved source must still be reviewed for

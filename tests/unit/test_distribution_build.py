@@ -1,5 +1,6 @@
 """Real Git fixture and deterministic archive assertions for #262."""
 
+import hashlib
 import json
 import subprocess
 import tarfile
@@ -77,6 +78,11 @@ def test_source_bundle_is_reproducible_and_ignores_worktree_secrets(source_repo,
 def test_bundle_source_is_explicit_allowlist_with_lock_inventory(source_repo, tmp_path):
     from scripts.build_release import build_release
 
+    peer_path = "packages/agent_adapters/pi_peer.mjs"
+    peer_bytes = b"export const fixture = true;\n"
+    peer = source_repo / peer_path
+    peer.parent.mkdir(parents=True)
+    peer.write_bytes(peer_bytes)
     for name in (
         ".env",
         "data/config.json",
@@ -85,6 +91,8 @@ def test_bundle_source_is_explicit_allowlist_with_lock_inventory(source_repo, tm
         "core/credentials.json",
         "services/config.json",
         "packages/token.pem",
+        "packages/agent_adapters/unreviewed.mjs",
+        "services/pi_peer.mjs",
         "docs/private.txt",
     ):
         path = source_repo / name
@@ -105,6 +113,7 @@ def test_bundle_source_is_explicit_allowlist_with_lock_inventory(source_repo, tm
         assert set(archive.getnames()) == {
             "core/__init__.py",
             "packages/__init__.py",
+            peer_path,
             "services/__init__.py",
             "pyproject.toml",
             "requirements-runtime.lock",
@@ -116,6 +125,9 @@ def test_bundle_source_is_explicit_allowlist_with_lock_inventory(source_repo, tm
             archive.extractfile(member).read() for member in archive
         )
         inventory = json.load(archive.extractfile("release-inventory.json"))
+        assert archive.extractfile(peer_path).read() == peer_bytes
+        peer_record = next(item for item in inventory["files"] if item["name"] == peer_path)
+        assert peer_record["sha256"] == hashlib.sha256(peer_bytes).hexdigest()
         assert inventory["source_sha"] == sha
         assert inventory["runtime_lock"]["name"] == "requirements-runtime.lock"
         assert len(inventory["runtime_lock"]["sha256"]) == 64
