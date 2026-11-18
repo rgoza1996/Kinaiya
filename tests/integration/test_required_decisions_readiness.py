@@ -1,6 +1,7 @@
 """#566 required-service control plane, with no provider inference."""
 
 import asyncio
+import json
 import socket
 from contextlib import AsyncExitStack, asynccontextmanager
 from types import SimpleNamespace
@@ -10,17 +11,23 @@ from uuid import uuid4
 import httpx
 import pytest
 import uvicorn
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from packages.contracts.models import AppendRequest, SessionRequest
 from packages.providers.decision_capture import CaptureNativeUnavailable
 from packages.providers.text import ScriptedProvider
+from services import launcher
 from services.common.auth import Auth
 from services.converse.api import create_app as converse_app
 from services.converse.dependencies import RequiredDecisions
 from services.converse.intent import ConverseIntent
 from services.converse.runtime import ConverseRuntime
+from services.decisions import api as decisions_api
 from services.decisions.api import create_app
 from services.distribution.start_supervisor import _probe_health
+from services.session.api import create_app as session_app
+from services.session.store import Store
 
 TOKENS = {role: role[0] * 40 for role in ("owner", "converse", "agent", "decisions", "resources")}
 
@@ -149,6 +156,119 @@ async def loopback(app, *, port=0):
         assert task.done()
 
 
+@pytest.mark.parametrize(
+    "mode,legacy_enabled,dispatch_enabled",
+    [
+        ("converse-decisions", True, False),
+        ("decisions", True, False),
+        ("decisions", None, False),
+        ("all", True, True),
+        ("all", False, False),
+    ],
+)
+async def test_captured_topology_fences_native_agent_routing(
+    tmp_path, monkeypatch, mode, legacy_enabled, dispatch_enabled
+):
+    data = tmp_path / "data"
+    data.mkdir(mode=0o700)
+    store = Store(data / "journal.sqlite")
+    session = store.create_session(SessionRequest(channel="converse"))
+    turn = store.append(
+        AppendRequest(
+            session_id=session.session_id,
+            thread_id=session.thread_id,
+            epoch=session.epoch,
+            kind="conversation.converse",
+            payload={"text": "Public synthetic response", "final": True},
+            idempotency_key="topology-test-turn",
+        ),
+        "converse",
+    )
+    observed = []
+    previous_agent = FastAPI()
+
+    @previous_agent.get("/v1/agent/tasks")
+    async def status():
+        observed.append("status")
+        return []
+
+    fixture = ScriptedProvider([])
+    monkeypatch.setattr(launcher, "load_or_create_tokens", lambda _: TOKENS)
+    monkeypatch.setattr(launcher, "provider", lambda *_args, **_kwargs: fixture)
+    monkeypatch.setattr(launcher, "ADAPTIVE_LIVE_ENABLED", True)
+    apps = []
+    live_dispatchers = []
+
+    def build(*args, **kwargs):
+        live_dispatchers.append(kwargs["live_dispatcher"])
+        return create_app(*args, **kwargs)
+
+    monkeypatch.setattr(decisions_api, "create_app", build)
+    monkeypatch.setattr(uvicorn, "run", lambda app, **_: apps.append(app))
+
+    async def check(app):
+        async with (
+            loopback(app) as decisions,
+            httpx.AsyncClient(
+                base_url=decisions,
+                headers={"Authorization": "Bearer " + TOKENS["owner"]},
+                trust_env=False,
+                timeout=2,
+            ) as client,
+        ):
+            report, readiness = {}, {}
+            try:
+                async with asyncio.timeout(5):
+                    while report.get("cursor", 0) < turn.sequence or not readiness.get("ready"):
+                        status_response = await client.get("/v1/decisions/status")
+                        status_response.raise_for_status()
+                        report = status_response.json()
+                        readiness = (await client.get("/v1/decisions/readiness")).json()
+                        await asyncio.sleep(0.02)
+            except TimeoutError:
+                pytest.fail(
+                    f"Decisions did not process the turn: {report}, {readiness}, {observed}"
+                )
+            assert (report["enabled"], observed) == (
+                dispatch_enabled,
+                ["status"] if dispatch_enabled else [],
+            )
+
+    try:
+        async with (
+            loopback(session_app(store, Auth(TOKENS))) as journal,
+            loopback(previous_agent) as agent,
+        ):
+            config = tmp_path / "config.json"
+            host = {
+                "distribution": {"agent": True, "decisions": True, "converse": True},
+                "session_url": journal,
+            }
+            if legacy_enabled is not None:
+                host.update(agent_enabled=legacy_enabled, agent_url=agent)
+            original_config = json.dumps(host).encode()
+            config.write_bytes(original_config)
+            launcher.serve(
+                SimpleNamespace(
+                    data_dir=data,
+                    workspace=tmp_path / "workspace",
+                    config=config,
+                    service="decisions",
+                    port=None,
+                    start_paused=False,
+                    startup_subsystem_mode=mode,
+                ),
+            )
+            (app,) = apps
+            await check(app)
+            (live_dispatcher,) = live_dispatchers
+            assert (live_dispatcher is not None) is dispatch_enabled
+            assert config.read_bytes() == original_config
+    finally:
+        store.close()
+    assert fixture.calls == []
+
+
 async def test_real_http_peer_loss_restart_and_resource_wake_cannot_bypass_dependency(tmp_path):
     decisions = AsyncExitStack()
     provider = ScriptedProvider([])
@@ -211,16 +331,17 @@ async def test_real_http_peer_loss_restart_and_resource_wake_cannot_bypass_depen
     assert provider.calls == []
 
 
-def test_real_launcher_cleanup_continues_after_dependency_close_refuses(tmp_path, monkeypatch):
-    import json
-
-    from services import launcher
+@pytest.mark.parametrize("startup_mode", [None, "converse-decisions"])
+def test_real_launcher_cleanup_continues_after_dependency_close_refuses(
+    tmp_path, monkeypatch, startup_mode
+):
     from services.converse import api
 
     original_app = api.create_app
     observed = []
 
     def build(runtime, *args, **kwargs):
+        assert (runtime.task_context_client is not None) is (startup_mode is None)
         dependency_close = runtime.decisions_dependency.close
         model_close = runtime.model_settings.close
 
@@ -245,7 +366,10 @@ def test_real_launcher_cleanup_continues_after_dependency_close_refuses(tmp_path
                 assert runtime.decisions_dependency._task.done()
                 assert runtime._memory_shutdown.done()
                 assert runtime.journal.http.is_closed
-                assert runtime._task_context_shutdown.done()
+                if startup_mode is None:
+                    assert runtime._task_context_shutdown.done()
+                else:
+                    assert runtime._task_context_shutdown is None
                 assert "model" in observed
 
             asyncio.run(lifecycle())
@@ -273,6 +397,7 @@ def test_real_launcher_cleanup_continues_after_dependency_close_refuses(tmp_path
             service="converse",
             port=None,
             start_paused=False,
+            startup_subsystem_mode=startup_mode,
         )
     )
     assert observed.count("dependency") == 2 and observed.count("model") == 1

@@ -1102,10 +1102,12 @@ def serve(args):
             )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError, ImportError, SystemExit):
             host_provider = UnavailableHostProvider("Converse")
-        try:
-            task_context_client = TaskContextClient(config["agent_url"], tokens["converse"])
-        except (KeyError, TypeError, ValueError):
-            task_context_client = None
+        task_context_client = None
+        if topology.agent:
+            try:
+                task_context_client = TaskContextClient(config["agent_url"], tokens["converse"])
+            except (KeyError, TypeError, ValueError):
+                pass
         runtime = ConverseRuntime(
             journal,
             host_provider,
@@ -1349,13 +1351,13 @@ def serve(args):
             decision_models = UnavailableDecisionsModels(host_provider)
         worker = DecisionsWorker(
             JournalClient(config["session_url"], tokens["decisions"]),
-            AgentClient(config["agent_url"], tokens["decisions"]),
+            AgentClient(config["agent_url"], tokens["decisions"]) if topology.agent else None,
             ModelClassifier(
                 host_provider,
                 window_chars=window_chars,
                 prompt=decision_prompt,
             ),
-            enabled=config.get("agent_enabled", True),
+            enabled=topology.agent and config.get("agent_enabled", True),
             model_settings=decision_models,
         )
         windows_enabled = config.get("streaming_windows", {}).get("enabled", True)
@@ -1392,7 +1394,8 @@ def serve(args):
                 timeout=config.get("streaming_windows", {}).get("classification_timeout_s", 5),
                 agent_enabled=worker.enabled,
             )
-            live_dispatcher = LiveAgentDispatcher(worker.journal, worker.agent)
+            if worker.enabled:
+                live_dispatcher = LiveAgentDispatcher(worker.journal, worker.agent)
         try:
             advice_settings = AgentPolicySettings(
                 args.data_dir.resolve() / POLICY_STORE_NAME, args.workspace

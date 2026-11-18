@@ -135,8 +135,9 @@ async def test_actual_converse_host_uses_one_native_owner_and_its_api_lifespan(
 
 @pytest.mark.parametrize("qualified", [False, True])
 @pytest.mark.parametrize("rolling", [False, True])
+@pytest.mark.parametrize("agent_enabled", [False, True])
 async def test_actual_decisions_host_starts_native_workers_with_the_original_shared_owners(
-    tmp_path, monkeypatch, qualified, rolling
+    tmp_path, monkeypatch, qualified, rolling, agent_enabled
 ):
     from services.decisions import api as decisions_api
     from services.decisions.live_agent import LiveAgentDispatcher
@@ -151,7 +152,7 @@ async def test_actual_decisions_host_starts_native_workers_with_the_original_sha
             {
                 "session_url": "http://session.local",
                 "agent_url": "http://agent.local",
-                "agent_enabled": False,
+                "agent_enabled": agent_enabled,
                 "streaming_windows": {"enabled": rolling},
             }
         )
@@ -198,12 +199,17 @@ async def test_actual_decisions_host_starts_native_workers_with_the_original_sha
         assert (windows is not None) is rolling
         assert (dispatcher is not None) is rolling
         assert isinstance(native, LiveDecisionsWorker) is qualified
-        assert isinstance(agent, LiveAgentDispatcher) is qualified
+        assert worker.enabled is agent_enabled
         if qualified:
-            assert native.journal is agent.journal is worker.journal
-            assert native.agent is agent.agent is worker.agent
+            assert native.journal is worker.journal
+            assert native.agent is worker.agent
             assert native.model_settings is worker.model_settings is bindings["model_settings"]
-            assert native.agent_enabled is False
+            assert native.agent_enabled is agent_enabled
+        if qualified and agent_enabled:
+            assert isinstance(agent, LiveAgentDispatcher)
+            assert agent.journal is worker.journal and agent.agent is worker.agent
+        else:
+            assert agent is None
         app = made[0]
         async with original_client(
             transport=httpx.ASGITransport(app=app),
@@ -217,7 +223,8 @@ async def test_actual_decisions_host_starts_native_workers_with_the_original_sha
                 async with asyncio.timeout(3):
                     while (
                         not worker.ready
-                        or (qualified and (not native.ready or not agent.ready))
+                        or (qualified and not native.ready)
+                        or (agent is not None and not agent.ready)
                         or (rolling and not windows.ready)
                     ):
                         await asyncio.sleep(0)
@@ -230,9 +237,10 @@ async def test_actual_decisions_host_starts_native_workers_with_the_original_sha
             assert (await owner.get("/v2/decisions/live-readiness")).json()["phase"] == "stopped"
         assert not worker.running and bindings["model_settings"].closed
         if qualified:
-            assert not native.running and not agent.running
+            assert not native.running
             assert native.cleanup.done() and native.cleanup.result()
-            assert agent.closed
+        if agent is not None:
+            assert agent.closed and not agent.running
         assert provider.calls == []
         assert all(host == "session.local" for host, _ in calls)
     finally:
