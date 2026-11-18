@@ -217,6 +217,8 @@ class WindowDecisionsWorker:
                 tasks = [t for t in scoped_status if t.state not in TERMINAL_TASK_STATES]
             except Exception:
                 tasks, task_history, available = [], [], False
+        elif external_target is not None:
+            tasks = await self.external_agent.routing_tasks(source)
         tasks = await self._scoped_tasks(tasks)
         task_history = await self._scoped_tasks(task_history, force=True)
         self.agent_available = available if routing_enabled else None

@@ -828,7 +828,11 @@ class DecisionsWorker:
                     and e.kind in {"conversation.user", "conversation.converse"}
                 ]
                 context = context[-self.window_turns :]
-                tasks = await self.agent.status() if self.enabled else []
+                tasks = []
+                if self.enabled:
+                    tasks = await self.agent.status()
+                elif external_target is not None and source.kind != "conversation.converse":
+                    tasks = await self.external_agent.routing_tasks(source)
                 tasks = [
                     t
                     for t in tasks
@@ -959,26 +963,44 @@ class DecisionsWorker:
         )
         if not self.enabled:
             if decision.route == "queue":
+                action = self.external_agent.dispatch(
+                    external_target,
+                    source,
+                    recorded,
+                    key=decision.idempotency_key,
+                    event_ids=decision.source_event_ids,
+                    instruction=decision.instruction,
+                    accepted_state="accepted",
+                )
+            elif decision.route == "interrupt":
+                action = self.external_agent.dispatch_interrupt(
+                    external_target,
+                    source,
+                    recorded,
+                    key=decision.idempotency_key,
+                    event_ids=decision.source_event_ids,
+                    task_id=decision.target_task_id,
+                    revision=decision.expected_objective_revision,
+                    accepted_state="accepted",
+                )
+            else:
+                action = None
+            if action is None:
+                receipt = {
+                    "state": "not_applied",
+                    "reason": "external_agent_unsupported",
+                    "executor": "pi",
+                }
+            else:
                 try:
-                    receipt = await asyncio.wait_for(
-                        self.external_agent.dispatch(
-                            external_target,
-                            source,
-                            recorded,
-                            key=decision.idempotency_key,
-                            event_ids=decision.source_event_ids,
-                            instruction=decision.instruction,
-                            accepted_state="accepted",
-                        ),
-                        timeout=DISPATCH_TIMEOUT,
-                    )
+                    receipt = await asyncio.wait_for(action, timeout=DISPATCH_TIMEOUT)
                 except TimeoutError:
                     receipt = {
                         "state": "unknown",
                         "reason": "external_agent_dispatch_unconfirmed",
                         "executor": "pi",
                     }
-                await self._record_dispatch(source, decision, original, **receipt)
+            await self._record_dispatch(source, decision, original, **receipt)
             return decision
         try:
             task = await asyncio.wait_for(self.dispatch(source, decision), timeout=DISPATCH_TIMEOUT)

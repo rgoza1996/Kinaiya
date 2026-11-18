@@ -298,8 +298,13 @@ class PiSdkPeer:
         if set(frame) != expected:
             raise ValueError("Unexpected Pi response fields")
         reply = PiReply(disposition, reason, busy, run_id)
-        if original.command == "submit" and self._observations is not None:
-            await asyncio.to_thread(self._observations.record_reply, identifier, reply)
+        if self._observations is not None:
+            if original.command == "submit":
+                await asyncio.to_thread(self._observations.record_reply, identifier, reply)
+            elif original.command == "interrupt":
+                await asyncio.to_thread(
+                    self._observations.record_interrupt_reply, identifier, reply
+                )
         original.reply.set_result(reply)
 
     def _is_submit(self, run_id):

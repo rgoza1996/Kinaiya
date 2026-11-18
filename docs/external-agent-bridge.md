@@ -1,9 +1,9 @@
 # External Agent bridge v1
 
 The bridge contract, Session attachment grants, and the Pi SDK peer support
-managed attachment, scoped transcript reads, Decisions delivery from Converse
-typed turns and Rolling Windows, queued delivery, and durable replay of
-observed outcomes. Targeted controls and Adaptive Live remain in scope. [External Agent
+managed attachment, scoped transcript reads, queued delivery and targeted
+interruption from Converse typed turns and Rolling Windows, and durable replay
+of observed outcomes. Adaptive Live integration remains open. [External Agent
 bridge](https://github.com/rgoza1996/Kinaiya/issues/547)
 
 ## Commands and observations
@@ -143,7 +143,23 @@ The managed queue drains in order after a terminal observation and an idle
 Pi status. Session rechecks the source, revision and grant before committing
 the send, including after a restart. Stale commands get a `not_applied`
 observation. Detach suspends delivery until the original attachment is
-active again. Task controls remain open.
+active again.
+
+The Decisions classifiers receive the observed active Pi task ID, revision
+and state. A recorded interrupt routes through the same checks as an
+authenticated `POST /v1/decisions/external-agent/control` request. The claim
+binds the interruption to the original Pi submission, the current native
+source and revision, and the exact active run under the bound attachment.
+The control command carries the run ID and command ID. The transcript grant
+governs any later read of the user's stop text.
+
+An accepted control returns `requested`. The corresponding Decisions dispatch
+receipt carries `external_agent_interrupt_requested`. An SDK stop observation
+records `interrupted`; the receipt can recover both facts after reconnect.
+A lost acknowledgment stays uncertain. Pi advertises `steer: false` and
+returns `unsupported` for steer. Pi's public `steer()` expands prompt
+templates, and the streaming prompt path can start a fresh run if the previous
+one settles during an input handler. [Pi SDK source](https://github.com/earendil-works/pi/blob/v1.5.2/packages/coding-agent/src/core/agent-session.ts)
 
 The journal receipts identify Pi as the executor and carry observed external
 task identity separately from native Agent tasks. The managed service stores
@@ -163,10 +179,13 @@ locking](https://www.sqlite.org/howtocorrupt.html)
 ## Original submission
 
 Decisions uses the native `POST /v1/external-agent/claim` route to reserve one
-send for a finalized Decisions queue action or a rolling-window queue action.
-Session verifies the recorded decision, source identity, current revision,
-instruction and disclosure scope. A corrected finalized turn keeps the
-original source ID and names the exact correction as the decision's cause.
+send for an exact finalized or rolling-window action. The typed claim binds a
+submission or interruption to the recorded decision. The `/claim/eligible`
+lookup is available for submissions.
+Session verifies the recorded decision, source identity and current revision.
+Submissions also validate the instruction and disclosure scope. A corrected
+finalized turn keeps the original source ID and names the exact correction as
+the decision's cause.
 A recorded prior dispatch or another grant for the same source blocks a new
 send. Native Agent submission checks for an existing Pi claim for the same
 Decisions source before admitting new work. For Rolling Windows, Session
@@ -176,7 +195,8 @@ checks and the claim write share one native transaction.
 
 An eligible command has a stable candidate admission ID derived from its
 exact command digest. The first committed claim makes that ID authoritative.
-The adapter uses it as the Pi run identity and sends the instruction only when the reply says
+The adapter uses it as the Pi run identity for submissions and the control
+identity for interruptions. It sends a command only when the reply says
 `original`. A duplicate claim returns `retained` with the same admission
 ID, including after Session restarts. The adapter can recover an originally
 observed acknowledgment from the managed store after reopening the peer.
@@ -220,4 +240,7 @@ event was never observed. Sandbox custody is checked with a competing lock
 acquisition while the real Pi peer is live. The queue rehearsals deliver a
 rolling-audio action after a held typed run completes and recover pending
 commands after a real Decisions process crash. A corrected source is refused
-before Pi can run its queued original.
+before Pi can run its queued original. A held task in the real SDK also
+receives task-bound interrupts through typed and rolling-audio Converse
+requests. After reopening the same Pi session, the tests recover the original
+control acknowledgment and the observed stop through the managed routes.

@@ -1217,24 +1217,35 @@ class WindowAgentDispatcher:
             await self._record(decision, entry, state="rejected", reason="duplicate_suppressed")
             return None
         if self.external_agent is not None:
-            if decision.agent_route != "QUEUE_UNTIL_TASK_DONE" or decision.target_task_id:
-                await self._record(
-                    decision,
+            target = self.external_agent.routing_target(source)
+            key = _stable_key(decision.decision_id, decision.agent_route)
+            if decision.agent_route == "QUEUE_UNTIL_TASK_DONE" and not decision.target_task_id:
+                receipt = await self.external_agent.dispatch(
+                    target,
+                    source,
                     entry,
-                    state="not_applied",
-                    reason="external_agent_unsupported",
-                    executor="pi",
+                    key=key,
+                    event_ids=[source.event_id],
+                    instruction=source.payload.get("text", ""),
+                    accepted_state="applied",
                 )
-                return decision
-            receipt = await self.external_agent.dispatch(
-                self.external_agent.routing_target(source),
-                source,
-                entry,
-                key=_stable_key(decision.decision_id, decision.agent_route),
-                event_ids=[source.event_id],
-                instruction=source.payload.get("text", ""),
-                accepted_state="applied",
-            )
+            elif decision.agent_route == "INTERRUPT_CURRENT_TASK":
+                receipt = await self.external_agent.dispatch_interrupt(
+                    target,
+                    source,
+                    entry,
+                    key=key,
+                    event_ids=[source.event_id],
+                    task_id=decision.target_task_id,
+                    revision=decision.expected_objective_revision,
+                    accepted_state="applied",
+                )
+            else:
+                receipt = {
+                    "state": "not_applied",
+                    "reason": "external_agent_unsupported",
+                    "executor": "pi",
+                }
             await self._record(decision, entry, **receipt)
             return decision
         try:

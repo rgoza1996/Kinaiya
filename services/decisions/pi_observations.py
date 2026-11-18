@@ -149,6 +149,10 @@ class PiObservations:
                 "CREATE TABLE IF NOT EXISTS pending (idempotency_key TEXT PRIMARY KEY,"
                 "run_id TEXT NOT NULL UNIQUE,wire TEXT NOT NULL)"
             )
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS interrupts (id TEXT PRIMARY KEY,generation TEXT NOT NULL,"
+                "run_id TEXT NOT NULL,digest TEXT NOT NULL,disposition TEXT,reason TEXT)"
+            )
             self._seal(db, prior)
             db.execute("UPDATE stream SET generation=? WHERE id=1", (self.generation,))
 
@@ -304,6 +308,66 @@ class PiObservations:
             raise PiObservationUnavailable
         return PiReply(disposition, reason) if disposition is not None else None
 
+    def prepare_interrupt(self, claim, task_id):
+        if claim.target != self.target or claim.disposition != "original":
+            raise PiObservationUnavailable
+        with self._database(write=True) as db:
+            self._head(db, current=True)
+            state = self._task_state(db, task_id)
+            live = state in _IN_FLIGHT
+            db.execute(
+                "INSERT INTO interrupts VALUES(?,?,?,?,?,?)",
+                (
+                    claim.admission_id,
+                    self.generation,
+                    task_id,
+                    claim.command_digest,
+                    None if live else "refused",
+                    None if live else "run_changed",
+                ),
+            )
+            db.execute(
+                "DELETE FROM interrupts WHERE rowid IN (SELECT rowid FROM interrupts "
+                "ORDER BY rowid DESC LIMIT -1 OFFSET ?) "
+                "AND (generation!=? OR disposition IS NOT NULL)",
+                (_MAX_RECEIPTS, self.generation),
+            )
+        return None if live else PiReply("refused", "run_changed")
+
+    def interrupt_reply(self, claim, task_id):
+        if claim.target != self.target:
+            raise PiObservationUnavailable
+        with self._database() as db:
+            self._head(db)
+            row = db.execute(
+                "SELECT run_id,digest,disposition,reason FROM interrupts WHERE id=?",
+                (claim.admission_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        if row[:2] != (task_id, claim.command_digest):
+            raise PiObservationUnavailable
+        return PiReply(row[2], row[3]) if row[2] is not None else None
+
+    def record_interrupt_reply(self, control_id, reply):
+        with self._database(write=True) as db:
+            self._head(db, current=True)
+            with closing(
+                db.execute(
+                    "UPDATE interrupts SET disposition=?,reason=? "
+                    "WHERE id=? AND generation=? AND disposition IS NULL RETURNING run_id",
+                    (reply.disposition, reply.reason, control_id, self.generation),
+                )
+            ) as cursor:
+                row = cursor.fetchone()
+            if row is None:
+                raise PiObservationUnavailable
+            if reply.disposition == "requested" and self._task_state(db, row[0]) in {
+                "starting",
+                "running",
+            }:
+                self._transition(db, row[0], "interrupt_requested")
+
     def record_reply(self, task_id, reply):
         with self._database(write=True) as db:
             self._head(db, current=True)
@@ -334,8 +398,11 @@ class PiObservations:
     def record_event(self, event):
         with self._database(write=True) as db:
             _, cursor = self._head(db, current=True)
-            if self._task_state(db, event.run_id) in _FINAL:
+            state = self._task_state(db, event.run_id)
+            if state in _FINAL:
                 raise PiObservationUnavailable
+            if state == "interrupt_requested" and event.kind == "running":
+                return
             identity = {"cursor": cursor + 1, "task_id": event.run_id}
             if event.kind == "assistant_message":
                 observed = ExternalAgentMessageEvent(kind=event.kind, text=event.text, **identity)
@@ -388,16 +455,26 @@ class PiObservations:
                 "WHERE disposition IS NOT 'refused' OR state='not_applied' "
                 "ORDER BY rowid DESC LIMIT 128"
             ).fetchall()
-        tasks = tuple(
-            ExternalAgentTask(
-                task_id=task_id,
-                source=ExternalAgentSource.model_validate_json(source, strict=True),
-                state="uncertain" if not live and state in _IN_FLIGHT else state,
-                revision=1,
-            )
-            for task_id, source, state in reversed(rows)
-        )
+        tasks = tuple(self._task(row, live) for row in reversed(rows))
         return generation is None, tasks
+
+    @staticmethod
+    def _task(row, live):
+        task_id, source, state = row
+        return ExternalAgentTask(
+            task_id=task_id,
+            source=ExternalAgentSource.model_validate_json(source, strict=True),
+            state="uncertain" if not live and state in _IN_FLIGHT else state,
+            revision=1,
+        )
+
+    def task(self, task_id, *, live):
+        with self._database() as db:
+            self._head(db)
+            row = db.execute(
+                "SELECT run_id,source,state FROM tasks WHERE run_id=?", (task_id,)
+            ).fetchone()
+        return self._task(row, live) if row is not None else None
 
     def events(self, request):
         if request.target != self.target:

@@ -10,6 +10,8 @@ from packages.contracts.external_agent import (
     ExternalAgentClaimReceipt,
     ExternalAgentConnect,
     ExternalAgentGrant,
+    ExternalAgentInterrupt,
+    ExternalAgentSubmit,
     ExternalAgentTranscriptEntry,
     ExternalAgentTranscriptPage,
     ExternalAgentTranscriptPosition,
@@ -195,6 +197,10 @@ class ExternalAgentAccess:
     def claim(self, request, *, intent="commit"):
         """Grant one fresh send opportunity for one exact authenticated route."""
         command = request.command
+        if not isinstance(command, (ExternalAgentSubmit, ExternalAgentInterrupt)) or (
+            intent == "eligible" and not isinstance(command, ExternalAgentSubmit)
+        ):
+            raise ExternalAgentConflict
         target = command.target
         digest = request.command_digest()
         primary = command.source.event_ids[0]
@@ -232,13 +238,14 @@ class ExternalAgentAccess:
             grant = self._lookup(database, target.attachment_id, request.request_id)
             scope = grant.original.scope
             self._current(scope)
-            if (
-                grant.phase != "bound"
-                or grant.backend_session_id != target.backend_session_id
-                or command.content_scope not in grant.original.allowed_content
-            ):
+            if grant.phase != "bound" or grant.backend_session_id != target.backend_session_id:
                 raise ExternalAgentConflict
-            route = self._submission_route(request, scope)
+            if isinstance(command, ExternalAgentSubmit):
+                if command.content_scope not in grant.original.allowed_content:
+                    raise ExternalAgentConflict
+                route = self._submission_route(request, scope)
+            else:
+                route = self._interruption_route(database, request, scope)
             if database.execute(
                 "SELECT 1 FROM external_agent_claims WHERE decision_event_id=? OR source_event_id=?",
                 (request.decision_event_id, primary),
@@ -263,7 +270,7 @@ class ExternalAgentAccess:
             )
             return receipt(admission_id, "original")
 
-    def _submission_route(self, request, scope):
+    def _decision_source(self, request, scope):
         command = request.command
         source_id = command.source.event_ids[0]
         try:
@@ -309,6 +316,11 @@ class ExternalAgentAccess:
             or resolved.payload.get("text") != source.payload.get("text")
         ):
             raise ExternalAgentScopeChanged
+        return source, recorded
+
+    def _submission_route(self, request, scope):
+        command = request.command
+        source, recorded = self._decision_source(request, scope)
         if recorded.kind == "routing.decided" and source.kind != "conversation.window":
             decision = Decision.model_validate(recorded.payload)
             if (
@@ -341,9 +353,61 @@ class ExternalAgentAccess:
                 raise ExternalAgentConflict
         return decision.decision_id
 
-    def _rolling_submission_current(self, source, scope):
-        # Dispatch observations can lag committed speech and claims. Check the
-        # utterance and its earlier send opportunities inside the claim write.
+    def _interruption_route(self, database, request, scope):
+        command = request.command
+        source, recorded = self._decision_source(request, scope)
+        row = database.execute(
+            "SELECT decision_event_id FROM external_agent_claims "
+            "WHERE attachment_id=? AND admission_id=?",
+            (command.target.attachment_id, command.task_id),
+        ).fetchone()
+        if row is None or command.expected_revision != 1:
+            raise ExternalAgentConflict
+        original = self.store.entry(row[0])
+        if (
+            (original.session_id, original.thread_id, original.epoch, original.origin)
+            != (scope.session_id, scope.thread_id, scope.epoch, "decisions")
+            or original.sequence >= source.sequence
+            or not (
+                (original.kind == "routing.decided" and original.payload.get("route") == "queue")
+                or (
+                    original.kind == "routing.window_decided"
+                    and original.payload.get("agent_route") == "QUEUE_UNTIL_TASK_DONE"
+                )
+            )
+        ):
+            raise ExternalAgentConflict
+        if recorded.kind == "routing.decided" and source.kind != "conversation.window":
+            decision = Decision.model_validate(recorded.payload)
+            if (
+                decision.route != "interrupt"
+                or tuple(decision.source_event_ids) != command.source.event_ids
+                or decision.source_revision != command.source.revision
+                or decision.idempotency_key != command.idempotency_key
+            ):
+                raise ExternalAgentConflict
+        elif recorded.kind == "routing.window_decided" and source.kind == "conversation.window":
+            decision = WindowDecision.model_validate(recorded.payload)
+            if (
+                decision.agent_route != "INTERRUPT_CURRENT_TASK"
+                or command.source.event_ids != (decision.source_event_id,)
+                or (decision.source_sequence, decision.source_revision)
+                != (source.sequence, command.source.revision)
+                or window_agent_key(decision.decision_id, decision.agent_route)
+                != command.idempotency_key
+            ):
+                raise ExternalAgentConflict
+            self._rolling_source_current(source, scope)
+        else:
+            raise ExternalAgentConflict
+        if (decision.target_task_id, decision.expected_objective_revision) != (
+            command.task_id,
+            command.expected_revision,
+        ):
+            raise ExternalAgentConflict
+        return decision.decision_id
+
+    def _rolling_source_current(self, source, scope):
         utterance, text = source.payload["utterance_id"], source.payload["text"]
         latest = self.store.latest_window(scope.session_id, scope.epoch, utterance)
         interrupt = self.store.window_control(scope.session_id, scope.epoch, agent_interrupt=True)
@@ -353,6 +417,12 @@ class ExternalAgentAccess:
             or (interrupt is not None and interrupt.payload["source_sequence"] > source.sequence)
         ):
             raise ExternalAgentScopeChanged
+        return utterance, text
+
+    def _rolling_submission_current(self, source, scope):
+        # Dispatch observations can lag committed speech and claims. Check the
+        # utterance and its earlier send opportunities inside the claim write.
+        utterance, text = self._rolling_source_current(source, scope)
         prior = self.store.db.execute(
             "SELECT 1 FROM entries AS e JOIN external_agent_claims AS c "
             "ON c.source_event_id=e.event_id "

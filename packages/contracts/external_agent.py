@@ -168,7 +168,10 @@ class ExternalAgentInterrupt(_TaskCommand):
 class ExternalAgentClaim(_Envelope):
     operation: Literal["claim"]
     decision_event_id: BridgeIdentifier
-    command: ExternalAgentSubmit
+    command: Annotated[
+        ExternalAgentSubmit | ExternalAgentInterrupt | ExternalAgentSteer,
+        Field(discriminator="operation"),
+    ]
 
     def command_digest(self):
         # HTTP request IDs correlate replies. The task key and exact action

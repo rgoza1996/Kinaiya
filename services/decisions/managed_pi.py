@@ -2,6 +2,7 @@
 
 import asyncio
 import secrets
+from types import SimpleNamespace
 
 import httpx
 
@@ -19,6 +20,7 @@ from packages.contracts.external_agent import (
     ExternalAgentCommandReceipt,
     ExternalAgentDisconnectReceipt,
     ExternalAgentGrantLookup,
+    ExternalAgentInterrupt,
     ExternalAgentRefusal,
     ExternalAgentSource,
     ExternalAgentStatus,
@@ -99,7 +101,7 @@ class ManagedPi:
                 submit=ready and self._connected,
                 queue=ready and self._connected,
                 steer=False,
-                interrupt=False,
+                interrupt=ready and self._connected,
                 event_replay=True,
                 transcript_read=ready,
                 approvals=False,
@@ -179,6 +181,30 @@ class ManagedPi:
         ):
             return None
         return self._target
+
+    async def routing_tasks(self, source):
+        target, observations = self.routing_target(source), self._observations
+        if target is None or observations is None:
+            return []
+        try:
+            await self._bound_grant(target)
+            _, tasks = await asyncio.to_thread(observations.status, live=True)
+        except (ExternalAgentNativeUnavailable, PermissionError, ValueError):
+            return []
+        if target != self.routing_target(source):
+            return []
+        return [
+            SimpleNamespace(
+                task_id=task.task_id,
+                objective_revision=task.revision,
+                state=task.state,
+                session_id=source.session_id,
+                thread_id=source.thread_id,
+                epoch=source.epoch,
+            )
+            for task in tasks
+            if task.state in {"running", "interrupt_requested"}
+        ]
 
     async def _attach(self, request):
         async with self._lock:
@@ -268,7 +294,14 @@ class ManagedPi:
         return await self.authority.read_bound_transcript(grant, **position)
 
     async def submit(self, request, *, routing_source=None):
+        if not isinstance(request.command, ExternalAgentSubmit):
+            return self._refuse(request.request_id, "unsupported")
         return await self._perform(self._submit, request, routing_source=routing_source)
+
+    async def control(self, request, *, routing_source=None):
+        if not isinstance(request.command, ExternalAgentInterrupt):
+            return self._refuse(request.request_id, "unsupported")
+        return await self._perform(self._interrupt, request, routing_source=routing_source)
 
     async def dispatch(
         self, target, source, recorded, *, key, event_ids, instruction, accepted_state
@@ -308,10 +341,52 @@ class ManagedPi:
             ),
             routing_source=source,
         )
+        return self._dispatch_receipt(reply, accepted_state)
+
+    async def dispatch_interrupt(
+        self, target, source, recorded, *, key, event_ids, task_id, revision, accepted_state
+    ):
+        if target is None or target != self.routing_target(source):
+            return {
+                "state": "not_applied",
+                "reason": "external_agent_attachment_changed",
+                "executor": "pi",
+            }
+        try:
+            request = ExternalAgentClaim(
+                contract_version=1,
+                request_id=secrets.token_hex(16),
+                operation="claim",
+                decision_event_id=recorded.event_id,
+                command=ExternalAgentInterrupt(
+                    contract_version=1,
+                    request_id=secrets.token_hex(16),
+                    operation="interrupt",
+                    target=target,
+                    task_id=task_id,
+                    expected_revision=revision,
+                    idempotency_key=key,
+                    source=ExternalAgentSource(
+                        event_ids=tuple(event_ids), revision=source.payload.get("revision", 1)
+                    ),
+                ),
+            )
+        except ValueError:
+            return {
+                "state": "not_applied",
+                "reason": "external_agent_source_unavailable",
+                "executor": "pi",
+            }
+        reply = await self.control(request, routing_source=source)
+        return self._dispatch_receipt(reply, accepted_state)
+
+    @staticmethod
+    def _dispatch_receipt(reply, accepted_state):
         if isinstance(reply, ExternalAgentCommandReceipt):
             state, reason = {
                 "queued": ("queued", "external_agent_queued"),
                 "accepted": (accepted_state, "external_agent_accepted"),
+                "requested": (accepted_state, "external_agent_interrupt_requested"),
                 "uncertain": ("unknown", "external_agent_unconfirmed"),
             }[reply.disposition]
             return {
@@ -326,6 +401,69 @@ class ManagedPi:
             "reason": f"external_agent_{reply.reason}",
             "executor": "pi",
         }
+
+    async def _interrupt(self, request, *, routing_source=None):
+        command = request.command
+        async with self._lock:
+            peer, observations = self._peer, self._observations
+            if self._target != command.target or (
+                routing_source is not None and self.routing_target(routing_source) != self._target
+            ):
+                return self._refuse(request.request_id, "scope_changed")
+            if self._closed or observations is None:
+                return self._refuse(request.request_id, "unavailable")
+            live = self._connected and peer is not None and peer.available
+            try:
+                await self._bound_grant(command.target)
+                claim = await self.authority.claim(request, retain_only=True)
+                if claim is None:
+                    if not live:
+                        return self._refuse(request.request_id, "unavailable")
+                    observed = await peer.status(secrets.token_hex(16))
+                    if observed.run_id != command.task_id:
+                        return self._refuse(request.request_id, "scope_changed")
+                    claim = await self.authority.claim(request)
+                if claim.disposition == "original":
+                    reply = await asyncio.to_thread(
+                        observations.prepare_interrupt, claim, command.task_id
+                    )
+                    if reply is None:
+                        try:
+                            reply = await peer.interrupt(claim.admission_id, command.task_id)
+                        except (PiCommandUnconfirmed, PiPeerUnavailable):
+                            pass
+                else:
+                    reply = await asyncio.to_thread(
+                        observations.interrupt_reply, claim, command.task_id
+                    )
+                if reply is not None and reply.disposition == "refused":
+                    reason = "scope_changed" if reply.reason == "run_changed" else "unavailable"
+                    return self._refuse(request.request_id, reason)
+                task = await asyncio.to_thread(
+                    observations.task, command.task_id, live=live and peer.available
+                )
+            except ExternalAgentNativeConflict:
+                return self._refuse(request.request_id, "scope_changed")
+            except (
+                ExternalAgentNativeUnavailable,
+                PiCommandUnconfirmed,
+                PiPeerUnavailable,
+                PermissionError,
+                ValueError,
+            ):
+                return self._refuse(request.request_id, "unavailable")
+            if task is None:
+                return self._refuse(request.request_id, "unavailable")
+            return ExternalAgentCommandReceipt(
+                contract_version=1,
+                request_id=request.request_id,
+                kind="command",
+                target=command.target,
+                operation="interrupt",
+                idempotency_key=command.idempotency_key,
+                task=task,
+                disposition="requested" if reply is not None else "uncertain",
+            )
 
     async def _submit(self, request, *, routing_source=None):
         async with self._lock:

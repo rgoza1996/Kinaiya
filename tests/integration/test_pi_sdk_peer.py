@@ -21,7 +21,7 @@ from packages.agent_adapters.pi_sdk import PiPeerUnavailable, PiSdkPeer
 from packages.contracts.client import JournalClient
 from packages.contracts.external_agent import ExternalAgentRevoke, ExternalAgentTarget
 from packages.contracts.external_agent_client import ExternalAgentNativeUnavailable
-from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow
+from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow, window_agent_key
 from packages.providers.text import ScriptedProvider
 from services import launcher
 from services.common.auth import Auth
@@ -1114,3 +1114,227 @@ async def test_converse_text_and_rolling_audio_route_through_actual_decisions_to
         assert (
             peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0] == 2
         )
+
+
+@pytest.mark.parametrize("rolling", [False, True], ids=["typed", "rolling-audio"])
+async def test_converse_interrupt_stops_the_exact_managed_pi_run(private, monkeypatch, rolling):
+    stop_text = "Stop the current synthetic run"
+    audio = b"PUBLIC_SYNTHETIC_STOP_AUDIO"
+    classifier = ScriptedProvider([])
+
+    class Speech:
+        async def transcribe(self, data, filename):
+            assert data == audio and filename == "window.wav"
+            return {"text": stop_text}
+
+    async with native(private.parent / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        scope = {key: getattr(session, key) for key in ("session_id", "thread_id", "epoch")}
+        grant = await peers.owner.authorize(connection(session, backend=None))
+        start = add(peers.store, session, "conversation.user", "hold for interrupt")
+        original = queued_claim(peers.store, session, start, bind_to(grant)).model_dump(mode="json")
+        app, _ = managed_app(private, peers, monkeypatch, classifier)
+        path = "/v1/decisions/external-agent"
+        owner_headers = {"Authorization": "Bearer " + TOKENS["owner"]}
+        decisions_headers = {"Authorization": "Bearer " + TOKENS["decisions"]}
+        attach = {
+            "contract_version": 1,
+            "request_id": "interrupt-attach",
+            "operation": "attach",
+            "attachment_id": grant.attachment_id,
+        }
+
+        async with (
+            loopback(app) as decisions,
+            httpx.AsyncClient(base_url=decisions, headers=owner_headers, trust_env=False) as owner,
+        ):
+            response = await owner.post(path + "/attach", json=attach)
+            assert response.status_code == 200, response.text
+            attached = response.json()
+            assert attached["capabilities"]["interrupt"] and not attached["capabilities"]["steer"]
+            target = attached["target"]
+            original["command"]["target"] = target
+            accepted = await owner.post(path + "/submit", json=original, headers=decisions_headers)
+            assert accepted.status_code == 200, accepted.text
+            task_id = accepted.json()["task"]["task_id"]
+
+            async with asyncio.timeout(5):
+                while True:
+                    status = await owner.post(
+                        path + "/status",
+                        json={
+                            "contract_version": 1,
+                            "request_id": "interrupt-status",
+                            "operation": "status",
+                            "target": target,
+                        },
+                    )
+                    assert status.status_code == 200, status.text
+                    if status.json()["tasks"][0]["state"] == "running":
+                        break
+                    await asyncio.sleep(0.02)
+            if rolling:
+                labels = {
+                    "conversation": "WAIT_FOR_NEXT_WINDOW",
+                    "agent_route": "INTERRUPT_CURRENT_TASK",
+                    "reason_code": "synthetic_interrupt",
+                }
+                decision_kind, dispatch_kind = "routing.window_decided", "routing.window_dispatch"
+                expected_state = "applied"
+            else:
+                labels = {"route": "interrupt"}
+                decision_kind, dispatch_kind = "routing.decided", "routing.dispatch"
+                expected_state = "accepted"
+            classifier.responses.append(
+                json.dumps(
+                    {
+                        **labels,
+                        "target_task_id": task_id,
+                        "expected_objective_revision": 1,
+                    }
+                )
+            )
+
+            gate = RequiredDecisions(decisions, TOKENS["converse"])
+            journal = JournalClient(str(peers.http.base_url).rstrip("/"), TOKENS["converse"])
+            converser = ConverseRuntime(
+                journal, ScriptedProvider(["I heard you."]), decisions_dependency=gate
+            )
+            windows = WindowConverseController(converser)
+            try:
+                async with asyncio.timeout(5):
+                    while not (await owner.get("/v1/decisions/readiness")).json()["ready"]:
+                        await asyncio.sleep(0.02)
+                await gate.start()
+                await gate.refresh()
+                async with (
+                    loopback(converse_app(converser, Auth(TOKENS), Speech(), windows)) as converse,
+                    httpx.AsyncClient(
+                        base_url=converse, headers=owner_headers, trust_env=False
+                    ) as client,
+                ):
+                    if rolling:
+                        body = SpeechWindow(
+                            **scope,
+                            utterance_id="native-stop",
+                            window_index=0,
+                            text="",
+                            start_ms=0,
+                            end_ms=1000,
+                            user_speaking=True,
+                            content_scope="local_only",
+                        ).model_dump(mode="json")
+                        body["audio_base64"] = base64.b64encode(audio).decode("ascii")
+                        turn = await client.post("/v1/converse/audio/windows", json=body)
+                    else:
+                        turn = await client.post(
+                            "/v1/converse/turns",
+                            json={
+                                **scope,
+                                "text": stop_text,
+                                "content_scope": "local_only",
+                                "idempotency_key": "fresh-interrupt-turn",
+                            },
+                        )
+                    assert turn.status_code == 200, turn.text
+            finally:
+                await windows.close()
+                await converser.close()
+                await gate.close()
+                await journal.close()
+
+            replay = {
+                "contract_version": 1,
+                "request_id": "observe-interrupt",
+                "operation": "events",
+                "target": target,
+                "after": 0,
+                "limit": 16,
+            }
+            async with asyncio.timeout(8):
+                while True:
+                    page = await owner.post(path + "/events", json=replay)
+                    assert page.status_code == 200, page.text
+                    events = page.json()["events"]
+                    receipts = peers.store.read(
+                        session_id=session.session_id, kinds=[dispatch_kind]
+                    )
+                    if receipts and any(event.get("state") == "interrupted" for event in events):
+                        break
+                    await asyncio.sleep(0.02)
+            assert {event["task_id"] for event in events} == {task_id}
+            assert len(receipts) == 1
+            receipt = receipts[0].payload
+            assert (receipt["reason"], receipt["state"]) == (
+                "external_agent_interrupt_requested",
+                expected_state,
+            )
+            assert receipt["target_task_id"] == receipt["external_task_id"] == task_id
+            assert receipt["executor"] == "pi" and "native_task_id" not in receipt
+            assert peers.store.entry(receipt["source_event_id"]).payload["text"] == stop_text
+            assert len(classifier.calls) == 1
+            assert json.loads(classifier.calls[0][-1]["content"])["tasks"] == [
+                {"task_id": task_id, "objective_revision": 1, "state": "running"}
+            ]
+
+            (recorded,) = (
+                entry
+                for entry in peers.store.read(session_id=session.session_id, kinds=[decision_kind])
+                if entry.payload["decision_id"] == receipt["decision_id"]
+            )
+            key = (
+                window_agent_key(recorded.payload["decision_id"], labels["agent_route"])
+                if rolling
+                else recorded.payload["idempotency_key"]
+            )
+            control = {
+                "contract_version": 1,
+                "request_id": "replay-control",
+                "operation": "claim",
+                "decision_event_id": recorded.event_id,
+                "command": {
+                    "contract_version": 1,
+                    "request_id": "replay-stop",
+                    "operation": "interrupt",
+                    "target": target,
+                    "task_id": task_id,
+                    "expected_revision": 1,
+                    "idempotency_key": key,
+                    "source": {"event_ids": [receipt["source_event_id"]], "revision": 1},
+                },
+            }
+            assert (await owner.post(path + "/control", json=control)).status_code == 403
+            steer = {
+                **control,
+                "command": {
+                    **control["command"],
+                    "operation": "steer",
+                    "instruction": "steer synthetic run",
+                    "content_scope": "local_only",
+                },
+            }
+            refusal = await owner.post(path + "/control", json=steer, headers=decisions_headers)
+            assert refusal.status_code == 409 and refusal.json()["reason"] == "unsupported"
+
+            ended = await owner.post(
+                path + "/disconnect",
+                json={
+                    "contract_version": 1,
+                    "request_id": "interrupt-shutdown",
+                    "operation": "disconnect",
+                    "target": target,
+                    "mode": "shutdown_owned",
+                },
+            )
+            assert ended.status_code == 200 and ended.json()["disposition"] == "stopped"
+            reopened = await owner.post(path + "/attach", json=attach)
+            assert reopened.status_code == 200 and reopened.json()["target"] == target
+            repeated = await owner.post(path + "/control", json=control, headers=decisions_headers)
+            assert repeated.status_code == 200, repeated.text
+            assert repeated.json()["disposition"] == "requested"
+            assert repeated.json()["task"]["state"] == "interrupted"
+            assert (await owner.post(path + "/events", json=replay)).json()["events"] == events
+            assert (
+                peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0]
+                == 2
+            )

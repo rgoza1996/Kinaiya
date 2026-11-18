@@ -1,4 +1,4 @@
-"""Owner access to the managed external Pi attachment."""
+"""Owner lifecycle and authenticated Decisions access to the managed Pi attachment."""
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
@@ -58,5 +58,12 @@ def router(manager, auth):
             request, ExternalAgentClaim, MAX_EXTERNAL_COMMAND_BYTES
         )
         return _reply(await manager.submit(original))
+
+    @native.post("/control", dependencies=[decisions])
+    async def control(request: Request):
+        original = await external_agent_body(
+            request, ExternalAgentClaim, MAX_EXTERNAL_COMMAND_BYTES
+        )
+        return _reply(await manager.control(original))
 
     return native

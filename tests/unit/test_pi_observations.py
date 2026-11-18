@@ -76,6 +76,40 @@ def test_replacement_seals_unknown_tail_and_preserves_exact_reply(original_store
     assert replacement.events(replay(3)).events == ()
 
 
+@pytest.mark.parametrize("stop_first", [False, True])
+def test_interrupt_acknowledgment_retains_the_observed_stop(original_store, tmp_path, stop_first):
+    original_store.record_event(PiEvent(1, TASK, "running"))
+    control = original_claim().model_copy(
+        update={"admission_id": "e" * 32, "command_digest": "d" * 64}
+    )
+    assert original_store.prepare_interrupt(control, TASK) is None
+    assert original_store.interrupt_reply(control, TASK) is None
+    assert original_store.task(TASK, live=True).state == "running"
+
+    terminal = PiEvent(2, TASK, "interrupted")
+    if stop_first:
+        original_store.record_event(terminal)
+    ack = PiReply("requested", None)
+    original_store.record_interrupt_reply(control.admission_id, ack)
+    if not stop_first:
+        assert original_store.task(TASK, live=True).state == "interrupt_requested"
+        original_store.record_event(terminal)
+
+    replacement = PiObservations(tmp_path, TARGET)
+    replacement.start()
+    assert replacement.interrupt_reply(control, TASK) == ack
+    assert replacement.task(TASK, live=False).state == "interrupted"
+    events = [event.state for event in replacement.events(replay()).events]
+    expected = (
+        ["running", "interrupted"]
+        if stop_first
+        else ["running", "interrupt_requested", "interrupted"]
+    )
+    assert events == expected
+    with pytest.raises(PiObservationUnavailable):
+        replacement.interrupt_reply(control, "f" * 32)
+
+
 def test_replay_eviction_expires_only_the_lost_prefix(original_store, monkeypatch):
     monkeypatch.setattr(pi_observations, "_MAX_EVENTS", 2)
     original_store.record_event(PiEvent(1, TASK, "running"))

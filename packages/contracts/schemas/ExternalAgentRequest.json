@@ -96,7 +96,26 @@
           "type": "string"
         },
         "command": {
-          "$ref": "#/$defs/ExternalAgentSubmit"
+          "discriminator": {
+            "mapping": {
+              "interrupt": "#/$defs/ExternalAgentInterrupt",
+              "steer": "#/$defs/ExternalAgentSteer",
+              "submit": "#/$defs/ExternalAgentSubmit"
+            },
+            "propertyName": "operation"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ExternalAgentSubmit"
+            },
+            {
+              "$ref": "#/$defs/ExternalAgentInterrupt"
+            },
+            {
+              "$ref": "#/$defs/ExternalAgentSteer"
+            }
+          ],
+          "title": "Command"
         }
       },
       "required": [

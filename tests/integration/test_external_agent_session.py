@@ -12,6 +12,7 @@ from packages.contracts.external_agent import (
     ExternalAgentBind,
     ExternalAgentClaim,
     ExternalAgentConnect,
+    ExternalAgentInterrupt,
     ExternalAgentReadTranscript,
     ExternalAgentRevoke,
     ExternalAgentScope,
@@ -207,6 +208,84 @@ async def test_exact_finalized_correction_claim_uses_root_and_revision_cause(tmp
         )
         with pytest.raises(ExternalAgentNativeConflict):
             await peers.decisions.claim(queued_claim(peers.store, session, replacement, binding))
+
+
+async def test_interrupt_claim_requires_the_recorded_route_and_original_task(tmp_path):
+    async with native(tmp_path / "journal.sqlite") as peers:
+        session = peers.store.create_session(SessionRequest(channel="converse"))
+        grant = await peers.owner.authorize(connection(session))
+        binding = bind_to(grant)
+        await peers.decisions.bind(binding)
+        task_claims = []
+        for text in ("First synthetic task", "Second synthetic task"):
+            source = add(peers.store, session, "conversation.user", text)
+            task_claims.append(
+                await peers.decisions.claim(queued_claim(peers.store, session, source, binding))
+            )
+
+        stop = add(
+            peers.store, session, "conversation.user", "Stop the first task", scope="local_only"
+        )
+        decision = Decision(
+            route="interrupt",
+            source_event_ids=[stop.event_id],
+            source_revision=1,
+            target_task_id=task_claims[0].admission_id,
+            expected_objective_revision=1,
+            idempotency_key="stop-original",
+        )
+        recorded = peers.store.append(
+            AppendRequest(
+                session_id=session.session_id,
+                thread_id=session.thread_id,
+                epoch=session.epoch,
+                kind="routing.decided",
+                causes=[stop.event_id],
+                idempotency_key=decision.idempotency_key,
+                payload=decision.model_dump(mode="json"),
+            ),
+            "decisions",
+        )
+        request = ExternalAgentClaim(
+            contract_version=1,
+            request_id="control",
+            operation="claim",
+            decision_event_id=recorded.event_id,
+            command=ExternalAgentInterrupt(
+                contract_version=1,
+                request_id="interrupt",
+                operation="interrupt",
+                target=binding.target,
+                source=ExternalAgentSource(event_ids=(stop.event_id,), revision=1),
+                idempotency_key=decision.idempotency_key,
+                task_id=decision.target_task_id,
+                expected_revision=1,
+            ),
+        )
+        with pytest.raises(PermissionError):
+            await peers.owner.claim(request)
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.eligible_claim(request)
+        for change in (
+            {"task_id": task_claims[1].admission_id},
+            {"expected_revision": 2},
+            {"source": ExternalAgentSource(event_ids=(source.event_id,), revision=1)},
+        ):
+            wrong = request.model_copy(
+                update={"command": request.command.model_copy(update=change)}
+            )
+            with pytest.raises(ExternalAgentNativeConflict):
+                await peers.decisions.claim(wrong)
+        with pytest.raises(ExternalAgentNativeConflict):
+            await peers.decisions.claim(
+                request.model_copy(update={"decision_event_id": task_claims[0].decision_event_id})
+            )
+        assert await peers.decisions.claim(request, retain_only=True) is None
+        original = await peers.decisions.claim(request)
+        assert original.disposition == "original"
+        assert original.admission_id not in {claim.admission_id for claim in task_claims}
+        retained = await peers.decisions.claim(request, retain_only=True)
+        assert retained.disposition == "retained" and retained.admission_id == original.admission_id
 
 
 @pytest.mark.parametrize("invalid", ["stale", "private_root", "unrelated_root"])
