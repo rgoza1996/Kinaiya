@@ -244,16 +244,44 @@ async def test_native_admission_retains_its_detached_original_after_caller_list_
 async def test_lost_original_ack_is_observed_without_replaying_inference_or_publication(
     live, wire, operation, committed
 ):
+    await exercise_lost_ack(live, wire, operation, committed)
+
+
+@pytest.fixture
+def held_currentness_entries(monkeypatch):
+    entry = JournalClient.entry
+    held = []
+
+    async def hold_first_entry(client, event_id):
+        result = await entry(client, event_id)
+        if not held:
+            held.append(event_id)
+            await asyncio.Event().wait()
+        return result
+
+    monkeypatch.setattr(JournalClient, "entry", hold_first_entry)
+    return held
+
+
+async def test_pre_admission_read_timeout_does_not_count_as_a_lost_finish_ack(
+    live, wire, held_currentness_entries
+):
+    await exercise_lost_ack(live, wire, "finish", True)
+    assert len(held_currentness_entries) == 1
+
+
+async def exercise_lost_ack(live, wire, operation, committed):
     auth, asgi = wire
     effects, closes, calls = [], [], []
     lost_path = BASE + ("/publish" if operation == "publish" else "/attempts/" + operation)
+    lost_ack = httpx.ReadError("Public synthetic lost native inference acknowledgment")
 
     class Lost(httpx.AsyncByteStream):
         def __init__(self, stream):
             self.stream = stream
 
         async def __aiter__(self):
-            raise httpx.ReadError("Public synthetic lost native inference acknowledgment")
+            raise lost_ack
             yield b""
 
         async def aclose(self):
@@ -270,6 +298,7 @@ async def test_lost_original_ack_is_observed_without_replaying_inference_or_publ
                 if committed
                 else httpx.Response(200, stream=httpx.ByteStream(b""))
             )
+            assert result.status_code == 200
             result.stream = Lost(result.stream)
             return result
 
@@ -283,8 +312,28 @@ async def test_lost_original_ack_is_observed_without_replaying_inference_or_publ
     )
     settings, holder = DecisionsModelSettings(provider, None), {}
     try:
-        with pytest.raises((CaptureNativeUnavailable, httpx.ReadError)):
-            await classify_once(live, journal, settings, holder)
+        lookup = LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
+        for observation in range(2):
+            with pytest.raises((CaptureNativeUnavailable, httpx.ReadError)) as seen:
+                await classify_once(live, journal, settings, holder)
+            if seen.value is lost_ack or seen.value.__cause__ is lost_ack:
+                break
+            # A slow source read can refuse before the native admission is even
+            # constructed. Only a proven pre-dispatch refusal permits a fresh
+            # test observation. Never replay an attempted admit/finish/publish.
+            if (
+                observation
+                or str(seen.value) != "Decisions currentness check exceeded its bound"
+                or not isinstance(seen.value.__cause__, TimeoutError)
+            ):
+                raise seen.value
+            assert holder["native"].request is None and not holder["native"].entered
+            assert not effects and not closes and not calls
+            assert not settings.leases and not journal._submit_exchanges
+            state = await journal.live_decisions_attempt_lookup(lookup)
+            assert state.state == "known_absent" and state.charged_attempts == 0
+            assert state.last_attempt is None
+            assert not live.store.read(kinds=["routing.live_window_decided"])
         expected = (
             "known_absent"
             if operation == "admit" and not committed
@@ -292,9 +341,7 @@ async def test_lost_original_ack_is_observed_without_replaying_inference_or_publ
             if operation == "admit" or operation == "finish" and not committed
             else "completed"
         )
-        first = await journal.live_decisions_attempt_lookup(
-            LiveDecisionsAttemptLookup(contract_version=2, source=live.source)
-        )
+        first = await journal.live_decisions_attempt_lookup(lookup)
         assert first.state == expected
         assert first.charged_attempts == (0 if expected == "known_absent" else 1)
         for _ in range(2):

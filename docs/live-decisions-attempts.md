@@ -100,3 +100,10 @@ See [qualification evidence](evidence/live-decisions-attempts-2026-11-16/README.
 for exact checks, unchanged inputs and retained first failures. Architectural
 correctness is the acceptance criterion; model answer, style and speech quality
 are diagnostic observations.
+
+The lost-acknowledgment control for #696 identifies the error injected at the
+selected HTTP operation. A timeout reading source metadata can occur before
+admission. In that case the control verifies an empty native ledger, zero
+provider calls or publications, and settled client ownership before allowing
+one fresh test observation. Each positive case must still reach its selected
+operation and verify the exact charge, result, cleanup and publication counts.

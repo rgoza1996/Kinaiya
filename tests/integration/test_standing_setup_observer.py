@@ -20,7 +20,7 @@ async def test_real_initial_dispatch_read_is_unchanged_and_observer_is_retired(f
 
 
 async def test_original_setup_refuses_real_closed_authority_once_with_safe_context(
-    factory, monkeypatch
+    factory, monkeypatch, caplog
 ):
     env = await factory()
     before = env.operations.run
@@ -42,5 +42,7 @@ async def test_original_setup_refuses_real_closed_authority_once_with_safe_conte
     detail = str(raised.value)
     assert "'owner_closed': True" in detail, "First setup failure lost native diagnostic context"
     assert "'active_operations': 0" in detail
+    assert "'snapshot_phase': 'not_entered'" in caplog.text
+    assert "standing_work_api.py" in caplog.text
     assert env.operations.run == before and "run" not in vars(env.operations)
     assert env.operations._closed and env.operations.active_operations == 0

@@ -246,6 +246,12 @@ speaker/FIFO/Call ownership remains retained until the same original settles.
 
 ## Remaining integration
 
+The Session process replacement test registers an open capture over HTTP,
+kills the owning Session process and checks the original client during the
+outage. After relaunch against the same database, the client recovers the
+exact registration and receipt under a new controller. Repeated reads observe
+the capture as closed.
+
 Extend the synthetic playback/backchannel, mute and accessibility qualification
 to the remaining lifecycle and supported-adapter paths. Complete no-audio,
 reconnect, process replacement and dependency-loss qualification; physical
