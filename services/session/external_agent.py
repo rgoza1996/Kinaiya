@@ -187,9 +187,12 @@ class ExternalAgentAccess:
             return grant
 
     def retained_claim(self, request):
-        return self.claim(request, allow_new=False)
+        return self.claim(request, intent="retained")
 
-    def claim(self, request, *, allow_new=True):
+    def eligible_claim(self, request):
+        return self.claim(request, intent="eligible")
+
+    def claim(self, request, *, intent="commit"):
         """Grant one fresh send opportunity for one exact authenticated route."""
         command = request.command
         target = command.target
@@ -209,7 +212,8 @@ class ExternalAgentAccess:
                 disposition=disposition,
             )
 
-        with self._transaction(write=allow_new) as database:
+        commit = intent == "commit"
+        with self._transaction(write=commit) as database:
             original = database.execute(
                 "SELECT command_digest,admission_id,decision_event_id,source_event_id "
                 "FROM external_agent_claims WHERE attachment_id=? AND idempotency_key=?",
@@ -223,7 +227,7 @@ class ExternalAgentAccess:
                 ) != (digest, request.decision_event_id, primary):
                     raise ExternalAgentConflict
                 return receipt(original["admission_id"], "retained")
-            if not allow_new:
+            if intent == "retained":
                 return None
             grant = self._lookup(database, target.attachment_id, request.request_id)
             scope = grant.original.scope
@@ -240,7 +244,11 @@ class ExternalAgentAccess:
                 (request.decision_event_id, primary),
             ).fetchone() or self._already_dispatched(database, scope, route, primary):
                 raise ExternalAgentConflict
-            admission_id = secrets.token_hex(16)
+            # Queue admission can show this exact identity without reserving
+            # a send. Older stored originals retain their original IDs.
+            admission_id = digest[:32]
+            if not commit:
+                return receipt(admission_id, "eligible")
             database.execute(
                 "INSERT INTO external_agent_claims (attachment_id,idempotency_key,command_digest,"
                 "admission_id,decision_event_id,source_event_id) VALUES (?,?,?,?,?,?)",
@@ -362,7 +370,9 @@ class ExternalAgentAccess:
         return (
             database.execute(
                 "SELECT 1 FROM entries WHERE session_id=? AND thread_id=? AND epoch=? AND ("
-                "(writer='decisions' AND (kind='routing.dispatch' OR "
+                "(writer='decisions' AND ((kind='routing.dispatch' AND NOT "
+                "(json_extract(value,'$.payload.executor') IS 'pi' AND "
+                "json_extract(value,'$.payload.state') IS 'queued')) OR "
                 "(kind='routing.window_dispatch' AND json_extract(value,'$.payload.state') IS NOT 'queued')) "
                 "AND json_extract(value,'$.payload.decision_id')=?) OR "
                 "(writer='agent' AND kind='agent.command' AND json_extract(value,'$.payload.op')='submit' "

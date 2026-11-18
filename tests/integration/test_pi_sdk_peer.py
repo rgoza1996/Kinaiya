@@ -21,7 +21,7 @@ from packages.agent_adapters.pi_sdk import PiPeerUnavailable, PiSdkPeer
 from packages.contracts.client import JournalClient
 from packages.contracts.external_agent import ExternalAgentRevoke, ExternalAgentTarget
 from packages.contracts.external_agent_client import ExternalAgentNativeUnavailable
-from packages.contracts.models import SessionRequest, SpeechWindow
+from packages.contracts.models import AppendRequest, SessionRequest, SpeechWindow
 from packages.providers.text import ScriptedProvider
 from services import launcher
 from services.common.auth import Auth
@@ -494,21 +494,26 @@ launcher.main()
             await process.wait()
 
 
-async def test_abrupt_decisions_process_replacement_keeps_observed_pi_acceptance(private):
+async def test_abrupt_decisions_replacement_preserves_acceptance_and_pending_queue(private):
     async with native(private.parent / "crash-journal.sqlite") as peers:
         session = peers.store.create_session(SessionRequest(channel="converse"))
         grant = await peers.owner.authorize(connection(session, backend=None))
-        source = add(peers.store, session, "conversation.user", "hold for interrupt")
-        proposal = queued_claim(
-            peers.store,
-            session,
-            source,
-            SimpleNamespace(
-                target=ExternalAgentTarget(
-                    attachment_id=grant.attachment_id, backend_session_id="not-observed-yet"
-                )
-            ),
-        ).model_dump(mode="json")
+        provisional = SimpleNamespace(
+            target=ExternalAgentTarget(
+                attachment_id=grant.attachment_id, backend_session_id="not-observed-yet"
+            )
+        )
+        text = (
+            "hold for interrupt",
+            "Superseded queued request",
+            "First after restart",
+            "Second after restart",
+        )
+        sources = [add(peers.store, session, "conversation.user", value) for value in text]
+        proposal, *waiting = [
+            queued_claim(peers.store, session, source, provisional).model_dump(mode="json")
+            for source in sources
+        ]
         data, config = managed_config(private, peers)
         credentials = data / "service-tokens.json"
         credentials.write_text(json.dumps(TOKENS))
@@ -525,7 +530,9 @@ async def test_abrupt_decisions_process_replacement_keeps_observed_pi_acceptance
             connected = await owner.post(path + "/attach", json=setup)
             assert connected.status_code == 200, connected.text
             target = connected.json()["target"]
-            proposal["command"]["target"] = target
+            assert connected.json()["capabilities"]["queue"] is True
+            for item in [proposal, *waiting]:
+                item["command"]["target"] = target
             submitted = await owner.post(path + "/submit", json=proposal, headers=decisions_role)
             assert submitted.status_code == 200 and submitted.json()["disposition"] == "accepted"
             task = submitted.json()["task"]["task_id"]
@@ -544,8 +551,41 @@ async def test_abrupt_decisions_process_replacement_keeps_observed_pi_acceptance
                     if current.json()["events"]:
                         break
                     await asyncio.sleep(0.03)
-            old = current.json()["events"]
-            assert len(old) == 1 and old[0]["state"] == "running"
+            assert current.json()["events"][0]["state"] == "running"
+            queued_ids = []
+            for item in waiting:
+                response = await owner.post(path + "/submit", json=item, headers=decisions_role)
+                assert response.status_code == 200, response.text
+                assert response.json()["disposition"] == "queued"
+                queued_ids.append(response.json()["task"]["task_id"])
+                duplicate = await owner.post(path + "/submit", json=item, headers=decisions_role)
+                assert duplicate.json() == response.json()
+            assert (
+                peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0]
+                == 1
+            )
+            for source, item in zip(sources[1:], waiting, strict=True):
+                recorded = peers.store.entry(item["decision_event_id"])
+                peers.store.append(
+                    AppendRequest(
+                        session_id=session.session_id,
+                        thread_id=session.thread_id,
+                        epoch=session.epoch,
+                        kind="routing.dispatch",
+                        causes=[source.event_id],
+                        idempotency_key="dispatch:" + recorded.payload["decision_id"],
+                        payload={
+                            "decision_id": recorded.payload["decision_id"],
+                            "executor": "pi",
+                            "state": "queued",
+                        },
+                    ),
+                    "decisions",
+                )
+            history = await owner.post(path + "/events", json=replay)
+            assert history.status_code == 200, history.text
+            old = history.json()["events"]
+            assert [item["state"] for item in old] == ["running", "queued", "queued", "queued"]
             original.kill()
             await asyncio.wait_for(original.wait(), 5)
             assert original.returncode < 0
@@ -561,6 +601,14 @@ async def test_abrupt_decisions_process_replacement_keeps_observed_pi_acceptance
                     except BlockingIOError:
                         await asyncio.sleep(0.03)
 
+        add(
+            peers.store,
+            session,
+            "conversation.revision",
+            "Corrected queued request",
+            revision=2,
+            target_event_id=sources[1].event_id,
+        )
         async with decisions_process(data, config, private / "workspace") as (new, owner):
             assert new.pid != original.pid
             history = await owner.post(path + "/events", json=replay)
@@ -573,14 +621,29 @@ async def test_abrupt_decisions_process_replacement_keeps_observed_pi_acceptance
                 original_ack.status_code == 200 and original_ack.json()["disposition"] == "accepted"
             )
             assert original_ack.json()["task"]["task_id"] == task
-            result = await owner.post(path + "/events", json={**replay, "after": old[-1]["cursor"]})
-            assert result.status_code == 200, result.text
-            assert [(item["task_id"], item["state"]) for item in result.json()["events"]] == [
-                (task, "uncertain"),
-            ]
+            window = {**replay, "after": old[-1]["cursor"], "limit": 32}
+            async with asyncio.timeout(8):
+                while True:
+                    result = await owner.post(path + "/events", json=window)
+                    assert result.status_code == 200, result.text
+                    events = result.json()["events"]
+                    if sum(item.get("state") == "settled" for item in events) == 2:
+                        break
+                    await asyncio.sleep(0.03)
+            assert events[0]["task_id"] == task and events[0]["state"] == "uncertain"
+            assert [
+                (item["task_id"], item["state"])
+                for item in events
+                if item["task_id"] == queued_ids[0]
+            ] == [(queued_ids[0], "not_applied")]
+            assert [
+                (item["task_id"], item["text"])
+                for item in events
+                if item["kind"] == "assistant_message"
+            ] == list(zip(queued_ids[1:], text[2:], strict=True))
             assert (
                 peers.store.db.execute("SELECT count(*) FROM external_agent_claims").fetchone()[0]
-                == 1
+                == 3
             )
 
 
@@ -712,6 +775,7 @@ async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_sessio
             for item in proposals:
                 item["command"]["target"] = target
             proposal, held, different = proposals
+            different["command"]["queue_if_busy"] = False
             assert (await owner.post(path + "/submit", json=proposal)).status_code == 403
             accepted = await owner.post(
                 path + "/submit",
@@ -940,7 +1004,7 @@ async def test_converse_text_and_rolling_audio_route_through_actual_decisions_to
                                 "operation": "events",
                                 "target": target,
                                 "after": cursor,
-                                "limit": 8,
+                                "limit": 1,
                             },
                         )
                         assert page.status_code == 200, page.text
@@ -989,9 +1053,21 @@ async def test_converse_text_and_rolling_audio_route_through_actual_decisions_to
                         },
                     )
                     assert turn.status_code == 200, turn.text
-                    text_receipt = await settled(typed, "routing.dispatch", "accepted")
-                    user = peers.store.entry(text_receipt.payload["source_event_id"])
-                    assert user.payload["text"] == typed and user.event_id != prior.event_id
+                    async with asyncio.timeout(5):
+                        while True:
+                            status = await owner.post(
+                                path + "/status",
+                                json={
+                                    "contract_version": 1,
+                                    "request_id": "typed-busy",
+                                    "operation": "status",
+                                    "target": target,
+                                },
+                            )
+                            assert status.status_code == 200, status.text
+                            if any(task["state"] == "running" for task in status.json()["tasks"]):
+                                break
+                            await asyncio.sleep(0.02)
 
                     body = SpeechWindow(
                         **scope,
@@ -1010,7 +1086,21 @@ async def test_converse_text_and_rolling_audio_route_through_actual_decisions_to
                     assert (
                         window["payload"]["text"] == spoken and not voice.json()["retained_audio"]
                     )
-                    speech_receipt = await settled(spoken, "routing.window_dispatch", "applied")
+                    async with asyncio.timeout(5):
+                        while not peers.store.window_dispatches(session_id=session.session_id):
+                            await asyncio.sleep(0.02)
+                    queued = peers.store.window_dispatches(session_id=session.session_id)[0]
+                    assert (
+                        queued.payload["state"] == "queued" and queued.payload["executor"] == "pi"
+                    )
+                    assert not peers.store.window_dispatches(
+                        session_id=session.session_id, pending_only=True
+                    )
+                    (private / "workspace" / "release-typed-fixture").touch()
+                    text_receipt = await settled(typed, "routing.dispatch", "accepted")
+                    user = peers.store.entry(text_receipt.payload["source_event_id"])
+                    assert user.payload["text"] == typed and user.event_id != prior.event_id
+                    speech_receipt = await settled(spoken, "routing.window_dispatch", "queued")
                     assert speech_receipt.payload["source_event_id"] == window["event_id"]
                     replay = await client.post("/v1/converse/audio/windows", json=body)
                     assert replay.status_code == 200 and replay.json()["replay"]

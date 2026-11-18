@@ -2,8 +2,8 @@
 
 The bridge contract, Session attachment grants, and the Pi SDK peer support
 managed attachment, scoped transcript reads, Decisions delivery from Converse
-typed turns and Rolling Windows, and durable replay of observed outcomes.
-Queued delivery, targeted controls, and Adaptive Live remain in scope. [External Agent
+typed turns and Rolling Windows, queued delivery, and durable replay of
+observed outcomes. Targeted controls and Adaptive Live remain in scope. [External Agent
 bridge](https://github.com/rgoza1996/Kinaiya/issues/547)
 
 ## Commands and observations
@@ -122,8 +122,9 @@ keeps its copy through process exit and the final observation drain.
 
 The finalized and Rolling Windows Decisions workers route eligible fresh
 sources to the active attachment in the same session, thread and epoch. An
-attachment takes a native journal cutoff at activation. Entries that predate
-the activation stay outside automatic delivery. The worker sends the original
+attachment takes a native journal cutoff at activation. Existing journal entries
+cannot start new work automatically after that activation. Pending commands
+retain their original attachment across reactivation. The worker sends the original
 recorded decision ID, the native source and revision, and the exact routed
 text. Windows retain their original conversation timing labels.
 
@@ -131,9 +132,18 @@ Authenticated Decisions code can also deliver a recorded claim through
 `POST /v1/decisions/external-agent/submit`. The managed peer checks observed
 occupancy before reserving a send. When busy, Decisions asks Session
 `POST /v1/external-agent/claim/retained` to recover an exact original claim.
-Session returns an empty response when the claim is absent. A different
-command remains unapplied while the peer is busy. Queued delivery and task
-controls remain open.
+Session returns an empty response when the claim is absent. If
+`queue_if_busy` is true, the read-only `/claim/eligible` route first checks
+the exact original action. Decisions retains up to 32 pending commands per
+attachment and returns a stable task ID once the command is stored.
+Requests that decline queueing receive a busy refusal while the peer or its
+pending queue is occupied.
+
+The managed queue drains in order after a terminal observation and an idle
+Pi status. Session rechecks the source, revision and grant before committing
+the send, including after a restart. Stale commands get a `not_applied`
+observation. Detach suspends delivery until the original attachment is
+active again. Task controls remain open.
 
 The journal receipts identify Pi as the executor and carry observed external
 task identity separately from native Agent tasks. The managed service stores
@@ -164,8 +174,9 @@ also checks the current utterance for
 changed text and an earlier claim for the same spoken instruction. These
 checks and the claim write share one native transaction.
 
-The first committed claim assigns an admission ID. The adapter uses it as the
-Pi run identity and sends the instruction only when the reply says
+An eligible command has a stable candidate admission ID derived from its
+exact command digest. The first committed claim makes that ID authoritative.
+The adapter uses it as the Pi run identity and sends the instruction only when the reply says
 `original`. A duplicate claim returns `retained` with the same admission
 ID, including after Session restarts. The adapter can recover an originally
 observed acknowledgment from the managed store after reopening the peer.
@@ -206,4 +217,7 @@ The restart rehearsals kill the managed Pi peer and the Decisions service
 process in separate cases. They verify retained output and cursors,
 unchanged acceptance identity, and uncertainty for a run whose terminal
 event was never observed. Sandbox custody is checked with a competing lock
-acquisition while the real Pi peer is live.
+acquisition while the real Pi peer is live. The queue rehearsals deliver a
+rolling-audio action after a held typed run completes and recover pending
+commands after a real Decisions process crash. A corrected source is refused
+before Pi can run its queued original.

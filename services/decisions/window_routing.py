@@ -782,6 +782,8 @@ class WindowAgentDispatcher:
                 continue
             if payload.get("state") in {"applied", "rejected", "unknown", "not_applied"}:
                 return entry
+            if payload.get("state") == "queued" and payload.get("executor") == "pi":
+                return entry
         return None
 
     async def _active_tasks(self, session_id: str, epoch: int) -> list:
@@ -877,6 +879,10 @@ class WindowAgentDispatcher:
         for entry in matching:
             prior = entry.payload if isinstance(entry.payload, dict) else {}
             if prior.get("state") not in {"applied", "queued", "unknown"}:
+                continue
+            if prior.get("state") == "queued" and prior.get("executor") == "pi":
+                # Session deduplicates these at the Pi send. An earlier
+                # waiting window can still become stale before that check.
                 continue
             if prior.get("decision_id") == decision.decision_id:
                 continue

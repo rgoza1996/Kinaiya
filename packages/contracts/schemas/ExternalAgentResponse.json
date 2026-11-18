@@ -104,7 +104,8 @@
         "disposition": {
           "enum": [
             "original",
-            "retained"
+            "retained",
+            "eligible"
           ],
           "title": "Disposition",
           "type": "string"
@@ -651,6 +652,7 @@
             "settled",
             "failed",
             "interrupted",
+            "not_applied",
             "uncertain"
           ],
           "title": "State",
@@ -794,6 +796,7 @@
             "settled",
             "failed",
             "interrupted",
+            "not_applied",
             "uncertain"
           ],
           "title": "State",

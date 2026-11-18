@@ -1,5 +1,5 @@
 // Deterministic provider for the real Pi SDK integration test.
-import { readdirSync, readlinkSync } from "node:fs";
+import { existsSync, readdirSync, readlinkSync } from "node:fs";
 import { createAssistantMessageEventStream } from "/sdk/node_modules/@earendil-works/pi-ai/dist/index.js";
 
 export default function fixture(pi) {
@@ -47,7 +47,21 @@ export default function fixture(pi) {
           error: { ...result, errorMessage: "Synthetic " + stopReason } });
         stream.end();
       }
-      if (text === "hold for interrupt") {
+      if (text === "/fixture-command exact typed instruction \u2602") {
+        const release = setInterval(() => {
+          if (existsSync("release-typed-fixture")) {
+            clearInterval(release);
+            options.signal.removeEventListener("abort", abort);
+            finish("stop");
+          }
+        }, 20);
+        const abort = () => {
+          clearInterval(release);
+          finish("aborted");
+        };
+        if (options.signal.aborted) abort();
+        else options.signal.addEventListener("abort", abort, { once: true });
+      } else if (text === "hold for interrupt") {
         if (options.signal.aborted) finish("aborted");
         else options.signal.addEventListener("abort", () => finish("aborted"), { once: true });
       } else if (text === "read scoped transcript") {

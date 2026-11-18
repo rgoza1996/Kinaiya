@@ -1562,6 +1562,7 @@ class Store:
             )
         if pending_only:
             where.append("json_extract(e.value,'$.payload.state')='queued'")
+            where.append("json_extract(e.value,'$.payload.executor') IS NOT 'pi'")
             where.append("""NOT EXISTS (SELECT 1 FROM entries t
                 WHERE t.kind='routing.window_dispatch' AND t.session_id=e.session_id
                 AND json_extract(t.value,'$.payload.decision_id')=json_extract(e.value,'$.payload.decision_id')

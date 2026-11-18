@@ -497,7 +497,10 @@ class DecisionsWorker:
                 and e.epoch == source.epoch
                 and source.event_id in e.causes
                 and e.payload.get("decision_id") == decision.decision_id
-                and e.payload.get("state") in {"accepted", "rejected", "unknown", "not_applied"}
+                and (
+                    e.payload.get("state") in {"accepted", "rejected", "unknown", "not_applied"}
+                    or (e.payload.get("state") == "queued" and e.payload.get("executor") == "pi")
+                )
                 for e in receipts
             ):
                 return True

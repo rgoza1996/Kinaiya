@@ -125,6 +125,7 @@ class PiSdkPeer:
         self._unavailable = False
         self._active_run_id = None
         self._observations = None
+        self._observation_wake = None
         self._transcript_reader = transcript_reader
         self._transcript_tasks: dict[str, asyncio.Task] = {}
         self._reader_task = asyncio.create_task(self._receive())
@@ -177,10 +178,11 @@ class PiSdkPeer:
             return original.reply.result()
         return None
 
-    def retain_observations(self, observer):
+    def retain_observations(self, observer, *, wake=None):
         if self._observations is not None or self._requests or not self.available:
             raise PiPeerUnavailable("The original Pi observation owner is unavailable")
         self._observations = observer
+        self._observation_wake = wake
 
     async def wait_closed(self):
         await asyncio.shield(self._reader_task)
@@ -256,6 +258,8 @@ class PiSdkPeer:
             pass
         finally:
             self._unavailable = True
+            if self._observation_wake is not None:
+                self._observation_wake()
             for original in self._requests.values():
                 if not original.reply.done():
                     original.reply.set_result(None)
@@ -333,6 +337,13 @@ class PiSdkPeer:
         event = PiEvent(self._cursor + 1, run_id, kind, **detail)
         if self._observations is not None:
             await asyncio.to_thread(self._observations.record_event, event)
+        if self._observation_wake is not None and kind in {
+            "settled",
+            "failed",
+            "interrupted",
+            "uncertain",
+        }:
+            self._observation_wake()
         self._cursor = event.cursor
         self._events.append((event, size))
         self._event_bytes += size

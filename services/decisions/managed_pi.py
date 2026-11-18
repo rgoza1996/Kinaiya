@@ -31,7 +31,11 @@ from packages.contracts.external_agent_client import (
     ExternalAgentSessionClient,
 )
 from packages.providers.disclosure import combine_scopes, source_scope
-from services.decisions.pi_observations import PiObservations, PiObservationUnavailable
+from services.decisions.pi_observations import (
+    PiObservations,
+    PiObservationUnavailable,
+    PiQueueConflict,
+)
 from services.decisions.pi_process import PiLaunchUnavailable, launch
 
 
@@ -48,6 +52,8 @@ class ManagedPi:
         self._route_after = None
         self._owned = self._peer = self._grant = None
         self._observations = None
+        self._queue_wake = asyncio.Event()
+        self._queue_task = None
 
     @staticmethod
     def _refuse(request_id, reason):
@@ -91,7 +97,7 @@ class ManagedPi:
             tasks=tasks,
             capabilities=ExternalAgentCapabilities(
                 submit=ready and self._connected,
-                queue=False,
+                queue=ready and self._connected,
                 steer=False,
                 interrupt=False,
                 event_replay=True,
@@ -151,6 +157,9 @@ class ManagedPi:
         latest = await self.authority.journal.recent(session_id=scope.session_id, limit=1)
         self._route_after = latest[-1].sequence if latest else 0
         self._connected = True
+        if self._queue_task is None:
+            self._queue_task = asyncio.create_task(self._run_queue())
+        self._queue_wake.set()
 
     def routing_target(self, source):
         if (
@@ -236,7 +245,7 @@ class ManagedPi:
                 observations = PiObservations(self.data_dir, self._target)
                 await asyncio.to_thread(observations.start)
                 self._observations = observations
-                self._peer.retain_observations(observations)
+                self._peer.retain_observations(observations, wake=self._queue_wake.set)
                 await self._activate(self._grant.original.scope)
             except (
                 ExternalAgentNativeConflict,
@@ -285,7 +294,7 @@ class ManagedPi:
                 instruction=instruction,
                 content_scope=content_scope,
                 execution_policy="backend_owned",
-                queue_if_busy=False,
+                queue_if_busy=True,
             )
         except (httpx.HTTPError, OSError, ValueError):
             return {**no_effect, "reason": "external_agent_source_unavailable"}
@@ -300,10 +309,14 @@ class ManagedPi:
             routing_source=source,
         )
         if isinstance(reply, ExternalAgentCommandReceipt):
-            accepted = reply.disposition == "accepted"
+            state, reason = {
+                "queued": ("queued", "external_agent_queued"),
+                "accepted": (accepted_state, "external_agent_accepted"),
+                "uncertain": ("unknown", "external_agent_unconfirmed"),
+            }[reply.disposition]
             return {
-                "state": accepted_state if accepted else "unknown",
-                "reason": "external_agent_accepted" if accepted else "external_agent_unconfirmed",
+                "state": state,
+                "reason": reason,
                 "executor": "pi",
                 "external_task_id": reply.task.task_id,
                 "external_task_state": reply.task.state,
@@ -330,11 +343,31 @@ class ManagedPi:
             ):
                 return self._refuse(request.request_id, "unavailable")
             try:
+                queued = await asyncio.to_thread(self._observations.queued_task, request)
+                if queued is not None:
+                    await self._bound_grant(request.command.target)
+                    return self._queue_receipt(request, queued)
+                waiting = await asyncio.to_thread(self._observations.next_queued)
                 observed = await peer.status(secrets.token_hex(16))
-                return await PiSubmission(
-                    self.authority, peer, observations=self._observations
-                ).submit(request, retain_only=observed.busy)
-            except ExternalAgentNativeConflict:
+                submission = PiSubmission(self.authority, peer, observations=self._observations)
+                result = await submission.submit(
+                    request, retain_only=observed.busy or waiting is not None
+                )
+                if (
+                    not request.command.queue_if_busy
+                    or not isinstance(result, ExternalAgentRefusal)
+                    or result.reason != "busy"
+                ):
+                    return result
+                eligibility = await self.authority.eligible_claim(request)
+                if eligibility.disposition == "retained":
+                    return await submission.submit(request, retain_only=True)
+                queued = await asyncio.to_thread(self._observations.enqueue, request, eligibility)
+                if queued is None:
+                    return result
+                self._queue_wake.set()
+                return self._queue_receipt(request, queued)
+            except (ExternalAgentNativeConflict, PiQueueConflict):
                 return self._refuse(request.request_id, "scope_changed")
             except (
                 ExternalAgentNativeUnavailable,
@@ -344,6 +377,67 @@ class ManagedPi:
                 PermissionError,
             ):
                 return self._refuse(request.request_id, "unavailable")
+
+    @staticmethod
+    def _queue_receipt(request, task):
+        return ExternalAgentCommandReceipt(
+            contract_version=1,
+            request_id=request.request_id,
+            kind="command",
+            target=request.command.target,
+            operation="submit",
+            idempotency_key=request.command.idempotency_key,
+            task=task,
+            disposition="queued",
+        )
+
+    async def _run_queue(self):
+        while not self._closed:
+            self._queue_wake.clear()
+            delay = await self._drain_queue()
+            if delay is None:
+                await self._queue_wake.wait()
+            elif delay:
+                try:
+                    await asyncio.wait_for(self._queue_wake.wait(), timeout=delay)
+                except TimeoutError:
+                    pass
+
+    async def _drain_queue(self):
+        async with self._lock:
+            peer, observations = self._peer, self._observations
+            if self._closed or not self._connected or peer is None or not peer.available:
+                return None
+            try:
+                request = await asyncio.to_thread(observations.next_queued)
+                if request is None:
+                    return None
+                occupancy = await peer.status(secrets.token_hex(16))
+                if occupancy.busy:
+                    # A tracked run's terminal observation wakes the queue.
+                    # Poll only while Pi reports unbound backend housekeeping.
+                    return None if occupancy.run_id is not None else 0.25
+                if self._closed:
+                    return None
+                try:
+                    await PiSubmission(self.authority, peer, observations=observations).submit(
+                        request
+                    )
+                except ExternalAgentNativeConflict:
+                    await asyncio.to_thread(observations.retire_queued, request, "not_applied")
+                else:
+                    # A new native claim moves the pending row to starting.
+                    # A retained claim can exist after a lost admission ACK.
+                    await asyncio.to_thread(observations.retire_queued, request, "uncertain")
+                return 0
+            except (
+                ExternalAgentNativeUnavailable,
+                PiCommandUnconfirmed,
+                PiPeerUnavailable,
+                PermissionError,
+                ValueError,
+            ):
+                return 1
 
     async def events(self, request):
         async with self._lock:
@@ -408,6 +502,9 @@ class ManagedPi:
 
     async def close(self):
         self._closed = True
+        self._queue_wake.set()
+        if self._queue_task is not None:
+            await asyncio.shield(self._queue_task)
         if self._operations:
             await asyncio.gather(*tuple(self._operations), return_exceptions=True)
         async with self._lock:

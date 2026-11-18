@@ -88,4 +88,10 @@ def router(store, auth):
             request, ExternalAgentClaim, access.retained_claim, MAX_EXTERNAL_COMMAND_BYTES
         )
 
+    @native.post("/claim/eligible", dependencies=[decisions])
+    async def eligible_claim(request: Request):
+        return await _invoke(
+            request, ExternalAgentClaim, access.eligible_claim, MAX_EXTERNAL_COMMAND_BYTES
+        )
+
     return native

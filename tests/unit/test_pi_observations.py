@@ -7,13 +7,19 @@ import pytest
 
 from packages.agent_adapters.pi_sdk import PiEvent, PiEventReplayExpired, PiReply
 from packages.contracts.external_agent import (
+    ExternalAgentClaim,
     ExternalAgentClaimReceipt,
     ExternalAgentReplay,
     ExternalAgentSource,
+    ExternalAgentSubmit,
     ExternalAgentTarget,
 )
 from services.decisions import pi_observations
-from services.decisions.pi_observations import PiObservations, PiObservationUnavailable
+from services.decisions.pi_observations import (
+    PiObservations,
+    PiObservationUnavailable,
+    PiQueueConflict,
+)
 
 TARGET = ExternalAgentTarget(attachment_id="a" * 32, backend_session_id="session")
 TASK = "b" * 32
@@ -147,3 +153,55 @@ def test_concurrent_replay_observes_committed_prefix(original_store, tmp_path):
         for job in jobs:
             job.result(timeout=15)
     assert original_store.events(replay(writes - 1)).events[0].text == str(writes)
+
+
+def test_pending_capacity_and_exact_queued_retry(original_store, monkeypatch):
+    monkeypatch.setattr(pi_observations, "_MAX_QUEUED", 1)
+
+    def candidate(key):
+        command = ExternalAgentSubmit(
+            contract_version=1,
+            request_id="submit",
+            operation="submit",
+            target=TARGET,
+            idempotency_key=key,
+            source=ExternalAgentSource(event_ids=(key,), revision=1),
+            instruction="Queued synthetic action",
+            content_scope="public_synthetic",
+            execution_policy="backend_owned",
+            queue_if_busy=True,
+        )
+        request = ExternalAgentClaim(
+            contract_version=1,
+            request_id="queue",
+            operation="claim",
+            decision_event_id=key,
+            command=command,
+        )
+        digest = request.command_digest()
+        eligibility = original_claim().model_copy(
+            update={
+                "decision_event_id": key,
+                "idempotency_key": key,
+                "command_digest": digest,
+                "admission_id": digest[:32],
+                "disposition": "eligible",
+            }
+        )
+        return request, eligibility
+
+    first, proof = candidate("first")
+    task = original_store.enqueue(first, proof)
+    assert task.state == "queued"
+    replayed = first.model_copy(update={"request_id": "retry"})
+    assert original_store.queued_task(replayed) == task
+    changed = first.model_copy(
+        update={"command": first.command.model_copy(update={"instruction": "Changed action"})}
+    )
+    with pytest.raises(PiQueueConflict):
+        original_store.queued_task(changed)
+    assert original_store.next_queued() == first
+    assert original_store.enqueue(*candidate("second")) is None
+    original_store.retire_queued(first, "not_applied")
+    assert original_store.status(live=True)[1][-1].state == "not_applied"
+    assert original_store.enqueue(*candidate("second")).state == "queued"

@@ -13,6 +13,8 @@ from pydantic import TypeAdapter
 from packages.agent_adapters.pi_sdk import MAX_FRAME_BYTES, PiEventReplayExpired, PiReply
 from packages.contracts.external_agent import (
     MAX_CURSOR,
+    MAX_EXTERNAL_COMMAND_BYTES,
+    ExternalAgentClaim,
     ExternalAgentEvent,
     ExternalAgentEventPage,
     ExternalAgentMessageEvent,
@@ -29,6 +31,7 @@ _MAX_EVENTS = 512
 _MAX_BYTES = 8 * MAX_FRAME_BYTES
 _MAX_BATCH_BYTES = MAX_FRAME_BYTES + 4096
 _MAX_RECEIPTS = 512
+_MAX_QUEUED = 32
 _EVENT = TypeAdapter(ExternalAgentEvent)
 _FINAL = {"settled", "failed", "interrupted"}
 _IN_FLIGHT = ("starting", "running", "interrupt_requested")
@@ -37,6 +40,10 @@ _DATABASE_ACCESS = threading.Lock()
 
 class PiObservationUnavailable(ValueError):
     """The protected observation store cannot attest to this request."""
+
+
+class PiQueueConflict(ValueError):
+    """The original queued command has different content."""
 
 
 class PiObservations:
@@ -138,6 +145,10 @@ class PiObservations:
                 )
                 db.execute("PRAGMA user_version=1")
             prior, _ = self._head(db)
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS pending (idempotency_key TEXT PRIMARY KEY,"
+                "run_id TEXT NOT NULL UNIQUE,wire TEXT NOT NULL)"
+            )
             self._seal(db, prior)
             db.execute("UPDATE stream SET generation=? WHERE id=1", (self.generation,))
 
@@ -163,21 +174,119 @@ class PiObservations:
             raise PiObservationUnavailable
         with self._database(write=True) as db:
             self._head(db, current=True)
+            pending = db.execute(
+                "SELECT run_id FROM pending WHERE idempotency_key=?", (claim.idempotency_key,)
+            ).fetchone()
+            if pending is None:
+                db.execute(
+                    "INSERT INTO tasks VALUES(?,?,?,?,'starting',NULL,NULL)",
+                    (
+                        claim.admission_id,
+                        self.generation,
+                        claim.command_digest,
+                        source.model_dump_json(),
+                    ),
+                )
+            else:
+                if (
+                    pending[0] != claim.admission_id
+                    or db.execute(
+                        "UPDATE tasks SET generation=? WHERE run_id=? AND digest=? AND state='queued'",
+                        (self.generation, claim.admission_id, claim.command_digest),
+                    ).rowcount
+                    != 1
+                ):
+                    raise PiObservationUnavailable
+                db.execute("DELETE FROM pending WHERE run_id=?", (claim.admission_id,))
+                self._transition(db, claim.admission_id, "starting")
+            self._prune_receipts(db)
+
+    def _queued_task(self, db, request):
+        if request.command.target != self.target:
+            raise PiQueueConflict
+        row = db.execute(
+            "SELECT t.run_id,t.digest FROM pending p JOIN tasks t ON t.run_id=p.run_id "
+            "WHERE p.idempotency_key=? AND t.state='queued'",
+            (request.command.idempotency_key,),
+        ).fetchone()
+        if row is None:
+            return None
+        if row[1] != request.command_digest():
+            raise PiQueueConflict
+        return ExternalAgentTask(
+            task_id=row[0], source=request.command.source, revision=1, state="queued"
+        )
+
+    def queued_task(self, request):
+        with self._database() as db:
+            self._head(db, current=True)
+            return self._queued_task(db, request)
+
+    def enqueue(self, request, eligibility):
+        wire = request.model_dump_json()
+        digest = request.command_digest()
+        if (
+            len(wire.encode("utf-8")) > MAX_EXTERNAL_COMMAND_BYTES
+            or eligibility.disposition != "eligible"
+            or eligibility.target != self.target
+            or eligibility.idempotency_key != request.command.idempotency_key
+            or eligibility.decision_event_id != request.decision_event_id
+            or eligibility.command_digest != digest
+            or eligibility.admission_id != digest[:32]
+        ):
+            raise PiObservationUnavailable
+        with self._database(write=True) as db:
+            self._head(db, current=True)
+            task = self._queued_task(db, request)
+            if task is not None:
+                return task
+            if db.execute("SELECT count(*) FROM pending").fetchone()[0] >= _MAX_QUEUED:
+                return None
             db.execute(
-                "INSERT INTO tasks VALUES(?,?,?,?,'starting',NULL,NULL)",
+                "INSERT INTO tasks VALUES(?,?,?,?,'queued',NULL,NULL)",
                 (
-                    claim.admission_id,
+                    eligibility.admission_id,
                     self.generation,
-                    claim.command_digest,
-                    source.model_dump_json(),
+                    digest,
+                    request.command.source.model_dump_json(),
                 ),
             )
             db.execute(
-                "DELETE FROM tasks WHERE rowid IN (SELECT rowid FROM tasks "
-                "ORDER BY rowid DESC LIMIT -1 OFFSET ?) "
-                "AND (disposition='refused' OR state NOT IN (?,?,?))",
-                (_MAX_RECEIPTS, *_IN_FLIGHT),
+                "INSERT INTO pending VALUES(?,?,?)",
+                (request.command.idempotency_key, eligibility.admission_id, wire),
             )
+            self._transition(db, eligibility.admission_id, "queued")
+            self._prune_receipts(db)
+            return self._queued_task(db, request)
+
+    def next_queued(self):
+        with self._database() as db:
+            self._head(db, current=True)
+            row = db.execute("SELECT wire FROM pending ORDER BY rowid LIMIT 1").fetchone()
+            if row is None:
+                return None
+            request = ExternalAgentClaim.model_validate_json(row[0], strict=True)
+            if self._queued_task(db, request) is None:
+                raise PiObservationUnavailable
+            return request
+
+    def retire_queued(self, request, state):
+        with self._database(write=True) as db:
+            self._head(db, current=True)
+            task = self._queued_task(db, request)
+            if task is not None:
+                db.execute("DELETE FROM pending WHERE run_id=?", (task.task_id,))
+                self._transition(db, task.task_id, state)
+                self._prune_receipts(db)
+
+    @staticmethod
+    def _prune_receipts(db):
+        db.execute(
+            "DELETE FROM tasks WHERE rowid IN (SELECT rowid FROM tasks "
+            "ORDER BY rowid DESC LIMIT -1 OFFSET ?) "
+            "AND (disposition='refused' OR state NOT IN ('queued',?,?,?))",
+            (_MAX_RECEIPTS, *_IN_FLIGHT),
+        )
 
     def original_reply(self, claim):
         if claim.target != self.target:
@@ -205,7 +314,9 @@ class PiObservations:
             )
             if changed.rowcount != 1:
                 raise PiObservationUnavailable
-            if reply.disposition == "uncertain":
+            if reply.disposition == "refused":
+                self._transition(db, task_id, "not_applied")
+            elif reply.disposition == "uncertain":
                 state = self._task_state(db, task_id)
                 if state == "starting":
                     self._transition(db, task_id, "uncertain")
@@ -273,7 +384,8 @@ class PiObservations:
         with self._database() as db:
             generation, _ = self._head(db)
             rows = db.execute(
-                "SELECT run_id,source,state FROM tasks WHERE disposition IS NOT 'refused' "
+                "SELECT run_id,source,state FROM tasks "
+                "WHERE disposition IS NOT 'refused' OR state='not_applied' "
                 "ORDER BY rowid DESC LIMIT 128"
             ).fetchall()
         tasks = tuple(

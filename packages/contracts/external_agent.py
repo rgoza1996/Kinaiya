@@ -27,6 +27,7 @@ BridgeTaskState = Literal[
     "settled",
     "failed",
     "interrupted",
+    "not_applied",
     "uncertain",
 ]
 
@@ -290,7 +291,7 @@ class ExternalAgentClaimReceipt(_Envelope):
     idempotency_key: BridgeIdentifier
     command_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     admission_id: BridgeAttachmentId
-    disposition: Literal["original", "retained"]
+    disposition: Literal["original", "retained", "eligible"]
 
 
 class _Event(_Closed):

@@ -276,6 +276,11 @@ async def test_one_exact_claim_survives_duplicate_delivery_and_restart(tmp_path)
             await peers.owner.claim(request)
         with pytest.raises(PermissionError):
             await peers.owner.claim(request, retain_only=True)
+        with pytest.raises(PermissionError):
+            await peers.owner.eligible_claim(request)
+        assert await peers.decisions.claim(request, retain_only=True) is None
+        eligible = await peers.decisions.eligible_claim(request)
+        assert eligible.disposition == "eligible"
         assert await peers.decisions.claim(request, retain_only=True) is None
         competing = await asyncio.gather(
             peers.decisions.claim(request),
@@ -283,6 +288,7 @@ async def test_one_exact_claim_survives_duplicate_delivery_and_restart(tmp_path)
         )
         assert {reply.disposition for reply in competing} == {"original", "retained"}
         (admission_id,) = {reply.admission_id for reply in competing}
+        assert admission_id == eligible.admission_id
 
     async with native(path) as peers:
         retained = await peers.decisions.claim(request, retain_only=True)

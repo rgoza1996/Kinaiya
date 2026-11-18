@@ -107,22 +107,33 @@ class ExternalAgentSessionClient:
         return grant
 
     async def claim(self, request, *, retain_only=False):
+        return await self._claim(
+            request,
+            "claim/retained" if retain_only else "claim",
+            {"retained"} if retain_only else {"original", "retained"},
+            allow_empty=retain_only,
+        )
+
+    async def eligible_claim(self, request):
+        return await self._claim(request, "claim/eligible", {"eligible", "retained"})
+
+    async def _claim(self, request, action, dispositions, *, allow_empty=False):
         original = ExternalAgentClaim.model_validate(request, strict=True)
         result = await self._request(
-            "claim/retained" if retain_only else "claim",
+            action,
             original,
             ExternalAgentClaimReceipt,
             input_bound=MAX_EXTERNAL_COMMAND_BYTES,
-            allow_empty=retain_only,
+            allow_empty=allow_empty,
         )
-        if result is None and retain_only:
+        if result is None and allow_empty:
             return None
         if (
             result.target != original.command.target
             or result.decision_event_id != original.decision_event_id
             or result.idempotency_key != original.command.idempotency_key
             or result.command_digest != original.command_digest()
-            or (retain_only and result.disposition != "retained")
+            or result.disposition not in dispositions
         ):
             raise ExternalAgentNativeUnavailable
         return result
