@@ -118,7 +118,9 @@ owned peer available to reconnect. A shutdown receipt reports a stopped
 peer once its process exit is observed. The SDK persists a session header
 at attach time, so reopening an empty session retains its original identity.
 Bubblewrap holds the per-attachment lock for the sandbox's lifetime. Decisions
-keeps its copy through process exit and the final observation drain.
+keeps its copy through process exit and the final observation drain. Bubblewrap's
+namespace init can retain its copy briefly after the outer monitor reports that
+Pi exited. Every replacement must acquire the attachment lock before starting.
 
 The finalized and Rolling Windows Decisions workers route eligible fresh
 sources to the active attachment in the same session, thread and epoch. An

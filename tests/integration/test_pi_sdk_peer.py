@@ -8,7 +8,7 @@ import os
 import shutil
 import socket
 import sys
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -592,14 +592,7 @@ async def test_abrupt_decisions_replacement_preserves_acceptance_and_pending_que
 
         # The sandbox retains the lock until it actually exits after parent death.
         lock = data / "external-agent" / (grant.attachment_id + ".lock")
-        with lock.open("r+b") as probe:
-            async with asyncio.timeout(5):
-                while True:
-                    try:
-                        fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        break
-                    except BlockingIOError:
-                        await asyncio.sleep(0.03)
+        await wait_for_attachment_release(lock)
 
         add(
             peers.store,
@@ -647,7 +640,22 @@ async def test_abrupt_decisions_replacement_preserves_acceptance_and_pending_que
             )
 
 
-async def test_live_sandbox_retains_attachment_lock_without_decisions_descriptor(private):
+async def wait_for_attachment_release(lock):
+    # The outer monitor may report Node's exit before namespace init drops --sync-fd.
+    with lock.open("r+b") as probe:
+        async with asyncio.timeout(5):
+            while True:
+                try:
+                    fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    return
+                except BlockingIOError:
+                    await asyncio.sleep(0.03)
+
+
+@pytest.mark.parametrize("hold_through_exit", [False, True])
+async def test_live_sandbox_retains_attachment_lock_without_decisions_descriptor(
+    private, hold_through_exit
+):
     data = private.parent / "custody-data"
     data.mkdir(mode=0o700)
     attachment = "a" * 32
@@ -658,30 +666,51 @@ async def test_live_sandbox_retains_attachment_lock_without_decisions_descriptor
         agent_dir=str(private / "agent"),
         workspace=str(private / "workspace"),
     )
-    owned = await launch(
-        profile,
-        attachment_id=attachment,
-        data_dir=data,
-        protected=(ROOT, data),
-        expected_session_id=None,
-    )
-    try:
-        peer = await PiSdkPeer.attach(
-            owned.process.stdout, owned.process.stdin, transcript_reader=lambda **_: None
+
+    @asynccontextmanager
+    async def start(expected_session_id=None):
+        owned = await launch(
+            profile,
+            attachment_id=attachment,
+            data_dir=data,
+            protected=(ROOT, data),
+            expected_session_id=expected_session_id,
         )
-        assert (await peer.status("1" * 32)).busy is False
-        os.close(owned._lock_descriptor)
-        owned._lock_descriptor = None
-        lock = data / "external-agent" / (attachment + ".lock")
-        with lock.open("r+b") as probe:
+        try:
+            yield owned
+        finally:
+            assert await owned.close()
+
+    lock = data / "external-agent" / (attachment + ".lock")
+    with ExitStack() as retained:
+        async with start() as owned:
+            peer = await PiSdkPeer.attach(
+                owned.process.stdout, owned.process.stdin, transcript_reader=lambda **_: None
+            )
+            assert (await peer.status("1" * 32)).busy is False
+            if hold_through_exit:
+                retained.callback(os.close, os.dup(owned._lock_descriptor))
+            os.close(owned._lock_descriptor)
+            owned._lock_descriptor = None
+            with lock.open("r+b") as probe:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            assert (await peer.status("2" * 32)).busy is False
+        assert owned.process.returncode is not None
+        if hold_through_exit:
             with pytest.raises(BlockingIOError):
-                fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        assert (await peer.status("2" * 32)).busy is False
-    finally:
-        assert await owned.close()
-    assert owned.process.returncode is not None
-    with lock.open("r+b") as probe:
-        fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                async with start(peer.session_id):
+                    pytest.fail("A replacement started while the original lock was held")
+
+    await wait_for_attachment_release(lock)
+    async with start(peer.session_id) as replacement:
+        reopened = await PiSdkPeer.attach(
+            replacement.process.stdout,
+            replacement.process.stdin,
+            expected_session_id=peer.session_id,
+            transcript_reader=lambda **_: None,
+        )
+        assert (await reopened.status("3" * 32)).busy is False
 
 
 async def test_converse_only_launcher_attaches_real_sdk_and_reopens_empty_session(
