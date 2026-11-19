@@ -13,7 +13,7 @@ import re
 import types
 from math import gcd
 from types import MappingProxyType
-from typing import Annotated, Generic, Literal, Self, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Literal, Self, Union, get_args, get_origin
 
 from pydantic import (
     AfterValidator,
@@ -2285,15 +2285,12 @@ class MediaStatusAppend(_MediaModel):
     value: MediaStatus
 
 
-_T = TypeVar("_T", bound=_MediaModel)
-
-
-class MediaReceipt(_MediaModel, Generic[_T]):
+class MediaReceipt[T: _MediaModel](_MediaModel):
     v: Literal[1]
     id: _Id
     key: _Key
     request_sha256: _Hash
-    body: _T
+    body: T
     sha256: _Hash
 
     @model_validator(mode="after")
@@ -2304,10 +2301,10 @@ class MediaReceipt(_MediaModel, Generic[_T]):
         return self
 
 
-class MediaFound(_MediaModel, Generic[_T]):
+class MediaFound[T: _MediaModel](_MediaModel):
     v: Literal[1]
     found: bool
-    value: MediaReceipt[_T] | None
+    value: MediaReceipt[T] | None
 
     @model_validator(mode="after")
     def _present(self) -> Self:
@@ -2812,7 +2809,7 @@ def _lexical_bounds(text: str, *, depth_limit=MAX_MEDIA_DEPTH, nodes_limit=MAX_M
         _bad()
 
 
-def media_json(raw: bytes, kind: type[_T]) -> _T:
+def media_json[T: _MediaModel](raw: bytes, kind: type[T]) -> T:
     """Parse a registered DTO or exact MediaFormat alias into fresh typed values."""
     try:
         alias = any(kind is candidate for candidate in _ALIASES.values())
@@ -2849,7 +2846,7 @@ def media_json(raw: bytes, kind: type[_T]) -> _T:
         raise MediaContractError() from None
 
 
-def media_bytes(model: _T) -> bytes:
+def media_bytes(model: _MediaModel) -> bytes:
     """Revalidate the complete actual typed closure before canonical encoding."""
     try:
         if type(model) not in _SHORT_NAMES:

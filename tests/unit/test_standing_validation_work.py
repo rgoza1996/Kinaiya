@@ -6,7 +6,7 @@ canonical-byte revalidations (Issue #356 / PR #374), without wall-clock timing
 thresholds, sleeps, or host-speed assumptions.
 
 Supported scope and rationale:
-- Python >= 3.11 and Pydantic >= 2.10, < 3 (configured with
+- Python >= 3.12 and Pydantic >= 2.10, < 3 (configured with
   ``revalidate_instances="always"`` on ``_Closed`` and ``_Finalization``).
 - In ``packages.contracts.standing_resource_finalization``, ``_Finalization``
   runs a ``mode="wrap"`` validator (``complete_graph``) that calls

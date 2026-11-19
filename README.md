@@ -98,7 +98,7 @@ flowchart TB
 
 ## Get started
 
-Kinaiya runs on a native Linux host (**Ubuntu 22.04, 24.04, or 26.04**, `x86_64` or `aarch64`, `Python 3.11–3.14`) with a Flutter web interface. Other Linux distributions (such as Debian 12), WSL, macOS, and Windows are not qualified by the candidate installer. Read the [Linux installation and recovery guide](docs/linux-installation.md) for the complete first-use quickstart and recovery paths; **never run the installer as root**.
+Kinaiya runs on a native Linux host (**Ubuntu 22.04, 24.04, or 26.04**, `x86_64` or `aarch64`, `Python 3.12–3.14`) with a Flutter web interface. Other Linux distributions (such as Debian 12), WSL, macOS, and Windows are not qualified by the candidate installer. Read the [Linux installation and recovery guide](docs/linux-installation.md) for the complete first-use quickstart and recovery paths; **never run the installer as root**.
 
 ### Native Linux quick install (single command)
 
@@ -119,7 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/rgoza1996/Kinaiya/main/install.sh |
 
 ```mermaid
 flowchart LR
-    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04/26.04 · Python 3.11–3.14"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
+    A["1. Host & Blocker Check<br/>Ubuntu 22.04/24.04/26.04 · Python 3.12–3.14"] --> B["2. Missing Dependencies<br/>apt-get -s solver check + pinned install"]
     B --> C["3. Release Verification<br/>HTTPS + Immutable Tag + SHA-256"]
     C --> D["4. Isolated Runtime<br/>Per-Generation .venv + Locked Wheels"]
     D --> E["5. Interactive Setup Wizard<br/>~/.config/kinaiya/config.json"]
@@ -129,7 +129,7 @@ flowchart LR
 > **Dependency & System Update Policy (Solver-Verified No-Upgrade / No-Remove / No-Downgrade):**
 > - **Installs missing dependencies only:** If `bubblewrap`, `libseccomp2`, or `python3.<minor>-venv` is missing, the CLI includes the non-mutating `apt-get -s` solver check and `sudo apt-get install --no-upgrade --no-remove -o APT::Get::Upgrade=false -o APT::Get::Remove=false -o APT::Get::Allow-Downgrades=false -y -- <missing>` in the confirmation plan. Before invoking `sudo`, it simulates the complete transaction against the `dpkg` status snapshot, verifies that every `Inst` record is a newly installed package with zero upgrades, removals, or downgrades, and binds the approved `package=version` pairs to the install command.
 > - **Never updates or mutates existing system packages:** Because `apt-get --no-upgrade` alone only prevents upgrading packages explicitly named on the command line (and can still upgrade already-installed transitive dependencies), Kinaiya inspects the full solver transaction and **never** runs `sudo apt-get update` or `sudo apt-get upgrade`.
-> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.11`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`), a transitive dependency upgrade/removal/downgrade requirement, or a stale local package index blocks installation, the CLI and setup wizard stop before any mutating command and warn you to update that specific component first.
+> - **Warns on out-of-date blockers:** If an existing system component (`Ubuntu < 22.04`, `Python < 3.12`, `bubblewrap < 0.6.1`, `libseccomp2 < 2.5`), a transitive dependency upgrade/removal/downgrade requirement, or a stale local package index blocks installation, the CLI and setup wizard stop before any mutating command and warn you to update that specific component first.
 
 **Install locations, release channels & setup boundaries:**
 - **Default XDG layout vs custom directories:** By default, managed code and per-generation `.venv` runtimes live in `~/.local/share/kinaiya/install`, private journals and tokens in `~/.local/share/kinaiya/data`, config in `~/.config/kinaiya/config.json`, cache in `~/.cache/kinaiya`, the launcher in `~/.local/bin/kinaiya`, and the Agent workspace in `~/Kinaiya Workspace`. You can pass custom absolute `--workspace` and `--data-dir` paths (including paths with spaces) to `install.sh`, provided all roots are disjoint and symlink-free; managed code and private data must stay outside the Agent workspace so Agent tools cannot modify trusted runtime code or credentials. *Planned (open PR, not on `main`):* an interactive choice between the default root and the invoking directory (#383).

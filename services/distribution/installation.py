@@ -688,11 +688,11 @@ def check_outdated_system_blockers(*, probe_subprocesses: bool = False) -> None:
     import platform
 
     py_major, py_minor = sys.version_info[:2]
-    if (py_major, py_minor) < (3, 11):
+    if (py_major, py_minor) < (3, 12):
         raise InstallError(
             f"Out-of-date system blocker: Python {py_major}.{py_minor} is out of date "
-            "(Kinaiya requires Python 3.11-3.14). Please update Python first; "
-            "the installer will not update existing system packages for you."
+            "(Kinaiya requires Python 3.12-3.14). Install a supported Python with venv and "
+            "rerun install.sh with KINAIYA_PYTHON set to that interpreter."
         )
     if platform.system() != "Linux":
         return
@@ -759,11 +759,11 @@ def preflight(layout, *, allow_missing_dependencies: bool = False):
         raise InstallError(
             "Initial candidate baseline is Ubuntu 22.04/24.04/26.04 only; see docs/linux-installation.md"
         )
-    if platform.machine() not in {"x86_64", "aarch64"} or not (3, 11) <= sys.version_info[:2] <= (
+    if platform.machine() not in {"x86_64", "aarch64"} or not (3, 12) <= sys.version_info[:2] <= (
         3,
         14,
     ):
-        raise InstallError("Require x86_64/aarch64 and Python 3.11-3.14 with venv/ensurepip")
+        raise InstallError("Require x86_64/aarch64 and Python 3.12-3.14 with venv/ensurepip")
     missing = missing_system_dependencies()
     if missing and not allow_missing_dependencies:
         sim = " ".join(apt_simulation_command(missing))

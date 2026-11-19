@@ -476,7 +476,7 @@ def test_real_linux_setup_private_tokens_and_agent_only_config(tmp_path):
     "blocker,expected",
     [
         ("ubuntu", "Out-of-date system blocker: Ubuntu 20.04 is out of date"),
-        ("python", "Out-of-date system blocker: Python 3.10 is out of date"),
+        ("python", "Out-of-date system blocker: Python 3.11 is out of date"),
         ("bwrap", "Out-of-date system blocker: bubblewrap 0.4.1 is out of date"),
         ("libseccomp2", "Out-of-date system blocker: libseccomp2 2.4.3-1ubuntu1 is out of date"),
     ],
@@ -500,7 +500,7 @@ def test_outdated_system_blockers_warn_user_in_preflight_and_wizard(
         lambda: {"ID": "ubuntu", "VERSION_ID": "20.04" if blocker == "ubuntu" else "24.04"},
     )
     if blocker == "python":
-        monkeypatch.setattr(sys, "version_info", (3, 10, 12, "final", 0))
+        monkeypatch.setattr(sys, "version_info", (3, 11, 18, "final", 0))
     monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/bwrap")
     monkeypatch.setattr(ctypes.util, "find_library", lambda name: "libseccomp.so.2")
     monkeypatch.setattr(
