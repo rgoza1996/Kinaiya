@@ -1,6 +1,8 @@
 """Public installer/updater commands, including the native launcher parser."""
 
 import importlib
+import tomllib
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -193,6 +195,16 @@ def test_runtime_dependencies_use_isolated_hash_locked_https_wheels(tmp_path, mo
     assert "--isolated" in pip and "--require-hashes" in pip
     assert "--only-binary=:all:" in pip and "--no-input" in pip
     assert pip[pip.index("--index-url") + 1] == "https://pypi.org/simple"
+    assert commands[2][0] == pip[0]
+    assert "from websockets.asyncio.client import connect" in commands[2][-1]
+
+
+def test_managed_runtime_includes_pinned_lmstudio_dependencies():
+    root = Path(__file__).resolve().parents[2]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    runtime_lock = (root / "requirements-runtime.lock").read_text(encoding="utf-8").splitlines()
+    for requirement in project["optional-dependencies"]["lmstudio"]:
+        assert requirement + " \\" in runtime_lock
 
 
 def test_cli_install_installs_missing_system_dependencies_without_upgrade(tmp_path, monkeypatch):

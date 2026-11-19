@@ -167,11 +167,12 @@ of that repository/release authority. Stable publication is separately gated by
 release qualification and configured signing; this installer does not manufacture
 signing secrets or assert that a release has been published.
 
-Locked Agent-only runtime wheels are installed with hash verification in a
-per-generation `venv`; development, voice and model extras are excluded.
-Preparation imports the native runtime to catch missing dependencies before the
-switch. This is an import health check, **not** a live provider or service-readiness
-qualification. Dependency failures preserve the previous generation.
+The installer puts hash-verified Agent runtime wheels, including the native LM
+Studio WebSocket client, in a per-generation `venv`. Development tools and
+optional voice and model runtimes are installed separately. Before activating a
+generation, Kinaiya verifies the service and WebSocket imports. A real Agent
+task tests the connection to the selected model. Dependency failures preserve
+the previous generation.
 
 ## Locations and PATH
 
@@ -229,6 +230,9 @@ kinaiya setup --yes --adapter lmstudio \
 # After the chosen setup:
 kinaiya serve host
 ```
+
+With your model loaded in LM Studio, select it for Agent in the setup wizard,
+then send a task through Direct Agent Chat.
 
 Replace illustrative endpoints/model names with your selected provider settings.
 The setup adapter choices are:

@@ -1797,7 +1797,10 @@ def prepare_runtime(generation, source):
         [
             str(python),
             "-c",
-            "import services.launcher; import services.agent; import services.session.api",
+            "import services.launcher\n"
+            "import services.agent\n"
+            "import services.session.api\n"
+            "from websockets.asyncio.client import connect",
         ],
     ]
     reporter = current_reporter()
